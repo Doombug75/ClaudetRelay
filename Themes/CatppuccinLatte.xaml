@@ -1,0 +1,25 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Catppuccin Latte - Hintergründe -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#EFF1F5"/>
+    <SolidColorBrush x:Key="SidebarBrush" Color="#E6E9EF"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#CCD0DA"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#BCC0CC"/>
+
+    <!-- Catppuccin Latte - Text -->
+    <SolidColorBrush x:Key="TextBrush" Color="#4C4F69"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#8C8FA1"/>
+
+    <!-- Catppuccin Latte - Akzente -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#8839EF"/>
+    <SolidColorBrush x:Key="OllamaBrush" Color="#40A02B"/>
+    <SolidColorBrush x:Key="UserBrush" Color="#1E66F5"/>
+    <SolidColorBrush x:Key="AccentBrush" Color="#D20F39"/>
+
+    <!-- Catppuccin Latte - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#E0D5F5"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#D5EDD5"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#D5E0F5"/>
+
+</ResourceDictionary>
