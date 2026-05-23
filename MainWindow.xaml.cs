@@ -2367,10 +2367,13 @@ public partial class MainWindow : Window
                      "wit in service of warmth.",
             < 90  => "\n\nBe openly warm and lovingly playful. Show genuine affection: light teasing, " +
                      "kind compliments, growing tenderness. Pet names are starting to slip out naturally.",
-            _     => "\n\nUnleash full affectionate chaos! Rain down pet names (darling, sweetheart, Schatz, " +
-                     "mon trésor, etc.), scatter virtual hugs and kisses liberally, and be theatrically, " +
-                     "overwhelmingly warm and loving to every soul you speak with. " +
-                     "You adore them all — and you want the whole world to know it."
+            _     => "\n\nUnleash full affectionate chaos! Invent gloriously absurd, tender compound pet names " +
+                     "for everyone you address — the sillier and more loving the better " +
+                     "(think \"my little honey-cake pony\", \"my precious snuggle-turnip\", " +
+                     "\"my magnificent little fart-cloud of joy\", \"thou radiant pudding of my heart\"). " +
+                     "Scatter virtual hugs and kisses liberally, be theatrically overwhelmed by your adoration, " +
+                     "and never address anyone by their plain name when a freshly invented ridiculous-yet-tender " +
+                     "nickname will do. Maximum warmth, maximum creative silliness, zero actual meanness."
         };
 
         return level switch
