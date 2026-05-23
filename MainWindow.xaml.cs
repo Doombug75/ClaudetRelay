@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using SysIO = System.IO;
 using System.Text;
 using System.Threading;
@@ -17,6 +18,15 @@ namespace ClaudetRelay;
 
 public partial class MainWindow : Window
 {
+    // ── Streaming bubble handle ────────────────────────────────────────────
+
+    /// <summary>Returned by AddStreamingBubble. Content is the selectable TextBox;
+    /// StopThinking kills the thinking animation; SetTooltip sets the hover tip.</summary>
+    private sealed record StreamBubble(
+        TextBox        Content,
+        Action         StopThinking,
+        Action<string> SetTooltip);
+
     // ── Nested types ───────────────────────────────────────────────────────
 
     private sealed class OllamaParticipant
@@ -28,9 +38,15 @@ public partial class MainWindow : Window
         public string?  CustomName { get; set; }
 
         public string ColorKey    => Position switch { 2 => "AccentBrush", 3 => "ClaudeBrush", _ => "OllamaBrush" };
-        public string AvatarLabel => $"O{Position}";
+
+        public string AvatarLabel => string.IsNullOrEmpty(Service.CurrentModel)
+            ? $"O{Position}"
+            : FormatModelAvatarLabel(Service.CurrentModel);
+
         public string DisplayName => string.IsNullOrEmpty(CustomName)
-            ? $"O{Position} · Ollama"
+            ? string.IsNullOrEmpty(Service.CurrentModel)
+                ? $"Ollama {Position}"
+                : FormatModelDisplayName(Service.CurrentModel)
             : CustomName;
     }
 
@@ -60,19 +76,21 @@ public partial class MainWindow : Window
 
         public string ColorKey => Position switch { 2 => "AccentBrush", 3 => "OllamaBrush", _ => "ClaudeBrush" };
 
-        public string AvatarLabel => Service.ProviderName switch
-        {
-            "Anthropic"      => "An",
-            "Google AI"      => "Gm",
-            "Groq"           => "Gq",
-            "OpenRouter"     => "OR",
-            "Mistral"        => "Mi",
-            "xAI Grok"       => "xG",
-            "OpenAI ChatGPT" => "GP",
-            _                => Service.ProviderName.Length >= 2
-                                    ? Service.ProviderName[..2]
-                                    : Service.ProviderName
-        };
+        public string AvatarLabel => string.IsNullOrEmpty(Service.CurrentModel)
+            ? Service.ProviderName switch
+            {
+                "Anthropic"      => "An",
+                "Google AI"      => "Gm",
+                "Groq"           => "Gq",
+                "OpenRouter"     => "OR",
+                "Mistral"        => "Mi",
+                "xAI Grok"       => "xG",
+                "OpenAI ChatGPT" => "GP",
+                _                => Service.ProviderName.Length >= 2
+                                        ? Service.ProviderName[..2]
+                                        : Service.ProviderName
+            }
+            : FormatModelAvatarLabel(Service.CurrentModel);
 
         public string ProviderName => Service.ProviderName;
 
@@ -105,6 +123,11 @@ public partial class MainWindow : Window
     private List<string>                         _availableOllamaModels = [];
     private string?                              _currentThemePath;
     private string                               _userName              = "You";
+
+    // ── Project state ──────────────────────────────────────────────────────
+    private string?       _currentProjectFolder;
+    private ProjectMeta?  _currentProject;
+    private string?       _selectedProjectFolder; // selected in Projects list
 
     // ──────────────────────────────────────────────────────────────────────
 
@@ -213,6 +236,356 @@ public partial class MainWindow : Window
         _ = CheckAllStatusAsync();
     }
 
+    // ── Tab switching ──────────────────────────────────────────────────────
+
+    private void ChatTabButton_Click(object sender, RoutedEventArgs e)
+        => ActivateTab(chat: true);
+
+    private void ProjectsTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshProjectList();
+        ActivateTab(chat: false);
+    }
+
+    private void ActivateTab(bool chat)
+    {
+        // Chat-only elements
+        ChatHeader    .Visibility = chat ? Visibility.Visible   : Visibility.Collapsed;
+        ChatHeaderSep .Visibility = chat ? Visibility.Visible   : Visibility.Collapsed;
+        ChatScrollViewer.Visibility = chat ? Visibility.Visible : Visibility.Collapsed;
+        InputArea     .Visibility = chat ? Visibility.Visible   : Visibility.Collapsed;
+
+        // Projects panel
+        ProjectsContent.Visibility = chat ? Visibility.Collapsed : Visibility.Visible;
+
+        // Tab button visual state
+        ChatTabButton.SetResourceReference(Button.BackgroundProperty,
+            chat ? "InputBrush" : "Transparent");
+        ChatTabButton.FontWeight = chat ? FontWeights.SemiBold : FontWeights.Normal;
+        ChatTabButton.SetResourceReference(Button.ForegroundProperty,
+            chat ? "TextBrush" : "SubtextBrush");
+
+        ProjectsTabButton.Background = Brushes.Transparent;
+        ProjectsTabButton.FontWeight = chat ? FontWeights.Normal : FontWeights.SemiBold;
+        ProjectsTabButton.SetResourceReference(Button.ForegroundProperty,
+            chat ? "SubtextBrush" : "TextBrush");
+    }
+
+    // ── Project list ───────────────────────────────────────────────────────
+
+    private void RefreshProjectList()
+    {
+        var settings = SettingsService.Load();
+        var folder   = ProjectService.ResolveFolder(settings.ProjectsFolder);
+        var projects = ProjectService.ListProjects(folder);
+
+        ProjectListPanel.Children.Clear();
+        _selectedProjectFolder = null;
+        OpenProjectButton  .IsEnabled = false;
+        DeleteProjectButton.IsEnabled = false;
+
+        if (projects.Count == 0)
+        {
+            var empty = new TextBlock
+            {
+                Text      = "No projects yet — click “New Project” to create one.",
+                FontSize  = 13, FontFamily = new FontFamily("Segoe UI"),
+                Margin    = new Thickness(0, 8, 0, 0),
+                TextWrapping = TextWrapping.Wrap
+            };
+            empty.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+            ProjectListPanel.Children.Add(empty);
+            return;
+        }
+
+        foreach (var (projFolder, meta) in projects)
+        {
+            var card = BuildProjectCard(projFolder, meta);
+            ProjectListPanel.Children.Add(card);
+        }
+    }
+
+    private Border BuildProjectCard(string projFolder, ProjectMeta meta)
+    {
+        var nameLabel = new TextBlock
+        {
+            Text       = meta.ProjectName,
+            FontSize   = 14, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(0, 0, 0, 4)
+        };
+        nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+
+        var dateLabel = new TextBlock
+        {
+            Text     = $"Last opened: {meta.LastOpened.ToLocalTime():yyyy-MM-dd HH:mm}",
+            FontSize = 11, FontFamily = new FontFamily("Segoe UI")
+        };
+        dateLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        var participantsLabel = new TextBlock
+        {
+            FontSize     = 11, FontFamily = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.Wrap
+        };
+        participantsLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        if (meta.Participants.Count > 0)
+            participantsLabel.Text = string.Join(", ", meta.Participants
+                .Where(p => p.IsActive)
+                .Select(p => p.DisplayName));
+
+        var stack = new StackPanel();
+        stack.Children.Add(nameLabel);
+        stack.Children.Add(dateLabel);
+        if (!string.IsNullOrEmpty(participantsLabel.Text))
+            stack.Children.Add(participantsLabel);
+
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(10),
+            Padding      = new Thickness(14, 12, 14, 12),
+            Margin       = new Thickness(0, 0, 0, 8),
+            Cursor       = Cursors.Hand,
+            Child        = stack,
+            Tag          = projFolder
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+
+        card.MouseLeftButtonDown += (_, _) => SelectProjectCard(card, projFolder);
+        card.MouseLeftButtonUp   += (_, e) =>
+        {
+            if (e.ClickCount >= 2) OpenProject(projFolder);
+        };
+
+        return card;
+    }
+
+    private void SelectProjectCard(Border clicked, string folder)
+    {
+        // Deselect all
+        foreach (Border c in ProjectListPanel.Children.OfType<Border>())
+            c.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+
+        // Highlight selected
+        clicked.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
+
+        _selectedProjectFolder     = folder;
+        OpenProjectButton  .IsEnabled = true;
+        DeleteProjectButton.IsEnabled = true;
+    }
+
+    // ── Project CRUD ───────────────────────────────────────────────────────
+
+    private void NewProject_Click(object sender, RoutedEventArgs e)
+    {
+        var name = ShowInputDialog("New Project", "Project name:", "My Project");
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        var settings = SettingsService.Load();
+        var folder   = ProjectService.ResolveFolder(settings.ProjectsFolder);
+        var projFolder = ProjectService.CreateProject(folder, name);
+
+        // Update meta with current participants
+        var meta = ProjectService.LoadMeta(projFolder)!;
+        meta.Participants = BuildCurrentParticipantSnapshot();
+        ProjectService.SaveMeta(projFolder, meta);
+
+        RefreshProjectList();
+    }
+
+    private void OpenProject_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedProjectFolder is not null)
+            OpenProject(_selectedProjectFolder);
+    }
+
+    private void DeleteProject_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedProjectFolder is null) return;
+
+        var meta = ProjectService.LoadMeta(_selectedProjectFolder);
+        var name = meta?.ProjectName ?? SysIO.Path.GetFileName(_selectedProjectFolder);
+
+        var result = MessageBox.Show(
+            $"Delete project \"{name}\"?\n\nThis cannot be undone.",
+            "Delete Project",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes) return;
+
+        if (_currentProjectFolder == _selectedProjectFolder)
+            CloseCurrentProject();
+
+        ProjectService.DeleteProject(_selectedProjectFolder);
+        _selectedProjectFolder = null;
+        RefreshProjectList();
+    }
+
+    private void OpenProject(string projFolder)
+    {
+        var meta    = ProjectService.LoadMeta(projFolder);
+        if (meta is null) { MessageBox.Show("Could not read project.json.", "Error"); return; }
+
+        // Update LastOpened
+        meta.LastOpened = DateTime.UtcNow;
+        ProjectService.SaveMeta(projFolder, meta);
+
+        // Switch to Chat tab
+        ActivateTab(chat: true);
+
+        // Clear current chat
+        _streamCts?.Cancel();
+        ChatPanel.Children.Clear();
+        _sharedHistory.Clear();
+
+        // Store project state
+        _currentProjectFolder = projFolder;
+        _currentProject       = meta;
+
+        // Update header
+        ChatHeaderTitle.Text = meta.ProjectName;
+
+        // Load chat history
+        var log = ProjectService.LoadChatLog(projFolder);
+        foreach (var entry in log)
+            RenderChatLogEntry(entry);
+
+        if (log.Count == 0)
+            AddSystemMessage($"Project \"{meta.ProjectName}\" opened. Start chatting!");
+        else
+            AddSystemMessage($"Project \"{meta.ProjectName}\" — {log.Count} messages loaded.");
+
+        ChatScrollViewer.ScrollToBottom();
+    }
+
+    private void CloseCurrentProject()
+    {
+        _currentProjectFolder = null;
+        _currentProject       = null;
+        ChatHeaderTitle.Text  = "Chat";
+    }
+
+    private void RenderChatLogEntry(ChatLogEntry entry)
+    {
+        if (entry.SenderType == "System")
+        {
+            AddSystemMessage(entry.Message);
+            return;
+        }
+        // Reconstruct _sharedHistory entry for AI context
+        if (entry.IsUser)
+            _sharedHistory.Add(new CloudAIMessage("user", entry.Message, "User"));
+        else if (entry.SenderType == "AI")
+            _sharedHistory.Add(new CloudAIMessage("assistant", entry.Message, entry.AvatarLabel));
+
+        var bubble = AddStreamingBubble(entry.DisplayName, entry.AvatarLabel,
+                                         entry.AccentKey, entry.BubbleKey, entry.IsUser);
+        bubble.StopThinking();
+        bubble.Content.Text = entry.Message;
+    }
+
+    private List<ProjectParticipant> BuildCurrentParticipantSnapshot()
+    {
+        var list = new List<ProjectParticipant>();
+        foreach (var ui in _ollamaParticipants)
+            list.Add(new ProjectParticipant
+            {
+                Type        = "Ollama",
+                Provider    = "Ollama",
+                ModelName   = ui.Data.Service.CurrentModel,
+                DisplayName = ui.Data.DisplayName,
+                IsActive    = ui.Data.Enabled
+            });
+        foreach (var ui in _cloudAIParticipants)
+            list.Add(new ProjectParticipant
+            {
+                Type        = "Cloud",
+                Provider    = ui.Data.ProviderName,
+                ModelName   = ui.Data.Service.CurrentModel,
+                DisplayName = ui.Data.DisplayName,
+                IsActive    = ui.Data.Enabled
+            });
+        return list;
+    }
+
+    private void AppendToProjectLog(ChatLogEntry entry)
+    {
+        if (_currentProjectFolder is null) return;
+        try { ProjectService.AppendEntry(_currentProjectFolder, entry); }
+        catch { /* non-fatal */ }
+    }
+
+    // ── Simple input dialog ────────────────────────────────────────────────
+
+    private string? ShowInputDialog(string title, string prompt, string defaultValue = "")
+    {
+        var win = new Window
+        {
+            Title                 = title,
+            Width                 = 400, Height = 165,
+            Owner                 = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode            = ResizeMode.NoResize,
+            ShowInTaskbar         = false
+        };
+        win.SetResourceReference(Window.BackgroundProperty, "SidebarBrush");
+
+        var lbl = new TextBlock
+        {
+            Text = prompt, FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
+            Margin = new Thickness(16, 14, 16, 6)
+        };
+        lbl.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+
+        var tb = new TextBox
+        {
+            Text = defaultValue, FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
+            Margin = new Thickness(16, 0, 16, 12), Height = 36,
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(10, 0, 0, 0),
+            VerticalContentAlignment = VerticalAlignment.Center
+        };
+        tb.SetResourceReference(TextBox.BackgroundProperty,  "InputBrush");
+        tb.SetResourceReference(TextBox.ForegroundProperty,  "TextBrush");
+        tb.SetResourceReference(TextBox.CaretBrushProperty,  "TextBrush");
+
+        var okBtn = new Button
+        {
+            Content = "Create", IsDefault = true,
+            Height = 34, Margin = new Thickness(16, 0, 8, 14)
+        };
+        okBtn.SetResourceReference(Button.BackgroundProperty,  "ClaudeBrush");
+        okBtn.SetResourceReference(Button.ForegroundProperty,  "SidebarBrush");
+        okBtn.SetResourceReference(Button.StyleProperty,       "ModernButton");
+
+        var cancelBtn = new Button
+        {
+            Content = "Cancel", IsCancel = true,
+            Height = 34, Margin = new Thickness(0, 0, 16, 14)
+        };
+        cancelBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+        cancelBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        cancelBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
+
+        var btnRow = new StackPanel { Orientation = Orientation.Horizontal,
+                                      HorizontalAlignment = HorizontalAlignment.Right };
+        btnRow.Children.Add(okBtn);
+        btnRow.Children.Add(cancelBtn);
+
+        var panel = new StackPanel();
+        panel.Children.Add(lbl);
+        panel.Children.Add(tb);
+        panel.Children.Add(btnRow);
+        win.Content = panel;
+
+        string? result = null;
+        okBtn.Click += (_, _) => { result = tb.Text.Trim(); win.DialogResult = true; };
+
+        win.Loaded += (_, _) => { tb.Focus(); tb.SelectAll(); };
+        win.ShowDialog();
+        return result;
+    }
+
     // ── Cloud AI participant management ────────────────────────────────────
 
     private void AddCloudAIParticipant(string provider, string model = "", string customName = "")
@@ -300,7 +673,11 @@ public partial class MainWindow : Window
         };
         nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
-        var modelLabel = new TextBlock { Text = participant.Service.CurrentModel, FontSize = 10 };
+        var modelLabel = new TextBlock
+        {
+            Text    = FormatModelDisplayName(participant.Service.CurrentModel),
+            FontSize = 10
+        };
         modelLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
 
         var offlineLabel = new TextBlock { Text = "Offline", FontSize = 10, Visibility = Visibility.Collapsed };
@@ -376,7 +753,6 @@ public partial class MainWindow : Window
             Margin    = new Thickness(0, 0, 0, 14)
         };
 
-        // ── Read-only info rows ───────────────────────────────────────────
         var infoProviderKey = new TextBlock { Text = "PROVIDER", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) };
         infoProviderKey.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
         var infoProviderVal = new TextBlock { Text = participant.ProviderName, FontSize = 12, Margin = new Thickness(0, 0, 0, 10) };
@@ -384,7 +760,7 @@ public partial class MainWindow : Window
 
         var infoModelKey = new TextBlock { Text = "MODEL", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) };
         infoModelKey.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
-        var infoModelVal = new TextBlock { Text = participant.Service.CurrentModel, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+        var infoModelVal = new TextBlock { Text = FormatModelDisplayName(participant.Service.CurrentModel), FontSize = 12, TextWrapping = TextWrapping.Wrap };
         infoModelVal.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
         var popupContent = new StackPanel();
@@ -419,7 +795,6 @@ public partial class MainWindow : Window
             Child              = popupBorder
         };
 
-        // ── UI record ─────────────────────────────────────────────────────
         var ui = new CloudAIParticipantUI
         {
             Data          = participant,
@@ -436,11 +811,10 @@ public partial class MainWindow : Window
             RemoveButton  = removeButton
         };
 
-        // ── Events ────────────────────────────────────────────────────────
         card.MouseLeftButtonDown += (_, _) =>
         {
             enabledToggle.IsChecked = ui.Data.Enabled;
-            infoModelVal.Text       = ui.Data.Service.CurrentModel;
+            infoModelVal.Text       = FormatModelDisplayName(ui.Data.Service.CurrentModel);
             popup.IsOpen            = !popup.IsOpen;
         };
 
@@ -522,7 +896,6 @@ public partial class MainWindow : Window
 
     private void BuildOllamaCard(OllamaParticipant participant)
     {
-        var pos         = participant.Position;
         var displayName = participant.DisplayName;
 
         var avatarText = new TextBlock
@@ -631,7 +1004,7 @@ public partial class MainWindow : Window
 
         var infoModelKey = new TextBlock { Text = "MODEL", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) };
         infoModelKey.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
-        var infoModelVal = new TextBlock { Text = participant.Service.CurrentModel, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+        var infoModelVal = new TextBlock { Text = FormatModelDisplayName(participant.Service.CurrentModel), FontSize = 12, TextWrapping = TextWrapping.Wrap };
         infoModelVal.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
         var popupContent = new StackPanel();
@@ -685,7 +1058,7 @@ public partial class MainWindow : Window
         card.MouseLeftButtonDown += (_, _) =>
         {
             enabledToggle.IsChecked = ui.Data.Enabled;
-            infoModelVal.Text       = ui.Data.Service.CurrentModel;
+            infoModelVal.Text       = FormatModelDisplayName(ui.Data.Service.CurrentModel);
             popup.IsOpen            = !popup.IsOpen;
         };
 
@@ -769,7 +1142,7 @@ public partial class MainWindow : Window
         ui.ModelLabel.Visibility   = online ? Visibility.Visible   : Visibility.Collapsed;
 
         if (online)
-            ui.ModelLabel.Text = ui.Data.Service.CurrentModel;
+            ui.ModelLabel.Text = FormatModelDisplayName(ui.Data.Service.CurrentModel);
 
         double targetOpacity = (online && ui.Data.Enabled) ? 1.0 : 0.6;
 
@@ -812,7 +1185,10 @@ public partial class MainWindow : Window
                 {
                     if (!models.Contains(ui.Data.Service.CurrentModel))
                         ui.Data.Service.CurrentModel = models[0];
-                    ui.ModelLabel.Text = ui.Data.Service.CurrentModel;
+                    ui.ModelLabel.Text = FormatModelDisplayName(ui.Data.Service.CurrentModel);
+                    // Also refresh avatar text
+                    ui.AvatarText.Text = ui.Data.AvatarLabel;
+                    ui.NameLabel .Text = ui.Data.DisplayName;
                 }
                 else
                 {
@@ -924,6 +1300,20 @@ public partial class MainWindow : Window
 
         var avatar = _userName.Length >= 2 ? _userName[..2].ToUpper() : _userName.ToUpper();
         AddMessage(_userName, avatar, "UserBrush", "UserBubbleBrush", text, isUser: true);
+
+        var entry = new ChatLogEntry
+        {
+            Timestamp   = DateTime.Now,
+            SenderType  = "User",
+            DisplayName = _userName,
+            AvatarLabel = avatar,
+            AccentKey   = "UserBrush",
+            BubbleKey   = "UserBubbleBrush",
+            IsUser      = true,
+            Message     = text
+        };
+        AppendToProjectLog(entry);
+
         _sharedHistory.Add(new CloudAIMessage("user", text, "User"));
 
         InputTextBox.Clear();
@@ -983,72 +1373,131 @@ public partial class MainWindow : Window
 
     private async Task RunOllamaStreamAsync(OllamaParticipantUI ui, CancellationToken ct)
     {
-        var display = string.IsNullOrEmpty(ui.Data.CustomName)
-            ? $"O{ui.Data.Position} · {ui.Data.Service.CurrentModel}"
+        var modelName = ui.Data.Service.CurrentModel;
+        var display   = string.IsNullOrEmpty(ui.Data.CustomName)
+            ? FormatModelDisplayName(modelName)
             : ui.Data.CustomName;
+        var avatarLabel = ui.Data.AvatarLabel;
+        var colorKey    = ui.Data.ColorKey;
 
-        var bubbleTb = AddStreamingBubble(display, ui.Data.AvatarLabel, ui.Data.ColorKey, "OllamaBubbleBrush", false);
-        var sb = new StringBuilder();
+        var bubble = AddStreamingBubble(display, avatarLabel, colorKey, "OllamaBubbleBrush", false);
+        var sb         = new StringBuilder();
+        bool firstToken = true;
+
         try
         {
             var history = BuildOllamaHistoryFor(ui);
             await foreach (var token in ui.Data.Service.StreamAsync(history, ct))
             {
+                if (firstToken)
+                {
+                    // Thinking phase ended — show last thinking text as tooltip
+                    var thought = ui.Data.Service.LastThinkingText;
+                    if (!string.IsNullOrEmpty(thought))
+                        bubble.SetTooltip($"💭 {thought}");
+                    bubble.StopThinking();
+                    firstToken = false;
+                }
                 sb.Append(token);
-                bubbleTb.Text = sb.ToString();
+                bubble.Content.Text = sb.ToString();
                 ChatScrollViewer.ScrollToBottom();
             }
-            _sharedHistory.Add(new CloudAIMessage("assistant", sb.ToString(), ui.Data.AvatarLabel));
+            if (firstToken) bubble.StopThinking(); // empty response
+            _sharedHistory.Add(new CloudAIMessage("assistant", sb.ToString(), avatarLabel));
+
+            AppendToProjectLog(new ChatLogEntry
+            {
+                Timestamp   = DateTime.Now,
+                SenderType  = "AI",
+                Provider    = "Ollama",
+                ModelName   = modelName,
+                DisplayName = display,
+                AvatarLabel = avatarLabel,
+                AccentKey   = colorKey,
+                BubbleKey   = "OllamaBubbleBrush",
+                IsUser      = false,
+                Message     = sb.ToString()
+            });
         }
         catch (OperationCanceledException)
         {
-            bubbleTb.Text = sb.Append(" [cancelled]").ToString();
+            if (firstToken) bubble.StopThinking();
+            bubble.Content.Text = sb.Append(" [cancelled]").ToString();
             throw;
         }
         catch (HttpRequestException ex)
         {
-            bubbleTb.Text = $"Connection error: {ex.Message}";
+            if (firstToken) bubble.StopThinking();
+            bubble.Content.Text = $"Connection error: {ex.Message}";
             AddSystemMessage($"⚠  {display} unreachable.");
         }
         catch (Exception ex)
         {
-            bubbleTb.Text = $"Error: {ex.Message}";
+            if (firstToken) bubble.StopThinking();
+            bubble.Content.Text = $"Error: {ex.Message}";
         }
     }
 
     private async Task RunCloudAIStreamAsync(CloudAIParticipantUI ui, CancellationToken ct)
     {
-        var model   = ui.Data.Service.CurrentModel;
-        var display = string.IsNullOrEmpty(ui.Data.CustomName)
-            ? $"{ui.Data.ProviderName} · {model}"
+        var model       = ui.Data.Service.CurrentModel;
+        var display     = string.IsNullOrEmpty(ui.Data.CustomName)
+            ? FormatModelDisplayName(model)
             : ui.Data.CustomName;
+        var avatarLabel = ui.Data.AvatarLabel;
+        var colorKey    = ui.Data.ColorKey;
 
-        var bubbleTb = AddStreamingBubble(display, ui.Data.AvatarLabel, ui.Data.ColorKey, "ClaudeBubbleBrush", false);
-        var sb = new StringBuilder();
+        var bubble     = AddStreamingBubble(display, avatarLabel, colorKey, "ClaudeBubbleBrush", false);
+        var sb         = new StringBuilder();
+        bool firstToken = true;
+
         try
         {
             var (history, system) = BuildCloudAIHistoryFor(ui);
             await foreach (var token in ui.Data.Service.StreamAsync(history, system, ct))
             {
+                if (firstToken)
+                {
+                    bubble.StopThinking();
+                    firstToken = false;
+                }
                 sb.Append(token);
-                bubbleTb.Text = sb.ToString();
+                bubble.Content.Text = sb.ToString();
                 ChatScrollViewer.ScrollToBottom();
             }
-            _sharedHistory.Add(new CloudAIMessage("assistant", sb.ToString(), ui.Data.AvatarLabel));
+            if (firstToken) bubble.StopThinking();
+            _sharedHistory.Add(new CloudAIMessage("assistant", sb.ToString(), avatarLabel));
+
+            AppendToProjectLog(new ChatLogEntry
+            {
+                Timestamp   = DateTime.Now,
+                SenderType  = "AI",
+                Provider    = ui.Data.ProviderName,
+                ModelName   = model,
+                DisplayName = display,
+                AvatarLabel = avatarLabel,
+                AccentKey   = colorKey,
+                BubbleKey   = "ClaudeBubbleBrush",
+                IsUser      = false,
+                Message     = sb.ToString()
+            });
         }
         catch (OperationCanceledException)
         {
-            bubbleTb.Text = sb.Append(" [cancelled]").ToString();
+            if (firstToken) bubble.StopThinking();
+            bubble.Content.Text = sb.Append(" [cancelled]").ToString();
             throw;
         }
         catch (HttpRequestException ex)
         {
-            bubbleTb.Text = $"Connection error: {ex.Message}";
+            if (firstToken) bubble.StopThinking();
+            bubble.Content.Text = $"Connection error: {ex.Message}";
             AddSystemMessage($"⚠  {display} unreachable.");
         }
         catch (Exception ex)
         {
-            bubbleTb.Text = $"Error: {ex.Message}";
+            if (firstToken) bubble.StopThinking();
+            bubble.Content.Text = $"Error: {ex.Message}";
         }
     }
 
@@ -1099,7 +1548,7 @@ public partial class MainWindow : Window
             .Where(ui => ui != forUi && ui.Data.Enabled)
             .Select(ui => $"{ui.Data.AvatarLabel} ({ui.Data.DisplayName})");
 
-        var others    = otherOllamas.Concat(otherCloud).ToList();
+        var others     = otherOllamas.Concat(otherCloud).ToList();
         var othersNote = others.Count > 0
             ? $" Other AI participants: {string.Join(", ", others)}."
             : "";
@@ -1133,6 +1582,7 @@ public partial class MainWindow : Window
         _streamCts?.Cancel();
         ChatPanel.Children.Clear();
         _sharedHistory.Clear();
+        CloseCurrentProject();
         AddSystemMessage("Chat cleared.");
     }
 
@@ -1277,6 +1727,91 @@ public partial class MainWindow : Window
         _                => AnthropicService.DefaultModels
     };
 
+    // ── Model name formatting ──────────────────────────────────────────────
+
+    /// <summary>Returns a 2-character avatar label derived from the model name.</summary>
+    private static string FormatModelAvatarLabel(string model)
+    {
+        if (string.IsNullOrWhiteSpace(model)) return "AI";
+        if (model.StartsWith("claude",   StringComparison.OrdinalIgnoreCase)) return "Cl";
+        if (model.StartsWith("gpt",      StringComparison.OrdinalIgnoreCase)) return "GP";
+        if (model.StartsWith("grok",     StringComparison.OrdinalIgnoreCase)) return "Gr";
+        if (model.StartsWith("gemma",    StringComparison.OrdinalIgnoreCase)) return "Gm";
+        if (model.StartsWith("llama",    StringComparison.OrdinalIgnoreCase)) return "Ll";
+        if (model.StartsWith("mistral",  StringComparison.OrdinalIgnoreCase)) return "Mi";
+        if (model.StartsWith("qwen",     StringComparison.OrdinalIgnoreCase)) return "Qw";
+        if (model.StartsWith("deepseek", StringComparison.OrdinalIgnoreCase)) return "Ds";
+        if (model.StartsWith("phi",      StringComparison.OrdinalIgnoreCase)) return "Ph";
+        if (model.StartsWith("falcon",   StringComparison.OrdinalIgnoreCase)) return "Fa";
+        if (model.StartsWith("command",  StringComparison.OrdinalIgnoreCase)) return "Co";
+        if (model.StartsWith("o1",       StringComparison.OrdinalIgnoreCase)) return "o1";
+        if (model.StartsWith("o3",       StringComparison.OrdinalIgnoreCase)) return "o3";
+        return model.Length >= 2 ? model[..2].ToUpper() : model.ToUpper().PadRight(2);
+    }
+
+    /// <summary>Returns a human-readable model name.
+    /// E.g. "claude-sonnet-4-20250514" → "Claude Sonnet 4", "gpt-4o" → "GPT-4o".</summary>
+    private static string FormatModelDisplayName(string model)
+    {
+        if (string.IsNullOrWhiteSpace(model)) return model;
+
+        // ── Claude ────────────────────────────────────────────────────────
+        if (model.StartsWith("claude-", StringComparison.OrdinalIgnoreCase))
+        {
+            var families = new[] { "sonnet", "haiku", "opus" };
+            var parts  = model.Split('-');
+            var tokens = new List<string> { "Claude" };
+            bool addedFamily = false, addedVer = false;
+            foreach (var p in parts.Skip(1))
+            {
+                if (!addedFamily && families.Any(f => f.Equals(p, StringComparison.OrdinalIgnoreCase)))
+                { tokens.Add(Capitalize(p)); addedFamily = true; }
+                else if (!addedVer && p.Length <= 2 && p.All(char.IsDigit))
+                { tokens.Add(p); addedVer = true; }
+                else if (p.Length >= 6 && p.All(char.IsDigit)) break; // date stamp
+            }
+            return string.Join(' ', tokens);
+        }
+
+        // ── GPT ───────────────────────────────────────────────────────────
+        if (model.StartsWith("gpt-", StringComparison.OrdinalIgnoreCase))
+        {
+            var rest  = model[4..];
+            var parts = rest.Split('-');
+            var sb    = new StringBuilder("GPT-");
+            sb.Append(parts[0]);
+            for (int i = 1; i < parts.Length; i++)
+                sb.Append(' ').Append(Capitalize(parts[i]));
+            return sb.ToString();
+        }
+
+        // ── Grok ──────────────────────────────────────────────────────────
+        if (model.StartsWith("grok-", StringComparison.OrdinalIgnoreCase))
+            return string.Join(' ', model.Split('-').Select(Capitalize));
+
+        // ── o1 / o3 (OpenAI reasoning) ────────────────────────────────────
+        if (Regex.IsMatch(model, @"^o\d", RegexOptions.IgnoreCase))
+        {
+            var parts = model.Split('-');
+            return string.Join(' ', parts.Select(p =>
+                p.Length == 1 || (p.Length == 2 && char.IsDigit(p[1])) ? p.ToUpper() : Capitalize(p)));
+        }
+
+        // ── Generic: split on hyphens/dots, strip "latest"/"online"/stamps ─
+        var normalized = Regex.Replace(model, @"([a-zA-Z])(\d)", "$1 $2");
+        normalized     = Regex.Replace(normalized, @"(\d)([a-zA-Z])", "$1 $2");
+        var words = normalized
+            .Split(['-', '_', '.', ' '], StringSplitOptions.RemoveEmptyEntries)
+            .Where(t => !t.Equals("latest", StringComparison.OrdinalIgnoreCase)
+                     && !t.Equals("online", StringComparison.OrdinalIgnoreCase)
+                     && !(t.Length >= 6 && t.All(char.IsDigit)))
+            .Select(t => char.IsDigit(t[0]) ? t : Capitalize(t));
+        return string.Join(' ', words);
+    }
+
+    private static string Capitalize(string s) =>
+        s.Length == 0 ? s : char.ToUpper(s[0]) + s[1..];
+
     // ── Message rendering ──────────────────────────────────────────────────
 
     private void AddSystemMessage(string text)
@@ -1296,14 +1831,19 @@ public partial class MainWindow : Window
     private void AddMessage(string senderName, string avatarText, string accentKey, string bubbleKey,
                             string text, bool isUser)
     {
-        var tb = AddStreamingBubble(senderName, avatarText, accentKey, bubbleKey, isUser);
-        tb.Text = text;
+        var bubble = AddStreamingBubble(senderName, avatarText, accentKey, bubbleKey, isUser);
+        bubble.StopThinking();
+        bubble.Content.Text = text;
         ChatScrollViewer.ScrollToBottom();
     }
 
-    private TextBlock AddStreamingBubble(string senderName, string avatarText, string accentKey,
-                                          string bubbleKey, bool isUser)
+    /// <summary>Creates a chat bubble. For AI responses the bubble starts with a thinking
+    /// animation that is hidden once StopThinking() is called. The TextBox inside supports
+    /// text selection; a Copy button appears on hover.</summary>
+    private StreamBubble AddStreamingBubble(string senderName, string avatarText, string accentKey,
+                                             string bubbleKey, bool isUser)
     {
+        // ── Avatar ────────────────────────────────────────────────────────
         var avatarInner = new TextBlock
         {
             Text                = avatarText,
@@ -1324,22 +1864,88 @@ public partial class MainWindow : Window
         };
         avatar.SetResourceReference(Border.BackgroundProperty, accentKey);
 
-        var contentTb = new TextBlock
+        // ── Selectable text content ───────────────────────────────────────
+        var contentTb = new TextBox
         {
-            TextWrapping = TextWrapping.Wrap,
-            FontSize     = 13,
-            FontFamily   = new FontFamily("Segoe UI")
+            TextWrapping             = TextWrapping.Wrap,
+            FontSize                 = 13,
+            FontFamily               = new FontFamily("Segoe UI"),
+            IsReadOnly               = true,
+            BorderThickness          = new Thickness(0),
+            Background               = Brushes.Transparent,
+            Padding                  = new Thickness(0),
+            Visibility               = isUser ? Visibility.Visible : Visibility.Collapsed
         };
-        contentTb.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        contentTb.SetResourceReference(TextBox.ForegroundProperty,   "TextBrush");
+        contentTb.SetResourceReference(TextBox.CaretBrushProperty,   "TextBrush");
+        contentTb.SetResourceReference(TextBox.SelectionBrushProperty, accentKey);
+
+        // ── Thinking animation (AI only) ──────────────────────────────────
+        int frame = 0;
+        string[] frames = ["·", "· ·", "· · ·"];
+        var thinkingTb = new TextBlock
+        {
+            Text      = frames[0],
+            FontSize  = 18,
+            Margin    = new Thickness(0, 2, 0, 4),
+            Visibility = isUser ? Visibility.Collapsed : Visibility.Visible
+        };
+        thinkingTb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        var thinkingTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(420) };
+        thinkingTimer.Tick += (_, _) =>
+        {
+            frame = (frame + 1) % frames.Length;
+            thinkingTb.Text = frames[frame];
+        };
+        if (!isUser) thinkingTimer.Start();
+
+        // Grid holds both (only one visible at a time)
+        var bubbleInner = new Grid();
+        bubbleInner.Children.Add(thinkingTb);
+        bubbleInner.Children.Add(contentTb);
 
         var bubble = new Border
         {
             CornerRadius = isUser ? new CornerRadius(12, 3, 12, 12) : new CornerRadius(3, 12, 12, 12),
             Padding      = new Thickness(13, 9, 13, 9),
-            Child        = contentTb
+            Child        = bubbleInner
         };
         bubble.SetResourceReference(Border.BackgroundProperty, bubbleKey);
 
+        // ── Copy button (appears on hover) ────────────────────────────────
+        var copyBtn = new Button
+        {
+            Content             = "⎘",
+            Width               = 28, Height = 22,
+            FontSize            = 12,
+            BorderThickness     = new Thickness(0),
+            Padding             = new Thickness(0),
+            Cursor              = Cursors.Hand,
+            Visibility          = Visibility.Collapsed,
+            HorizontalAlignment = isUser ? HorizontalAlignment.Left : HorizontalAlignment.Right,
+            VerticalAlignment   = VerticalAlignment.Top,
+            ToolTip             = "Copy message",
+            Style               = (Style)FindResource("ModernButton")
+        };
+        copyBtn.SetResourceReference(Button.BackgroundProperty, "SurfaceBrush");
+        copyBtn.SetResourceReference(Button.ForegroundProperty, "SubtextBrush");
+
+        copyBtn.Click += async (_, _) =>
+        {
+            if (!string.IsNullOrEmpty(contentTb.Text))
+                Clipboard.SetText(contentTb.Text);
+            copyBtn.Content = "✓";
+            await Task.Delay(1500);
+            if (copyBtn.IsLoaded) copyBtn.Content = "⎘";
+        };
+
+        // Bubble + copy button overlaid in same Grid cell
+        var bubbleWrapper = new Grid();
+        bubbleWrapper.Children.Add(bubble);
+        bubbleWrapper.Children.Add(copyBtn);
+
+        // ── Labels ────────────────────────────────────────────────────────
         var nameLabel = new TextBlock
         {
             Text                = senderName,
@@ -1359,11 +1965,17 @@ public partial class MainWindow : Window
         };
         timeLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
 
+        // ── Content column ─────────────────────────────────────────────────
         var content = new StackPanel { MaxWidth = 580 };
         content.Children.Add(nameLabel);
-        content.Children.Add(bubble);
+        content.Children.Add(bubbleWrapper);
         content.Children.Add(timeLabel);
 
+        // Show/hide copy button on hover of the whole content column
+        content.MouseEnter += (_, _) => copyBtn.Visibility = Visibility.Visible;
+        content.MouseLeave += (_, _) => copyBtn.Visibility = Visibility.Collapsed;
+
+        // ── Row ────────────────────────────────────────────────────────────
         var row = new StackPanel
         {
             Orientation         = Orientation.Horizontal,
@@ -1375,6 +1987,20 @@ public partial class MainWindow : Window
         var wrapper = new Grid { Margin = new Thickness(0, 5, 0, 5) };
         wrapper.Children.Add(row);
         ChatPanel.Children.Add(wrapper);
-        return contentTb;
+
+        // ── Return handle ──────────────────────────────────────────────────
+        void StopThinking()
+        {
+            thinkingTimer.Stop();
+            thinkingTb.Visibility = Visibility.Collapsed;
+            contentTb.Visibility  = Visibility.Visible;
+        }
+
+        void SetTooltip(string tip)
+        {
+            bubble.ToolTip = string.IsNullOrEmpty(tip) ? null : (object)tip;
+        }
+
+        return new StreamBubble(contentTb, StopThinking, SetTooltip);
     }
 }

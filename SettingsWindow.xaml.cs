@@ -45,7 +45,8 @@ public partial class SettingsWindow : Window
     // ── State ──────────────────────────────────────────────────────────────
 
     private readonly List<ParticipantForm> _forms = [];
-    private TextBox _userNameBox = null!;
+    private TextBox _userNameBox      = null!;
+    private TextBox _projectsFolderBox = null!;
 
     // ── Constructor ────────────────────────────────────────────────────────
 
@@ -131,16 +132,66 @@ public partial class SettingsWindow : Window
             Text         = "Shown on your own chat bubbles",
             FontSize     = 11,
             FontFamily   = new FontFamily("Segoe UI"),
-            TextWrapping = TextWrapping.Wrap
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 18)
         };
         nameHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
 
-        var root = new StackPanel();
+        // ── PROJECTS FOLDER ────────────────────────────────────────────────
+        var folderLabel = new TextBlock
+        {
+            Style  = (Style)FindResource("SLabel"),
+            Text   = "PROJECTS FOLDER",
+            Margin = new Thickness(0, 0, 0, 6)
+        };
+
+        var defaultFolder = ProjectService.GetDefaultProjectsFolder();
+
+        var (folderOuter, folderBox) = MakeTextInput(
+            string.IsNullOrWhiteSpace(settings.ProjectsFolder) ? "" : settings.ProjectsFolder);
+        _projectsFolderBox = folderBox;
+
+        var defaultFolderBtn = new Button
+        {
+            Content  = "↩ Default",
+            Style    = (Style)FindResource("SButtonSecondary"),
+            Height   = 36,
+            Margin   = new Thickness(6, 0, 0, 0),
+            ToolTip  = defaultFolder
+        };
+        defaultFolderBtn.Click += (_, _) => folderBox.Text = "";
+
+        var folderGrid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        folderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        folderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(folderOuter,    0);
+        Grid.SetColumn(defaultFolderBtn, 1);
+        folderGrid.Children.Add(folderOuter);
+        folderGrid.Children.Add(defaultFolderBtn);
+
+        var folderHint = new TextBlock
+        {
+            Text         = $"Default: {defaultFolder}",
+            FontSize     = 11,
+            FontFamily   = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.Wrap
+        };
+        folderHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        var root = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         root.Children.Add(nameLabel);
         root.Children.Add(userNameOuter);
         root.Children.Add(nameHint);
+        root.Children.Add(folderLabel);
+        root.Children.Add(folderGrid);
+        root.Children.Add(folderHint);
 
-        var tab = new TabItem { Header = "General", Content = root };
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = root
+        };
+        var tab = new TabItem { Header = "General", Content = scroll };
         ParticipantsTabControl.Items.Add(tab);
     }
 
@@ -576,6 +627,8 @@ public partial class SettingsWindow : Window
         // General settings
         var userName = _userNameBox.Text.Trim();
         settings.UserName = string.IsNullOrEmpty(userName) ? "You" : userName;
+
+        settings.ProjectsFolder = _projectsFolderBox.Text.Trim();
 
         settings.Participants.Clear();
 

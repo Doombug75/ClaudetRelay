@@ -42,6 +42,9 @@ public class AppSettings
     /// <summary>Display name shown on the human user's own chat bubbles.</summary>
     public string UserName { get; set; } = "You";
 
+    /// <summary>Root folder for saved projects. Empty = use default Documents path.</summary>
+    public string ProjectsFolder { get; set; } = "";
+
     /// <summary>Per-participant configuration (P1–P6). Populated on first load via migration.</summary>
     public List<ParticipantConfig> Participants { get; set; } = [];
 }

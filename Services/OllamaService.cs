@@ -14,8 +14,12 @@ public class OllamaService : IDisposable
     private readonly HttpClient _http;
     private readonly string _base;
 
-    public string CurrentModel { get; set; } = "llama3.2";
-    public string BaseUrl      => _base;
+    public string CurrentModel    { get; set; } = "llama3.2";
+    public string BaseUrl         => _base;
+
+    /// <summary>Last line of &lt;thinking&gt; text received during the most recent stream.
+    /// Updated while streaming; empty if the model doesn't expose thinking.</summary>
+    public string LastThinkingText { get; private set; } = "";
 
     public OllamaService(string baseUrl = "http://localhost:11434")
     {
@@ -67,6 +71,8 @@ public class OllamaService : IDisposable
         IReadOnlyList<OllamaChatMessage> messages,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
+        LastThinkingText = "";
+
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{_base}/api/chat")
         {
             Content = BuildContent(CurrentModel, messages, stream: true)
@@ -87,13 +93,23 @@ public class OllamaService : IDisposable
             using var doc = JsonDocument.Parse(line);
             var root = doc.RootElement;
 
-            // Detect qwen3 thinking tokens — log but do not surface in the UI
+            // Detect qwen3 / thinking-model tokens — store last line for tooltip
             if (root.TryGetProperty("message", out var msgForThinking) &&
                 msgForThinking.TryGetProperty("thinking", out var thinkingEl))
             {
                 var thinking = thinkingEl.GetString();
                 if (!string.IsNullOrEmpty(thinking))
+                {
                     Debug.WriteLine($"[OllamaService.StreamAsync] <thinking> {thinking}");
+                    // Keep the last non-empty line as the tooltip hint
+                    var lines = thinking.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                    if (lines.Length > 0)
+                    {
+                        var last = lines[^1].Trim();
+                        if (!string.IsNullOrEmpty(last))
+                            LastThinkingText = last.Length > 120 ? last[..120] + "…" : last;
+                    }
+                }
             }
 
             var token = ExtractContent(root);
@@ -103,7 +119,6 @@ public class OllamaService : IDisposable
             }
             else
             {
-                // Log lines that carry no visible content (e.g. pure thinking frames, done marker)
                 if (root.TryGetProperty("done", out var doneCheck) && doneCheck.GetBoolean())
                 {
                     // Expected — last frame; no log noise
