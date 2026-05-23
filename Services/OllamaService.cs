@@ -7,7 +7,7 @@ using System.Text.Json;
 
 namespace ClaudetRelay.Services;
 
-public record OllamaChatMessage(string Role, string Content);
+public record OllamaChatMessage(string Role, string Content, string Sender = "");
 
 public class OllamaService : IDisposable
 {

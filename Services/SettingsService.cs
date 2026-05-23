@@ -5,10 +5,16 @@ namespace ClaudetRelay.Services;
 
 public class AppSettings
 {
-    public string ClaudeApiKey  { get; set; } = "";
-    public string OllamaBaseUrl { get; set; } = "http://localhost:11434";
-    public string OllamaModel   { get; set; } = "llama3.2";
-    public string LastTheme     { get; set; } = "";
+    // Legacy — kept only for one-time migration to Windows Credential Manager
+    public string ClaudeApiKey        { get; set; } = "";
+
+    public string OllamaBaseUrl       { get; set; } = "http://localhost:11434";
+    public string OllamaModel         { get; set; } = "llama3.2";
+    public string LastTheme           { get; set; } = "";
+    public string SelectedProvider    { get; set; } = "Anthropic";
+    public string SelectedCloudModel  { get; set; } = "";
+    public bool   CloudAIEnabled      { get; set; } = true;
+    public int    OllamaInstanceCount { get; set; } = 1;
 }
 
 public static class SettingsService

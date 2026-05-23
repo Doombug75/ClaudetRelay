@@ -276,12 +276,14 @@
                                 </Grid.ColumnDefinitions>
                                 <Border Grid.Column="0" Width="34" Height="34" CornerRadius="9"
                                         Background="{DynamicResource ClaudeBrush}" Margin="0,0,10,0">
-                                    <TextBlock Text="C" FontSize="15" FontWeight="Bold"
+                                    <TextBlock x:Name="CloudAIAvatarText"
+                                               Text="C" FontSize="15" FontWeight="Bold"
                                                Foreground="{DynamicResource SidebarBrush}"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Claude" FontSize="13" FontWeight="SemiBold"
+                                    <TextBlock x:Name="CloudAINameLabel"
+                                               Text="Cloud AI" FontSize="13" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextBrush}"/>
                                     <TextBlock x:Name="ClaudeModelLabel" Text="checking..."
                                                FontSize="10" Foreground="{DynamicResource SubtextBrush}"/>
@@ -356,7 +358,8 @@
                                                       BlurRadius="22" ShadowDepth="4"/>
                                 </Border.Effect>
                                 <StackPanel>
-                                    <TextBlock Text="Claude" FontSize="13" FontWeight="SemiBold"
+                                    <TextBlock x:Name="CloudAIPopupTitle"
+                                               Text="Cloud AI" FontSize="13" FontWeight="SemiBold"
                                                Foreground="{DynamicResource ClaudeBrush}"
                                                Margin="0,0,0,8"/>
                                     <Rectangle Height="1" Fill="{DynamicResource InputBrush}"

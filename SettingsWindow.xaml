@@ -1,0 +1,452 @@
+<Window x:Class="ClaudetRelay.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings · ClaudetRelay"
+        Width="480" Height="540"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource SidebarBrush}">
+
+    <Window.Resources>
+
+        <!-- Section header label -->
+        <Style x:Key="SLabel" TargetType="TextBlock">
+            <Setter Property="FontSize"   Value="10"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="{DynamicResource SubtextBrush}"/>
+            <Setter Property="Margin"     Value="0,0,0,6"/>
+        </Style>
+
+        <!-- Text input -->
+        <Style x:Key="STextBox" TargetType="TextBox">
+            <Setter Property="Height"          Value="36"/>
+            <Setter Property="Padding"         Value="10,8"/>
+            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="FontFamily"      Value="Segoe UI"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background"      Value="{DynamicResource InputBrush}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource TextBrush}"/>
+            <Setter Property="CaretBrush"      Value="{DynamicResource TextBrush}"/>
+            <Setter Property="SelectionBrush"  Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ScrollViewer x:Name="PART_ContentHost"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Password input -->
+        <Style x:Key="SPasswordBox" TargetType="PasswordBox">
+            <Setter Property="Height"          Value="36"/>
+            <Setter Property="Padding"         Value="10,8"/>
+            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="FontFamily"      Value="Segoe UI"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background"      Value="{DynamicResource InputBrush}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource TextBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="PasswordBox">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ScrollViewer x:Name="PART_ContentHost"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Primary button -->
+        <Style x:Key="SButton" TargetType="Button">
+            <Setter Property="Height"          Value="36"/>
+            <Setter Property="Padding"         Value="20,0"/>
+            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="FontFamily"      Value="Segoe UI"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Background"      Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource SidebarBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.70"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.50"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Secondary button -->
+        <Style x:Key="SButtonSecondary" TargetType="Button" BasedOn="{StaticResource SButton}">
+            <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        </Style>
+
+        <!-- Separator line -->
+        <Style x:Key="SSep" TargetType="Rectangle">
+            <Setter Property="Height" Value="1"/>
+            <Setter Property="Fill"   Value="{DynamicResource InputBrush}"/>
+            <Setter Property="Margin" Value="0,10,0,14"/>
+        </Style>
+
+        <!-- ComboBox with full template for theme-safe readability -->
+        <Style x:Key="SComboBox" TargetType="ComboBox">
+            <Setter Property="Background"      Value="{DynamicResource InputBrush}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource TextBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Height"          Value="36"/>
+            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="FontFamily"      Value="Segoe UI"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
+                                                      RelativeSource={RelativeSource TemplatedParent}}"
+                                          Focusable="False" ClickMode="Press"
+                                          BorderThickness="0" Cursor="Hand">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Bd"
+                                                Background="{DynamicResource InputBrush}"
+                                                CornerRadius="8">
+                                            <TextBlock Text="▾" FontSize="11"
+                                                       Foreground="{DynamicResource SubtextBrush}"
+                                                       HorizontalAlignment="Right"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,10,0"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Opacity" Value="0.82"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              Margin="12,0,30,0"
+                                              VerticalAlignment="Center"/>
+                            <Popup x:Name="PART_Popup"
+                                   Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Slide">
+                                <Border MinWidth="{TemplateBinding ActualWidth}"
+                                        MaxHeight="280"
+                                        Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource InputBrush}"
+                                        BorderThickness="1" CornerRadius="8"
+                                        Margin="0,3,0,0" SnapsToDevicePixels="True">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="#000000" Opacity="0.45"
+                                                          BlurRadius="18" ShadowDepth="3"/>
+                                    </Border.Effect>
+                                    <ScrollViewer Margin="4" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel IsItemsHost="True"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Foreground"  Value="{DynamicResource TextBrush}"/>
+                        <Setter Property="Background"  Value="Transparent"/>
+                        <Setter Property="Padding"     Value="10,7"/>
+                        <Setter Property="FontSize"    Value="13"/>
+                        <Setter Property="FontFamily"  Value="Segoe UI"/>
+                        <Setter Property="Cursor"      Value="Hand"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBoxItem">
+                                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                            CornerRadius="6" Margin="3,1"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsHighlighted" Value="True">
+                                            <Setter TargetName="Bd" Property="Background"
+                                                    Value="{DynamicResource InputBrush}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Bd" Property="Background"
+                                                    Value="{DynamicResource InputBrush}"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Toggle switch -->
+        <Style x:Key="SToggle" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="FontSize"   Value="13"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+    </Window.Resources>
+
+    <DockPanel>
+
+        <!-- ── Title bar ── -->
+        <Border DockPanel.Dock="Top"
+                Background="{DynamicResource SurfaceBrush}"
+                Padding="22,15,22,14">
+            <TextBlock Text="Settings"
+                       FontSize="18" FontWeight="Bold" FontFamily="Segoe UI"
+                       Foreground="{DynamicResource TextBrush}"/>
+        </Border>
+
+        <!-- ── Tab control ── -->
+        <TabControl Background="{DynamicResource SidebarBrush}"
+                    BorderThickness="0">
+
+            <TabControl.Template>
+                <ControlTemplate TargetType="TabControl">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top"
+                                Background="{DynamicResource SurfaceBrush}"
+                                Padding="10,4,10,0">
+                            <TabPanel IsItemsHost="True"/>
+                        </Border>
+                        <Border Background="{DynamicResource SidebarBrush}" Padding="22,18,22,18">
+                            <ContentPresenter ContentSource="SelectedContent"/>
+                        </Border>
+                    </DockPanel>
+                </ControlTemplate>
+            </TabControl.Template>
+
+            <TabControl.ItemContainerStyle>
+                <Style TargetType="TabItem">
+                    <Setter Property="FontSize"   Value="13"/>
+                    <Setter Property="FontFamily" Value="Segoe UI"/>
+                    <Setter Property="Padding"    Value="14,8"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SubtextBrush}"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="TabItem">
+                                <Border x:Name="Bd"
+                                        Padding="{TemplateBinding Padding}"
+                                        CornerRadius="8,8,0,0"
+                                        Cursor="Hand">
+                                    <TextBlock x:Name="Tb"
+                                               Text="{TemplateBinding Header}"
+                                               FontSize="{TemplateBinding FontSize}"
+                                               FontFamily="{TemplateBinding FontFamily}"
+                                               FontWeight="SemiBold"
+                                               Foreground="{TemplateBinding Foreground}"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SidebarBrush}"/>
+                                        <Setter TargetName="Tb" Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                                    </Trigger>
+                                    <MultiTrigger>
+                                        <MultiTrigger.Conditions>
+                                            <Condition Property="IsMouseOver" Value="True"/>
+                                            <Condition Property="IsSelected"  Value="False"/>
+                                        </MultiTrigger.Conditions>
+                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource InputBrush}"/>
+                                    </MultiTrigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </TabControl.ItemContainerStyle>
+
+            <!-- ═══════════ PARTICIPANTS TAB ═══════════ -->
+            <TabItem Header="Participants">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+
+                        <TextBlock Text="CLOUD AI" Style="{StaticResource SLabel}"/>
+                        <CheckBox x:Name="CloudAIEnabledCheck"
+                                  Content="Enable Cloud AI participant"
+                                  Style="{StaticResource SToggle}"
+                                  Margin="0,0,0,10"/>
+                        <TextBlock Text="Provider" Style="{StaticResource SLabel}"/>
+                        <ComboBox x:Name="ParticipantsProviderCombo"
+                                  Style="{StaticResource SComboBox}"
+                                  Margin="0,0,0,4">
+                            <ComboBoxItem Content="Anthropic"/>
+                            <ComboBoxItem Content="Google AI"/>
+                            <ComboBoxItem Content="Groq"/>
+                            <ComboBoxItem Content="OpenRouter"/>
+                            <ComboBoxItem Content="Mistral"/>
+                        </ComboBox>
+
+                        <Rectangle Style="{StaticResource SSep}"/>
+
+                        <TextBlock Text="OLLAMA" Style="{StaticResource SLabel}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Instances (1–3):"
+                                       FontSize="13" FontFamily="Segoe UI"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <ComboBox x:Name="OllamaInstanceCombo"
+                                      Style="{StaticResource SComboBox}"
+                                      Width="80">
+                                <ComboBoxItem Content="1"/>
+                                <ComboBoxItem Content="2"/>
+                                <ComboBoxItem Content="3"/>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <Rectangle Style="{StaticResource SSep}"/>
+
+                        <Button Content="Save"
+                                Style="{StaticResource SButton}"
+                                Width="120"
+                                HorizontalAlignment="Left"
+                                Click="SaveParticipants_Click"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ═══════════ CLOUD AI TAB ═══════════ -->
+            <TabItem Header="Cloud AI">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+
+                        <TextBlock Text="PROVIDER" Style="{StaticResource SLabel}"/>
+                        <ComboBox x:Name="ProviderCombo"
+                                  Style="{StaticResource SComboBox}"
+                                  Margin="0,0,0,16"
+                                  SelectionChanged="ProviderCombo_SelectionChanged">
+                            <ComboBoxItem Content="Anthropic"/>
+                            <ComboBoxItem Content="Google AI"/>
+                            <ComboBoxItem Content="Groq"/>
+                            <ComboBoxItem Content="OpenRouter"/>
+                            <ComboBoxItem Content="Mistral"/>
+                        </ComboBox>
+
+                        <TextBlock Text="API KEY" Style="{StaticResource SLabel}"/>
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <PasswordBox x:Name="ApiKeyBox"
+                                         Grid.Column="0"
+                                         Style="{StaticResource SPasswordBox}"
+                                         PasswordChanged="ApiKeyBox_PasswordChanged"/>
+                            <TextBox x:Name="ApiKeyTextBox"
+                                     Grid.Column="0"
+                                     Style="{StaticResource STextBox}"
+                                     Visibility="Collapsed"
+                                     TextChanged="ApiKeyTextBox_TextChanged"/>
+                            <Button x:Name="ShowHideButton"
+                                    Grid.Column="1"
+                                    Content="👁" Width="36" Height="36"
+                                    FontSize="15" Margin="6,0,0,0"
+                                    Style="{StaticResource SButtonSecondary}"
+                                    Click="ShowHide_Click"
+                                    ToolTip="Show / hide key"/>
+                        </Grid>
+                        <TextBlock x:Name="ApiKeyHint"
+                                   FontSize="11" FontFamily="Segoe UI"
+                                   Foreground="{DynamicResource SubtextBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Button x:Name="TestButton"
+                                    Content="Test Connection"
+                                    Style="{StaticResource SButtonSecondary}"
+                                    Click="TestConnection_Click"
+                                    Margin="0,0,10,0"/>
+                            <TextBlock x:Name="TestResultLabel"
+                                       FontSize="13" FontFamily="Segoe UI"
+                                       Foreground="{DynamicResource SubtextBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <TextBlock Text="MODEL" Style="{StaticResource SLabel}"/>
+                        <ComboBox x:Name="CloudModelCombo"
+                                  Style="{StaticResource SComboBox}"
+                                  Margin="0,0,0,20"/>
+
+                        <Button Content="Save"
+                                Style="{StaticResource SButton}"
+                                Width="120"
+                                HorizontalAlignment="Left"
+                                Click="SaveCloudAI_Click"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ═══════════ OLLAMA TAB ═══════════ -->
+            <TabItem Header="Ollama">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+
+                        <TextBlock Text="BASE URL" Style="{StaticResource SLabel}"/>
+                        <TextBox x:Name="OllamaUrlBox"
+                                 Style="{StaticResource STextBox}"
+                                 Margin="0,0,0,16"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                            <Button x:Name="TestOllamaButton"
+                                    Content="Test Connection"
+                                    Style="{StaticResource SButtonSecondary}"
+                                    Click="TestOllama_Click"
+                                    Margin="0,0,10,0"/>
+                            <TextBlock x:Name="OllamaTestLabel"
+                                       FontSize="13" FontFamily="Segoe UI"
+                                       Foreground="{DynamicResource SubtextBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <Button Content="Save"
+                                Style="{StaticResource SButton}"
+                                Width="120"
+                                HorizontalAlignment="Left"
+                                Click="SaveOllama_Click"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+        </TabControl>
+    </DockPanel>
+</Window>

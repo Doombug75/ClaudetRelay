@@ -48,23 +48,16 @@ public partial class MainWindow : Window
     }
 
     // ── Dienste ────────────────────────────────────────────────────────────
-    private ClaudeService?                     _claude;
+    private ICloudAIService?                   _cloudAI;
     private readonly List<OllamaParticipantUI> _ollamaParticipants    = [];
     private readonly List<OllamaChatMessage>   _sharedHistory         = [];
-    private readonly List<ClaudeChatMessage>   _claudeHistory         = [];
+    private readonly List<CloudAIMessage>      _cloudAIHistory        = [];
     private CancellationTokenSource?           _streamCts;
     private List<string>                       _availableOllamaModels = [];
 
-    // ── Claude-Status ──────────────────────────────────────────────────────
-    private bool? _isClaudeOnline;
+    // ── Cloud AI Status ────────────────────────────────────────────────────
+    private bool? _isClaudeOnline;   // "Claude" kept as name for the UI slot
     private bool  _claudeEnabled = true;
-
-    private static readonly string[] ClaudeModels =
-    [
-        "claude-sonnet-4-20250514",
-        "claude-haiku-4-5-20251001",
-        "claude-opus-4-20250514",
-    ];
 
     // ──────────────────────────────────────────────────────────────────────
 
@@ -78,8 +71,8 @@ public partial class MainWindow : Window
         Loaded += async (_, _) =>
         {
             InitializeServices();
-            PopulateClaudeModelList();
-            AddSystemMessage("Chat started  ·  Claude, Ollama and You are connected.");
+            PopulateCloudAIModelList();
+            AddSystemMessage("Chat started  ·  Cloud AI, Ollama and You are connected.");
             InputTextBox.Focus();
             await CheckAllStatusAsync();
             StartStatusTimer();
@@ -92,31 +85,98 @@ public partial class MainWindow : Window
     {
         var settings = SettingsService.Load();
 
-        // Erster Ollama-Teilnehmer
-        AddOllamaParticipant(settings.OllamaModel);
-
-        // Claude
+        // One-time migration: move legacy ClaudeApiKey → Windows Credential Manager
         if (!string.IsNullOrWhiteSpace(settings.ClaudeApiKey))
         {
-            _claude = new ClaudeService(settings.ClaudeApiKey);
+            WindowsCredentialManager.Save("Anthropic", settings.ClaudeApiKey);
+            settings.ClaudeApiKey = "";
+            SettingsService.Save(settings);
         }
-        else
+
+        // First Ollama participant
+        AddOllamaParticipant(settings.OllamaModel);
+
+        // Cloud AI (provider from settings, key from Credential Manager)
+        InitializeCloudAI(settings);
+    }
+
+    private void InitializeCloudAI(AppSettings? settings = null)
+    {
+        settings ??= SettingsService.Load();
+
+        _cloudAI?.Dispose();
+        _cloudAI = null;
+
+        var provider = settings.SelectedProvider;
+        var apiKey   = WindowsCredentialManager.Load(provider);
+
+        if (!string.IsNullOrWhiteSpace(apiKey))
+        {
+            _cloudAI = CreateCloudAIService(provider, apiKey);
+            if (!string.IsNullOrEmpty(settings.SelectedCloudModel))
+                _cloudAI.CurrentModel = settings.SelectedCloudModel;
+        }
+
+        UpdateCloudAICardLabels(provider);
+
+        if (_cloudAI is null)
         {
             ClaudeModelLabel.Text = "No API key";
             ClaudeStatusDot.SetResourceReference(Ellipse.FillProperty, "AccentBrush");
-            ClaudeCard.Opacity    = 0.6;
+            ClaudeCard.Opacity            = 0.6;
             ClaudeEnabledToggle.IsChecked = false;
             ClaudeEnabledToggle.IsEnabled = false;
-            AddSystemMessage("ℹ  No Claude API key in Settings/settings.json — Claude will be skipped.");
+            AddSystemMessage($"ℹ  No {provider} API key — open Settings to add one.");
+        }
+        else
+        {
+            ClaudeEnabledToggle.IsEnabled = true;
         }
     }
 
-    private void PopulateClaudeModelList()
+    private void UpdateCloudAICardLabels(string? provider = null)
+    {
+        provider ??= SettingsService.Load().SelectedProvider;
+        var initial = provider.Length > 0 ? provider[0].ToString() : "C";
+
+        CloudAIAvatarText.Text  = initial;
+        CloudAINameLabel.Text   = provider;
+        CloudAIPopupTitle.Text  = provider;
+        ClaudeEnabledToggle.Content = $"{provider} enabled";
+
+        if (_cloudAI is not null)
+            ClaudeModelLabel.Text = _cloudAI.CurrentModel;
+    }
+
+    private static ICloudAIService CreateCloudAIService(string provider, string apiKey) =>
+        provider switch
+        {
+            "Google AI"  => new GoogleAIService(apiKey),
+            "Groq"       => new GroqService(apiKey),
+            "OpenRouter" => new OpenRouterService(apiKey),
+            "Mistral"    => new MistralService(apiKey),
+            _            => new AnthropicService(apiKey)
+        };
+
+    private static string[] GetDefaultModelsForProvider(string provider) => provider switch
+    {
+        "Anthropic"  => AnthropicService.DefaultModels,
+        "Google AI"  => GoogleAIService.DefaultModels,
+        "Groq"       => GroqService.DefaultModels,
+        "OpenRouter" => OpenRouterService.DefaultModels,
+        "Mistral"    => MistralService.DefaultModels,
+        _            => AnthropicService.DefaultModels
+    };
+
+    private void PopulateCloudAIModelList()
     {
         ClaudeModelList.Items.Clear();
-        foreach (var m in ClaudeModels)
+        var provider = SettingsService.Load().SelectedProvider;
+        var models   = GetDefaultModelsForProvider(provider);
+        foreach (var m in models)
             ClaudeModelList.Items.Add(m);
-        ClaudeModelList.SelectedItem = _claude?.CurrentModel ?? ClaudeModels[0];
+        ClaudeModelList.SelectedItem = _cloudAI?.CurrentModel
+                                    ?? (models.Length > 0 ? models[0] : null);
     }
 
     private async Task LoadOllamaModelsAsync()
@@ -428,9 +488,9 @@ public partial class MainWindow : Window
                 await LoadOllamaModelsAsync();
         }
 
-        if (_claude is not null)
+        if (_cloudAI is not null)
         {
-            var claudeOnline = await _claude.IsAvailableAsync();
+            var claudeOnline = await _cloudAI.IsAvailableAsync();
             ApplyClaudeStatus(claudeOnline);
         }
     }
@@ -469,7 +529,7 @@ public partial class MainWindow : Window
         ClaudeModelLabel.Visibility   = online ? Visibility.Visible   : Visibility.Collapsed;
 
         if (online)
-            ClaudeModelLabel.Text = _claude?.CurrentModel ?? ClaudeModels[0];
+            ClaudeModelLabel.Text = _cloudAI?.CurrentModel ?? "";
 
         double targetOpacity = (online && _claudeEnabled) ? 1.0 : 0.6;
 
@@ -507,7 +567,7 @@ public partial class MainWindow : Window
 
     private void ClaudeCard_Click(object sender, MouseButtonEventArgs e)
     {
-        ClaudeModelList.SelectedItem  = _claude?.CurrentModel ?? ClaudeModels[0];
+        ClaudeModelList.SelectedItem  = _cloudAI?.CurrentModel;
         ClaudeEnabledToggle.IsChecked = _claudeEnabled;
         ClaudePopup.IsOpen = !ClaudePopup.IsOpen;
     }
@@ -521,11 +581,16 @@ public partial class MainWindow : Window
 
     private void ClaudeModel_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_claude is null) return;
-        if (ClaudeModelList.SelectedItem is string model && model != _claude.CurrentModel)
+        if (_cloudAI is null) return;
+        if (ClaudeModelList.SelectedItem is string model && model != _cloudAI.CurrentModel)
         {
-            _claude.CurrentModel  = model;
+            _cloudAI.CurrentModel = model;
             ClaudeModelLabel.Text = model;
+
+            // Persist
+            var s = SettingsService.Load();
+            s.SelectedCloudModel = model;
+            SettingsService.Save(s);
         }
     }
 
@@ -560,7 +625,7 @@ public partial class MainWindow : Window
 
         AddMessage("You", "U", "UserBrush", "UserBubbleBrush", text, isUser: true);
         _sharedHistory.Add(new OllamaChatMessage("user", text));
-        _claudeHistory.Add(new ClaudeChatMessage("user", text));
+        _cloudAIHistory.Add(new CloudAIMessage("user", text));
 
         InputTextBox.Clear();
         InputTextBox.Focus();
@@ -584,7 +649,7 @@ public partial class MainWindow : Window
         var activeOllamas = _ollamaParticipants
             .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true)
             .ToList();
-        bool useClaude = _claudeEnabled && _isClaudeOnline == true && _claude is not null;
+        bool useClaude = _claudeEnabled && _isClaudeOnline == true && _cloudAI is not null;
 
         if (activeOllamas.Count == 0 && !useClaude)
         {
@@ -605,7 +670,7 @@ public partial class MainWindow : Window
                 await RunOllamaStreamAsync(ui, ct);
             }
             if (useClaude && !ct.IsCancellationRequested)
-                await RunClaudeStreamAsync(ct);
+                await RunCloudAIStreamAsync(ct);
         }
         finally
         {
@@ -626,15 +691,17 @@ public partial class MainWindow : Window
         var sb = new StringBuilder();
         try
         {
-            await foreach (var token in ui.Data.Service.StreamAsync(_sharedHistory, ct))
+            var history = BuildOllamaHistoryFor(ui);
+            await foreach (var token in ui.Data.Service.StreamAsync(history, ct))
             {
                 sb.Append(token);
                 bubbleTb.Text = sb.ToString();
                 ChatScrollViewer.ScrollToBottom();
             }
-            // In den gemeinsamen Verlauf schreiben (alle Teilnehmer + Claude sehen dies)
-            _sharedHistory.Add(new OllamaChatMessage("assistant", sb.ToString()));
-            _claudeHistory.Add(new ClaudeChatMessage("assistant", sb.ToString()));
+            // Store with sender so other participants can tell who said what
+            var response = sb.ToString();
+            _sharedHistory.Add(new OllamaChatMessage("assistant", response, ui.Data.AvatarLabel));
+            _cloudAIHistory.Add(new CloudAIMessage("assistant", response, ui.Data.AvatarLabel));
         }
         catch (OperationCanceledException)
         {
@@ -652,19 +719,23 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RunClaudeStreamAsync(CancellationToken ct)
+    private async Task RunCloudAIStreamAsync(CancellationToken ct)
     {
-        var bubbleTb = AddStreamingBubble("Claude", "C", "ClaudeBrush", "ClaudeBubbleBrush", false);
+        var provider = _cloudAI!.ProviderName;
+        var bubbleTb = AddStreamingBubble(provider, provider[0].ToString(), "ClaudeBrush", "ClaudeBubbleBrush", false);
         var sb = new StringBuilder();
         try
         {
-            await foreach (var token in _claude!.StreamAsync(_claudeHistory, ct))
+            var (history, system) = BuildCloudAIHistory();
+            await foreach (var token in _cloudAI.StreamAsync(history, system, ct))
             {
                 sb.Append(token);
                 bubbleTb.Text = sb.ToString();
                 ChatScrollViewer.ScrollToBottom();
             }
-            _claudeHistory.Add(new ClaudeChatMessage("assistant", sb.ToString()));
+            var response = sb.ToString();
+            _cloudAIHistory.Add(new CloudAIMessage("assistant", response, provider));
+            _sharedHistory.Add(new OllamaChatMessage("assistant", response, provider));
         }
         catch (OperationCanceledException)
         {
@@ -674,12 +745,93 @@ public partial class MainWindow : Window
         catch (HttpRequestException ex)
         {
             bubbleTb.Text = $"Connection error: {ex.Message}";
-            AddSystemMessage("⚠  Claude unreachable.");
+            AddSystemMessage($"⚠  {provider} unreachable.");
         }
         catch (Exception ex)
         {
             bubbleTb.Text = $"Error: {ex.Message}";
         }
+    }
+
+    // ── Per-participant history builders ───────────────────────────────────
+
+    /// <summary>
+    /// Builds a history view tailored to one Ollama participant.
+    /// - Prepends a system message identifying the model.
+    /// - The participant's own past responses keep role "assistant".
+    /// - Every other AI's responses are presented as role "user" with a [Sender] prefix
+    ///   so the model does not mistake them for its own prior words.
+    /// </summary>
+    private List<OllamaChatMessage> BuildOllamaHistoryFor(OllamaParticipantUI forUi)
+    {
+        var myLabel = forUi.Data.AvatarLabel;          // "O1", "O2", "O3"
+        var myModel = forUi.Data.Service.CurrentModel;
+
+        var result = new List<OllamaChatMessage>
+        {
+            new("system",
+                $"You are {myLabel}, an AI assistant running the {myModel} model. " +
+                $"You are one of several participants in a relay group chat (human + multiple AI models). " +
+                $"Always respond as {myLabel}. " +
+                $"If asked who you are, say you are {myLabel} running {myModel}. " +
+                $"Messages from other AI participants are prefixed with their label, e.g. [O2].")
+        };
+
+        foreach (var msg in _sharedHistory)
+        {
+            if (msg.Role == "user")
+            {
+                result.Add(new OllamaChatMessage("user", msg.Content));
+            }
+            else if (msg.Role == "assistant")
+            {
+                if (msg.Sender == myLabel)
+                    result.Add(new OllamaChatMessage("assistant", msg.Content));
+                else
+                    result.Add(new OllamaChatMessage("user", $"[{msg.Sender}]: {msg.Content}"));
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Builds the history and system prompt for the active Cloud AI provider.
+    /// Other AI responses are presented as "user" messages with a [Sender] prefix.
+    /// </summary>
+    private (List<CloudAIMessage> History, string System) BuildCloudAIHistory()
+    {
+        var myName     = _cloudAI?.ProviderName ?? "Cloud AI";
+        var otherNames = _ollamaParticipants
+            .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true)
+            .Select(ui => $"{ui.Data.AvatarLabel} ({ui.Data.Service.CurrentModel})");
+        var othersStr  = string.Join(", ", otherNames);
+        var othersNote = string.IsNullOrEmpty(othersStr)
+            ? ""
+            : $" Other AI participants in this chat: {othersStr}.";
+
+        var system =
+            $"You are {myName}. " +
+            $"You are participating in a relay group chat with a human user and other AI models.{othersNote} " +
+            $"Always respond as {myName}. If asked who you are, identify yourself as {myName}.";
+
+        var history = new List<CloudAIMessage>();
+        foreach (var msg in _cloudAIHistory)
+        {
+            if (msg.Role == "user")
+            {
+                history.Add(new CloudAIMessage("user", msg.Content));
+            }
+            else if (msg.Role == "assistant")
+            {
+                if (msg.Sender == myName)
+                    history.Add(new CloudAIMessage("assistant", msg.Content));
+                else
+                    history.Add(new CloudAIMessage("user", $"[{msg.Sender}]: {msg.Content}"));
+            }
+        }
+
+        return (history, system);
     }
 
     // ── Sidebar-Aktionen ───────────────────────────────────────────────────
@@ -689,11 +841,21 @@ public partial class MainWindow : Window
         _streamCts?.Cancel();
         ChatPanel.Children.Clear();
         _sharedHistory.Clear();
-        _claudeHistory.Clear();
+        _cloudAIHistory.Clear();
         AddSystemMessage("Chat cleared.");
     }
 
-    private void SettingsButton_Click(object sender, RoutedEventArgs e) { }
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new SettingsWindow(_currentThemePath) { Owner = this };
+        if (win.ShowDialog() == true)
+        {
+            var s = SettingsService.Load();
+            InitializeCloudAI(s);
+            PopulateCloudAIModelList();
+            _ = CheckAllStatusAsync();
+        }
+    }
 
     private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
