@@ -396,3 +396,9 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Local app settings — may contain sensitive data; never commit
+Settings/settings.json
+*.env
+.env.*
+secrets.json
