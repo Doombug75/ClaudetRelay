@@ -17,54 +17,32 @@
             <Setter Property="Margin"     Value="0,0,0,5"/>
         </Style>
 
-        <!-- Text input -->
+        <!-- Text input: no custom ControlTemplate.
+             WPF's default template reliably propagates Foreground to the caret/text.
+             Background=Transparent so the wrapper Border supplies the fill colour. -->
         <Style x:Key="STextBox" TargetType="TextBox">
-            <Setter Property="Height"          Value="36"/>
-            <Setter Property="Padding"         Value="10,8"/>
-            <Setter Property="FontSize"        Value="14"/>
-            <Setter Property="FontFamily"      Value="Segoe UI"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Background"      Value="{DynamicResource InputBrush}"/>
-            <Setter Property="Foreground"      Value="{DynamicResource TextBrush}"/>
-            <Setter Property="CaretBrush"      Value="{DynamicResource TextBrush}"/>
-            <Setter Property="SelectionBrush"  Value="{DynamicResource AccentBrush}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TextBox">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="8"
-                                Padding="{TemplateBinding Padding}">
-                            <!-- Explicit Foreground TemplateBinding prevents the
-                                 system ScrollViewer style from shadowing the text colour -->
-                            <ScrollViewer x:Name="PART_ContentHost"
-                                          Foreground="{TemplateBinding Foreground}"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Padding"                   Value="10,0"/>
+            <Setter Property="FontSize"                  Value="14"/>
+            <Setter Property="FontFamily"                Value="Segoe UI"/>
+            <Setter Property="BorderThickness"           Value="0"/>
+            <Setter Property="Background"                Value="Transparent"/>
+            <Setter Property="Foreground"                Value="{DynamicResource TextBrush}"/>
+            <Setter Property="CaretBrush"                Value="{DynamicResource TextBrush}"/>
+            <Setter Property="SelectionBrush"            Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="VerticalAlignment"         Value="Center"/>
+            <Setter Property="VerticalContentAlignment"  Value="Center"/>
         </Style>
 
-        <!-- Password input -->
+        <!-- Password input — same transparent-background approach -->
         <Style x:Key="SPasswordBox" TargetType="PasswordBox">
-            <Setter Property="Height"          Value="36"/>
-            <Setter Property="Padding"         Value="10,8"/>
-            <Setter Property="FontSize"        Value="13"/>
-            <Setter Property="FontFamily"      Value="Segoe UI"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Background"      Value="{DynamicResource InputBrush}"/>
-            <Setter Property="Foreground"      Value="{DynamicResource TextBrush}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="PasswordBox">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="8"
-                                Padding="{TemplateBinding Padding}">
-                            <ScrollViewer x:Name="PART_ContentHost"
-                                          Foreground="{TemplateBinding Foreground}"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Padding"                   Value="10,0"/>
+            <Setter Property="FontSize"                  Value="14"/>
+            <Setter Property="FontFamily"                Value="Segoe UI"/>
+            <Setter Property="BorderThickness"           Value="0"/>
+            <Setter Property="Background"                Value="Transparent"/>
+            <Setter Property="Foreground"                Value="{DynamicResource TextBrush}"/>
+            <Setter Property="VerticalAlignment"         Value="Center"/>
+            <Setter Property="VerticalContentAlignment"  Value="Center"/>
         </Style>
 
         <!-- Primary button -->

@@ -26,6 +26,8 @@ public partial class SettingsWindow : Window
         public required Border      CloudAISection   { get; init; }
         public required PasswordBox ApiKeyBox        { get; init; }
         public required TextBox     ApiKeyTextBox    { get; init; }
+        // ApiKeyOuter is the Border wrapping ApiKeyBox; its Visibility tells us which mode is active
+        public required Border      ApiKeyOuter      { get; init; }
         public required TextBlock   ApiKeyHintLabel  { get; init; }
         public required ComboBox    CloudModelCombo  { get; init; }
         public required TextBlock   CloudTestLabel   { get; init; }
@@ -33,8 +35,9 @@ public partial class SettingsWindow : Window
         public string CurrentProvider =>
             (TypeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Ollama";
 
+        // Password mode is active when ApiKeyOuter (the PasswordBox wrapper) is visible
         public string CurrentApiKey =>
-            ApiKeyBox.Visibility == Visibility.Visible
+            ApiKeyOuter.Visibility == Visibility.Visible
                 ? ApiKeyBox.Password
                 : ApiKeyTextBox.Text;
     }
@@ -78,36 +81,63 @@ public partial class SettingsWindow : Window
         Loaded += async (_, _) => await AutoTestAllAsync();
     }
 
+    // ── Input helpers ──────────────────────────────────────────────────────
+    // Same pattern as MainWindow's InputTextBox: transparent inner control +
+    // outer Border that supplies the background and rounded corners.
+
+    /// <summary>Returns a 36 px rounded input: (outer Border for layout, inner TextBox for data).</summary>
+    private (Border Outer, TextBox Input) MakeTextInput(string text = "")
+    {
+        var tb = new TextBox { Style = (Style)FindResource("STextBox"), Text = text };
+        // Local values beat any system-theme setter
+        tb.FontSize   = 14;
+        tb.FontFamily = new FontFamily("Segoe UI");
+        tb.SetResourceReference(Control.ForegroundProperty, "TextBrush");
+        tb.SetResourceReference(TextBox.CaretBrushProperty, "TextBrush");
+
+        var outer = new Border { Height = 36, CornerRadius = new CornerRadius(8) };
+        outer.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+        outer.Child = tb;
+        return (outer, tb);
+    }
+
+    /// <summary>Returns a 36 px rounded password input: (outer Border, inner PasswordBox).</summary>
+    private (Border Outer, PasswordBox Input) MakePasswordInput()
+    {
+        var pb = new PasswordBox { Style = (Style)FindResource("SPasswordBox") };
+        pb.FontSize   = 14;
+        pb.FontFamily = new FontFamily("Segoe UI");
+        pb.SetResourceReference(Control.ForegroundProperty, "TextBrush");
+
+        var outer = new Border { Height = 36, CornerRadius = new CornerRadius(8) };
+        outer.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+        outer.Child = pb;
+        return (outer, pb);
+    }
+
     // ── General tab ────────────────────────────────────────────────────────
 
     private void BuildGeneralTab(AppSettings settings)
     {
         var nameLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "YOUR NAME" };
 
-        _userNameBox = new TextBox
-        {
-            Style  = (Style)FindResource("STextBox"),
-            Text   = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName,
-            Margin = new Thickness(0, 0, 0, 6)
-        };
-        _userNameBox.FontSize   = 14;
-        _userNameBox.FontFamily = new FontFamily("Segoe UI");
-        _userNameBox.SetResourceReference(Control.ForegroundProperty, "TextBrush");
-        _userNameBox.SetResourceReference(Control.BackgroundProperty, "InputBrush");
+        var (userNameOuter, userNameInput) = MakeTextInput(
+            string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName);
+        _userNameBox          = userNameInput;
+        userNameOuter.Margin  = new Thickness(0, 0, 0, 6);
 
         var nameHint = new TextBlock
         {
             Text         = "Shown on your own chat bubbles",
             FontSize     = 11,
             FontFamily   = new FontFamily("Segoe UI"),
-            Margin       = new Thickness(0, 0, 0, 0),
             TextWrapping = TextWrapping.Wrap
         };
         nameHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
 
-        var root = new StackPanel { Margin = new Thickness(0) };
+        var root = new StackPanel();
         root.Children.Add(nameLabel);
-        root.Children.Add(_userNameBox);
+        root.Children.Add(userNameOuter);
         root.Children.Add(nameHint);
 
         var tab = new TabItem { Header = "General", Content = root };
@@ -118,7 +148,6 @@ public partial class SettingsWindow : Window
 
     private async Task AutoTestAllAsync()
     {
-        // Run all tests in parallel: Ollama always, Cloud AI only if a key exists
         var tasks = _forms.Select(async form =>
         {
             if (form.CurrentProvider == "Ollama")
@@ -133,8 +162,8 @@ public partial class SettingsWindow : Window
 
     private void BuildTab(int index, ParticipantConfig config)
     {
-        bool isOllama   = config.Type == "Ollama";
-        var  tabHeader  = string.IsNullOrWhiteSpace(config.Name) ? $"P{index + 1}" : config.Name;
+        bool isOllama  = config.Type == "Ollama";
+        var  tabHeader = string.IsNullOrWhiteSpace(config.Name) ? $"P{index + 1}" : config.Name;
 
         // ── Enable checkbox ───────────────────────────────────────────────
         var enabledCheck = new CheckBox
@@ -147,17 +176,7 @@ public partial class SettingsWindow : Window
 
         // ── Name + Type row ───────────────────────────────────────────────
         var nameLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "NAME" };
-        var nameBox   = new TextBox
-        {
-            Style       = (Style)FindResource("STextBox"),
-            Text        = config.Name,
-            Margin      = new Thickness(0, 0, 0, 0)
-        };
-        // Explicit local values ensure font + colour beat any system style override
-        nameBox.FontSize   = 14;
-        nameBox.FontFamily = new FontFamily("Segoe UI");
-        nameBox.SetResourceReference(Control.ForegroundProperty, "TextBrush");
-        nameBox.SetResourceReference(Control.BackgroundProperty, "InputBrush");
+        var (nameBoxOuter, nameBox) = MakeTextInput(config.Name);
 
         var typeLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "TYPE" };
         var typeCombo = new ComboBox { Style = (Style)FindResource("SComboBox") };
@@ -167,7 +186,7 @@ public partial class SettingsWindow : Window
 
         var nameCol = new StackPanel { Margin = new Thickness(0, 0, 8, 14) };
         nameCol.Children.Add(nameLabel);
-        nameCol.Children.Add(nameBox);
+        nameCol.Children.Add(nameBoxOuter);
 
         var typeCol = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
         typeCol.Children.Add(typeLabel);
@@ -188,15 +207,8 @@ public partial class SettingsWindow : Window
 
         var serverLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "SERVER URL" };
 
-        var serverUrlBox = new TextBox
-        {
-            Style = (Style)FindResource("STextBox"),
-            Text  = string.IsNullOrEmpty(config.ServerUrl) ? "http://localhost:11434" : config.ServerUrl
-        };
-        serverUrlBox.FontSize   = 14;
-        serverUrlBox.FontFamily = new FontFamily("Segoe UI");
-        serverUrlBox.SetResourceReference(Control.ForegroundProperty, "TextBrush");
-        serverUrlBox.SetResourceReference(Control.BackgroundProperty, "InputBrush");
+        var (serverUrlOuter, serverUrlBox) = MakeTextInput(
+            string.IsNullOrEmpty(config.ServerUrl) ? "http://localhost:11434" : config.ServerUrl);
 
         var localhostBtn = new Button
         {
@@ -209,9 +221,9 @@ public partial class SettingsWindow : Window
         var serverGrid = new Grid { Margin = new Thickness(0, 0, 0, 12) };
         serverGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         serverGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(serverUrlBox,  0);
-        Grid.SetColumn(localhostBtn,  1);
-        serverGrid.Children.Add(serverUrlBox);
+        Grid.SetColumn(serverUrlOuter, 0);
+        Grid.SetColumn(localhostBtn,   1);
+        serverGrid.Children.Add(serverUrlOuter);
         serverGrid.Children.Add(localhostBtn);
 
         var ollamaModelLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "MODEL" };
@@ -269,14 +281,11 @@ public partial class SettingsWindow : Window
 
         var apiKeyLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "API KEY" };
 
-        var apiKeyBox     = new PasswordBox { Style = (Style)FindResource("SPasswordBox") };
-        var apiKeyTextBox = new TextBox
-        {
-            Style      = (Style)FindResource("STextBox"),
-            Visibility = Visibility.Collapsed
-        };
-        apiKeyTextBox.SetResourceReference(Control.ForegroundProperty, "TextBrush");
-        apiKeyTextBox.SetResourceReference(Control.BackgroundProperty, "InputBrush");
+        // Password mode (default visible) and show-key mode (initially collapsed)
+        var (apiKeyOuter, apiKeyBox)         = MakePasswordInput();
+        var (apiKeyTextOuter, apiKeyTextBox) = MakeTextInput();
+        apiKeyTextOuter.Visibility = Visibility.Collapsed;
+
         var showHideBtn = new Button
         {
             Content  = "👁",
@@ -291,19 +300,19 @@ public partial class SettingsWindow : Window
         // Pre-load API key from Credential Manager for the current provider
         if (!isOllama)
         {
-            var existingKey       = WindowsCredentialManager.Load(config.Type) ?? "";
-            apiKeyBox.Password    = existingKey;
-            apiKeyTextBox.Text    = existingKey;
+            var existingKey      = WindowsCredentialManager.Load(config.Type) ?? "";
+            apiKeyBox.Password   = existingKey;
+            apiKeyTextBox.Text   = existingKey;
         }
 
         var apiKeyGrid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
         apiKeyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         apiKeyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(apiKeyBox,      0);
-        Grid.SetColumn(apiKeyTextBox,  0);
-        Grid.SetColumn(showHideBtn,    1);
-        apiKeyGrid.Children.Add(apiKeyBox);
-        apiKeyGrid.Children.Add(apiKeyTextBox);
+        Grid.SetColumn(apiKeyOuter,     0);
+        Grid.SetColumn(apiKeyTextOuter, 0);   // same cell — they toggle
+        Grid.SetColumn(showHideBtn,     1);
+        apiKeyGrid.Children.Add(apiKeyOuter);
+        apiKeyGrid.Children.Add(apiKeyTextOuter);
         apiKeyGrid.Children.Add(showHideBtn);
 
         var apiKeyHint = new TextBlock
@@ -388,6 +397,7 @@ public partial class SettingsWindow : Window
             CloudAISection   = cloudAISection,
             ApiKeyBox        = apiKeyBox,
             ApiKeyTextBox    = apiKeyTextBox,
+            ApiKeyOuter      = apiKeyOuter,
             ApiKeyHintLabel  = apiKeyHint,
             CloudModelCombo  = cloudModelCombo,
             CloudTestLabel   = cloudTestLabel
@@ -411,33 +421,34 @@ public partial class SettingsWindow : Window
             UpdateApiKeyHint(form.ApiKeyHintLabel, provider);
             if (provider != "Ollama")
             {
-                var key              = WindowsCredentialManager.Load(provider) ?? "";
-                form.ApiKeyBox.Password   = key;
-                form.ApiKeyTextBox.Text   = key;
+                var key                  = WindowsCredentialManager.Load(provider) ?? "";
+                form.ApiKeyBox.Password  = key;
+                form.ApiKeyTextBox.Text  = key;
                 PopulateCloudModelCombo(form.CloudModelCombo, provider, "");
             }
         };
 
+        // Toggle password / plain-text view using the OUTER borders
         showHideBtn.Click += (_, _) =>
         {
-            if (apiKeyBox.Visibility == Visibility.Visible)
+            if (apiKeyOuter.Visibility == Visibility.Visible)   // currently showing password dots
             {
-                apiKeyTextBox.Text        = apiKeyBox.Password;
-                apiKeyBox.Visibility      = Visibility.Collapsed;
-                apiKeyTextBox.Visibility  = Visibility.Visible;
+                apiKeyTextBox.Text         = apiKeyBox.Password;
+                apiKeyOuter.Visibility     = Visibility.Collapsed;
+                apiKeyTextOuter.Visibility = Visibility.Visible;
                 apiKeyTextBox.Focus();
-                apiKeyTextBox.CaretIndex  = apiKeyTextBox.Text.Length;
+                apiKeyTextBox.CaretIndex   = apiKeyTextBox.Text.Length;
             }
-            else
+            else                                                 // currently showing plain text
             {
-                apiKeyBox.Password        = apiKeyTextBox.Text;
-                apiKeyTextBox.Visibility  = Visibility.Collapsed;
-                apiKeyBox.Visibility      = Visibility.Visible;
+                apiKeyBox.Password         = apiKeyTextBox.Text;
+                apiKeyTextOuter.Visibility = Visibility.Collapsed;
+                apiKeyOuter.Visibility     = Visibility.Visible;
             }
         };
 
-        apiKeyBox.PasswordChanged += (_, _) => apiKeyTextBox.Text   = apiKeyBox.Password;
-        apiKeyTextBox.TextChanged  += (_, _) => apiKeyBox.Password  = apiKeyTextBox.Text;
+        apiKeyBox.PasswordChanged += (_, _) => apiKeyTextBox.Text  = apiKeyBox.Password;
+        apiKeyTextBox.TextChanged  += (_, _) => apiKeyBox.Password = apiKeyTextBox.Text;
 
         localhostBtn.Click += (_, _) => serverUrlBox.Text = "http://localhost:11434";
 
@@ -608,6 +619,7 @@ public partial class SettingsWindow : Window
         }
 
         SettingsService.Save(settings);
+        SaveStatusLabel.Text = "Saved ✓";
         DialogResult = true;
     }
 
