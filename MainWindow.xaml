@@ -415,7 +415,7 @@
                                     Style="{StaticResource SendButton}"
                                     MinWidth="82" Margin="0,0,8,0"
                                     Click="SendButton_Click"/>
-                            <Button x:Name="AIRespondButton" Content="AI ▶"
+                            <Button x:Name="AIRespondButton" Content="↺ Re-Send"
                                     Style="{StaticResource ModernButton}"
                                     Background="{DynamicResource OllamaBrush}"
                                     Foreground="{DynamicResource SidebarBrush}"
