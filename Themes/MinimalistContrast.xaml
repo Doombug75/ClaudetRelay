@@ -1,0 +1,27 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Minimalist Contrast - Hintergründe -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#121212"/>
+    <SolidColorBrush x:Key="SidebarBrush" Color="#181818"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#222222"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#2A2A2A"/>
+
+    <!-- Minimalist Contrast - Text -->
+    <SolidColorBrush x:Key="TextBrush" Color="#F0F0F0"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#888888"/>
+
+    <!-- Minimalist Contrast - Akzente -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#3B82F6"/> <!-- Primary Blue Accent -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#10B981"/> <!-- Emerald Green Accent -->
+    <SolidColorBrush x:Key="UserBrush" Color="#F59E0B"/> <!-- Amber Orange Accent -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#F97316"/> <!-- Deep Orange Accent -->
+
+    <!-- Minimalist Contrast - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#1E1E1E"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#252525"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#2E2E2E"/>
+
+</ResourceDictionary>
+
+

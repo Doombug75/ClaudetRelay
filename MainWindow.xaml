@@ -9,10 +9,10 @@
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Themes/CatppuccinMocha.xaml"/>
+                <!-- Theme is loaded dynamically from the Themes folder at startup -->
             </ResourceDictionary.MergedDictionaries>
 
-            <!-- Basis-Button -->
+            <!-- Base button -->
             <Style x:Key="ModernButton" TargetType="Button">
                 <Setter Property="BorderThickness" Value="0"/>
                 <Setter Property="Cursor" Value="Hand"/>
@@ -42,14 +42,12 @@
                 </Setter>
             </Style>
 
-            <!-- Senden-Button -->
             <Style x:Key="SendButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
                 <Setter Property="Background" Value="{DynamicResource ClaudeBrush}"/>
                 <Setter Property="Foreground" Value="{DynamicResource SidebarBrush}"/>
                 <Setter Property="FontWeight" Value="Bold"/>
             </Style>
 
-            <!-- Sidebar-Button -->
             <Style x:Key="SidebarButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
                 <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
                 <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
@@ -57,47 +55,160 @@
                 <Setter Property="Padding" Value="12,9"/>
             </Style>
 
-            <!-- ComboBox -->
-            <ControlTemplate x:Key="ComboBoxToggleButton" TargetType="ToggleButton">
-                <Border Background="{DynamicResource InputBrush}" CornerRadius="8">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="28"/>
-                        </Grid.ColumnDefinitions>
-                        <ContentPresenter Grid.Column="0" Margin="10,0,0,0"
-                                          VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1" Text="▾" FontSize="11"
-                                   Foreground="{DynamicResource SubtextBrush}"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"/>
-                    </Grid>
-                </Border>
-            </ControlTemplate>
-
+            <!-- ComboBox — full custom template for theme-safe readability -->
             <Style x:Key="ModernComboBox" TargetType="ComboBox">
-                <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Background"      Value="{DynamicResource InputBrush}"/>
+                <Setter Property="Foreground"      Value="{DynamicResource TextBrush}"/>
                 <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Height" Value="36"/>
-                <Setter Property="FontSize" Value="13"/>
-                <Setter Property="FontFamily" Value="Segoe UI"/>
-                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Height"          Value="36"/>
+                <Setter Property="FontSize"        Value="13"/>
+                <Setter Property="FontFamily"      Value="Segoe UI"/>
+                <Setter Property="Cursor"          Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ComboBox">
+                            <Grid>
+                                <!-- Toggle button: background + arrow -->
+                                <ToggleButton x:Name="ToggleButton"
+                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
+                                                          RelativeSource={RelativeSource TemplatedParent}}"
+                                              Focusable="False" ClickMode="Press"
+                                              BorderThickness="0" Cursor="Hand">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border x:Name="Bd"
+                                                    Background="{DynamicResource InputBrush}"
+                                                    CornerRadius="8">
+                                                <TextBlock Text="▾" FontSize="11"
+                                                           Foreground="{DynamicResource SubtextBrush}"
+                                                           HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,10,0"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Opacity" Value="0.82"/>
+                                                </Trigger>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="Bd" Property="Opacity" Value="0.90"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+
+                                <!-- Selected item text (non-interactive overlay) -->
+                                <ContentPresenter IsHitTestVisible="False"
+                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  Margin="12,0,30,0"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"/>
+
+                                <!-- Dropdown popup -->
+                                <Popup x:Name="PART_Popup"
+                                       Placement="Bottom"
+                                       IsOpen="{TemplateBinding IsDropDownOpen}"
+                                       AllowsTransparency="True"
+                                       Focusable="False"
+                                       PopupAnimation="Slide">
+                                    <Border MinWidth="{TemplateBinding ActualWidth}"
+                                            MaxHeight="320"
+                                            Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource InputBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Margin="0,3,0,0"
+                                            SnapsToDevicePixels="True">
+                                        <Border.Effect>
+                                            <DropShadowEffect Color="#000000" Opacity="0.50"
+                                                              BlurRadius="20" ShadowDepth="4"/>
+                                        </Border.Effect>
+                                        <ScrollViewer Margin="4" CanContentScroll="True"
+                                                      VerticalScrollBarVisibility="Auto">
+                                            <StackPanel IsItemsHost="True"
+                                                        KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
                 <Setter Property="ItemContainerStyle">
                     <Setter.Value>
                         <Style TargetType="ComboBoxItem">
-                            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-                            <Setter Property="Background" Value="{DynamicResource SidebarBrush}"/>
-                            <Setter Property="Padding" Value="10,8"/>
-                            <Setter Property="FontSize" Value="13"/>
-                            <Style.Triggers>
-                                <Trigger Property="IsHighlighted" Value="True">
-                                    <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
-                                </Trigger>
-                            </Style.Triggers>
+                            <Setter Property="Foreground"  Value="{DynamicResource TextBrush}"/>
+                            <Setter Property="Background"  Value="Transparent"/>
+                            <Setter Property="Padding"     Value="10,7"/>
+                            <Setter Property="FontSize"    Value="13"/>
+                            <Setter Property="FontFamily"  Value="Segoe UI"/>
+                            <Setter Property="Cursor"      Value="Hand"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ComboBoxItem">
+                                        <Border x:Name="Bd"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="6" Margin="3,1"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsHighlighted" Value="True">
+                                                <Setter TargetName="Bd" Property="Background"
+                                                        Value="{DynamicResource InputBrush}"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Bd" Property="Background"
+                                                        Value="{DynamicResource InputBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
                         </Style>
                     </Setter.Value>
                 </Setter>
+            </Style>
+
+            <!-- Popup model list: ListBoxItem style -->
+            <Style x:Key="ModelListItem" TargetType="ListBoxItem">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Padding" Value="8,6"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="FontFamily" Value="Segoe UI"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                    CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background"
+                                            Value="{DynamicResource SurfaceBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Bd" Property="Background"
+                                            Value="{DynamicResource InputBrush}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Toggle switch (CheckBox used as enable/disable toggle) -->
+            <Style x:Key="ToggleSwitch" TargetType="CheckBox">
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="FontFamily" Value="Segoe UI"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
             </Style>
 
         </ResourceDictionary>
@@ -113,19 +224,19 @@
         <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}">
             <DockPanel>
 
-                <!-- Footer (unten fixiert) -->
+                <!-- Footer -->
                 <StackPanel DockPanel.Dock="Bottom" Margin="14,0,14,16">
                     <Rectangle Height="1" Fill="{DynamicResource InputBrush}" Margin="0,0,0,12"/>
-                    <Button Content="⚙  Einstellungen"
+                    <Button Content="⚙  Settings"
                             Style="{StaticResource SidebarButton}"
                             Margin="0,0,0,7"
                             Click="SettingsButton_Click"/>
-                    <Button Content="🗑  Chat leeren"
+                    <Button Content="🗑  Clear Chat"
                             Style="{StaticResource SidebarButton}"
                             Click="ClearChat_Click"/>
                 </StackPanel>
 
-                <!-- Scrollbarer Sidebar-Inhalt -->
+                <!-- Scrollable content -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="14,20,14,8">
@@ -133,12 +244,10 @@
                         <!-- ── Logo ── -->
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,28">
                             <Border Width="38" Height="38" CornerRadius="10"
-                                    Background="{DynamicResource ClaudeBrush}"
-                                    Margin="0,0,10,0">
+                                    Background="{DynamicResource ClaudeBrush}" Margin="0,0,10,0">
                                 <TextBlock Text="CR" FontSize="14" FontWeight="Bold"
                                            Foreground="{DynamicResource SidebarBrush}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"/>
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock FontSize="17" FontWeight="Bold" FontFamily="Segoe UI">
@@ -150,14 +259,15 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- ── Teilnehmer ── -->
-                        <TextBlock Text="TEILNEHMER" FontSize="10" FontWeight="Bold"
-                                   Foreground="{DynamicResource SubtextBrush}"
-                                   Margin="2,0,0,10"/>
+                        <!-- ── Participants ── -->
+                        <TextBlock Text="PARTICIPANTS" FontSize="10" FontWeight="Bold"
+                                   Foreground="{DynamicResource SubtextBrush}" Margin="2,0,0,10"/>
 
-                        <!-- Claude -->
-                        <Border Background="{DynamicResource InputBrush}" CornerRadius="10"
-                                Padding="10" Margin="0,0,0,7">
+                        <!-- ── Claude card ── -->
+                        <Border x:Name="ClaudeCard"
+                                Background="{DynamicResource InputBrush}" CornerRadius="10"
+                                Padding="10" Margin="0,0,0,7" Cursor="Hand"
+                                MouseLeftButtonDown="ClaudeCard_Click">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -165,55 +275,38 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <Border Grid.Column="0" Width="34" Height="34" CornerRadius="9"
-                                        Background="{DynamicResource ClaudeBrush}"
-                                        Margin="0,0,10,0">
+                                        Background="{DynamicResource ClaudeBrush}" Margin="0,0,10,0">
                                     <TextBlock Text="C" FontSize="15" FontWeight="Bold"
                                                Foreground="{DynamicResource SidebarBrush}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"/>
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                     <TextBlock Text="Claude" FontSize="13" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextBrush}"/>
-                                    <TextBlock Text="Anthropic API" FontSize="10"
-                                               Foreground="{DynamicResource SubtextBrush}"/>
+                                    <TextBlock x:Name="ClaudeModelLabel" Text="checking..."
+                                               FontSize="10" Foreground="{DynamicResource SubtextBrush}"/>
+                                    <TextBlock x:Name="ClaudeOfflineLabel" Text="Offline"
+                                               FontSize="10" Foreground="{DynamicResource AccentBrush}"
+                                               Visibility="Collapsed"/>
                                 </StackPanel>
-                                <Ellipse Grid.Column="2" Width="8" Height="8"
-                                         Fill="{DynamicResource OllamaBrush}"
+                                <Ellipse x:Name="ClaudeStatusDot" Grid.Column="2"
+                                         Width="8" Height="8"
+                                         Fill="{DynamicResource SubtextBrush}"
                                          VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
 
-                        <!-- Ollama -->
-                        <Border Background="{DynamicResource InputBrush}" CornerRadius="10"
-                                Padding="10" Margin="0,0,0,7">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="34" Height="34" CornerRadius="9"
-                                        Background="{DynamicResource OllamaBrush}"
-                                        Margin="0,0,10,0">
-                                    <TextBlock Text="O" FontSize="15" FontWeight="Bold"
-                                               Foreground="{DynamicResource SidebarBrush}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Ollama" FontSize="13" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextBrush}"/>
-                                    <TextBlock x:Name="OllamaModelLabel" Text="llama3.2" FontSize="10"
-                                               Foreground="{DynamicResource SubtextBrush}"/>
-                                </StackPanel>
-                                <Ellipse Grid.Column="2" Width="8" Height="8"
-                                         Fill="{DynamicResource OllamaBrush}"
-                                         VerticalAlignment="Center"/>
-                            </Grid>
-                        </Border>
+                        <!-- ── Ollama cards (dynamic) ── -->
+                        <StackPanel x:Name="OllamaCardsPanel"/>
 
-                        <!-- User -->
+                        <Button x:Name="AddOllamaButton"
+                                Content="+ Add Ollama"
+                                Style="{StaticResource SidebarButton}"
+                                Foreground="{DynamicResource OllamaBrush}"
+                                Margin="0,0,0,7"
+                                Click="AddOllamaButton_Click"/>
+
+                        <!-- ── User card ── -->
                         <Border Background="{DynamicResource InputBrush}" CornerRadius="10"
                                 Padding="10" Margin="0,0,0,26">
                             <Grid>
@@ -223,17 +316,15 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <Border Grid.Column="0" Width="34" Height="34" CornerRadius="9"
-                                        Background="{DynamicResource UserBrush}"
-                                        Margin="0,0,10,0">
+                                        Background="{DynamicResource UserBrush}" Margin="0,0,10,0">
                                     <TextBlock Text="U" FontSize="15" FontWeight="Bold"
                                                Foreground="{DynamicResource SidebarBrush}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"/>
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Du" FontSize="13" FontWeight="SemiBold"
+                                    <TextBlock Text="You" FontSize="13" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextBrush}"/>
-                                    <TextBlock Text="Benutzer" FontSize="10"
+                                    <TextBlock Text="User" FontSize="10"
                                                Foreground="{DynamicResource SubtextBrush}"/>
                                 </StackPanel>
                                 <Ellipse Grid.Column="2" Width="8" Height="8"
@@ -243,29 +334,57 @@
                         </Border>
 
                         <!-- ── Theme ── -->
-                        <TextBlock Text="DESIGN" FontSize="10" FontWeight="Bold"
-                                   Foreground="{DynamicResource SubtextBrush}"
-                                   Margin="2,0,0,10"/>
-
-                        <TextBlock Text="Catppuccin Theme" FontSize="11"
-                                   Foreground="{DynamicResource SubtextBrush}"
-                                   Margin="2,0,0,6"/>
-
+                        <TextBlock Text="THEME" FontSize="10" FontWeight="Bold"
+                                   Foreground="{DynamicResource SubtextBrush}" Margin="2,0,0,10"/>
                         <ComboBox x:Name="ThemeComboBox"
                                   Style="{StaticResource ModernComboBox}"
-                                  SelectionChanged="ThemeComboBox_SelectionChanged">
-                            <ComboBoxItem Content="🌙  Mocha  (dunkel)" Tag="Mocha" IsSelected="True"/>
-                            <ComboBoxItem Content="🌟  Macchiato  (dunkel)" Tag="Macchiato"/>
-                            <ComboBoxItem Content="☁  Frappé  (mittel)" Tag="Frappe"/>
-                            <ComboBoxItem Content="☀  Latte  (hell)" Tag="Latte"/>
-                        </ComboBox>
+                                  SelectionChanged="ThemeComboBox_SelectionChanged"/>
+
+                        <!-- ══ POPUPS (in visual tree, float over UI) ══ -->
+
+                        <!-- Claude Popup -->
+                        <Popup x:Name="ClaudePopup"
+                               PlacementTarget="{Binding ElementName=ClaudeCard}"
+                               Placement="Right" HorizontalOffset="10" VerticalOffset="-8"
+                               StaysOpen="False" AllowsTransparency="True">
+                            <Border Background="{DynamicResource SidebarBrush}"
+                                    BorderBrush="{DynamicResource SurfaceBrush}"
+                                    BorderThickness="1" CornerRadius="12"
+                                    Padding="14" MinWidth="230">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="#000000" Opacity="0.45"
+                                                      BlurRadius="22" ShadowDepth="4"/>
+                                </Border.Effect>
+                                <StackPanel>
+                                    <TextBlock Text="Claude" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource ClaudeBrush}"
+                                               Margin="0,0,0,8"/>
+                                    <Rectangle Height="1" Fill="{DynamicResource InputBrush}"
+                                               Margin="0,0,0,10"/>
+                                    <CheckBox x:Name="ClaudeEnabledToggle"
+                                              Style="{StaticResource ToggleSwitch}"
+                                              IsChecked="True"
+                                              Content="Claude enabled"
+                                              Margin="0,0,0,14"
+                                              Checked="ClaudeEnabled_Changed"
+                                              Unchecked="ClaudeEnabled_Changed"/>
+                                    <TextBlock Text="MODEL" FontSize="10" FontWeight="Bold"
+                                               Foreground="{DynamicResource SubtextBrush}"
+                                               Margin="2,0,0,6"/>
+                                    <ListBox x:Name="ClaudeModelList"
+                                             Background="Transparent" BorderThickness="0"
+                                             ItemContainerStyle="{StaticResource ModelListItem}"
+                                             SelectionChanged="ClaudeModel_SelectionChanged"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
 
                     </StackPanel>
                 </ScrollViewer>
             </DockPanel>
         </Border>
 
-        <!-- ══════════════════════════ HAUPTBEREICH ══════════════════════════ -->
+        <!-- ══════════════════════════ MAIN AREA ══════════════════════════ -->
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -273,37 +392,30 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <!-- ── Header ── -->
-            <Border Grid.Row="0" Background="{DynamicResource SidebarBrush}"
-                    Padding="22,13">
+            <!-- Header -->
+            <Border Grid.Row="0" Background="{DynamicResource SidebarBrush}" Padding="22,13">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0">
-                        <TextBlock Text="Chat-Verlauf" FontSize="15" FontWeight="SemiBold"
-                                   FontFamily="Segoe UI"
-                                   Foreground="{DynamicResource TextBrush}"/>
-                        <TextBlock Text="Claude · Ollama · Du" FontSize="11"
-                                   FontFamily="Segoe UI"
-                                   Foreground="{DynamicResource SubtextBrush}"/>
+                        <TextBlock Text="Chat History" FontSize="15" FontWeight="SemiBold"
+                                   FontFamily="Segoe UI" Foreground="{DynamicResource TextBrush}"/>
+                        <TextBlock Text="Claude · Ollama · You" FontSize="11"
+                                   FontFamily="Segoe UI" Foreground="{DynamicResource SubtextBrush}"/>
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal"
-                                VerticalAlignment="Center">
-                        <Ellipse Width="9" Height="9"
-                                 Fill="{DynamicResource ClaudeBrush}" Margin="0,0,5,0"/>
-                        <Ellipse Width="9" Height="9"
-                                 Fill="{DynamicResource OllamaBrush}" Margin="0,0,5,0"/>
-                        <Ellipse Width="9" Height="9"
-                                 Fill="{DynamicResource UserBrush}"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse Width="9" Height="9" Fill="{DynamicResource ClaudeBrush}" Margin="0,0,5,0"/>
+                        <Ellipse Width="9" Height="9" Fill="{DynamicResource OllamaBrush}" Margin="0,0,5,0"/>
+                        <Ellipse Width="9" Height="9" Fill="{DynamicResource UserBrush}"/>
                     </StackPanel>
                 </Grid>
             </Border>
             <Rectangle Grid.Row="0" Height="1" VerticalAlignment="Bottom"
                        Fill="{DynamicResource InputBrush}"/>
 
-            <!-- ── Chat-Verlauf ── -->
+            <!-- Chat -->
             <ScrollViewer Grid.Row="1" x:Name="ChatScrollViewer"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
@@ -311,9 +423,8 @@
                 <StackPanel x:Name="ChatPanel"/>
             </ScrollViewer>
 
-            <!-- ── Eingabebereich ── -->
-            <Border Grid.Row="2" Background="{DynamicResource SidebarBrush}"
-                    Padding="16,12,16,16">
+            <!-- Input -->
+            <Border Grid.Row="2" Background="{DynamicResource SidebarBrush}" Padding="16,12,16,16">
                 <StackPanel>
                     <Rectangle Height="1" Fill="{DynamicResource InputBrush}" Margin="0,0,0,12"/>
                     <Grid>
@@ -321,53 +432,36 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-
-                        <!-- Texteingabe -->
-                        <Border Grid.Column="0"
-                                Background="{DynamicResource InputBrush}"
-                                CornerRadius="12"
-                                Margin="0,0,10,0">
+                        <Border Grid.Column="0" Background="{DynamicResource InputBrush}"
+                                CornerRadius="12" Margin="0,0,10,0">
                             <Grid Margin="14,10,14,10">
                                 <TextBox x:Name="InputTextBox"
                                          Background="Transparent"
                                          Foreground="{DynamicResource TextBrush}"
-                                         BorderThickness="0"
-                                         FontSize="13"
-                                         FontFamily="Segoe UI"
-                                         TextWrapping="Wrap"
-                                         AcceptsReturn="False"
-                                         MaxLines="5"
+                                         BorderThickness="0" FontSize="13" FontFamily="Segoe UI"
+                                         TextWrapping="Wrap" AcceptsReturn="False" MaxLines="5"
                                          VerticalContentAlignment="Center"
                                          CaretBrush="{DynamicResource TextBrush}"
                                          SelectionBrush="{DynamicResource ClaudeBrush}"
                                          KeyDown="InputTextBox_KeyDown"
                                          TextChanged="InputTextBox_TextChanged"/>
                                 <TextBlock x:Name="PlaceholderText"
-                                           Text="Nachricht eingeben…  (Enter zum Senden)"
+                                           Text="Type a message...  (Enter to send)"
                                            Foreground="{DynamicResource SubtextBrush}"
-                                           FontSize="13"
-                                           FontFamily="Segoe UI"
-                                           VerticalAlignment="Center"
-                                           IsHitTestVisible="False"/>
+                                           FontSize="13" FontFamily="Segoe UI"
+                                           VerticalAlignment="Center" IsHitTestVisible="False"/>
                             </Grid>
                         </Border>
-
-                        <!-- Aktions-Buttons -->
-                        <StackPanel Grid.Column="1" Orientation="Horizontal"
-                                    VerticalAlignment="Bottom">
-                            <Button x:Name="SendButton"
-                                    Content="Senden"
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                            <Button x:Name="SendButton" Content="Send"
                                     Style="{StaticResource SendButton}"
-                                    MinWidth="82"
-                                    Margin="0,0,8,0"
+                                    MinWidth="82" Margin="0,0,8,0"
                                     Click="SendButton_Click"/>
-                            <Button x:Name="AIRespondButton"
-                                    Content="KI ▶"
+                            <Button x:Name="AIRespondButton" Content="AI ▶"
                                     Style="{StaticResource ModernButton}"
                                     Background="{DynamicResource OllamaBrush}"
                                     Foreground="{DynamicResource SidebarBrush}"
-                                    FontWeight="Bold"
-                                    MinWidth="62"
+                                    FontWeight="Bold" MinWidth="62"
                                     Click="AIRespond_Click"/>
                         </StackPanel>
                     </Grid>

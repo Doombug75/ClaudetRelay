@@ -1,0 +1,28 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- RSI Protocol - Hintergründe -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#141A28"/> <!-- Deep Space Navy -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#1F2439"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#2B364C"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#3B4B68"/>
+
+    <!-- RSI Protocol - Text -->
+    <SolidColorBrush x:Key="TextBrush" Color="#C0D9FF"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#8C9EA8"/>
+
+    <!-- RSI Protocol - Akzente -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#64A3FF"/> <!-- Primary Corporate Blue -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#7DD3A4"/> <!-- System Green -->
+    <SolidColorBrush x:Key="UserBrush" Color="#99CCFF"/> <!-- Light User Blue -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#FF7D3E"/> <!-- Warning Orange/Amber -->
+
+    <!-- RSI Protocol - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#232E4A"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#1F302F"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#1E283F"/>
+
+</ResourceDictionary>
+
+
+

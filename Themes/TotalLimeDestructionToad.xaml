@@ -1,0 +1,28 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Total Lime Destruction Toad - Hintergründe (Mega-Neon-Müllhaufen) -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#100515"/> <!-- Deep Swamp Black/Purple -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#18081F"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#22102B"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#301A3C"/>
+
+    <!-- Total Lime Destruction Toad - Text (Acidic, grell) -->
+    <SolidColorBrush x:Key="TextBrush" Color="#F0F0E0"/> <!-- Aged Cream/Off-White -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#B0A0D0"/> <!-- Muted Lavender -->
+
+    <!-- Total Lime Destruction Toad - Akzente (Die toxischen Farben) -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#FF69B4"/> <!-- Bubblegum/Hot Magenta Pink -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#A3FF33"/> <!-- ACIDIC LIME GREEN (Der Haupt-Schleim!) -->
+    <SolidColorBrush x:Key="UserBrush" Color="#66B3FF"/> <!-- Bright Sky Blue Neon -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#FFFF00"/> <!-- Blinding Yellow Pop -->
+
+    <!-- Total Lime Destruction Toad - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#130711"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#081208"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#100B18"/>
+
+</ResourceDictionary>
+
+
+

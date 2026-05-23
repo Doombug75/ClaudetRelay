@@ -10,6 +10,21 @@
 
   <ItemGroup>
     <Folder Include="Services\" />
+    <Folder Include="Settings\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Settings\settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Themes nicht kompilieren – zur Laufzeit vom Dateisystem laden -->
+    <Page Remove="Themes\*.xaml" />
+    <Content Include="Themes\*.xaml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

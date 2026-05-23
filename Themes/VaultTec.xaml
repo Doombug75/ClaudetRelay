@@ -1,0 +1,26 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- VaultTec - Hintergründe (Steril, kontrolliert, synthetisch) -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#2C3848"/> <!-- Deep Corporate Blue/Gray -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#3E5060"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#4D6575"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#5E758A"/>
+
+    <!-- VaultTec - Text (Bureaukratisch, maschinell) -->
+    <SolidColorBrush x:Key="TextBrush" Color="#C0CFC0"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#8C9DA0"/>
+
+    <!-- VaultTec - Akzente (Kalt, perfektioniert, unheimlich) -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#70B8E0"/> <!-- Institutional Sky Blue -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#A3C97D"/> <!-- Mint Green/Safe Color -->
+    <SolidColorBrush x:Key="UserBrush" Color="#6C90C8"/> <!-- Standard Utility Blue -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#DA7E5E"/> <!-- Warning Beige/Tan -->
+
+    <!-- VaultTec - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#2E3F55"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#224033"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#2B3C50"/>
+
+</ResourceDictionary>
+

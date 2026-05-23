@@ -1,0 +1,29 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Drake Salvage - Hintergründe -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#28221D"/> <!-- Dark Dusty Brown -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#3A322B"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#453B33"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#5C5043"/>
+
+    <!-- Drake Salvage - Text -->
+    <SolidColorBrush x:Key="TextBrush" Color="#C0B8A9"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#998B7D"/>
+
+    <!-- Drake Salvage - Akzente -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#B58A5D"/> <!-- Worn Brass/Bronze -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#80A060"/> <!-- Moss Green/Olive -->
+    <SolidColorBrush x:Key="UserBrush" Color="#607D8B"/> <!-- Dusty Steel Blue -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#D9534F"/> <!-- Caution Red -->
+
+    <!-- Drake Salvage - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#221F18"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#151B14"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#1E2522"/>
+
+</ResourceDictionary>
+
+
+
+

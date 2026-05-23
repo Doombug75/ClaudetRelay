@@ -1,0 +1,25 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Erde - Hintergründe (Tiefe, vielfältig, lebendig) -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#1A2030"/> <!-- Deep Ocean Blue/Gray -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#2A304A"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#3E4A60"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#506080"/>
+
+    <!-- Erde - Text (Klar, natürlich) -->
+    <SolidColorBrush x:Key="TextBrush" Color="#D0E0E8"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#8090A5"/>
+
+    <!-- Erde - Akzente (Wasser, Vegetation, menschlicher Einfluss) -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#7CA3FF"/> <!-- Clear Sky Blue -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#6BA868"/> <!-- Rich Forest Green -->
+    <SolidColorBrush x:Key="UserBrush" Color="#8CB34E"/> <!-- Land/Flora Green -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#F4923B"/> <!-- Sunset Orange (Leben/Hitze) -->
+
+    <!-- Erde - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#252E3F"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#1E2A28"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#222E35"/>
+
+</ResourceDictionary>

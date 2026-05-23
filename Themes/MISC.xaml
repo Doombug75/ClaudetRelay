@@ -1,0 +1,30 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- MISC - Hintergründe (Patchwork, General Utility) -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#2C3E50"/> <!-- Industrial Blue Gray -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#3F586E"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#4A6A82"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#5B7590"/>
+
+    <!-- MISC - Text (Funktional, universell) -->
+    <SolidColorBrush x:Key="TextBrush" Color="#D4D9D5"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#94A3B3"/>
+
+    <!-- MISC - Akzente (Gemischte, verfügbare Farben) -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#FFB300"/> <!-- Safety Yellow/Orange -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#00A86B"/> <!-- Generic Utility Green -->
+    <SolidColorBrush x:Key="UserBrush" Color="#6495ED"/> <!-- Standard Blue -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#CC3333"/> <!-- Warning Red -->
+
+    <!-- MISC - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#2A3A4A"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#203028"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#253545"/>
+
+</ResourceDictionary>
+
+
+
+
+

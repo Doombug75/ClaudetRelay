@@ -1,0 +1,25 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Synaptic Matrix - Hintergründe (Mattschwarzes, strukturiertes Metall) -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#050508"/> <!-- Deep Vacuum Black -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#0D1015"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#12161C"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#1A2028"/>
+
+    <!-- Synaptic Matrix - Text (Blasses, strahlendes Licht) -->
+    <SolidColorBrush x:Key="TextBrush" Color="#B0C8FF"/> <!-- Pale Electric Blue/Silver -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#8090B0"/>
+
+    <!-- Synaptic Matrix - Akzente (Kalt, elektrisch, funktional) -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#6CD0FF"/> <!-- Primary Operational Blue (AI Core) -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#33FFCC"/> <!-- Electric Cyan/Emerald Glow (System Data) -->
+    <SolidColorBrush x:Key="UserBrush" Color="#80A0FF"/> <!-- Standard Signal Blue (Input/Signal) -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#FF6666"/> <!-- Plasma/Warning Red (Danger/Overload) -->
+
+    <!-- Synaptic Matrix - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#080B10"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#03090A"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#070C10"/>
+
+</ResourceDictionary>

@@ -1,0 +1,30 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Mirai Conduit - Hintergründe -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#050308"/> <!-- Near Black / Vacuum -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#0A0713"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#151020"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#20182B"/>
+
+    <!-- Mirai Conduit - Text -->
+    <SolidColorBrush x:Key="TextBrush" Color="#C0B2FF"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#8A84C0"/>
+
+    <!-- Mirai Conduit - Akzente -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#8C4AF0"/> <!-- Deep Electric Purple -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#3DD2A7"/> <!-- Bright Teal Accent -->
+    <SolidColorBrush x:Key="UserBrush" Color="#6A5ACD"/> <!-- Slate Blue/Violet -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#FFD700"/> <!-- Highlight Yellow -->
+
+    <!-- Mirai Conduit - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#150815"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#0D101A"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#100A15"/>
+
+</ResourceDictionary>
+
+
+
+
+

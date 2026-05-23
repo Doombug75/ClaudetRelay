@@ -1,0 +1,25 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Aethel Gardens - Hintergründe (Optimistisch, offene Architektur) -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#F5F9F0"/> <!-- Misty Cream / Airy White -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#EAEBE5"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#DCD9D5"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#C6D0C9"/>
+
+    <!-- Aethel Gardens - Text (Klar, aber weich) -->
+    <SolidColorBrush x:Key="TextBrush" Color="#4E5A4D"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#78887C"/>
+
+    <!-- Aethel Gardens - Akzente (Organisch, harmonisch, sanfte Eleganz) -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#7AA8CE"/> <!-- Sky Blue (Klarheit, Kommunikation) -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#6CB87A"/> <!-- Sage Green (Natur, Stabilität) -->
+    <SolidColorBrush x:Key="UserBrush" Color="#8DA6C4"/> <!-- Soft Sky Blue (Harmonie, Zusammenarbeit) -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#FFC977"/> <!-- Peach/Soft Orange (Wärme, Glück) -->
+
+    <!-- Aethel Gardens - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#E8E3E0"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#D5E2C4"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#C8DCD0"/>
+
+</ResourceDictionary>

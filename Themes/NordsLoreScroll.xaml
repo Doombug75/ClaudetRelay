@@ -1,0 +1,27 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Nords Lore Scroll - Hintergründe (Schwere Holztäfelung, Dunkle Bibliothek) -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#1C1A17"/> <!-- Deep Obsidian Wood -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#28231E"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#332A25"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#453E33"/>
+
+    <!-- Nords Lore Scroll - Text (Pergament, antike Inschrift) -->
+    <SolidColorBrush x:Key="TextBrush" Color="#C4B09A"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#8F8175"/>
+
+    <!-- Nords Lore Scroll - Akzente (Magie, Macht, Gold) -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#5A4D8D"/> <!-- Deep Magic Violet (Magie/Arcanum) -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#387A50"/> <!-- Forest Moss Green (Natur/Wildnis) -->
+    <SolidColorBrush x:Key="UserBrush" Color="#A37A50"/> <!-- Leather/Copper Tone (Der Abenteurer) -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#9E3333"/> <!-- Dragon's Blood/Crimson -->
+
+    <!-- Nords Lore Scroll - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#1B1613"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#141A15"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#1F1B18"/>
+
+</ResourceDictionary>
+
+

@@ -1,0 +1,6 @@
+{
+  "ClaudeApiKey": "",
+  "OllamaBaseUrl": "http://localhost:11434",
+  "OllamaModel": "llama3.2",
+  "LastTheme": ""
+}

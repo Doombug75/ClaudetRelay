@@ -1,0 +1,25 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Venus - Hintergründe (Dicker, gelblicher Nebel) -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#2E201A"/> <!-- Deep Smokey Brown -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#3A2B25"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#4A3A30"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#5C4A40"/>
+
+    <!-- Venus - Text (Vergilbt, milchig) -->
+    <SolidColorBrush x:Key="TextBrush" Color="#E0D0C0"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#A09585"/>
+
+    <!-- Venus - Akzente (Schwefel, Hitze, Vernebelung) -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#D2A040"/> <!-- Dusty Gold/Brass -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#FFE666"/> <!-- Sulfuric Yellow/Lime Haze -->
+    <SolidColorBrush x:Key="UserBrush" Color="#D2C090"/> <!-- Pale Beige/Dusty Stone -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#A34420"/> <!-- Overheated Brown -->
+
+    <!-- Venus - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#25201A"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#1E201A"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#2A2520"/>
+
+</ResourceDictionary>

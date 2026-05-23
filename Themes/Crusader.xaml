@@ -1,0 +1,30 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Crusader - Hintergründe (Bedrohlich, schwer) -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#1A1212"/> <!-- Near Black/Charcoal -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#281A1A"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#3A2222"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#4A3333"/>
+
+    <!-- Crusader - Text (Kalt, dominant) -->
+    <SolidColorBrush x:Key="TextBrush" Color="#C0A0A0"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#8D7070"/>
+
+    <!-- Crusader - Akzente (Blutrot, Gefahr) -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#B53A3A"/> <!-- Deep Blood Red -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#66CC66"/> <!-- Industrial Green Accent -->
+    <SolidColorBrush x:Key="UserBrush" Color="#9966FF"/> <!-- Overpowering Violet -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#FF5555"/> <!-- Warning Red Flare -->
+
+    <!-- Crusader - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#150A0A"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#0F130E"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#120B0B"/>
+
+</ResourceDictionary>
+
+
+
+
+

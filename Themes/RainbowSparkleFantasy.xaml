@@ -1,0 +1,25 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Rainbow Sparkle Fantasy - Hintergründe (Luftig, überladen, Zuckerwatte) -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#F0F0F8"/> <!-- Very Pale Sky Blue/Lavender Base -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#E6E9F0"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#F0E8F5"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#D0CEF0"/>
+
+    <!-- Rainbow Sparkle Fantasy - Text (Strahlend, fast holografisch) -->
+    <SolidColorBrush x:Key="TextBrush" Color="#5C456B"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#8D9BC0"/>
+
+    <!-- Rainbow Sparkle Fantasy - Akzente (Die regenbogenfarbene Explosion) -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#FF99CC"/> <!-- Bubblegum Pink (Der dominante Ton) -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#A3D9E0"/> <!-- Soft Aqua/Teal (Wasser/Luft) -->
+    <SolidColorBrush x:Key="UserBrush" Color="#C0A0FF"/> <!-- Magical Lavender/Purple -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#FFE6A3"/> <!-- Lemon Sorbet Yellow (Leuchtkraft) -->
+
+    <!-- Rainbow Sparkle Fantasy - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#FFE0F0"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#D3E8F0"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#E6D5F0"/>
+
+</ResourceDictionary>

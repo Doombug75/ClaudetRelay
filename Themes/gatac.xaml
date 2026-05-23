@@ -1,0 +1,30 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Gatac - Hintergründe (Verrostet, mattschwarz) -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#1F1E1B"/> <!-- Engine Grease Black -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#282523"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#38352E"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#48453D"/>
+
+    <!-- Gatac - Text (Vergilbt, aber lesbar) -->
+    <SolidColorBrush x:Key="TextBrush" Color="#B0A090"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#706558"/>
+
+    <!-- Gatac - Akzente (Abgenutztes Metall, Gefahr) -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#CC7777"/> <!-- Oxidized Copper/Rust -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#5F9E7B"/> <!-- Muddy Olive Green -->
+    <SolidColorBrush x:Key="UserBrush" Color="#708090"/> <!-- Weathered Steel Grey -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#FF8C00"/> <!-- High Contrast Warning Orange -->
+
+    <!-- Gatac - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#25231E"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#1E201A"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#20221D"/>
+
+</ResourceDictionary>
+
+
+
+
+

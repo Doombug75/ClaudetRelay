@@ -1,0 +1,29 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Anvil Forge - Hintergründe -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#1A1A16"/> <!-- Near Black / Engine Room -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#282824"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#33332D"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#454540"/>
+
+    <!-- Anvil Forge - Text -->
+    <SolidColorBrush x:Key="TextBrush" Color="#B0B0A8"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#777770"/>
+
+    <!-- Anvil Forge - Akzente -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#CC6666"/> <!-- Rusted Red / Warning -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#66CC66"/> <!-- Maintenance Green -->
+    <SolidColorBrush x:Key="UserBrush" Color="#6699FF"/> <!-- Standard Indicator Blue -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#FF9933"/> <!-- Warning Amber -->
+
+    <!-- Anvil Forge - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#252520"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#1E201C"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#22221F"/>
+
+</ResourceDictionary>
+
+
+
+

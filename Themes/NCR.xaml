@@ -1,0 +1,26 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- NCR - Hintergründe (Staubig, offen, zivil) -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#2E3A36"/> <!-- Muted Olive Green/Gray -->
+    <SolidColorBrush x:Key="SidebarBrush" Color="#3A4843"/>
+    <SolidColorBrush x:Key="InputBrush" Color="#4C5E55"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#5D6E63"/>
+
+    <!-- NCR - Text (Klar, aber abgenutzt) -->
+    <SolidColorBrush x:Key="TextBrush" Color="#DBCB9A"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#9BA39A"/>
+
+    <!-- NCR - Akzente (Erde, Hoffnung, Handel) -->
+    <SolidColorBrush x:Key="ClaudeBrush" Color="#A38A5B"/> <!-- Faded Bronze/Brass -->
+    <SolidColorBrush x:Key="OllamaBrush" Color="#5E8C68"/> <!-- Stable Farm Green -->
+    <SolidColorBrush x:Key="UserBrush" Color="#8DBC8E"/> <!-- Settler's Accent Green -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#C04000"/> <!-- Survival Orange/Rust -->
+
+    <!-- NCR - Bubble Hintergründe -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#252E2A"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#1E2A25"/>
+    <SolidColorBrush x:Key="UserBubbleBrush" Color="#222E28"/>
+
+</ResourceDictionary>
+
