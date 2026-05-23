@@ -31,11 +31,6 @@ public partial class SettingsWindow : Window
         public required TextBlock   ApiKeyHintLabel  { get; init; }
         public required ComboBox    CloudModelCombo  { get; init; }
         public required TextBlock   CloudTestLabel   { get; init; }
-        // Role section
-        public required CheckBox    CoordinatorCheck  { get; init; }
-        public required CheckBox    ReasonerCheck     { get; init; }
-        public required Slider      PrioritySlider    { get; init; }
-        public required Border      PrioritySection   { get; init; }
 
         public string CurrentProvider =>
             (TypeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Ollama";
@@ -332,85 +327,6 @@ public partial class SettingsWindow : Window
         nameTypeGrid.Children.Add(nameCol);
         nameTypeGrid.Children.Add(typeCol);
 
-        // ── ROLE section ─────────────────────────────────────────────────────
-        var roleLabel = new TextBlock
-        {
-            Style  = (Style)FindResource("SLabel"),
-            Text   = "ROLE",
-            Margin = new Thickness(0, 0, 0, 6)
-        };
-
-        var coordinatorCheck = new CheckBox
-        {
-            Style     = (Style)FindResource("SToggle"),
-            IsChecked = config.IsCoordinator,
-            Content   = "Coordinator",
-            Margin    = new Thickness(0, 0, 0, 4),
-            ToolTip   = "Receives every user message first and decides who should respond.\n" +
-                        "Only one Coordinator should be active per project.\n" +
-                        "The Coordinator can delegate tasks to Reasoners or handle them directly."
-        };
-
-        var reasonerCheck = new CheckBox
-        {
-            Style     = (Style)FindResource("SToggle"),
-            IsChecked = config.IsReasoner,
-            Content   = "Reasoner",
-            Margin    = new Thickness(0, 0, 0, 8),
-            ToolTip   = "Executes specialised tasks delegated by the Coordinator.\n" +
-                        "Multiple Reasoners can be active; higher priority is preferred first.\n" +
-                        "Reasoners respond only when called by the Coordinator or the user."
-        };
-
-        var priorityLabel = new TextBlock
-        {
-            Style  = (Style)FindResource("SLabel"),
-            Text   = "REASONER PRIORITY",
-            Margin = new Thickness(0, 0, 0, 4)
-        };
-
-        var prioritySlider = new Slider
-        {
-            Minimum             = 1,
-            Maximum             = 10,
-            Value               = config.ReasonerPriority,
-            TickFrequency       = 1,
-            IsSnapToTickEnabled = true,
-            Margin              = new Thickness(0, 0, 0, 4),
-            ToolTip             = "1 = lowest priority, 10 = highest priority.\n" +
-                                  "The Coordinator prefers higher-priority Reasoners for complex tasks."
-        };
-        var priorityValueLabel = new TextBlock
-        {
-            FontSize   = 12,
-            FontFamily = new FontFamily("Segoe UI"),
-            Text       = $"Priority: {(int)config.ReasonerPriority}",
-            Margin     = new Thickness(0, 0, 0, 8)
-        };
-        priorityValueLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
-        prioritySlider.ValueChanged += (_, e) =>
-            priorityValueLabel.Text = $"Priority: {(int)e.NewValue}";
-
-        var priorityContent = new StackPanel();
-        priorityContent.Children.Add(priorityLabel);
-        priorityContent.Children.Add(prioritySlider);
-        priorityContent.Children.Add(priorityValueLabel);
-
-        var prioritySection = new Border
-        {
-            Visibility = config.IsReasoner ? Visibility.Visible : Visibility.Collapsed,
-            Child      = priorityContent
-        };
-
-        reasonerCheck.Checked   += (_, _) => prioritySection.Visibility = Visibility.Visible;
-        reasonerCheck.Unchecked += (_, _) => prioritySection.Visibility = Visibility.Collapsed;
-
-        var roleStack = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
-        roleStack.Children.Add(roleLabel);
-        roleStack.Children.Add(coordinatorCheck);
-        roleStack.Children.Add(reasonerCheck);
-        roleStack.Children.Add(prioritySection);
-
         // Separator
         var sep = new Rectangle { Style = (Style)FindResource("SSep") };
 
@@ -580,7 +496,6 @@ public partial class SettingsWindow : Window
         var root = new StackPanel();
         root.Children.Add(enabledCheck);
         root.Children.Add(nameTypeGrid);
-        root.Children.Add(roleStack);
         root.Children.Add(sep);
         root.Children.Add(ollamaSection);
         root.Children.Add(cloudAISection);
@@ -612,11 +527,7 @@ public partial class SettingsWindow : Window
             ApiKeyOuter      = apiKeyOuter,
             ApiKeyHintLabel  = apiKeyHint,
             CloudModelCombo  = cloudModelCombo,
-            CloudTestLabel   = cloudTestLabel,
-            CoordinatorCheck = coordinatorCheck,
-            ReasonerCheck    = reasonerCheck,
-            PrioritySlider   = prioritySlider,
-            PrioritySection  = prioritySection
+            CloudTestLabel   = cloudTestLabel
         };
         _forms.Add(form);
 
@@ -811,14 +722,11 @@ public partial class SettingsWindow : Window
 
             settings.Participants.Add(new ParticipantConfig
             {
-                Name             = form.NameBox.Text.Trim(),
-                Type             = form.CurrentProvider,
-                Model            = model,
-                ServerUrl        = serverUrl,
-                Enabled          = form.EnabledCheck.IsChecked == true,
-                IsCoordinator    = form.CoordinatorCheck.IsChecked == true,
-                IsReasoner       = form.ReasonerCheck.IsChecked   == true,
-                ReasonerPriority = (int)form.PrioritySlider.Value
+                Name      = form.NameBox.Text.Trim(),
+                Type      = form.CurrentProvider,
+                Model     = model,
+                ServerUrl = serverUrl,
+                Enabled   = form.EnabledCheck.IsChecked == true
             });
 
             // Persist Cloud AI API key to Windows Credential Manager

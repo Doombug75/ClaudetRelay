@@ -338,19 +338,47 @@ public partial class MainWindow : Window
                 .Where(p => p.IsActive)
                 .Select(p => p.DisplayName));
 
-        var stack = new StackPanel();
-        stack.Children.Add(nameLabel);
-        stack.Children.Add(dateLabel);
+        var infoStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        infoStack.Children.Add(nameLabel);
+        infoStack.Children.Add(dateLabel);
         if (!string.IsNullOrEmpty(participantsLabel.Text))
-            stack.Children.Add(participantsLabel);
+            infoStack.Children.Add(participantsLabel);
+
+        var settingsBtn = new Button
+        {
+            Content           = "⚙",
+            FontSize          = 16,
+            Width             = 32,
+            Height            = 32,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment   = VerticalAlignment.Center,
+            ToolTip           = "Project settings (roles, orchestration mode)",
+            Style             = (Style)FindResource("ModernButton"),
+            Background        = (Brush)FindResource("InputBrush"),
+            Foreground        = (Brush)FindResource("SubtextBrush"),
+            Padding           = new Thickness(0)
+        };
+        settingsBtn.Click += (_, e) =>
+        {
+            e.Handled = true;           // prevent card selection / open on click
+            ShowProjectSettingsDialog(projFolder, meta.ProjectName);
+        };
+
+        var cardGrid = new Grid();
+        cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(infoStack,   0);
+        Grid.SetColumn(settingsBtn, 1);
+        cardGrid.Children.Add(infoStack);
+        cardGrid.Children.Add(settingsBtn);
 
         var card = new Border
         {
             CornerRadius = new CornerRadius(10),
-            Padding      = new Thickness(14, 12, 14, 12),
+            Padding      = new Thickness(14, 10, 10, 10),
             Margin       = new Thickness(0, 0, 0, 8),
             Cursor       = Cursors.Hand,
-            Child        = stack,
+            Child        = cardGrid,
             Tag          = projFolder
         };
         card.SetResourceReference(Border.BackgroundProperty, "InputBrush");
@@ -447,7 +475,8 @@ public partial class MainWindow : Window
         _currentProject       = meta;
 
         // Update header
-        ChatHeaderTitle.Text = meta.ProjectName;
+        ChatHeaderTitle.Text              = meta.ProjectName;
+        ProjectSettingsButton.Visibility  = Visibility.Visible;
 
         // Load chat history
         var log = ProjectService.LoadChatLog(projFolder);
@@ -464,9 +493,10 @@ public partial class MainWindow : Window
 
     private void CloseCurrentProject()
     {
-        _currentProjectFolder = null;
-        _currentProject       = null;
-        ChatHeaderTitle.Text  = "Chat";
+        _currentProjectFolder            = null;
+        _currentProject                  = null;
+        ChatHeaderTitle.Text             = "Chat";
+        ProjectSettingsButton.Visibility = Visibility.Collapsed;
     }
 
     private void RenderChatLogEntry(ChatLogEntry entry)
@@ -603,6 +633,326 @@ public partial class MainWindow : Window
         win.Loaded  += (_, _) => { tb.Focus(); tb.SelectAll(); };
         win.ShowDialog();
         return result;
+    }
+
+    // ── Project settings dialog ────────────────────────────────────────────
+
+    private void ProjectSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentProjectFolder is not null && _currentProject is not null)
+            ShowProjectSettingsDialog(_currentProjectFolder, _currentProject.ProjectName);
+    }
+
+    private void ShowProjectSettingsDialog(string projFolder, string projectName)
+    {
+        var ps = ProjectService.LoadProjectSettings(projFolder);
+
+        var win = new Window
+        {
+            Title                 = $"Project Settings — {projectName}",
+            Width                 = 520,
+            SizeToContent         = SizeToContent.Height,
+            Owner                 = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode            = ResizeMode.NoResize,
+            ShowInTaskbar         = false,
+            Background            = (Brush)FindResource("SidebarBrush")
+        };
+
+        var root = new StackPanel { Margin = new Thickness(20, 16, 20, 4) };
+
+        // ── Orchestration Mode ─────────────────────────────────────────────
+        var modeLabel = new TextBlock
+        {
+            Text       = "ORCHESTRATION MODE",
+            FontSize   = 11, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(0, 0, 0, 8),
+            Foreground = (Brush)FindResource("SubtextBrush")
+        };
+
+        RadioButton MakeRadio(string text, string tip, OrchestrationMode mode) => new RadioButton
+        {
+            Content     = text,
+            IsChecked   = ps.OrchestrationMode == mode,
+            GroupName   = "OrcMode",
+            FontSize    = 13, FontFamily = new FontFamily("Segoe UI"),
+            Margin      = new Thickness(0, 0, 0, 6),
+            Foreground  = (Brush)FindResource("TextBrush"),
+            Tag         = mode,
+            ToolTip     = tip
+        };
+
+        var radioAll = MakeRadio("All participants respond",
+            "Every active participant answers every user message. Default behaviour.",
+            OrchestrationMode.AllRespond);
+
+        var radioCoordFirst = MakeRadio("Coordinator-first",
+            "The Coordinator answers first and decides which Reasoner(s) should respond next.\n" +
+            "Reasoners are triggered when the Coordinator tags them (e.g. @Reasoner).",
+            OrchestrationMode.CoordinatorFirst);
+
+        var radioCoordSum = MakeRadio("All respond, Coordinator summarizes",
+            "All participants respond normally. The Coordinator then receives all answers\n" +
+            "as context and writes a final synthesising summary.",
+            OrchestrationMode.CoordinatorSummarizes);
+
+        var modeStack = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
+        modeStack.Children.Add(modeLabel);
+        modeStack.Children.Add(radioAll);
+        modeStack.Children.Add(radioCoordFirst);
+        modeStack.Children.Add(radioCoordSum);
+        root.Children.Add(modeStack);
+
+        // ── Separator ──────────────────────────────────────────────────────
+        var sep = new Rectangle
+        {
+            Height  = 1,
+            Margin  = new Thickness(0, 0, 0, 14),
+            Fill    = (Brush)FindResource("InputBrush")
+        };
+        root.Children.Add(sep);
+
+        // ── Participant Roles ──────────────────────────────────────────────
+        var rolesLabel = new TextBlock
+        {
+            Text       = "PARTICIPANT ROLES",
+            FontSize   = 11, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(0, 0, 0, 10),
+            Foreground = (Brush)FindResource("SubtextBrush")
+        };
+        root.Children.Add(rolesLabel);
+
+        // Collect all currently enabled participants from global settings
+        var appSettings = SettingsService.Load();
+        var enabledParticipants = appSettings.Participants
+            .Where(p => p.Enabled)
+            .Select(p =>
+            {
+                var provider    = p.Type;
+                var model       = p.Model;
+                var displayName = string.IsNullOrEmpty(p.Name)
+                    ? FormatModelDisplayName(model)
+                    : p.Name;
+                return (provider, model, displayName);
+            })
+            .ToList();
+
+        if (enabledParticipants.Count == 0)
+        {
+            var noParticipants = new TextBlock
+            {
+                Text       = "No participants are currently enabled. Enable participants in ⚙ Settings first.",
+                FontSize   = 12, FontFamily = new FontFamily("Segoe UI"),
+                TextWrapping = TextWrapping.Wrap,
+                Margin     = new Thickness(0, 0, 0, 12),
+                Foreground = (Brush)FindResource("SubtextBrush")
+            };
+            root.Children.Add(noParticipants);
+        }
+
+        // Build a UI row for each participant and collect role accessors
+        var roleRows = new List<(string provider, string model, Func<ProjectParticipantRole> GetRole)>();
+
+        foreach (var (provider, model, displayName) in enabledParticipants)
+        {
+            var role = ps.GetOrCreate(provider, model, displayName);
+
+            // Avatar chip
+            var avatar = new Border
+            {
+                Width        = 34, Height       = 34,
+                CornerRadius = new CornerRadius(17),
+                Background   = (Brush)FindResource("OllamaBrush"),
+                Margin       = new Thickness(0, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Top
+            };
+            var avatarTb = new TextBlock
+            {
+                Text              = FormatModelAvatarLabel(model),
+                FontSize          = 11, FontWeight = FontWeights.Bold,
+                FontFamily        = new FontFamily("Segoe UI"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment   = VerticalAlignment.Center,
+                Foreground        = (Brush)FindResource("SidebarBrush")
+            };
+            avatar.Child = avatarTb;
+
+            // Name + model sub-label
+            var nameTb = new TextBlock
+            {
+                Text       = displayName,
+                FontSize   = 13, FontFamily = new FontFamily("Segoe UI"),
+                FontWeight = FontWeights.SemiBold,
+                Foreground = (Brush)FindResource("TextBrush")
+            };
+            var modelTb = new TextBlock
+            {
+                Text       = $"{provider}  ·  {model}",
+                FontSize   = 11, FontFamily = new FontFamily("Segoe UI"),
+                Foreground = (Brush)FindResource("SubtextBrush"),
+                Margin     = new Thickness(0, 1, 0, 0)
+            };
+            var nameStack = new StackPanel();
+            nameStack.Children.Add(nameTb);
+            nameStack.Children.Add(modelTb);
+
+            // Checkboxes
+            var coordCheck = new CheckBox
+            {
+                Content    = "Coordinator",
+                IsChecked  = role.IsCoordinator,
+                FontSize   = 12, FontFamily = new FontFamily("Segoe UI"),
+                Foreground = (Brush)FindResource("TextBrush"),
+                Margin     = new Thickness(0, 0, 16, 0),
+                ToolTip    = "Coordinator: receives user messages first and decides routing.\n" +
+                             "Only one Coordinator should be active per project."
+            };
+            var reasonerCheck = new CheckBox
+            {
+                Content    = "Reasoner",
+                IsChecked  = role.IsReasoner,
+                FontSize   = 12, FontFamily = new FontFamily("Segoe UI"),
+                Foreground = (Brush)FindResource("TextBrush"),
+                ToolTip    = "Reasoner: executes tasks delegated by the Coordinator.\n" +
+                             "Multiple Reasoners are allowed; higher priority = preferred first."
+            };
+
+            // Priority slider (shown only when Reasoner is checked)
+            var prioritySlider = new Slider
+            {
+                Minimum             = 1, Maximum = 10,
+                Value               = role.ReasonerPriority,
+                TickFrequency       = 1, IsSnapToTickEnabled = true,
+                Width               = 100,
+                Margin              = new Thickness(8, 0, 4, 0),
+                ToolTip             = "Reasoner priority: 1 (lowest) – 10 (highest)"
+            };
+            var priorityTb = new TextBlock
+            {
+                Text       = $"{(int)role.ReasonerPriority}",
+                FontSize   = 12, FontFamily = new FontFamily("Segoe UI"),
+                Foreground = (Brush)FindResource("SubtextBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Width      = 18
+            };
+            prioritySlider.ValueChanged += (_, e) => priorityTb.Text = $"{(int)e.NewValue}";
+
+            var priorityRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin      = new Thickness(20, 2, 0, 0),
+                Visibility  = role.IsReasoner ? Visibility.Visible : Visibility.Collapsed
+            };
+            priorityRow.Children.Add(new TextBlock
+            {
+                Text = "Priority:",
+                FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                Foreground = (Brush)FindResource("SubtextBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 4, 0)
+            });
+            priorityRow.Children.Add(prioritySlider);
+            priorityRow.Children.Add(priorityTb);
+
+            reasonerCheck.Checked   += (_, _) => priorityRow.Visibility = Visibility.Visible;
+            reasonerCheck.Unchecked += (_, _) => priorityRow.Visibility = Visibility.Collapsed;
+
+            var checkStack = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+            var checkRow   = new StackPanel { Orientation = Orientation.Horizontal };
+            checkRow.Children.Add(coordCheck);
+            checkRow.Children.Add(reasonerCheck);
+            checkStack.Children.Add(checkRow);
+            checkStack.Children.Add(priorityRow);
+
+            var rightStack = new StackPanel();
+            rightStack.Children.Add(nameStack);
+            rightStack.Children.Add(checkStack);
+
+            var rowGrid = new Grid { Margin = new Thickness(0, 0, 0, 14) };
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Grid.SetColumn(avatar,     0);
+            Grid.SetColumn(rightStack, 1);
+            rowGrid.Children.Add(avatar);
+            rowGrid.Children.Add(rightStack);
+            root.Children.Add(rowGrid);
+
+            // Capture live state via closures
+            var capturedCoord    = coordCheck;
+            var capturedReasoner = reasonerCheck;
+            var capturedPriority = prioritySlider;
+            roleRows.Add((provider, model, () =>
+            {
+                role.IsCoordinator    = capturedCoord.IsChecked    == true;
+                role.IsReasoner       = capturedReasoner.IsChecked  == true;
+                role.ReasonerPriority = (int)capturedPriority.Value;
+                return role;
+            }));
+        }
+
+        // ── Buttons ────────────────────────────────────────────────────────
+        var sep2 = new Rectangle
+        {
+            Height = 1, Margin = new Thickness(0, 4, 0, 12),
+            Fill   = (Brush)FindResource("InputBrush")
+        };
+        root.Children.Add(sep2);
+
+        var saveBtn = new Button
+        {
+            Content    = "Save",
+            IsDefault  = true,
+            Height     = 36, Margin = new Thickness(0, 0, 8, 16),
+            Style      = (Style)FindResource("ModernButton"),
+            Background = (Brush)FindResource("ClaudeBrush"),
+            Foreground = (Brush)FindResource("SidebarBrush"),
+            FontWeight = FontWeights.SemiBold
+        };
+        var cancelBtn = new Button
+        {
+            Content    = "Cancel",
+            IsCancel   = true,
+            Height     = 36, Margin = new Thickness(0, 0, 0, 16),
+            Style      = (Style)FindResource("ModernButton"),
+            Background = (Brush)FindResource("InputBrush"),
+            Foreground = (Brush)FindResource("TextBrush")
+        };
+        var btnRow = new StackPanel
+        {
+            Orientation         = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        btnRow.Children.Add(saveBtn);
+        btnRow.Children.Add(cancelBtn);
+        root.Children.Add(btnRow);
+
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            MaxHeight = 600,
+            Content   = root
+        };
+        win.Content = scroll;
+
+        saveBtn.Click += (_, _) =>
+        {
+            // Collect orchestration mode
+            ps.OrchestrationMode = radioCoordFirst.IsChecked == true ? OrchestrationMode.CoordinatorFirst
+                                 : radioCoordSum  .IsChecked == true ? OrchestrationMode.CoordinatorSummarizes
+                                 : OrchestrationMode.AllRespond;
+
+            // Collect roles
+            ps.Roles.Clear();
+            foreach (var (_, _, getRoleSnapshot) in roleRows)
+                ps.Roles.Add(getRoleSnapshot());
+
+            ProjectService.SaveProjectSettings(projFolder, ps);
+            win.DialogResult = true;
+        };
+
+        win.ShowDialog();
     }
 
     // ── Cloud AI participant management ────────────────────────────────────

@@ -22,6 +22,77 @@ public class ProjectMeta
     public List<ProjectParticipant> Participants { get; set; } = [];
 }
 
+// ── Project settings (roles, orchestration) ────────────────────────────────
+
+/// <summary>How participants interact when a user message arrives.</summary>
+public enum OrchestrationMode
+{
+    /// <summary>All active participants respond to every message (default behaviour).</summary>
+    AllRespond = 0,
+
+    /// <summary>
+    /// The Coordinator responds first and may delegate to one or more Reasoners
+    /// by tagging them (e.g. @Reasoner) in its reply.
+    /// </summary>
+    CoordinatorFirst = 1,
+
+    /// <summary>
+    /// All participants respond; the Coordinator then receives all answers as context
+    /// and writes a final synthesising summary.
+    /// </summary>
+    CoordinatorSummarizes = 2
+}
+
+/// <summary>Role assignment for one participant within a specific project.</summary>
+public class ProjectParticipantRole
+{
+    /// <summary>Provider: "Ollama", "Anthropic", "Google AI", etc. Used as lookup key.</summary>
+    public string Provider         { get; set; } = "";
+
+    /// <summary>Model name. Used as lookup key together with Provider.</summary>
+    public string Model            { get; set; } = "";
+
+    /// <summary>Human-readable name shown in the UI. Not used for lookup.</summary>
+    public string DisplayName      { get; set; } = "";
+
+    /// <summary>
+    /// Coordinator receives every user message first and decides routing.
+    /// Only one coordinator should be active per project.
+    /// </summary>
+    public bool IsCoordinator      { get; set; } = false;
+
+    /// <summary>
+    /// Reasoner executes tasks delegated by the coordinator.
+    /// Multiple reasoners are allowed; higher priority = preferred first.
+    /// </summary>
+    public bool IsReasoner         { get; set; } = false;
+
+    /// <summary>Task priority 1 (lowest) – 10 (highest). Meaningful only when IsReasoner = true.</summary>
+    public int  ReasonerPriority   { get; set; } = 5;
+}
+
+/// <summary>Per-project settings saved as <c>project-settings.json</c> inside the project folder.</summary>
+public class ProjectSettings
+{
+    public OrchestrationMode            OrchestrationMode { get; set; } = OrchestrationMode.AllRespond;
+    public List<ProjectParticipantRole> Roles             { get; set; } = [];
+
+    /// <summary>Looks up the role for a participant by provider + model (case-insensitive).</summary>
+    public ProjectParticipantRole GetOrCreate(string provider, string model, string displayName)
+    {
+        var existing = Roles.FirstOrDefault(r =>
+            string.Equals(r.Provider, provider, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(r.Model,    model,    StringComparison.OrdinalIgnoreCase));
+
+        if (existing is not null) return existing;
+
+        var newRole = new ProjectParticipantRole
+            { Provider = provider, Model = model, DisplayName = displayName };
+        Roles.Add(newRole);
+        return newRole;
+    }
+}
+
 public class ChatLogEntry
 {
     public DateTime Timestamp   { get; set; } = DateTime.Now;
@@ -90,6 +161,28 @@ public static class ProjectService
         File.WriteAllText(
             Path.Combine(projectFolder, "project.json"),
             JsonSerializer.Serialize(meta, WriteOpts));
+    }
+
+    // ── Project settings ──────────────────────────────────────────────────
+
+    public static ProjectSettings LoadProjectSettings(string projectFolder)
+    {
+        var path = Path.Combine(projectFolder, "project-settings.json");
+        if (!File.Exists(path)) return new ProjectSettings();
+        try
+        {
+            return JsonSerializer.Deserialize<ProjectSettings>(
+                       File.ReadAllText(path), ReadOpts) ?? new ProjectSettings();
+        }
+        catch { return new ProjectSettings(); }
+    }
+
+    public static void SaveProjectSettings(string projectFolder, ProjectSettings settings)
+    {
+        Directory.CreateDirectory(projectFolder);
+        File.WriteAllText(
+            Path.Combine(projectFolder, "project-settings.json"),
+            JsonSerializer.Serialize(settings, WriteOpts));
     }
 
     // ── Chat log ──────────────────────────────────────────────────────────

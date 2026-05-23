@@ -23,23 +23,6 @@ public class ParticipantConfig
 
     /// <summary>Whether this participant slot is active at startup.</summary>
     public bool Enabled { get; set; } = false;
-
-    // ── Roles ──────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Coordinator: receives every user message first and decides routing.
-    /// Only one coordinator should be active per project.
-    /// </summary>
-    public bool IsCoordinator { get; set; } = false;
-
-    /// <summary>
-    /// Reasoner: executes specialised tasks delegated by the coordinator.
-    /// Multiple reasoners can be active; higher priority is preferred first.
-    /// </summary>
-    public bool IsReasoner { get; set; } = false;
-
-    /// <summary>Reasoner task priority 1 (lowest) – 10 (highest). Used when IsReasoner = true.</summary>
-    public int ReasonerPriority { get; set; } = 5;
 }
 
 public class AppSettings
