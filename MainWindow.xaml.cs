@@ -1992,6 +1992,7 @@ public partial class MainWindow : Window
                 $"Always respond as {myName}. " +
                 $"If asked who you are, say you are {myName} running {myModel}. " +
                 $"Messages from other AI participants are prefixed with their ID in square brackets." +
+                BuildInputFilesContext(_currentProjectFolder) +
                 BuildToneInstruction(_toneLevel, _mockingbirdMode))
         };
 
@@ -2033,6 +2034,7 @@ public partial class MainWindow : Window
             $"You are {myName} (ID: {myLabel}), running model {myModel}. " +
             $"You are participating in a relay group chat with a human user and other AI models.{othersNote} " +
             $"Always respond as {myName}. If asked who you are, identify yourself as {myName}." +
+            BuildInputFilesContext(_currentProjectFolder) +
             BuildToneInstruction(_toneLevel, _mockingbirdMode);
 
         var history = new List<CloudAIMessage>();
@@ -2312,6 +2314,33 @@ public partial class MainWindow : Window
         bubble.StopThinking();
         bubble.Content.Text = text;
         ChatScrollViewer.ScrollToBottom();
+    }
+
+    // ── INPUT file context ─────────────────────────────────────────────────
+
+    private static string BuildInputFilesContext(string? projectFolder)
+    {
+        if (string.IsNullOrEmpty(projectFolder)) return "";
+
+        var files = ProjectService.ListInputFiles(projectFolder);
+        if (files.Count == 0) return "";
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append("\n\n--- Project INPUT files (read-only reference) ---");
+
+        foreach (var fileName in files)
+        {
+            var content = ProjectService.SafeReadFile(
+                projectFolder, System.IO.Path.Combine("INPUT", fileName));
+            if (content is null) continue;
+
+            sb.Append($"\n\n[{fileName}]\n");
+            sb.Append(content);
+        }
+
+        sb.Append("\n\n--- End of INPUT files ---");
+        sb.Append("\nYou may read and reference these files. You cannot modify them.");
+        return sb.ToString();
     }
 
     // ── Tone helper ────────────────────────────────────────────────────────

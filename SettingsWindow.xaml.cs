@@ -259,13 +259,10 @@ public partial class SettingsWindow : Window
             Style     = (Style)FindResource("SToggle"),
             IsChecked = settings.MockingbirdMode,
             Content   = "🐦 Mockingbird mode",
-            Margin    = new Thickness(0, 10, 0, 4)
+            Margin    = new Thickness(0, 10, 0, 4),
+            ToolTip   = "Use at own risk."
         };
         _mockingbirdBox = mockingbirdCheck;
-
-        var mockingbirdHint = MakeHintText(
-            "Agents get a humorous personality. " +
-            "Neutral end = comedy & poems. Friendly end = loving pet names & kisses.");
 
         // Apply initial labels if mockingbird was already enabled
         if (settings.MockingbirdMode)
@@ -303,7 +300,6 @@ public partial class SettingsWindow : Window
         root.Children.Add(toneRow);
         root.Children.Add(toneHint);
         root.Children.Add(mockingbirdCheck);
-        root.Children.Add(mockingbirdHint);
 
         var scroll = new ScrollViewer
         {
