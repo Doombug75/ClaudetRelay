@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace ClaudetRelay.Services;
 
-/// <summary>Configuration for one chat participant slot (P1–P6).</summary>
+/// <summary>Configuration for one chat participant slot (P1–P8).</summary>
 public class ParticipantConfig
 {
     /// <summary>Custom display name shown in chat bubbles. Empty = auto-generated.</summary>
@@ -23,6 +23,23 @@ public class ParticipantConfig
 
     /// <summary>Whether this participant slot is active at startup.</summary>
     public bool Enabled { get; set; } = false;
+
+    // ── Roles ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Coordinator: receives every user message first and decides routing.
+    /// Only one coordinator should be active per project.
+    /// </summary>
+    public bool IsCoordinator { get; set; } = false;
+
+    /// <summary>
+    /// Reasoner: executes specialised tasks delegated by the coordinator.
+    /// Multiple reasoners can be active; higher priority is preferred first.
+    /// </summary>
+    public bool IsReasoner { get; set; } = false;
+
+    /// <summary>Reasoner task priority 1 (lowest) – 10 (highest). Used when IsReasoner = true.</summary>
+    public int ReasonerPriority { get; set; } = 5;
 }
 
 public class AppSettings
@@ -45,7 +62,12 @@ public class AppSettings
     /// <summary>Root folder for saved projects. Empty = use default Documents path.</summary>
     public string ProjectsFolder { get; set; } = "";
 
-    /// <summary>Per-participant configuration (P1–P6). Populated on first load via migration.</summary>
+    /// <summary>
+    /// Response tone/style: 0 = strictly neutral, 50 = model default (no injection), 100 = very friendly.
+    /// </summary>
+    public int ToneLevel { get; set; } = 50;
+
+    /// <summary>Per-participant configuration (P1–P8). Populated on first load via migration.</summary>
     public List<ParticipantConfig> Participants { get; set; } = [];
 }
 

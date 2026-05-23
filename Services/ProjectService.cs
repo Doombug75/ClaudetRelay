@@ -134,6 +134,12 @@ public static class ProjectService
             folder = Path.Combine(parentFolder, $"{safeName}_{i++}");
 
         Directory.CreateDirectory(folder);
+
+        // Standard project subfolders
+        Directory.CreateDirectory(Path.Combine(folder, "INPUT"));
+        Directory.CreateDirectory(Path.Combine(folder, "PROJEKTPLAN"));
+        Directory.CreateDirectory(Path.Combine(folder, "OUTPUT"));
+
         SaveMeta(folder, new ProjectMeta
         {
             ProjectName = name,
@@ -141,6 +147,60 @@ public static class ProjectService
             LastOpened  = DateTime.UtcNow
         });
         return folder;
+    }
+
+    // ── Sandboxing ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns true only if <paramref name="path"/> resolves to a location
+    /// inside <paramref name="projectFolder"/>. Use this to validate every
+    /// file-system path that originates from AI output or user input, so that
+    /// a rogue model or manipulated server cannot escape the project sandbox.
+    /// </summary>
+    public static bool IsPathSafe(string path, string projectFolder)
+    {
+        try
+        {
+            var full = Path.GetFullPath(path);
+            var root = Path.GetFullPath(projectFolder).TrimEnd(
+                            Path.DirectorySeparatorChar,
+                            Path.AltDirectorySeparatorChar)
+                       + Path.DirectorySeparatorChar;
+            return full.StartsWith(root, StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// Safe file-write helper: only writes if the resolved path stays inside
+    /// <paramref name="projectFolder"/>. Returns false and writes nothing otherwise.
+    /// </summary>
+    public static bool SafeWriteFile(string projectFolder, string relativePath, string content)
+    {
+        var full = Path.GetFullPath(Path.Combine(projectFolder, relativePath));
+        if (!IsPathSafe(full, projectFolder)) return false;
+        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+        File.WriteAllText(full, content);
+        return true;
+    }
+
+    /// <summary>
+    /// Safe file-read helper: only reads if the resolved path stays inside
+    /// <paramref name="projectFolder"/>. Returns null otherwise.
+    /// </summary>
+    public static string? SafeReadFile(string projectFolder, string relativePath)
+    {
+        var full = Path.GetFullPath(Path.Combine(projectFolder, relativePath));
+        if (!IsPathSafe(full, projectFolder)) return null;
+        return File.Exists(full) ? File.ReadAllText(full) : null;
+    }
+
+    /// <summary>Lists all files in INPUT sub-folder (sandboxed).</summary>
+    public static List<string> ListInputFiles(string projectFolder)
+    {
+        var input = Path.Combine(projectFolder, "INPUT");
+        if (!Directory.Exists(input)) return [];
+        return Directory.GetFiles(input).Select(Path.GetFileName).ToList()!;
     }
 
     public static void DeleteProject(string projectFolder)

@@ -4,7 +4,10 @@
         Title="ClaudetRelay" Height="820" Width="1220"
         MinHeight="600" MinWidth="900"
         WindowStartupLocation="CenterScreen"
-        Background="{DynamicResource BackgroundBrush}">
+        Background="{DynamicResource BackgroundBrush}"
+        AllowDrop="True"
+        DragEnter="Window_DragEnter"
+        Drop="Window_Drop">
 
     <Window.Resources>
         <ResourceDictionary>

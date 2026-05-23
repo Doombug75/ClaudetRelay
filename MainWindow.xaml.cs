@@ -21,11 +21,12 @@ public partial class MainWindow : Window
     // ── Streaming bubble handle ────────────────────────────────────────────
 
     /// <summary>Returned by AddStreamingBubble. Content is the selectable TextBox;
-    /// StopThinking kills the thinking animation; SetTooltip sets the hover tip.</summary>
+    /// StopThinking kills the thinking animation and clears the thinking tooltip;
+    /// UpdateThinkingTooltip sets the live tooltip on the thinking-dots element.</summary>
     private sealed record StreamBubble(
         TextBox        Content,
         Action         StopThinking,
-        Action<string> SetTooltip);
+        Action<string> UpdateThinkingTooltip);
 
     // ── Nested types ───────────────────────────────────────────────────────
 
@@ -123,6 +124,7 @@ public partial class MainWindow : Window
     private List<string>                         _availableOllamaModels = [];
     private string?                              _currentThemePath;
     private string                               _userName              = "You";
+    private int                                  _toneLevel             = 50;
 
     // ── Project state ──────────────────────────────────────────────────────
     private string?       _currentProjectFolder;
@@ -188,8 +190,9 @@ public partial class MainWindow : Window
             AddSystemMessage("ℹ  No participants configured — open ⚙ Settings to set them up.");
         }
 
-        // User display name
-        _userName = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
+        // User display name & tone
+        _userName   = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
+        _toneLevel  = settings.ToneLevel;
     }
 
     // ── Re-initialize after Settings save ─────────────────────────────────
@@ -218,7 +221,8 @@ public partial class MainWindow : Window
 
         // Re-add from settings
         var settings = SettingsService.Load();
-        _userName = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
+        _userName  = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
+        _toneLevel = settings.ToneLevel;
 
         foreach (var p in settings.Participants.Where(p => p.Enabled))
         {
@@ -1344,6 +1348,53 @@ public partial class MainWindow : Window
 
     private void SendButton_Click(object sender, RoutedEventArgs e) => SendMessage();
 
+    // ── Drag & Drop files → INPUT folder ──────────────────────────────────
+
+    private void Window_DragEnter(object sender, DragEventArgs e)
+    {
+        e.Effects = (e.Data.GetDataPresent(DataFormats.FileDrop) && _currentProjectFolder is not null)
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void Window_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+
+        if (_currentProjectFolder is null)
+        {
+            AddSystemMessage("⚠  Open or create a project first — dropped files go into the INPUT folder.");
+            return;
+        }
+
+        var files       = (string[])e.Data.GetData(DataFormats.FileDrop);
+        var inputFolder = SysIO.Path.Combine(_currentProjectFolder, "INPUT");
+        SysIO.Directory.CreateDirectory(inputFolder);
+
+        int count = 0;
+        foreach (var file in files)
+        {
+            if (!SysIO.File.Exists(file)) continue;
+            var dest = SysIO.Path.Combine(inputFolder, SysIO.Path.GetFileName(file));
+            // Sandbox check — ensure destination stays inside project folder
+            if (!ProjectService.IsPathSafe(dest, _currentProjectFolder)) continue;
+            SysIO.File.Copy(file, dest, overwrite: true);
+            count++;
+        }
+
+        if (count > 0)
+        {
+            AddSystemMessage($"📎 {count} file(s) copied to INPUT folder.");
+            // Update project meta participants snapshot
+            if (_currentProject is not null)
+            {
+                _currentProject.Participants = BuildCurrentParticipantSnapshot();
+                ProjectService.SaveMeta(_currentProjectFolder, _currentProject);
+            }
+        }
+    }
+
     private void SendMessage()
     {
         var text = InputTextBox.Text.Trim();
@@ -1435,18 +1486,20 @@ public partial class MainWindow : Window
         var sb         = new StringBuilder();
         bool firstToken = true;
 
+        // Subscribe to live thinking-text updates so the tooltip tracks thinking in real time
+        var svc = ui.Data.Service;
+        svc.ThinkingUpdated += OnThinkingUpdate;
+        void OnThinkingUpdate(string thought) =>
+            Dispatcher.Invoke(() => bubble.UpdateThinkingTooltip(thought));
+
         try
         {
             var history = BuildOllamaHistoryFor(ui);
-            await foreach (var token in ui.Data.Service.StreamAsync(history, ct))
+            await foreach (var token in svc.StreamAsync(history, ct))
             {
                 if (firstToken)
                 {
-                    // Thinking phase ended — show last thinking text as tooltip
-                    var thought = ui.Data.Service.LastThinkingText;
-                    if (!string.IsNullOrEmpty(thought))
-                        bubble.SetTooltip($"💭 {thought}");
-                    bubble.StopThinking();
+                    bubble.StopThinking();   // hides dots + tooltip disappears naturally
                     firstToken = false;
                 }
                 sb.Append(token);
@@ -1486,6 +1539,10 @@ public partial class MainWindow : Window
         {
             if (firstToken) bubble.StopThinking();
             bubble.Content.Text = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            svc.ThinkingUpdated -= OnThinkingUpdate;
         }
     }
 
@@ -1567,7 +1624,8 @@ public partial class MainWindow : Window
                 $"You are one of several participants in a relay group chat (human + multiple AI models). " +
                 $"Always respond as {myName}. " +
                 $"If asked who you are, say you are {myName} running {myModel}. " +
-                $"Messages from other AI participants are prefixed with their ID in square brackets.")
+                $"Messages from other AI participants are prefixed with their ID in square brackets." +
+                BuildToneInstruction(_toneLevel))
         };
 
         foreach (var msg in _sharedHistory)
@@ -1607,7 +1665,8 @@ public partial class MainWindow : Window
         var system =
             $"You are {myName} (ID: {myLabel}), running model {myModel}. " +
             $"You are participating in a relay group chat with a human user and other AI models.{othersNote} " +
-            $"Always respond as {myName}. If asked who you are, identify yourself as {myName}.";
+            $"Always respond as {myName}. If asked who you are, identify yourself as {myName}." +
+            BuildToneInstruction(_toneLevel);
 
         var history = new List<CloudAIMessage>();
         foreach (var msg in _sharedHistory)
@@ -1888,6 +1947,19 @@ public partial class MainWindow : Window
         ChatScrollViewer.ScrollToBottom();
     }
 
+    // ── Tone helper ────────────────────────────────────────────────────────
+
+    private static string BuildToneInstruction(int level) => level switch
+    {
+        < 10  => "\n\nRespond with strict neutrality: pure facts, no pleasantries, no emotional language, no greetings or affirmations.",
+        < 30  => "\n\nKeep your tone neutral and objective. Minimise pleasantries and focus on accurate information.",
+        < 45  => "\n\nBe slightly more direct and factual; avoid excessive friendliness.",
+        <= 55 => "",   // 50 = default — no injection
+        < 70  => "\n\nBe a little warmer and more conversational in your responses.",
+        < 90  => "\n\nBe friendly and supportive in your responses.",
+        _     => "\n\nBe very warm, encouraging, and enthusiastic. Use positive and motivating language."
+    };
+
     /// <summary>Creates a chat bubble. For AI responses the bubble starts with a thinking
     /// animation that is hidden once StopThinking() is called. The TextBox inside supports
     /// text selection; a Copy button appears on hover.</summary>
@@ -2043,15 +2115,18 @@ public partial class MainWindow : Window
         void StopThinking()
         {
             thinkingTimer.Stop();
+            thinkingTb.ToolTip    = null;          // clear thinking tooltip
             thinkingTb.Visibility = Visibility.Collapsed;
             contentTb.Visibility  = Visibility.Visible;
         }
 
-        void SetTooltip(string tip)
+        // Tooltip lives on the thinking-dots element: visible only while dots are shown.
+        // After StopThinking the element is Collapsed so the tooltip can never appear.
+        void UpdateThinkingTooltip(string tip)
         {
-            bubble.ToolTip = string.IsNullOrEmpty(tip) ? null : (object)tip;
+            thinkingTb.ToolTip = string.IsNullOrEmpty(tip) ? null : (object)$"💭 {tip}";
         }
 
-        return new StreamBubble(contentTb, StopThinking, SetTooltip);
+        return new StreamBubble(contentTb, StopThinking, UpdateThinkingTooltip);
     }
 }

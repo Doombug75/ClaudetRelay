@@ -21,6 +21,10 @@ public class OllamaService : IDisposable
     /// Updated while streaming; empty if the model doesn't expose thinking.</summary>
     public string LastThinkingText { get; private set; } = "";
 
+    /// <summary>Fired on the streaming thread each time <see cref="LastThinkingText"/> is updated.
+    /// Subscribe in the UI layer and marshal to the dispatcher as needed.</summary>
+    public event Action<string>? ThinkingUpdated;
+
     public OllamaService(string baseUrl = "http://localhost:11434")
     {
         _base = baseUrl.TrimEnd('/');
@@ -107,7 +111,10 @@ public class OllamaService : IDisposable
                     {
                         var last = lines[^1].Trim();
                         if (!string.IsNullOrEmpty(last))
+                        {
                             LastThinkingText = last.Length > 120 ? last[..120] + "…" : last;
+                            ThinkingUpdated?.Invoke(LastThinkingText);
+                        }
                     }
                 }
             }

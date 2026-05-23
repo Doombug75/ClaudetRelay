@@ -31,6 +31,11 @@ public partial class SettingsWindow : Window
         public required TextBlock   ApiKeyHintLabel  { get; init; }
         public required ComboBox    CloudModelCombo  { get; init; }
         public required TextBlock   CloudTestLabel   { get; init; }
+        // Role section
+        public required CheckBox    CoordinatorCheck  { get; init; }
+        public required CheckBox    ReasonerCheck     { get; init; }
+        public required Slider      PrioritySlider    { get; init; }
+        public required Border      PrioritySection   { get; init; }
 
         public string CurrentProvider =>
             (TypeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Ollama";
@@ -45,8 +50,9 @@ public partial class SettingsWindow : Window
     // ── State ──────────────────────────────────────────────────────────────
 
     private readonly List<ParticipantForm> _forms = [];
-    private TextBox _userNameBox      = null!;
-    private TextBox _projectsFolderBox = null!;
+    private TextBox  _userNameBox       = null!;
+    private TextBox  _projectsFolderBox = null!;
+    private Slider   _toneSlider        = null!;
 
     // ── Constructor ────────────────────────────────────────────────────────
 
@@ -202,6 +208,53 @@ public partial class SettingsWindow : Window
         };
         folderHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
 
+        // ── RESPONSE TONE ──────────────────────────────────────────────────
+        var settings2 = SettingsService.Load(); // fresh read for ToneLevel
+        var toneLabel = new TextBlock
+        {
+            Style  = (Style)FindResource("SLabel"),
+            Text   = "RESPONSE TONE",
+            Margin = new Thickness(0, 18, 0, 6)
+        };
+
+        var toneValueLabel = new TextBlock
+        {
+            FontSize   = 12,
+            FontFamily = new FontFamily("Segoe UI"),
+            Text       = FormatToneLabel(settings2.ToneLevel),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin     = new Thickness(0, 0, 0, 4)
+        };
+        toneValueLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+
+        var toneSlider = new Slider
+        {
+            Minimum               = 0,
+            Maximum               = 100,
+            Value                 = settings2.ToneLevel,
+            TickFrequency         = 10,
+            IsSnapToTickEnabled   = false,
+            Margin                = new Thickness(0, 0, 0, 4)
+        };
+        _toneSlider = toneSlider;
+        toneSlider.ValueChanged += (_, e) =>
+            toneValueLabel.Text = FormatToneLabel((int)e.NewValue);
+
+        var toneRow = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        toneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        toneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        toneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var toneLeft = MakeHintText("Neutral");
+        var toneRight = MakeHintText("Freundlich");
+        Grid.SetColumn(toneLeft,   0);
+        Grid.SetColumn(toneSlider, 1);
+        Grid.SetColumn(toneRight,  2);
+        toneRow.Children.Add(toneLeft);
+        toneRow.Children.Add(toneSlider);
+        toneRow.Children.Add(toneRight);
+
+        var toneHint = MakeHintText("0 = streng neutral  ·  50 = Modell-Standard (kein Eingriff)  ·  100 = sehr freundlich");
+
         var root = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         root.Children.Add(nameLabel);
         root.Children.Add(userNameOuter);
@@ -209,6 +262,10 @@ public partial class SettingsWindow : Window
         root.Children.Add(folderLabel);
         root.Children.Add(folderGrid);
         root.Children.Add(folderHint);
+        root.Children.Add(toneLabel);
+        root.Children.Add(toneValueLabel);
+        root.Children.Add(toneRow);
+        root.Children.Add(toneHint);
 
         var scroll = new ScrollViewer
         {
@@ -274,6 +331,85 @@ public partial class SettingsWindow : Window
         Grid.SetColumn(typeCol, 1);
         nameTypeGrid.Children.Add(nameCol);
         nameTypeGrid.Children.Add(typeCol);
+
+        // ── ROLE section ─────────────────────────────────────────────────────
+        var roleLabel = new TextBlock
+        {
+            Style  = (Style)FindResource("SLabel"),
+            Text   = "ROLE",
+            Margin = new Thickness(0, 0, 0, 6)
+        };
+
+        var coordinatorCheck = new CheckBox
+        {
+            Style     = (Style)FindResource("SToggle"),
+            IsChecked = config.IsCoordinator,
+            Content   = "Coordinator",
+            Margin    = new Thickness(0, 0, 0, 4),
+            ToolTip   = "Receives every user message first and decides who should respond.\n" +
+                        "Only one Coordinator should be active per project.\n" +
+                        "The Coordinator can delegate tasks to Reasoners or handle them directly."
+        };
+
+        var reasonerCheck = new CheckBox
+        {
+            Style     = (Style)FindResource("SToggle"),
+            IsChecked = config.IsReasoner,
+            Content   = "Reasoner",
+            Margin    = new Thickness(0, 0, 0, 8),
+            ToolTip   = "Executes specialised tasks delegated by the Coordinator.\n" +
+                        "Multiple Reasoners can be active; higher priority is preferred first.\n" +
+                        "Reasoners respond only when called by the Coordinator or the user."
+        };
+
+        var priorityLabel = new TextBlock
+        {
+            Style  = (Style)FindResource("SLabel"),
+            Text   = "REASONER PRIORITY",
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+
+        var prioritySlider = new Slider
+        {
+            Minimum             = 1,
+            Maximum             = 10,
+            Value               = config.ReasonerPriority,
+            TickFrequency       = 1,
+            IsSnapToTickEnabled = true,
+            Margin              = new Thickness(0, 0, 0, 4),
+            ToolTip             = "1 = lowest priority, 10 = highest priority.\n" +
+                                  "The Coordinator prefers higher-priority Reasoners for complex tasks."
+        };
+        var priorityValueLabel = new TextBlock
+        {
+            FontSize   = 12,
+            FontFamily = new FontFamily("Segoe UI"),
+            Text       = $"Priority: {(int)config.ReasonerPriority}",
+            Margin     = new Thickness(0, 0, 0, 8)
+        };
+        priorityValueLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        prioritySlider.ValueChanged += (_, e) =>
+            priorityValueLabel.Text = $"Priority: {(int)e.NewValue}";
+
+        var priorityContent = new StackPanel();
+        priorityContent.Children.Add(priorityLabel);
+        priorityContent.Children.Add(prioritySlider);
+        priorityContent.Children.Add(priorityValueLabel);
+
+        var prioritySection = new Border
+        {
+            Visibility = config.IsReasoner ? Visibility.Visible : Visibility.Collapsed,
+            Child      = priorityContent
+        };
+
+        reasonerCheck.Checked   += (_, _) => prioritySection.Visibility = Visibility.Visible;
+        reasonerCheck.Unchecked += (_, _) => prioritySection.Visibility = Visibility.Collapsed;
+
+        var roleStack = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+        roleStack.Children.Add(roleLabel);
+        roleStack.Children.Add(coordinatorCheck);
+        roleStack.Children.Add(reasonerCheck);
+        roleStack.Children.Add(prioritySection);
 
         // Separator
         var sep = new Rectangle { Style = (Style)FindResource("SSep") };
@@ -444,6 +580,7 @@ public partial class SettingsWindow : Window
         var root = new StackPanel();
         root.Children.Add(enabledCheck);
         root.Children.Add(nameTypeGrid);
+        root.Children.Add(roleStack);
         root.Children.Add(sep);
         root.Children.Add(ollamaSection);
         root.Children.Add(cloudAISection);
@@ -475,7 +612,11 @@ public partial class SettingsWindow : Window
             ApiKeyOuter      = apiKeyOuter,
             ApiKeyHintLabel  = apiKeyHint,
             CloudModelCombo  = cloudModelCombo,
-            CloudTestLabel   = cloudTestLabel
+            CloudTestLabel   = cloudTestLabel,
+            CoordinatorCheck = coordinatorCheck,
+            ReasonerCheck    = reasonerCheck,
+            PrioritySlider   = prioritySlider,
+            PrioritySection  = prioritySection
         };
         _forms.Add(form);
 
@@ -653,6 +794,7 @@ public partial class SettingsWindow : Window
         settings.UserName = string.IsNullOrEmpty(userName) ? "You" : userName;
 
         settings.ProjectsFolder = _projectsFolderBox.Text.Trim();
+        settings.ToneLevel      = (int)_toneSlider.Value;
 
         settings.Participants.Clear();
 
@@ -669,11 +811,14 @@ public partial class SettingsWindow : Window
 
             settings.Participants.Add(new ParticipantConfig
             {
-                Name      = form.NameBox.Text.Trim(),
-                Type      = form.CurrentProvider,
-                Model     = model,
-                ServerUrl = serverUrl,
-                Enabled   = form.EnabledCheck.IsChecked == true
+                Name             = form.NameBox.Text.Trim(),
+                Type             = form.CurrentProvider,
+                Model            = model,
+                ServerUrl        = serverUrl,
+                Enabled          = form.EnabledCheck.IsChecked == true,
+                IsCoordinator    = form.CoordinatorCheck.IsChecked == true,
+                IsReasoner       = form.ReasonerCheck.IsChecked   == true,
+                ReasonerPriority = (int)form.PrioritySlider.Value
             });
 
             // Persist Cloud AI API key to Windows Credential Manager
@@ -727,6 +872,27 @@ public partial class SettingsWindow : Window
             _                => ""
         };
     }
+
+    private static string FormatToneLabel(int v) => v switch
+    {
+        < 10  => "Streng neutral",
+        < 30  => "Neutral",
+        < 45  => "Leicht neutral",
+        <= 55 => "Modell-Standard",
+        < 70  => "Leicht freundlich",
+        < 90  => "Freundlich",
+        _     => "Sehr freundlich"
+    };
+
+    private TextBlock MakeHintText(string text) => new TextBlock
+    {
+        Text         = text,
+        FontSize     = 11,
+        FontFamily   = new FontFamily("Segoe UI"),
+        TextWrapping = TextWrapping.Wrap,
+        Margin       = new Thickness(0, 0, 0, 4),
+        Foreground   = (Brush)(TryFindResource("SubtextBrush") ?? Brushes.Gray)
+    };
 
     private void PopulateCloudModelCombo(ComboBox combo, string provider, string selectedModel)
     {
