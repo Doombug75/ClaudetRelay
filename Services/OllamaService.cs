@@ -15,6 +15,7 @@ public class OllamaService : IDisposable
     private readonly string _base;
 
     public string CurrentModel { get; set; } = "llama3.2";
+    public string BaseUrl      => _base;
 
     public OllamaService(string baseUrl = "http://localhost:11434")
     {

@@ -47,7 +47,6 @@ public partial class MainWindow : Window
         public required Popup             Popup         { get; init; }
         public required TextBlock         PopupTitle    { get; init; }
         public required CheckBox          EnabledToggle { get; init; }
-        public required ListBox           ModelList     { get; init; }
         public required Button            RemoveButton  { get; init; }
     }
 
@@ -95,7 +94,6 @@ public partial class MainWindow : Window
         public required Popup              Popup         { get; init; }
         public required TextBlock          PopupTitle    { get; init; }
         public required CheckBox           EnabledToggle { get; init; }
-        public required ListBox            ModelList     { get; init; }
         public required Button             RemoveButton  { get; init; }
     }
 
@@ -378,35 +376,25 @@ public partial class MainWindow : Window
             Margin    = new Thickness(0, 0, 0, 14)
         };
 
-        var modelHeader = new TextBlock
-        {
-            Text       = "MODEL",
-            FontSize   = 10,
-            FontWeight = FontWeights.Bold,
-            Margin     = new Thickness(2, 0, 0, 6)
-        };
-        modelHeader.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        // ── Read-only info rows ───────────────────────────────────────────
+        var infoProviderKey = new TextBlock { Text = "PROVIDER", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) };
+        infoProviderKey.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        var infoProviderVal = new TextBlock { Text = participant.ProviderName, FontSize = 12, Margin = new Thickness(0, 0, 0, 10) };
+        infoProviderVal.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
-        var modelList = new ListBox
-        {
-            Background         = Brushes.Transparent,
-            BorderThickness    = new Thickness(0),
-            MaxHeight          = 200,
-            ItemContainerStyle = (Style)FindResource("ModelListItem")
-        };
-        ScrollViewer.SetVerticalScrollBarVisibility(modelList, ScrollBarVisibility.Auto);
-
-        var models = GetDefaultModelsForProvider(participant.ProviderName);
-        foreach (var m in models)
-            modelList.Items.Add(m);
-        modelList.SelectedItem = participant.Service.CurrentModel;
+        var infoModelKey = new TextBlock { Text = "MODEL", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) };
+        infoModelKey.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        var infoModelVal = new TextBlock { Text = participant.Service.CurrentModel, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+        infoModelVal.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
         var popupContent = new StackPanel();
         popupContent.Children.Add(popupTitle);
         popupContent.Children.Add(separator);
         popupContent.Children.Add(enabledToggle);
-        popupContent.Children.Add(modelHeader);
-        popupContent.Children.Add(modelList);
+        popupContent.Children.Add(infoProviderKey);
+        popupContent.Children.Add(infoProviderVal);
+        popupContent.Children.Add(infoModelKey);
+        popupContent.Children.Add(infoModelVal);
 
         var popupBorder = new Border
         {
@@ -445,7 +433,6 @@ public partial class MainWindow : Window
             Popup         = popup,
             PopupTitle    = popupTitle,
             EnabledToggle = enabledToggle,
-            ModelList     = modelList,
             RemoveButton  = removeButton
         };
 
@@ -453,20 +440,12 @@ public partial class MainWindow : Window
         card.MouseLeftButtonDown += (_, _) =>
         {
             enabledToggle.IsChecked = ui.Data.Enabled;
-            popup.IsOpen = !popup.IsOpen;
+            infoModelVal.Text       = ui.Data.Service.CurrentModel;
+            popup.IsOpen            = !popup.IsOpen;
         };
 
         enabledToggle.Checked   += (_, _) => OnCloudAIEnabledChanged(ui, true);
         enabledToggle.Unchecked += (_, _) => OnCloudAIEnabledChanged(ui, false);
-
-        modelList.SelectionChanged += (_, _) =>
-        {
-            if (modelList.SelectedItem is string m && m != ui.Data.Service.CurrentModel)
-            {
-                ui.Data.Service.CurrentModel = m;
-                ui.ModelLabel.Text           = m;
-            }
-        };
 
         removeButton.Click += (_, _) => RemoveCloudAIParticipant(ui);
 
@@ -645,30 +624,24 @@ public partial class MainWindow : Window
             Margin    = new Thickness(0, 0, 0, 14)
         };
 
-        var modelHeader = new TextBlock
-        {
-            Text       = "MODEL",
-            FontSize   = 10,
-            FontWeight = FontWeights.Bold,
-            Margin     = new Thickness(2, 0, 0, 6)
-        };
-        modelHeader.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        var infoServerKey = new TextBlock { Text = "SERVER", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) };
+        infoServerKey.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        var infoServerVal = new TextBlock { Text = participant.Service.BaseUrl, FontSize = 12, Margin = new Thickness(0, 0, 0, 10), TextWrapping = TextWrapping.Wrap };
+        infoServerVal.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
-        var modelList = new ListBox
-        {
-            Background         = Brushes.Transparent,
-            BorderThickness    = new Thickness(0),
-            MaxHeight          = 200,
-            ItemContainerStyle = (Style)FindResource("ModelListItem")
-        };
-        ScrollViewer.SetVerticalScrollBarVisibility(modelList, ScrollBarVisibility.Auto);
+        var infoModelKey = new TextBlock { Text = "MODEL", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) };
+        infoModelKey.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        var infoModelVal = new TextBlock { Text = participant.Service.CurrentModel, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+        infoModelVal.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
         var popupContent = new StackPanel();
         popupContent.Children.Add(popupTitle);
         popupContent.Children.Add(separator);
         popupContent.Children.Add(enabledToggle);
-        popupContent.Children.Add(modelHeader);
-        popupContent.Children.Add(modelList);
+        popupContent.Children.Add(infoServerKey);
+        popupContent.Children.Add(infoServerVal);
+        popupContent.Children.Add(infoModelKey);
+        popupContent.Children.Add(infoModelVal);
 
         var popupBorder = new Border
         {
@@ -706,31 +679,18 @@ public partial class MainWindow : Window
             Popup         = popup,
             PopupTitle    = popupTitle,
             EnabledToggle = enabledToggle,
-            ModelList     = modelList,
             RemoveButton  = removeButton
         };
 
         card.MouseLeftButtonDown += (_, _) =>
         {
-            modelList.Items.Clear();
-            foreach (var m in _availableOllamaModels)
-                modelList.Items.Add(m);
-            modelList.SelectedItem  = ui.Data.Service.CurrentModel;
             enabledToggle.IsChecked = ui.Data.Enabled;
+            infoModelVal.Text       = ui.Data.Service.CurrentModel;
             popup.IsOpen            = !popup.IsOpen;
         };
 
         enabledToggle.Checked   += (_, _) => OnOllamaEnabledChanged(ui, true);
         enabledToggle.Unchecked += (_, _) => OnOllamaEnabledChanged(ui, false);
-
-        modelList.SelectionChanged += (_, _) =>
-        {
-            if (modelList.SelectedItem is string m && m != ui.Data.Service.CurrentModel)
-            {
-                ui.Data.Service.CurrentModel = m;
-                ui.ModelLabel.Text           = m;
-            }
-        };
 
         removeButton.Click += (_, _) => RemoveOllamaParticipant(ui);
 
