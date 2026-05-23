@@ -50,6 +50,13 @@ public class AppSettings
     /// </summary>
     public int ToneLevel { get; set; } = 50;
 
+    /// <summary>
+    /// When true, all agents adopt a humorous personality.
+    /// Slider neutral-end = pure comedy / jokes / poems.
+    /// Slider friendly-end = loving pet names, kisses, affectionate insults.
+    /// </summary>
+    public bool MockingbirdMode { get; set; } = false;
+
     /// <summary>Per-participant configuration (P1–P8). Populated on first load via migration.</summary>
     public List<ParticipantConfig> Participants { get; set; } = [];
 }

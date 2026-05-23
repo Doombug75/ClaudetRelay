@@ -45,9 +45,10 @@ public partial class SettingsWindow : Window
     // ── State ──────────────────────────────────────────────────────────────
 
     private readonly List<ParticipantForm> _forms = [];
-    private TextBox  _userNameBox       = null!;
-    private TextBox  _projectsFolderBox = null!;
-    private Slider   _toneSlider        = null!;
+    private TextBox   _userNameBox       = null!;
+    private TextBox   _projectsFolderBox = null!;
+    private Slider    _toneSlider        = null!;
+    private CheckBox  _mockingbirdBox    = null!;
 
     // ── Constructor ────────────────────────────────────────────────────────
 
@@ -233,7 +234,9 @@ public partial class SettingsWindow : Window
         };
         _toneSlider = toneSlider;
         toneSlider.ValueChanged += (_, e) =>
-            toneValueLabel.Text = FormatToneLabel((int)e.NewValue);
+            toneValueLabel.Text = _mockingbirdBox?.IsChecked == true
+                ? FormatToneLabelMockingbird((int)e.NewValue)
+                : FormatToneLabel((int)e.NewValue);
 
         var toneRow = new Grid { Margin = new Thickness(0, 0, 0, 4) };
         toneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -250,6 +253,44 @@ public partial class SettingsWindow : Window
 
         var toneHint = MakeHintText("0 = strictly neutral  ·  50 = model default (no change)  ·  100 = very friendly");
 
+        // ── MOCKINGBIRD MODE ───────────────────────────────────────────────
+        var mockingbirdCheck = new CheckBox
+        {
+            Style     = (Style)FindResource("SToggle"),
+            IsChecked = settings.MockingbirdMode,
+            Content   = "🐦 Mockingbird mode",
+            Margin    = new Thickness(0, 10, 0, 4)
+        };
+        _mockingbirdBox = mockingbirdCheck;
+
+        var mockingbirdHint = MakeHintText(
+            "Agents get a humorous personality. " +
+            "Neutral end = comedy & poems. Friendly end = loving pet names & kisses.");
+
+        // Apply initial labels if mockingbird was already enabled
+        if (settings.MockingbirdMode)
+        {
+            toneLeft.Text       = "Comedy 🎭";
+            toneRight.Text      = "Loving 💕";
+            toneHint.Text       = "0 = pure comedy & poems  ·  50 = humoristic default  ·  100 = loving pet names & kisses";
+            toneValueLabel.Text = FormatToneLabelMockingbird(settings.ToneLevel);
+        }
+
+        mockingbirdCheck.Checked += (_, _) =>
+        {
+            toneLeft.Text       = "Comedy 🎭";
+            toneRight.Text      = "Loving 💕";
+            toneHint.Text       = "0 = pure comedy & poems  ·  50 = humoristic default  ·  100 = loving pet names & kisses";
+            toneValueLabel.Text = FormatToneLabelMockingbird((int)toneSlider.Value);
+        };
+        mockingbirdCheck.Unchecked += (_, _) =>
+        {
+            toneLeft.Text       = "Neutral";
+            toneRight.Text      = "Friendly";
+            toneHint.Text       = "0 = strictly neutral  ·  50 = model default (no change)  ·  100 = very friendly";
+            toneValueLabel.Text = FormatToneLabel((int)toneSlider.Value);
+        };
+
         var root = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         root.Children.Add(nameLabel);
         root.Children.Add(userNameOuter);
@@ -261,6 +302,8 @@ public partial class SettingsWindow : Window
         root.Children.Add(toneValueLabel);
         root.Children.Add(toneRow);
         root.Children.Add(toneHint);
+        root.Children.Add(mockingbirdCheck);
+        root.Children.Add(mockingbirdHint);
 
         var scroll = new ScrollViewer
         {
@@ -704,8 +747,9 @@ public partial class SettingsWindow : Window
         var userName = _userNameBox.Text.Trim();
         settings.UserName = string.IsNullOrEmpty(userName) ? "You" : userName;
 
-        settings.ProjectsFolder = _projectsFolderBox.Text.Trim();
-        settings.ToneLevel      = (int)_toneSlider.Value;
+        settings.ProjectsFolder  = _projectsFolderBox.Text.Trim();
+        settings.ToneLevel       = (int)_toneSlider.Value;
+        settings.MockingbirdMode = _mockingbirdBox.IsChecked == true;
 
         settings.Participants.Clear();
 
@@ -790,6 +834,17 @@ public partial class SettingsWindow : Window
         < 70  => "Slightly friendly",
         < 90  => "Friendly",
         _     => "Very friendly"
+    };
+
+    private static string FormatToneLabelMockingbird(int v) => v switch
+    {
+        < 10  => "Pure comedy 🎭",
+        < 30  => "Witty & funny",
+        < 45  => "Slightly comedic",
+        <= 55 => "Mockingbird default",
+        < 70  => "Affectionately funny",
+        < 90  => "Lovingly teasing",
+        _     => "Affectionate insults 💕"
     };
 
     private TextBlock MakeHintText(string text) => new TextBlock

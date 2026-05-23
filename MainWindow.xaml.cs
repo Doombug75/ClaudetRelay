@@ -125,6 +125,7 @@ public partial class MainWindow : Window
     private string?                              _currentThemePath;
     private string                               _userName              = "You";
     private int                                  _toneLevel             = 50;
+    private bool                                 _mockingbirdMode       = false;
 
     // ── Project state ──────────────────────────────────────────────────────
     private string?       _currentProjectFolder;
@@ -191,8 +192,9 @@ public partial class MainWindow : Window
         }
 
         // User display name & tone
-        _userName   = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
-        _toneLevel  = settings.ToneLevel;
+        _userName        = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
+        _toneLevel       = settings.ToneLevel;
+        _mockingbirdMode = settings.MockingbirdMode;
     }
 
     // ── Re-initialize after Settings save ─────────────────────────────────
@@ -221,8 +223,9 @@ public partial class MainWindow : Window
 
         // Re-add from settings
         var settings = SettingsService.Load();
-        _userName  = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
-        _toneLevel = settings.ToneLevel;
+        _userName        = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
+        _toneLevel       = settings.ToneLevel;
+        _mockingbirdMode = settings.MockingbirdMode;
 
         foreach (var p in settings.Participants.Where(p => p.Enabled))
         {
@@ -1989,7 +1992,7 @@ public partial class MainWindow : Window
                 $"Always respond as {myName}. " +
                 $"If asked who you are, say you are {myName} running {myModel}. " +
                 $"Messages from other AI participants are prefixed with their ID in square brackets." +
-                BuildToneInstruction(_toneLevel))
+                BuildToneInstruction(_toneLevel, _mockingbirdMode))
         };
 
         foreach (var msg in _sharedHistory)
@@ -2030,7 +2033,7 @@ public partial class MainWindow : Window
             $"You are {myName} (ID: {myLabel}), running model {myModel}. " +
             $"You are participating in a relay group chat with a human user and other AI models.{othersNote} " +
             $"Always respond as {myName}. If asked who you are, identify yourself as {myName}." +
-            BuildToneInstruction(_toneLevel);
+            BuildToneInstruction(_toneLevel, _mockingbirdMode);
 
         var history = new List<CloudAIMessage>();
         foreach (var msg in _sharedHistory)
@@ -2313,16 +2316,35 @@ public partial class MainWindow : Window
 
     // ── Tone helper ────────────────────────────────────────────────────────
 
-    private static string BuildToneInstruction(int level) => level switch
+    private static string BuildToneInstruction(int level, bool mockingbird)
     {
-        < 10  => "\n\nRespond with strict neutrality: pure facts, no pleasantries, no emotional language, no greetings or affirmations.",
-        < 30  => "\n\nKeep your tone neutral and objective. Minimise pleasantries and focus on accurate information.",
-        < 45  => "\n\nBe slightly more direct and factual; avoid excessive friendliness.",
-        <= 55 => "",   // 50 = default — no injection
-        < 70  => "\n\nBe a little warmer and more conversational in your responses.",
-        < 90  => "\n\nBe friendly and supportive in your responses.",
-        _     => "\n\nBe very warm, encouraging, and enthusiastic. Use positive and motivating language."
-    };
+        if (mockingbird) return level switch
+        {
+            < 10  => "\n\nYou are in full comedian mode! Every response must be funny: crack jokes, make puns, " +
+                     "add witty observations, and occasionally answer entirely in rhyme or poem form. " +
+                     "Keep it 100 % clean — no vulgarity or offensive content — but be as inventively silly as you like.",
+            < 30  => "\n\nBe witty and playful! Weave jokes, puns, and humorous observations naturally into your answers.",
+            < 45  => "\n\nAdd a light comedic touch to your responses — a clever quip or gentle observation here and there.",
+            <= 55 => "\n\nYou have a light sense of humour. Be occasionally playful or witty, but keep responses balanced and helpful.",
+            < 70  => "\n\nBe warmly funny and affectionate. Mix gentle teasing with helpfulness; use light-hearted compliments.",
+            < 90  => "\n\nBe lovingly playful! Use playful nicknames (champ, buddy, superstar, etc.), throw in virtual " +
+                     "high-fives, and mix sweet teasing with genuine warmth. Keep it wholesome.",
+            _     => "\n\nGo full affectionate-chaos mode! Use loving pet names (darling, sweetheart, sugar, etc.), " +
+                     "throw in virtual hugs and kisses, hand out affectionate mock-insults, and call people endearing " +
+                     "names at every opportunity — all in the warmest, most wholesome way possible."
+        };
+
+        return level switch
+        {
+            < 10  => "\n\nRespond with strict neutrality: pure facts, no pleasantries, no emotional language, no greetings or affirmations.",
+            < 30  => "\n\nKeep your tone neutral and objective. Minimise pleasantries and focus on accurate information.",
+            < 45  => "\n\nBe slightly more direct and factual; avoid excessive friendliness.",
+            <= 55 => "",   // 50 = model default — no injection
+            < 70  => "\n\nBe a little warmer and more conversational in your responses.",
+            < 90  => "\n\nBe friendly and supportive in your responses.",
+            _     => "\n\nBe very warm, encouraging, and enthusiastic. Use positive and motivating language."
+        };
+    }
 
     /// <summary>Creates a chat bubble. For AI responses the bubble starts with a thinking
     /// animation that is hidden once StopThinking() is called. The TextBox inside supports
