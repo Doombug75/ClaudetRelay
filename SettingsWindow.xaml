@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings · ClaudetRelay"
-        Width="480" Height="540"
+        Width="540" Height="660"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="{DynamicResource SidebarBrush}">
@@ -14,7 +14,7 @@
             <Setter Property="FontSize"   Value="10"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="Foreground" Value="{DynamicResource SubtextBrush}"/>
-            <Setter Property="Margin"     Value="0,0,0,6"/>
+            <Setter Property="Margin"     Value="0,0,0,5"/>
         </Style>
 
         <!-- Text input -->
@@ -34,7 +34,10 @@
                         <Border Background="{TemplateBinding Background}"
                                 CornerRadius="8"
                                 Padding="{TemplateBinding Padding}">
-                            <ScrollViewer x:Name="PART_ContentHost"/>
+                            <!-- Explicit Foreground TemplateBinding prevents the
+                                 system ScrollViewer style from shadowing the text colour -->
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Foreground="{TemplateBinding Foreground}"/>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
@@ -56,7 +59,8 @@
                         <Border Background="{TemplateBinding Background}"
                                 CornerRadius="8"
                                 Padding="{TemplateBinding Padding}">
-                            <ScrollViewer x:Name="PART_ContentHost"/>
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Foreground="{TemplateBinding Foreground}"/>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
@@ -231,13 +235,31 @@
         <Border DockPanel.Dock="Top"
                 Background="{DynamicResource SurfaceBrush}"
                 Padding="22,15,22,14">
-            <TextBlock Text="Settings"
+            <TextBlock Text="Settings  ·  Participants"
                        FontSize="18" FontWeight="Bold" FontFamily="Segoe UI"
                        Foreground="{DynamicResource TextBrush}"/>
         </Border>
 
-        <!-- ── Tab control ── -->
-        <TabControl Background="{DynamicResource SidebarBrush}"
+        <!-- ── Save All bar (bottom) ── -->
+        <Border DockPanel.Dock="Bottom"
+                Background="{DynamicResource SurfaceBrush}"
+                Padding="22,12">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="Save All  ✓"
+                        Style="{StaticResource SButton}"
+                        MinWidth="150"
+                        Click="SaveAll_Click"/>
+                <TextBlock x:Name="SaveStatusLabel"
+                           FontSize="13" FontFamily="Segoe UI"
+                           VerticalAlignment="Center"
+                           Margin="14,0,0,0"
+                           Foreground="{DynamicResource SubtextBrush}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ── Participant tabs (populated programmatically) ── -->
+        <TabControl x:Name="ParticipantsTabControl"
+                    Background="{DynamicResource SidebarBrush}"
                     BorderThickness="0">
 
             <TabControl.Template>
@@ -248,7 +270,7 @@
                                 Padding="10,4,10,0">
                             <TabPanel IsItemsHost="True"/>
                         </Border>
-                        <Border Background="{DynamicResource SidebarBrush}" Padding="22,18,22,18">
+                        <Border Background="{DynamicResource SidebarBrush}" Padding="22,16,22,16">
                             <ContentPresenter ContentSource="SelectedContent"/>
                         </Border>
                     </DockPanel>
@@ -259,7 +281,7 @@
                 <Style TargetType="TabItem">
                     <Setter Property="FontSize"   Value="13"/>
                     <Setter Property="FontFamily" Value="Segoe UI"/>
-                    <Setter Property="Padding"    Value="14,8"/>
+                    <Setter Property="Padding"    Value="12,8"/>
                     <Setter Property="Foreground" Value="{DynamicResource SubtextBrush}"/>
                     <Setter Property="Template">
                         <Setter.Value>
@@ -277,15 +299,18 @@
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsSelected" Value="True">
-                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SidebarBrush}"/>
-                                        <Setter TargetName="Tb" Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                                        <Setter TargetName="Bd" Property="Background"
+                                                Value="{DynamicResource SidebarBrush}"/>
+                                        <Setter TargetName="Tb" Property="Foreground"
+                                                Value="{DynamicResource TextBrush}"/>
                                     </Trigger>
                                     <MultiTrigger>
                                         <MultiTrigger.Conditions>
                                             <Condition Property="IsMouseOver" Value="True"/>
                                             <Condition Property="IsSelected"  Value="False"/>
                                         </MultiTrigger.Conditions>
-                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource InputBrush}"/>
+                                        <Setter TargetName="Bd" Property="Background"
+                                                Value="{DynamicResource InputBrush}"/>
                                     </MultiTrigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
@@ -294,158 +319,7 @@
                 </Style>
             </TabControl.ItemContainerStyle>
 
-            <!-- ═══════════ PARTICIPANTS TAB ═══════════ -->
-            <TabItem Header="Participants">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
-
-                        <TextBlock Text="CLOUD AI" Style="{StaticResource SLabel}"/>
-                        <CheckBox x:Name="CloudAIEnabledCheck"
-                                  Content="Enable Cloud AI participant"
-                                  Style="{StaticResource SToggle}"
-                                  Margin="0,0,0,10"/>
-                        <TextBlock Text="Provider" Style="{StaticResource SLabel}"/>
-                        <ComboBox x:Name="ParticipantsProviderCombo"
-                                  Style="{StaticResource SComboBox}"
-                                  Margin="0,0,0,4">
-                            <ComboBoxItem Content="Anthropic"/>
-                            <ComboBoxItem Content="Google AI"/>
-                            <ComboBoxItem Content="Groq"/>
-                            <ComboBoxItem Content="OpenRouter"/>
-                            <ComboBoxItem Content="Mistral"/>
-                        </ComboBox>
-
-                        <Rectangle Style="{StaticResource SSep}"/>
-
-                        <TextBlock Text="OLLAMA" Style="{StaticResource SLabel}"/>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <TextBlock Text="Instances (1–3):"
-                                       FontSize="13" FontFamily="Segoe UI"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <ComboBox x:Name="OllamaInstanceCombo"
-                                      Style="{StaticResource SComboBox}"
-                                      Width="80">
-                                <ComboBoxItem Content="1"/>
-                                <ComboBoxItem Content="2"/>
-                                <ComboBoxItem Content="3"/>
-                            </ComboBox>
-                        </StackPanel>
-
-                        <Rectangle Style="{StaticResource SSep}"/>
-
-                        <Button Content="Save"
-                                Style="{StaticResource SButton}"
-                                Width="120"
-                                HorizontalAlignment="Left"
-                                Click="SaveParticipants_Click"/>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- ═══════════ CLOUD AI TAB ═══════════ -->
-            <TabItem Header="Cloud AI">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
-
-                        <TextBlock Text="PROVIDER" Style="{StaticResource SLabel}"/>
-                        <ComboBox x:Name="ProviderCombo"
-                                  Style="{StaticResource SComboBox}"
-                                  Margin="0,0,0,16"
-                                  SelectionChanged="ProviderCombo_SelectionChanged">
-                            <ComboBoxItem Content="Anthropic"/>
-                            <ComboBoxItem Content="Google AI"/>
-                            <ComboBoxItem Content="Groq"/>
-                            <ComboBoxItem Content="OpenRouter"/>
-                            <ComboBoxItem Content="Mistral"/>
-                        </ComboBox>
-
-                        <TextBlock Text="API KEY" Style="{StaticResource SLabel}"/>
-                        <Grid Margin="0,0,0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <PasswordBox x:Name="ApiKeyBox"
-                                         Grid.Column="0"
-                                         Style="{StaticResource SPasswordBox}"
-                                         PasswordChanged="ApiKeyBox_PasswordChanged"/>
-                            <TextBox x:Name="ApiKeyTextBox"
-                                     Grid.Column="0"
-                                     Style="{StaticResource STextBox}"
-                                     Visibility="Collapsed"
-                                     TextChanged="ApiKeyTextBox_TextChanged"/>
-                            <Button x:Name="ShowHideButton"
-                                    Grid.Column="1"
-                                    Content="👁" Width="36" Height="36"
-                                    FontSize="15" Margin="6,0,0,0"
-                                    Style="{StaticResource SButtonSecondary}"
-                                    Click="ShowHide_Click"
-                                    ToolTip="Show / hide key"/>
-                        </Grid>
-                        <TextBlock x:Name="ApiKeyHint"
-                                   FontSize="11" FontFamily="Segoe UI"
-                                   Foreground="{DynamicResource SubtextBrush}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,0,0,14"/>
-
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                            <Button x:Name="TestButton"
-                                    Content="Test Connection"
-                                    Style="{StaticResource SButtonSecondary}"
-                                    Click="TestConnection_Click"
-                                    Margin="0,0,10,0"/>
-                            <TextBlock x:Name="TestResultLabel"
-                                       FontSize="13" FontFamily="Segoe UI"
-                                       Foreground="{DynamicResource SubtextBrush}"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-
-                        <TextBlock Text="MODEL" Style="{StaticResource SLabel}"/>
-                        <ComboBox x:Name="CloudModelCombo"
-                                  Style="{StaticResource SComboBox}"
-                                  Margin="0,0,0,20"/>
-
-                        <Button Content="Save"
-                                Style="{StaticResource SButton}"
-                                Width="120"
-                                HorizontalAlignment="Left"
-                                Click="SaveCloudAI_Click"/>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- ═══════════ OLLAMA TAB ═══════════ -->
-            <TabItem Header="Ollama">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
-
-                        <TextBlock Text="BASE URL" Style="{StaticResource SLabel}"/>
-                        <TextBox x:Name="OllamaUrlBox"
-                                 Style="{StaticResource STextBox}"
-                                 Margin="0,0,0,16"/>
-
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
-                            <Button x:Name="TestOllamaButton"
-                                    Content="Test Connection"
-                                    Style="{StaticResource SButtonSecondary}"
-                                    Click="TestOllama_Click"
-                                    Margin="0,0,10,0"/>
-                            <TextBlock x:Name="OllamaTestLabel"
-                                       FontSize="13" FontFamily="Segoe UI"
-                                       Foreground="{DynamicResource SubtextBrush}"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-
-                        <Button Content="Save"
-                                Style="{StaticResource SButton}"
-                                Width="120"
-                                HorizontalAlignment="Left"
-                                Click="SaveOllama_Click"/>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
+            <!-- Tab items are added programmatically in SettingsWindow.xaml.cs -->
 
         </TabControl>
     </DockPanel>

@@ -1,17 +1,52 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using ClaudetRelay.Services;
 
 namespace ClaudetRelay;
 
 public partial class SettingsWindow : Window
 {
-    private bool _suppressProviderEvent = false;
+    // ── Nested types ───────────────────────────────────────────────────────
+
+    private sealed class ParticipantForm
+    {
+        public required int         SlotIndex        { get; init; }
+        public required TabItem     Tab              { get; init; }
+        public required CheckBox    EnabledCheck     { get; init; }
+        public required TextBox     NameBox          { get; init; }
+        public required ComboBox    TypeCombo        { get; init; }
+        // Ollama section
+        public required Border      OllamaSection    { get; init; }
+        public required TextBox     ServerUrlBox     { get; init; }
+        public required ComboBox    OllamaModelCombo { get; init; }
+        public required TextBlock   OllamaTestLabel  { get; init; }
+        // Cloud AI section
+        public required Border      CloudAISection   { get; init; }
+        public required PasswordBox ApiKeyBox        { get; init; }
+        public required TextBox     ApiKeyTextBox    { get; init; }
+        public required TextBlock   ApiKeyHintLabel  { get; init; }
+        public required ComboBox    CloudModelCombo  { get; init; }
+        public required TextBlock   CloudTestLabel   { get; init; }
+
+        public string CurrentProvider =>
+            (TypeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Ollama";
+
+        public string CurrentApiKey =>
+            ApiKeyBox.Visibility == Visibility.Visible
+                ? ApiKeyBox.Password
+                : ApiKeyTextBox.Text;
+    }
+
+    // ── State ──────────────────────────────────────────────────────────────
+
+    private readonly List<ParticipantForm> _forms = [];
+
+    // ── Constructor ────────────────────────────────────────────────────────
 
     public SettingsWindow(string? currentThemePath)
     {
-        // Apply the current theme before InitializeComponent so DynamicResource resolves
         if (currentThemePath is not null)
         {
             try
@@ -23,32 +58,509 @@ public partial class SettingsWindow : Window
         }
 
         InitializeComponent();
-        LoadSettings();
+
+        var settings = SettingsService.Load();
+        for (int i = 0; i < 6; i++)
+        {
+            var config = i < settings.Participants.Count
+                ? settings.Participants[i]
+                : new ParticipantConfig();
+            BuildTab(i, config);
+        }
+
+        // Auto-test all participants once the window is fully rendered
+        Loaded += async (_, _) => await AutoTestAllAsync();
     }
 
-    // ── Load current state into controls ──────────────────────────────────
+    // ── Auto-test on open ──────────────────────────────────────────────────
 
-    private void LoadSettings()
+    private async Task AutoTestAllAsync()
     {
-        var s = SettingsService.Load();
-
-        // Participants tab
-        CloudAIEnabledCheck.IsChecked          = s.CloudAIEnabled;
-        OllamaInstanceCombo.SelectedIndex       = Math.Clamp(s.OllamaInstanceCount - 1, 0, 2);
-        SelectComboByContent(ParticipantsProviderCombo, s.SelectedProvider);
-
-        // Ollama tab
-        OllamaUrlBox.Text = s.OllamaBaseUrl;
-
-        // Cloud AI tab – suppress SelectionChanged during initial population
-        _suppressProviderEvent = true;
-        SelectComboByContent(ProviderCombo, s.SelectedProvider);
-        _suppressProviderEvent = false;
-
-        LoadApiKeyForProvider(s.SelectedProvider);
-        UpdateApiKeyHint(s.SelectedProvider);
-        PopulateModelCombo(s.SelectedProvider, s.SelectedCloudModel);
+        // Run all tests in parallel: Ollama always, Cloud AI only if a key exists
+        var tasks = _forms.Select(async form =>
+        {
+            if (form.CurrentProvider == "Ollama")
+                await TestOllamaAsync(form);
+            else if (!string.IsNullOrEmpty(form.CurrentApiKey))
+                await TestCloudAIAsync(form);
+        });
+        await Task.WhenAll(tasks);
     }
+
+    // ── Tab builder ────────────────────────────────────────────────────────
+
+    private void BuildTab(int index, ParticipantConfig config)
+    {
+        bool isOllama   = config.Type == "Ollama";
+        var  tabHeader  = string.IsNullOrWhiteSpace(config.Name) ? $"P{index + 1}" : config.Name;
+
+        // ── Enable checkbox ───────────────────────────────────────────────
+        var enabledCheck = new CheckBox
+        {
+            Style     = (Style)FindResource("SToggle"),
+            IsChecked = config.Enabled,
+            Content   = "Enable this participant",
+            Margin    = new Thickness(0, 0, 0, 14)
+        };
+
+        // ── Name + Type row ───────────────────────────────────────────────
+        var nameLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "NAME" };
+        var nameBox   = new TextBox
+        {
+            Style       = (Style)FindResource("STextBox"),
+            Text        = config.Name,
+            Margin      = new Thickness(0, 0, 0, 0)
+        };
+        // Explicit dynamic-resource binding beats any system style that might shadow the colour
+        nameBox.SetResourceReference(Control.ForegroundProperty, "TextBrush");
+        nameBox.SetResourceReference(Control.BackgroundProperty, "InputBrush");
+
+        var typeLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "TYPE" };
+        var typeCombo = new ComboBox { Style = (Style)FindResource("SComboBox") };
+        foreach (var t in new[] { "Ollama", "Anthropic", "Google AI", "Groq", "OpenRouter", "Mistral" })
+            typeCombo.Items.Add(new ComboBoxItem { Content = t });
+        SelectComboByContent(typeCombo, config.Type);
+
+        var nameCol = new StackPanel { Margin = new Thickness(0, 0, 8, 14) };
+        nameCol.Children.Add(nameLabel);
+        nameCol.Children.Add(nameBox);
+
+        var typeCol = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
+        typeCol.Children.Add(typeLabel);
+        typeCol.Children.Add(typeCombo);
+
+        var nameTypeGrid = new Grid();
+        nameTypeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        nameTypeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(nameCol, 0);
+        Grid.SetColumn(typeCol, 1);
+        nameTypeGrid.Children.Add(nameCol);
+        nameTypeGrid.Children.Add(typeCol);
+
+        // Separator
+        var sep = new Rectangle { Style = (Style)FindResource("SSep") };
+
+        // ── OLLAMA SECTION ────────────────────────────────────────────────
+
+        var serverLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "SERVER URL" };
+
+        var serverUrlBox = new TextBox
+        {
+            Style = (Style)FindResource("STextBox"),
+            Text  = string.IsNullOrEmpty(config.ServerUrl) ? "http://localhost:11434" : config.ServerUrl
+        };
+        serverUrlBox.SetResourceReference(Control.ForegroundProperty, "TextBrush");
+        serverUrlBox.SetResourceReference(Control.BackgroundProperty, "InputBrush");
+
+        var localhostBtn = new Button
+        {
+            Content = "↩ Localhost",
+            Style   = (Style)FindResource("SButtonSecondary"),
+            Margin  = new Thickness(6, 0, 0, 0),
+            Height  = 36
+        };
+
+        var serverGrid = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        serverGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        serverGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(serverUrlBox,  0);
+        Grid.SetColumn(localhostBtn,  1);
+        serverGrid.Children.Add(serverUrlBox);
+        serverGrid.Children.Add(localhostBtn);
+
+        var ollamaModelLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "MODEL" };
+        var ollamaModelCombo = new ComboBox
+        {
+            Style  = (Style)FindResource("SComboBox"),
+            Margin = new Thickness(0, 0, 0, 10)
+        };
+        if (!string.IsNullOrEmpty(config.Model) && isOllama)
+            ollamaModelCombo.Items.Add(new ComboBoxItem { Content = config.Model, IsSelected = true });
+
+        var ollamaHint = new TextBlock
+        {
+            Text         = "Test connection to load available models",
+            FontSize     = 11,
+            FontFamily   = new FontFamily("Segoe UI"),
+            Margin       = new Thickness(0, 0, 0, 10),
+            TextWrapping = TextWrapping.Wrap
+        };
+        ollamaHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        var ollamaTestBtn = new Button
+        {
+            Content = "Test Connection",
+            Style   = (Style)FindResource("SButtonSecondary"),
+            Margin  = new Thickness(0, 0, 10, 0)
+        };
+        var ollamaTestLabel = new TextBlock
+        {
+            FontSize          = 13,
+            FontFamily        = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        ollamaTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        var ollamaTestRow = new StackPanel { Orientation = Orientation.Horizontal };
+        ollamaTestRow.Children.Add(ollamaTestBtn);
+        ollamaTestRow.Children.Add(ollamaTestLabel);
+
+        var ollamaContent = new StackPanel();
+        ollamaContent.Children.Add(serverLabel);
+        ollamaContent.Children.Add(serverGrid);
+        ollamaContent.Children.Add(ollamaModelLabel);
+        ollamaContent.Children.Add(ollamaModelCombo);
+        ollamaContent.Children.Add(ollamaHint);
+        ollamaContent.Children.Add(ollamaTestRow);
+
+        var ollamaSection = new Border
+        {
+            Visibility = isOllama ? Visibility.Visible : Visibility.Collapsed,
+            Child      = ollamaContent
+        };
+
+        // ── CLOUD AI SECTION ──────────────────────────────────────────────
+
+        var apiKeyLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "API KEY" };
+
+        var apiKeyBox     = new PasswordBox { Style = (Style)FindResource("SPasswordBox") };
+        var apiKeyTextBox = new TextBox
+        {
+            Style      = (Style)FindResource("STextBox"),
+            Visibility = Visibility.Collapsed
+        };
+        apiKeyTextBox.SetResourceReference(Control.ForegroundProperty, "TextBrush");
+        apiKeyTextBox.SetResourceReference(Control.BackgroundProperty, "InputBrush");
+        var showHideBtn = new Button
+        {
+            Content  = "👁",
+            Width    = 36,
+            Height   = 36,
+            FontSize = 15,
+            Margin   = new Thickness(6, 0, 0, 0),
+            Style    = (Style)FindResource("SButtonSecondary"),
+            ToolTip  = "Show / hide key"
+        };
+
+        // Pre-load API key from Credential Manager for the current provider
+        if (!isOllama)
+        {
+            var existingKey       = WindowsCredentialManager.Load(config.Type) ?? "";
+            apiKeyBox.Password    = existingKey;
+            apiKeyTextBox.Text    = existingKey;
+        }
+
+        var apiKeyGrid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        apiKeyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        apiKeyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(apiKeyBox,      0);
+        Grid.SetColumn(apiKeyTextBox,  0);
+        Grid.SetColumn(showHideBtn,    1);
+        apiKeyGrid.Children.Add(apiKeyBox);
+        apiKeyGrid.Children.Add(apiKeyTextBox);
+        apiKeyGrid.Children.Add(showHideBtn);
+
+        var apiKeyHint = new TextBlock
+        {
+            FontSize     = 11,
+            FontFamily   = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 12)
+        };
+        apiKeyHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        UpdateApiKeyHint(apiKeyHint, config.Type);
+
+        var cloudModelLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "MODEL" };
+        var cloudModelCombo = new ComboBox
+        {
+            Style  = (Style)FindResource("SComboBox"),
+            Margin = new Thickness(0, 0, 0, 10)
+        };
+        PopulateCloudModelCombo(cloudModelCombo, config.Type, config.Model);
+
+        var cloudTestBtn = new Button
+        {
+            Content = "Test Connection",
+            Style   = (Style)FindResource("SButtonSecondary"),
+            Margin  = new Thickness(0, 0, 10, 0)
+        };
+        var cloudTestLabel = new TextBlock
+        {
+            FontSize          = 13,
+            FontFamily        = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        cloudTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        var cloudTestRow = new StackPanel { Orientation = Orientation.Horizontal };
+        cloudTestRow.Children.Add(cloudTestBtn);
+        cloudTestRow.Children.Add(cloudTestLabel);
+
+        var cloudContent = new StackPanel();
+        cloudContent.Children.Add(apiKeyLabel);
+        cloudContent.Children.Add(apiKeyGrid);
+        cloudContent.Children.Add(apiKeyHint);
+        cloudContent.Children.Add(cloudModelLabel);
+        cloudContent.Children.Add(cloudModelCombo);
+        cloudContent.Children.Add(cloudTestRow);
+
+        var cloudAISection = new Border
+        {
+            Visibility = isOllama ? Visibility.Collapsed : Visibility.Visible,
+            Child      = cloudContent
+        };
+
+        // ── Assemble tab content ───────────────────────────────────────────
+        var root = new StackPanel();
+        root.Children.Add(enabledCheck);
+        root.Children.Add(nameTypeGrid);
+        root.Children.Add(sep);
+        root.Children.Add(ollamaSection);
+        root.Children.Add(cloudAISection);
+
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = root
+        };
+
+        var tab = new TabItem { Header = tabHeader, Content = scroll };
+        ParticipantsTabControl.Items.Add(tab);
+
+        // ── Build form record ─────────────────────────────────────────────
+        var form = new ParticipantForm
+        {
+            SlotIndex        = index,
+            Tab              = tab,
+            EnabledCheck     = enabledCheck,
+            NameBox          = nameBox,
+            TypeCombo        = typeCombo,
+            OllamaSection    = ollamaSection,
+            ServerUrlBox     = serverUrlBox,
+            OllamaModelCombo = ollamaModelCombo,
+            OllamaTestLabel  = ollamaTestLabel,
+            CloudAISection   = cloudAISection,
+            ApiKeyBox        = apiKeyBox,
+            ApiKeyTextBox    = apiKeyTextBox,
+            ApiKeyHintLabel  = apiKeyHint,
+            CloudModelCombo  = cloudModelCombo,
+            CloudTestLabel   = cloudTestLabel
+        };
+        _forms.Add(form);
+
+        // ── Events ────────────────────────────────────────────────────────
+
+        nameBox.TextChanged += (_, _) =>
+        {
+            var h = string.IsNullOrWhiteSpace(form.NameBox.Text)
+                ? $"P{index + 1}"
+                : form.NameBox.Text.Trim();
+            form.Tab.Header = h;
+        };
+
+        typeCombo.SelectionChanged += (_, _) =>
+        {
+            ApplySectionVisibility(form);
+            var provider = form.CurrentProvider;
+            UpdateApiKeyHint(form.ApiKeyHintLabel, provider);
+            if (provider != "Ollama")
+            {
+                var key              = WindowsCredentialManager.Load(provider) ?? "";
+                form.ApiKeyBox.Password   = key;
+                form.ApiKeyTextBox.Text   = key;
+                PopulateCloudModelCombo(form.CloudModelCombo, provider, "");
+            }
+        };
+
+        showHideBtn.Click += (_, _) =>
+        {
+            if (apiKeyBox.Visibility == Visibility.Visible)
+            {
+                apiKeyTextBox.Text        = apiKeyBox.Password;
+                apiKeyBox.Visibility      = Visibility.Collapsed;
+                apiKeyTextBox.Visibility  = Visibility.Visible;
+                apiKeyTextBox.Focus();
+                apiKeyTextBox.CaretIndex  = apiKeyTextBox.Text.Length;
+            }
+            else
+            {
+                apiKeyBox.Password        = apiKeyTextBox.Text;
+                apiKeyTextBox.Visibility  = Visibility.Collapsed;
+                apiKeyBox.Visibility      = Visibility.Visible;
+            }
+        };
+
+        apiKeyBox.PasswordChanged += (_, _) => apiKeyTextBox.Text   = apiKeyBox.Password;
+        apiKeyTextBox.TextChanged  += (_, _) => apiKeyBox.Password  = apiKeyTextBox.Text;
+
+        localhostBtn.Click += (_, _) => serverUrlBox.Text = "http://localhost:11434";
+
+        ollamaTestBtn.Click += async (_, _) => await TestOllamaAsync(form);
+        cloudTestBtn.Click  += async (_, _) => await TestCloudAIAsync(form);
+    }
+
+    // ── Section visibility helper ──────────────────────────────────────────
+
+    private static void ApplySectionVisibility(ParticipantForm form)
+    {
+        bool isOllama = form.CurrentProvider == "Ollama";
+        form.OllamaSection .Visibility = isOllama ? Visibility.Visible   : Visibility.Collapsed;
+        form.CloudAISection.Visibility = isOllama ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // ── Test buttons ───────────────────────────────────────────────────────
+
+    private async Task TestOllamaAsync(ParticipantForm form)
+    {
+        form.OllamaTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        form.OllamaTestLabel.Text = "Testing…";
+
+        try
+        {
+            var url = form.ServerUrlBox.Text.Trim();
+            if (string.IsNullOrEmpty(url)) url = "http://localhost:11434";
+
+            using var svc = new OllamaService(url);
+            var ok = await svc.IsAvailableAsync();
+
+            form.OllamaTestLabel.SetResourceReference(TextBlock.ForegroundProperty,
+                ok ? "OllamaBrush" : "AccentBrush");
+            form.OllamaTestLabel.Text = ok ? "Online ✓" : "Offline ✗";
+
+            if (ok)
+            {
+                try
+                {
+                    var models = await svc.GetModelsAsync();
+                    if (models.Count > 0)
+                    {
+                        var current = (form.OllamaModelCombo.SelectedItem as ComboBoxItem)
+                                        ?.Content?.ToString() ?? "";
+                        form.OllamaModelCombo.Items.Clear();
+                        foreach (var m in models)
+                        {
+                            var item = new ComboBoxItem { Content = m };
+                            form.OllamaModelCombo.Items.Add(item);
+                            if (m == current) form.OllamaModelCombo.SelectedItem = item;
+                        }
+                        if (form.OllamaModelCombo.SelectedItem is null &&
+                            form.OllamaModelCombo.Items.Count > 0)
+                            form.OllamaModelCombo.SelectedIndex = 0;
+                    }
+                }
+                catch { /* keep list as-is */ }
+            }
+        }
+        catch (Exception ex)
+        {
+            form.OllamaTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+            form.OllamaTestLabel.Text = $"Error: {ex.Message}";
+        }
+    }
+
+    private async Task TestCloudAIAsync(ParticipantForm form)
+    {
+        form.CloudTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        form.CloudTestLabel.Text = "Testing…";
+
+        try
+        {
+            var apiKey = form.CurrentApiKey;
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                form.CloudTestLabel.Text = "⚠  Enter an API key first.";
+                return;
+            }
+
+            using var svc = BuildCloudAIService(form.CurrentProvider, apiKey);
+            var ok = await svc.IsAvailableAsync();
+
+            form.CloudTestLabel.SetResourceReference(TextBlock.ForegroundProperty,
+                ok ? "OllamaBrush" : "AccentBrush");
+            form.CloudTestLabel.Text = ok ? "Connected ✓" : "Failed ✗  (check your key)";
+
+            if (ok)
+            {
+                try
+                {
+                    var models = await svc.GetModelsAsync();
+                    if (models.Count > 0)
+                    {
+                        var current = (form.CloudModelCombo.SelectedItem as ComboBoxItem)
+                                        ?.Content?.ToString() ?? "";
+                        form.CloudModelCombo.Items.Clear();
+                        foreach (var m in models)
+                        {
+                            var item = new ComboBoxItem { Content = m };
+                            form.CloudModelCombo.Items.Add(item);
+                            if (m == current) form.CloudModelCombo.SelectedItem = item;
+                        }
+                        if (form.CloudModelCombo.SelectedItem is null &&
+                            form.CloudModelCombo.Items.Count > 0)
+                            form.CloudModelCombo.SelectedIndex = 0;
+                    }
+                }
+                catch { /* keep default list */ }
+            }
+        }
+        catch (Exception ex)
+        {
+            form.CloudTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+            form.CloudTestLabel.Text = $"Error: {ex.Message}";
+        }
+    }
+
+    // ── Save All ───────────────────────────────────────────────────────────
+
+    private void SaveAll_Click(object sender, RoutedEventArgs e)
+    {
+        var settings = SettingsService.Load();
+        settings.Participants.Clear();
+
+        foreach (var form in _forms)
+        {
+            var isOllama = form.CurrentProvider == "Ollama";
+
+            var model = isOllama
+                ? (form.OllamaModelCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? ""
+                : (form.CloudModelCombo   .SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
+
+            var serverUrl = form.ServerUrlBox.Text.Trim();
+            if (string.IsNullOrEmpty(serverUrl)) serverUrl = "http://localhost:11434";
+
+            settings.Participants.Add(new ParticipantConfig
+            {
+                Name      = form.NameBox.Text.Trim(),
+                Type      = form.CurrentProvider,
+                Model     = model,
+                ServerUrl = serverUrl,
+                Enabled   = form.EnabledCheck.IsChecked == true
+            });
+
+            // Persist Cloud AI API key to Windows Credential Manager
+            if (!isOllama && !string.IsNullOrWhiteSpace(form.CurrentApiKey))
+                WindowsCredentialManager.Save(form.CurrentProvider, form.CurrentApiKey);
+        }
+
+        // Keep legacy fields in sync for any code that still reads them
+        var firstOllama = settings.Participants.FirstOrDefault(p => p.Type == "Ollama" && p.Enabled);
+        if (firstOllama is not null)
+        {
+            settings.OllamaBaseUrl = firstOllama.ServerUrl;
+            settings.OllamaModel   = firstOllama.Model;
+        }
+        var firstCloud = settings.Participants.FirstOrDefault(p => p.Type != "Ollama" && p.Enabled);
+        if (firstCloud is not null)
+        {
+            settings.SelectedProvider   = firstCloud.Type;
+            settings.SelectedCloudModel = firstCloud.Model;
+        }
+
+        SettingsService.Save(settings);
+        DialogResult = true;
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────
 
     private static void SelectComboByContent(ComboBox combo, string value)
     {
@@ -61,16 +573,9 @@ public partial class SettingsWindow : Window
         if (combo.Items.Count > 0) combo.SelectedIndex = 0;
     }
 
-    private void LoadApiKeyForProvider(string provider)
+    private static void UpdateApiKeyHint(TextBlock hint, string provider)
     {
-        var key = WindowsCredentialManager.Load(provider) ?? "";
-        ApiKeyBox.Password    = key;
-        ApiKeyTextBox.Text    = key;
-    }
-
-    private void UpdateApiKeyHint(string provider)
-    {
-        ApiKeyHint.Text = provider switch
+        hint.Text = provider switch
         {
             "Anthropic"  => "Get your key at console.anthropic.com",
             "Google AI"  => "Free tier at aistudio.google.com — no credit card required!",
@@ -81,18 +586,18 @@ public partial class SettingsWindow : Window
         };
     }
 
-    private void PopulateModelCombo(string provider, string selectedModel)
+    private void PopulateCloudModelCombo(ComboBox combo, string provider, string selectedModel)
     {
         var models = GetDefaultModels(provider);
-        CloudModelCombo.Items.Clear();
+        combo.Items.Clear();
         foreach (var m in models)
         {
             var item = new ComboBoxItem { Content = m };
-            CloudModelCombo.Items.Add(item);
-            if (m == selectedModel) CloudModelCombo.SelectedItem = item;
+            combo.Items.Add(item);
+            if (m == selectedModel) combo.SelectedItem = item;
         }
-        if (CloudModelCombo.SelectedItem is null && CloudModelCombo.Items.Count > 0)
-            CloudModelCombo.SelectedIndex = 0;
+        if (combo.SelectedItem is null && combo.Items.Count > 0)
+            combo.SelectedIndex = 0;
     }
 
     private static string[] GetDefaultModels(string provider) => provider switch
@@ -102,183 +607,16 @@ public partial class SettingsWindow : Window
         "Groq"       => GroqService.DefaultModels,
         "OpenRouter" => OpenRouterService.DefaultModels,
         "Mistral"    => MistralService.DefaultModels,
-        _            => AnthropicService.DefaultModels
+        _            => []
     };
 
-    private string CurrentProvider =>
-        (ProviderCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Anthropic";
-
-    private string CurrentApiKey =>
-        ApiKeyBox.Visibility == Visibility.Visible
-            ? ApiKeyBox.Password
-            : ApiKeyTextBox.Text;
-
-    // ── Events ──────────────────────────────────────────────────────────────
-
-    private void ProviderCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_suppressProviderEvent) return;
-        var name = CurrentProvider;
-        LoadApiKeyForProvider(name);
-        UpdateApiKeyHint(name);
-        PopulateModelCombo(name, "");
-        TestResultLabel.Text = "";
-    }
-
-    private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
-        => ApiKeyTextBox.Text = ApiKeyBox.Password;
-
-    private void ApiKeyTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        => ApiKeyBox.Password = ApiKeyTextBox.Text;
-
-    private void ShowHide_Click(object sender, RoutedEventArgs e)
-    {
-        if (ApiKeyBox.Visibility == Visibility.Visible)
+    private static ICloudAIService BuildCloudAIService(string provider, string apiKey) =>
+        provider switch
         {
-            ApiKeyTextBox.Text       = ApiKeyBox.Password;
-            ApiKeyBox.Visibility     = Visibility.Collapsed;
-            ApiKeyTextBox.Visibility = Visibility.Visible;
-            ApiKeyTextBox.Focus();
-            ApiKeyTextBox.CaretIndex = ApiKeyTextBox.Text.Length;
-        }
-        else
-        {
-            ApiKeyBox.Password       = ApiKeyTextBox.Text;
-            ApiKeyTextBox.Visibility = Visibility.Collapsed;
-            ApiKeyBox.Visibility     = Visibility.Visible;
-        }
-    }
-
-    private async void TestConnection_Click(object sender, RoutedEventArgs e)
-    {
-        TestButton.IsEnabled = false;
-        TestResultLabel.Foreground = (Brush)FindResource("SubtextBrush");
-        TestResultLabel.Text = "Testing…";
-
-        try
-        {
-            var apiKey = CurrentApiKey;
-            if (string.IsNullOrWhiteSpace(apiKey))
-            {
-                TestResultLabel.Text = "⚠  Enter an API key first.";
-                return;
-            }
-
-            using var svc = BuildService(CurrentProvider, apiKey);
-            var ok = await svc.IsAvailableAsync();
-
-            TestResultLabel.Foreground = ok
-                ? (Brush)FindResource("OllamaBrush")
-                : (Brush)FindResource("AccentBrush");
-            TestResultLabel.Text = ok ? "Connected ✓" : "Failed ✗  (check your key)";
-
-            if (ok)
-            {
-                try
-                {
-                    var models = await svc.GetModelsAsync();
-                    if (models.Count > 0)
-                    {
-                        var current = (CloudModelCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
-                        CloudModelCombo.Items.Clear();
-                        foreach (var m in models)
-                        {
-                            var item = new ComboBoxItem { Content = m };
-                            CloudModelCombo.Items.Add(item);
-                            if (m == current) CloudModelCombo.SelectedItem = item;
-                        }
-                        if (CloudModelCombo.SelectedItem is null && CloudModelCombo.Items.Count > 0)
-                            CloudModelCombo.SelectedIndex = 0;
-                    }
-                }
-                catch { /* keep default list */ }
-            }
-        }
-        catch (Exception ex)
-        {
-            TestResultLabel.Foreground = (Brush)FindResource("AccentBrush");
-            TestResultLabel.Text = $"Error: {ex.Message}";
-        }
-        finally
-        {
-            TestButton.IsEnabled = true;
-        }
-    }
-
-    private async void TestOllama_Click(object sender, RoutedEventArgs e)
-    {
-        TestOllamaButton.IsEnabled = false;
-        OllamaTestLabel.Foreground = (Brush)FindResource("SubtextBrush");
-        OllamaTestLabel.Text = "Testing…";
-        try
-        {
-            using var svc = new OllamaService(OllamaUrlBox.Text.Trim());
-            var ok = await svc.IsAvailableAsync();
-            OllamaTestLabel.Foreground = ok
-                ? (Brush)FindResource("OllamaBrush")
-                : (Brush)FindResource("AccentBrush");
-            OllamaTestLabel.Text = ok ? "Online ✓" : "Offline ✗";
-        }
-        catch
-        {
-            OllamaTestLabel.Foreground = (Brush)FindResource("AccentBrush");
-            OllamaTestLabel.Text = "Offline ✗";
-        }
-        finally { TestOllamaButton.IsEnabled = true; }
-    }
-
-    private void SaveCloudAI_Click(object sender, RoutedEventArgs e)
-    {
-        var provider = CurrentProvider;
-        var apiKey   = CurrentApiKey;
-        var model    = (CloudModelCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
-
-        if (!string.IsNullOrWhiteSpace(apiKey))
-            WindowsCredentialManager.Save(provider, apiKey);
-
-        var s = SettingsService.Load();
-        s.SelectedProvider   = provider;
-        s.SelectedCloudModel = model;
-        SettingsService.Save(s);
-
-        // Keep Participants tab in sync
-        SelectComboByContent(ParticipantsProviderCombo, provider);
-
-        DialogResult = true;
-    }
-
-    private void SaveOllama_Click(object sender, RoutedEventArgs e)
-    {
-        var url = OllamaUrlBox.Text.Trim();
-        if (string.IsNullOrEmpty(url)) url = "http://localhost:11434";
-
-        var s = SettingsService.Load();
-        s.OllamaBaseUrl = url;
-        SettingsService.Save(s);
-
-        OllamaTestLabel.Text = "Saved ✓";
-        DialogResult = true;
-    }
-
-    private void SaveParticipants_Click(object sender, RoutedEventArgs e)
-    {
-        var s = SettingsService.Load();
-        s.CloudAIEnabled      = CloudAIEnabledCheck.IsChecked == true;
-        s.OllamaInstanceCount = OllamaInstanceCombo.SelectedIndex + 1;
-        s.SelectedProvider    = (ParticipantsProviderCombo.SelectedItem as ComboBoxItem)
-                                    ?.Content?.ToString() ?? s.SelectedProvider;
-        SettingsService.Save(s);
-        DialogResult = true;
-    }
-
-    // ── Factory ─────────────────────────────────────────────────────────────
-
-    private static ICloudAIService BuildService(string provider, string apiKey) => provider switch
-    {
-        "Google AI"  => new GoogleAIService(apiKey),
-        "Groq"       => new GroqService(apiKey),
-        "OpenRouter" => new OpenRouterService(apiKey),
-        "Mistral"    => new MistralService(apiKey),
-        _            => new AnthropicService(apiKey)
-    };
+            "Google AI"  => new GoogleAIService(apiKey),
+            "Groq"       => new GroqService(apiKey),
+            "OpenRouter" => new OpenRouterService(apiKey),
+            "Mistral"    => new MistralService(apiKey),
+            _            => new AnthropicService(apiKey)
+        };
 }

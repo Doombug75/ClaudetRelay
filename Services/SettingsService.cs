@@ -3,11 +3,34 @@ using System.Text.Json;
 
 namespace ClaudetRelay.Services;
 
+/// <summary>Configuration for one chat participant slot (P1–P6).</summary>
+public class ParticipantConfig
+{
+    /// <summary>Custom display name shown in chat bubbles. Empty = auto-generated.</summary>
+    public string Name { get; set; } = "";
+
+    /// <summary>
+    /// "Ollama" for a local Ollama instance, or a Cloud AI provider name:
+    /// "Anthropic", "Google AI", "Groq", "OpenRouter", "Mistral".
+    /// </summary>
+    public string Type { get; set; } = "Ollama";
+
+    /// <summary>Currently selected model for this participant.</summary>
+    public string Model { get; set; } = "";
+
+    /// <summary>Ollama server base URL. Ignored for Cloud AI types.</summary>
+    public string ServerUrl { get; set; } = "http://localhost:11434";
+
+    /// <summary>Whether this participant slot is active at startup.</summary>
+    public bool Enabled { get; set; } = false;
+}
+
 public class AppSettings
 {
     // Legacy — kept only for one-time migration to Windows Credential Manager
     public string ClaudeApiKey        { get; set; } = "";
 
+    // Legacy — kept for backward compat and migration source
     public string OllamaBaseUrl       { get; set; } = "http://localhost:11434";
     public string OllamaModel         { get; set; } = "llama3.2";
     public string LastTheme           { get; set; } = "";
@@ -15,6 +38,9 @@ public class AppSettings
     public string SelectedCloudModel  { get; set; } = "";
     public bool   CloudAIEnabled      { get; set; } = true;
     public int    OllamaInstanceCount { get; set; } = 1;
+
+    /// <summary>Per-participant configuration (P1–P6). Populated on first load via migration.</summary>
+    public List<ParticipantConfig> Participants { get; set; } = [];
 }
 
 public static class SettingsService
@@ -34,17 +60,30 @@ public static class SettingsService
 
     public static AppSettings Load()
     {
-        if (!File.Exists(FilePath)) return new AppSettings();
-        try
+        AppSettings settings;
+        if (!File.Exists(FilePath))
         {
-            var json = File.ReadAllText(FilePath);
-            return JsonSerializer.Deserialize<AppSettings>(json, ReadOpts)
-                   ?? new AppSettings();
+            settings = new AppSettings();
         }
-        catch
+        else
         {
-            return new AppSettings();
+            try
+            {
+                var json = File.ReadAllText(FilePath);
+                settings = JsonSerializer.Deserialize<AppSettings>(json, ReadOpts)
+                           ?? new AppSettings();
+            }
+            catch
+            {
+                settings = new AppSettings();
+            }
         }
+
+        // One-time migration from pre-participant-config settings
+        if (settings.Participants.Count == 0)
+            MigrateToParticipants(settings);
+
+        return settings;
     }
 
     public static void Save(AppSettings settings)
@@ -57,5 +96,38 @@ public static class SettingsService
             File.WriteAllText(FilePath, json);
         }
         catch { /* silent – missing save should not crash the app */ }
+    }
+
+    // ── Migration ──────────────────────────────────────────────────────────
+
+    private static void MigrateToParticipants(AppSettings s)
+    {
+        s.Participants = [];
+
+        // P1 → first Ollama participant
+        s.Participants.Add(new ParticipantConfig
+        {
+            Name      = "",
+            Type      = "Ollama",
+            Model     = string.IsNullOrEmpty(s.OllamaModel) ? "llama3.2" : s.OllamaModel,
+            ServerUrl = string.IsNullOrEmpty(s.OllamaBaseUrl) ? "http://localhost:11434" : s.OllamaBaseUrl,
+            Enabled   = true
+        });
+
+        // P2 → Cloud AI participant (use previously configured provider)
+        s.Participants.Add(new ParticipantConfig
+        {
+            Name      = "",
+            Type      = string.IsNullOrEmpty(s.SelectedProvider) ? "Anthropic" : s.SelectedProvider,
+            Model     = s.SelectedCloudModel ?? "",
+            ServerUrl = "http://localhost:11434",
+            Enabled   = s.CloudAIEnabled
+        });
+
+        // P3–P6 → disabled defaults
+        s.Participants.Add(new ParticipantConfig { Type = "Ollama",     Enabled = false });
+        s.Participants.Add(new ParticipantConfig { Type = "Anthropic",  Enabled = false });
+        s.Participants.Add(new ParticipantConfig { Type = "Groq",       Enabled = false });
+        s.Participants.Add(new ParticipantConfig { Type = "Google AI",  Enabled = false });
     }
 }

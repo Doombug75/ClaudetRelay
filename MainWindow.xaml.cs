@@ -21,13 +21,17 @@ public partial class MainWindow : Window
 
     private sealed class OllamaParticipant
     {
-        public required OllamaService Service  { get; init; }
-        public int   Position { get; set; }
-        public bool  Enabled  { get; set; } = true;
-        public bool? IsOnline { get; set; }
+        public required OllamaService Service    { get; init; }
+        public int      Position   { get; set; }
+        public bool     Enabled    { get; set; } = true;
+        public bool?    IsOnline   { get; set; }
+        public string?  CustomName { get; set; }
 
         public string ColorKey    => Position switch { 2 => "AccentBrush", 3 => "ClaudeBrush", _ => "OllamaBrush" };
         public string AvatarLabel => $"O{Position}";
+        public string DisplayName => string.IsNullOrEmpty(CustomName)
+            ? $"O{Position} · Ollama"
+            : CustomName;
     }
 
     private sealed class OllamaParticipantUI
@@ -49,10 +53,11 @@ public partial class MainWindow : Window
 
     private sealed class CloudAIParticipant
     {
-        public required ICloudAIService Service  { get; init; }
-        public int   Position { get; set; }
-        public bool  Enabled  { get; set; } = true;
-        public bool? IsOnline { get; set; }
+        public required ICloudAIService Service    { get; init; }
+        public int      Position   { get; set; }
+        public bool     Enabled    { get; set; } = true;
+        public bool?    IsOnline   { get; set; }
+        public string?  CustomName { get; set; }
 
         public string ColorKey => Position switch { 2 => "AccentBrush", 3 => "OllamaBrush", _ => "ClaudeBrush" };
 
@@ -63,10 +68,16 @@ public partial class MainWindow : Window
             "Groq"       => "Gq",
             "OpenRouter" => "OR",
             "Mistral"    => "Mi",
-            _            => Service.ProviderName.Length >= 2 ? Service.ProviderName[..2] : Service.ProviderName
+            _            => Service.ProviderName.Length >= 2
+                                ? Service.ProviderName[..2]
+                                : Service.ProviderName
         };
 
-        public string DisplayName => Service.ProviderName;
+        public string ProviderName => Service.ProviderName;
+
+        public string DisplayName => string.IsNullOrEmpty(CustomName)
+            ? Service.ProviderName
+            : CustomName;
     }
 
     private sealed class CloudAIParticipantUI
@@ -103,7 +114,7 @@ public partial class MainWindow : Window
         Loaded += async (_, _) =>
         {
             InitializeServices();
-            AddSystemMessage("Chat started  ·  Cloud AI, Ollama and You are connected.");
+            AddSystemMessage("Chat started  ·  configure participants in ⚙ Settings.");
             InputTextBox.Focus();
             await CheckAllStatusAsync();
             StartStatusTimer();
@@ -124,21 +135,81 @@ public partial class MainWindow : Window
             SettingsService.Save(settings);
         }
 
-        // First Ollama participant
-        AddOllamaParticipant(settings.OllamaModel);
+        // Create participants from settings
+        bool anyAdded = false;
+        foreach (var p in settings.Participants.Where(p => p.Enabled))
+        {
+            if (p.Type == "Ollama")
+            {
+                if (_ollamaParticipants.Count < 3)
+                {
+                    AddOllamaParticipant(p.Model, p.ServerUrl, p.Name);
+                    anyAdded = true;
+                }
+            }
+            else
+            {
+                if (_cloudAIParticipants.Count < 3)
+                {
+                    AddCloudAIParticipant(p.Type, p.Model, p.Name);
+                    anyAdded = true;
+                }
+            }
+        }
 
-        // Cloud AI: add the configured provider if it has an API key
-        var provider = settings.SelectedProvider;
-        var apiKey   = WindowsCredentialManager.Load(provider);
-        if (!string.IsNullOrWhiteSpace(apiKey))
-            AddCloudAIParticipant(provider, settings.SelectedCloudModel);
-        else
-            AddSystemMessage($"ℹ  No {provider} API key — open Settings to add one.");
+        // Fallback: no participants configured → add default Ollama
+        if (!anyAdded)
+        {
+            AddOllamaParticipant(settings.OllamaModel);
+            AddSystemMessage("ℹ  No participants configured — open ⚙ Settings to set them up.");
+        }
+    }
+
+    // ── Re-initialize after Settings save ─────────────────────────────────
+
+    private void ReInitializeParticipants()
+    {
+        _streamCts?.Cancel();
+
+        // Remove Cloud AI cards
+        foreach (var ui in _cloudAIParticipants.ToList())
+        {
+            CloudAICardsPanel.Children.Remove(ui.Popup);
+            CloudAICardsPanel.Children.Remove(ui.Card);
+            ui.Data.Service.Dispose();
+        }
+        _cloudAIParticipants.Clear();
+
+        // Remove Ollama cards
+        foreach (var ui in _ollamaParticipants.ToList())
+        {
+            OllamaCardsPanel.Children.Remove(ui.Popup);
+            OllamaCardsPanel.Children.Remove(ui.Card);
+        }
+        _ollamaParticipants.Clear();
+        _availableOllamaModels.Clear();
+
+        // Re-add from settings
+        var settings = SettingsService.Load();
+        foreach (var p in settings.Participants.Where(p => p.Enabled))
+        {
+            if (p.Type == "Ollama" && _ollamaParticipants.Count < 3)
+                AddOllamaParticipant(p.Model, p.ServerUrl, p.Name);
+            else if (p.Type != "Ollama" && _cloudAIParticipants.Count < 3)
+                AddCloudAIParticipant(p.Type, p.Model, p.Name);
+        }
+
+        if (_ollamaParticipants.Count == 0 && _cloudAIParticipants.Count == 0)
+            AddSystemMessage("⚠  No participants enabled — configure them in ⚙ Settings.");
+
+        UpdateAddRemoveButtons();
+        UpdateCloudAIAddRemoveButtons();
+        _ = CheckAllStatusAsync();
     }
 
     // ── Cloud AI participant management ────────────────────────────────────
 
-    private void AddCloudAIParticipant(string provider, string model = "")
+    private void AddCloudAIParticipant(string provider, string model = "", string customName = "")
     {
         if (_cloudAIParticipants.Count >= 3) return;
         if (_cloudAIParticipants.Any(ui => ui.Data.Service.ProviderName == provider)) return;
@@ -151,8 +222,9 @@ public partial class MainWindow : Window
 
         var participant = new CloudAIParticipant
         {
-            Service  = service,
-            Position = _cloudAIParticipants.Count + 1
+            Service    = service,
+            Position   = _cloudAIParticipants.Count + 1,
+            CustomName = string.IsNullOrWhiteSpace(customName) ? null : customName
         };
         BuildCloudAICard(participant);
         UpdateCloudAIAddRemoveButtons();
@@ -172,7 +244,7 @@ public partial class MainWindow : Window
     {
         for (int i = 0; i < _cloudAIParticipants.Count; i++)
         {
-            var ui  = _cloudAIParticipants[i];
+            var ui = _cloudAIParticipants[i];
             ui.Data.Position = i + 1;
             ui.AvatarBorder.SetResourceReference(Border.BackgroundProperty, ui.Data.ColorKey);
         }
@@ -316,8 +388,7 @@ public partial class MainWindow : Window
         };
         ScrollViewer.SetVerticalScrollBarVisibility(modelList, ScrollBarVisibility.Auto);
 
-        // Pre-populate with default models
-        var models = GetDefaultModelsForProvider(participant.DisplayName);
+        var models = GetDefaultModelsForProvider(participant.ProviderName);
         foreach (var m in models)
             modelList.Items.Add(m);
         modelList.SelectedItem = participant.Service.CurrentModel;
@@ -386,21 +457,11 @@ public partial class MainWindow : Window
             {
                 ui.Data.Service.CurrentModel = m;
                 ui.ModelLabel.Text           = m;
-
-                // Persist model if this is the primary participant
-                if (_cloudAIParticipants.Count > 0 && _cloudAIParticipants[0] == ui)
-                {
-                    var s = SettingsService.Load();
-                    s.SelectedCloudModel = m;
-                    SettingsService.Save(s);
-                }
             }
         };
 
         removeButton.Click += (_, _) => RemoveCloudAIParticipant(ui);
 
-        // ── Add to panel ──────────────────────────────────────────────────
-        // Popup must be in logical tree for DynamicResource to resolve
         CloudAICardsPanel.Children.Add(popup);
         CloudAICardsPanel.Children.Add(card);
         _cloudAIParticipants.Add(ui);
@@ -415,14 +476,17 @@ public partial class MainWindow : Window
 
     // ── Ollama participant management ──────────────────────────────────────
 
-    private void AddOllamaParticipant(string model = "llama3.2")
+    private void AddOllamaParticipant(string model = "llama3.2",
+                                      string serverUrl = "http://localhost:11434",
+                                      string customName = "")
     {
         if (_ollamaParticipants.Count >= 3) return;
 
         var participant = new OllamaParticipant
         {
-            Service  = new OllamaService { CurrentModel = model },
-            Position = _ollamaParticipants.Count + 1
+            Service    = new OllamaService(serverUrl) { CurrentModel = model },
+            Position   = _ollamaParticipants.Count + 1,
+            CustomName = string.IsNullOrWhiteSpace(customName) ? null : customName
         };
         BuildOllamaCard(participant);
         UpdateAddRemoveButtons();
@@ -451,10 +515,11 @@ public partial class MainWindow : Window
             ui.AvatarText.Text = ui.Data.AvatarLabel;
             ui.AvatarBorder.SetResourceReference(Border.BackgroundProperty, ui.Data.ColorKey);
 
-            ui.NameLabel.Text  = $"O{pos} · Ollama";
-            ui.PopupTitle.Text = $"O{pos} · Ollama";
+            var displayName = ui.Data.DisplayName;
+            ui.NameLabel .Text = displayName;
+            ui.PopupTitle.Text = displayName;
             ui.PopupTitle.SetResourceReference(TextBlock.ForegroundProperty, ui.Data.ColorKey);
-            ui.EnabledToggle.Content = $"O{pos} enabled";
+            ui.EnabledToggle.Content = $"{displayName} enabled";
         }
     }
 
@@ -470,7 +535,8 @@ public partial class MainWindow : Window
 
     private void BuildOllamaCard(OllamaParticipant participant)
     {
-        var pos = participant.Position;
+        var pos         = participant.Position;
+        var displayName = participant.DisplayName;
 
         var avatarText = new TextBlock
         {
@@ -494,7 +560,7 @@ public partial class MainWindow : Window
         var statusDot = new Ellipse { Width = 8, Height = 8, VerticalAlignment = VerticalAlignment.Center };
         statusDot.SetResourceReference(Ellipse.FillProperty, "SubtextBrush");
 
-        var nameLabel = new TextBlock { Text = $"O{pos} · Ollama", FontSize = 13, FontWeight = FontWeights.SemiBold };
+        var nameLabel = new TextBlock { Text = displayName, FontSize = 13, FontWeight = FontWeights.SemiBold };
         nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
         var modelLabel = new TextBlock { Text = "checking...", FontSize = 10 };
@@ -553,7 +619,7 @@ public partial class MainWindow : Window
         // Popup
         var popupTitle = new TextBlock
         {
-            Text       = $"O{pos} · Ollama",
+            Text       = displayName,
             FontSize   = 13,
             FontWeight = FontWeights.SemiBold,
             Margin     = new Thickness(0, 0, 0, 8)
@@ -567,11 +633,17 @@ public partial class MainWindow : Window
         {
             Style     = (Style)FindResource("ToggleSwitch"),
             IsChecked = true,
-            Content   = $"O{pos} enabled",
+            Content   = $"{displayName} enabled",
             Margin    = new Thickness(0, 0, 0, 14)
         };
 
-        var modelHeader = new TextBlock { Text = "MODEL", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(2, 0, 0, 6) };
+        var modelHeader = new TextBlock
+        {
+            Text       = "MODEL",
+            FontSize   = 10,
+            FontWeight = FontWeights.Bold,
+            Margin     = new Thickness(2, 0, 0, 6)
+        };
         modelHeader.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
 
         var modelList = new ListBox
@@ -793,20 +865,17 @@ public partial class MainWindow : Window
     {
         if (_cloudAIParticipants.Count >= 3) return;
 
-        // Only show providers that have API keys and aren't already active
         var active    = _cloudAIParticipants.Select(ui => ui.Data.Service.ProviderName).ToHashSet();
-        var allProviders = new[] { "Anthropic", "Google AI", "Groq", "OpenRouter", "Mistral" };
-        var available = allProviders
+        var available = new[] { "Anthropic", "Google AI", "Groq", "OpenRouter", "Mistral" }
             .Where(p => !active.Contains(p) && WindowsCredentialManager.Load(p) is not null)
             .ToList();
 
         if (available.Count == 0)
         {
-            AddSystemMessage("ℹ  No more Cloud AI providers with API keys. Open Settings to configure one.");
+            AddSystemMessage("ℹ  No more Cloud AI providers with API keys. Configure them in ⚙ Settings.");
             return;
         }
 
-        // Suppress SelectionChanged while rebuilding the list
         AddCloudAIProviderCombo.SelectionChanged -= AddCloudAIProviderCombo_SelectionChanged;
         AddCloudAIProviderCombo.Items.Clear();
         foreach (var p in available)
@@ -814,9 +883,7 @@ public partial class MainWindow : Window
         AddCloudAIProviderCombo.SelectedIndex = 0;
         AddCloudAIProviderCombo.SelectionChanged += AddCloudAIProviderCombo_SelectionChanged;
 
-        // Populate model combo for the initially selected provider
         PopulateAddCloudAIModelCombo(available[0]);
-
         AddCloudAIPopup.IsOpen = true;
     }
 
@@ -847,7 +914,6 @@ public partial class MainWindow : Window
         AddCloudAIPopup.IsOpen = false;
         AddCloudAIParticipant(provider, model);
 
-        // Kick off status check for the new participant
         if (_cloudAIParticipants.Count > 0)
         {
             var ui = _cloudAIParticipants[^1];
@@ -948,11 +1014,11 @@ public partial class MainWindow : Window
 
     private async Task RunOllamaStreamAsync(OllamaParticipantUI ui, CancellationToken ct)
     {
-        var pos    = ui.Data.Position;
-        var model  = ui.Data.Service.CurrentModel;
-        var sender = $"O{pos} · {model}";
+        var display = string.IsNullOrEmpty(ui.Data.CustomName)
+            ? $"O{ui.Data.Position} · {ui.Data.Service.CurrentModel}"
+            : ui.Data.CustomName;
 
-        var bubbleTb = AddStreamingBubble(sender, ui.Data.AvatarLabel, ui.Data.ColorKey, "OllamaBubbleBrush", false);
+        var bubbleTb = AddStreamingBubble(display, ui.Data.AvatarLabel, ui.Data.ColorKey, "OllamaBubbleBrush", false);
         var sb = new StringBuilder();
         try
         {
@@ -973,7 +1039,7 @@ public partial class MainWindow : Window
         catch (HttpRequestException ex)
         {
             bubbleTb.Text = $"Connection error: {ex.Message}";
-            AddSystemMessage($"⚠  {sender} unreachable.");
+            AddSystemMessage($"⚠  {display} unreachable.");
         }
         catch (Exception ex)
         {
@@ -983,9 +1049,10 @@ public partial class MainWindow : Window
 
     private async Task RunCloudAIStreamAsync(CloudAIParticipantUI ui, CancellationToken ct)
     {
-        var provider = ui.Data.Service.ProviderName;
-        var model    = ui.Data.Service.CurrentModel;
-        var display  = $"{provider} · {model}";
+        var model   = ui.Data.Service.CurrentModel;
+        var display = string.IsNullOrEmpty(ui.Data.CustomName)
+            ? $"{ui.Data.ProviderName} · {model}"
+            : ui.Data.CustomName;
 
         var bubbleTb = AddStreamingBubble(display, ui.Data.AvatarLabel, ui.Data.ColorKey, "ClaudeBubbleBrush", false);
         var sb = new StringBuilder();
@@ -1018,24 +1085,20 @@ public partial class MainWindow : Window
 
     // ── Per-participant history builders ───────────────────────────────────
 
-    /// <summary>
-    /// Builds a history view tailored to one Ollama participant.
-    /// Own past responses keep role "assistant"; every other AI's responses
-    /// appear as role "user" with a [Sender] prefix.
-    /// </summary>
     private List<OllamaChatMessage> BuildOllamaHistoryFor(OllamaParticipantUI forUi)
     {
-        var myLabel = forUi.Data.AvatarLabel;   // "O1", "O2", "O3"
+        var myLabel = forUi.Data.AvatarLabel;
+        var myName  = forUi.Data.DisplayName;
         var myModel = forUi.Data.Service.CurrentModel;
 
         var result = new List<OllamaChatMessage>
         {
             new("system",
-                $"You are {myLabel}, an AI assistant running the {myModel} model. " +
+                $"You are {myName} (ID: {myLabel}), running the {myModel} model. " +
                 $"You are one of several participants in a relay group chat (human + multiple AI models). " +
-                $"Always respond as {myLabel}. " +
-                $"If asked who you are, say you are {myLabel} running {myModel}. " +
-                $"Messages from other AI participants are prefixed with their label.")
+                $"Always respond as {myName}. " +
+                $"If asked who you are, say you are {myName} running {myModel}. " +
+                $"Messages from other AI participants are prefixed with their ID in square brackets.")
         };
 
         foreach (var msg in _sharedHistory)
@@ -1054,32 +1117,26 @@ public partial class MainWindow : Window
         return result;
     }
 
-    /// <summary>
-    /// Builds the message history and system prompt for one Cloud AI participant.
-    /// Own past responses keep role "assistant"; every other AI's responses
-    /// appear as role "user" with a [Sender] prefix.
-    /// </summary>
     private (List<CloudAIMessage> History, string System) BuildCloudAIHistoryFor(CloudAIParticipantUI forUi)
     {
-        var myLabel = forUi.Data.AvatarLabel;   // "An", "Gm", "Gq", "OR", "Mi"
+        var myLabel = forUi.Data.AvatarLabel;
         var myName  = forUi.Data.DisplayName;
         var myModel = forUi.Data.Service.CurrentModel;
 
-        // Describe the other active participants so the model knows its peers
         var otherOllamas = _ollamaParticipants
             .Where(ui => ui.Data.Enabled)
-            .Select(ui => $"{ui.Data.AvatarLabel} (Ollama/{ui.Data.Service.CurrentModel})");
+            .Select(ui => $"{ui.Data.AvatarLabel} ({ui.Data.DisplayName})");
         var otherCloud = _cloudAIParticipants
             .Where(ui => ui != forUi && ui.Data.Enabled)
-            .Select(ui => $"{ui.Data.AvatarLabel} ({ui.Data.DisplayName}/{ui.Data.Service.CurrentModel})");
+            .Select(ui => $"{ui.Data.AvatarLabel} ({ui.Data.DisplayName})");
 
-        var others = otherOllamas.Concat(otherCloud).ToList();
+        var others    = otherOllamas.Concat(otherCloud).ToList();
         var othersNote = others.Count > 0
             ? $" Other AI participants: {string.Join(", ", others)}."
             : "";
 
         var system =
-            $"You are {myName} ({myLabel}), running model {myModel}. " +
+            $"You are {myName} (ID: {myLabel}), running model {myModel}. " +
             $"You are participating in a relay group chat with a human user and other AI models.{othersNote} " +
             $"Always respond as {myName}. If asked who you are, identify yourself as {myName}.";
 
@@ -1114,31 +1171,7 @@ public partial class MainWindow : Window
     {
         var win = new SettingsWindow(_currentThemePath) { Owner = this };
         if (win.ShowDialog() == true)
-        {
-            var s = SettingsService.Load();
-
-            // Update model on the matching active participant (if already present)
-            if (!string.IsNullOrEmpty(s.SelectedCloudModel))
-            {
-                var match = _cloudAIParticipants.FirstOrDefault(
-                    ui => ui.Data.Service.ProviderName == s.SelectedProvider);
-                if (match is not null)
-                {
-                    match.Data.Service.CurrentModel = s.SelectedCloudModel;
-                    match.ModelLabel.Text           = s.SelectedCloudModel;
-                }
-            }
-
-            // Auto-add the configured provider if no Cloud AI participants exist yet
-            if (_cloudAIParticipants.Count == 0)
-            {
-                var key = WindowsCredentialManager.Load(s.SelectedProvider);
-                if (!string.IsNullOrWhiteSpace(key))
-                    AddCloudAIParticipant(s.SelectedProvider, s.SelectedCloudModel);
-            }
-
-            _ = CheckAllStatusAsync();
-        }
+            ReInitializeParticipants();
     }
 
     private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
