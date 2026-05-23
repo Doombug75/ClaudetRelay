@@ -63,14 +63,16 @@ public partial class MainWindow : Window
 
         public string AvatarLabel => Service.ProviderName switch
         {
-            "Anthropic"  => "An",
-            "Google AI"  => "Gm",
-            "Groq"       => "Gq",
-            "OpenRouter" => "OR",
-            "Mistral"    => "Mi",
-            _            => Service.ProviderName.Length >= 2
-                                ? Service.ProviderName[..2]
-                                : Service.ProviderName
+            "Anthropic"      => "An",
+            "Google AI"      => "Gm",
+            "Groq"           => "Gq",
+            "OpenRouter"     => "OR",
+            "Mistral"        => "Mi",
+            "xAI Grok"       => "xG",
+            "OpenAI ChatGPT" => "GP",
+            _                => Service.ProviderName.Length >= 2
+                                    ? Service.ProviderName[..2]
+                                    : Service.ProviderName
         };
 
         public string ProviderName => Service.ProviderName;
@@ -872,7 +874,7 @@ public partial class MainWindow : Window
         if (_cloudAIParticipants.Count >= 3) return;
 
         var active    = _cloudAIParticipants.Select(ui => ui.Data.Service.ProviderName).ToHashSet();
-        var available = new[] { "Anthropic", "Google AI", "Groq", "OpenRouter", "Mistral" }
+        var available = new[] { "Anthropic", "OpenAI ChatGPT", "Google AI", "Groq", "xAI Grok", "OpenRouter", "Mistral" }
             .Where(p => !active.Contains(p) && WindowsCredentialManager.Load(p) is not null)
             .ToList();
 
@@ -1294,21 +1296,25 @@ public partial class MainWindow : Window
     private static ICloudAIService CreateCloudAIService(string provider, string apiKey) =>
         provider switch
         {
-            "Google AI"  => new GoogleAIService(apiKey),
-            "Groq"       => new GroqService(apiKey),
-            "OpenRouter" => new OpenRouterService(apiKey),
-            "Mistral"    => new MistralService(apiKey),
-            _            => new AnthropicService(apiKey)
+            "Google AI"      => new GoogleAIService(apiKey),
+            "Groq"           => new GroqService(apiKey),
+            "OpenRouter"     => new OpenRouterService(apiKey),
+            "Mistral"        => new MistralService(apiKey),
+            "xAI Grok"       => new XAIGrokService(apiKey),
+            "OpenAI ChatGPT" => new OpenAIService(apiKey),
+            _                => new AnthropicService(apiKey)
         };
 
     private static string[] GetDefaultModelsForProvider(string provider) => provider switch
     {
-        "Anthropic"  => AnthropicService.DefaultModels,
-        "Google AI"  => GoogleAIService.DefaultModels,
-        "Groq"       => GroqService.DefaultModels,
-        "OpenRouter" => OpenRouterService.DefaultModels,
-        "Mistral"    => MistralService.DefaultModels,
-        _            => AnthropicService.DefaultModels
+        "Anthropic"      => AnthropicService.DefaultModels,
+        "Google AI"      => GoogleAIService.DefaultModels,
+        "Groq"           => GroqService.DefaultModels,
+        "OpenRouter"     => OpenRouterService.DefaultModels,
+        "Mistral"        => MistralService.DefaultModels,
+        "xAI Grok"       => XAIGrokService.DefaultModels,
+        "OpenAI ChatGPT" => OpenAIService.DefaultModels,
+        _                => AnthropicService.DefaultModels
     };
 
     // ── Message rendering ──────────────────────────────────────────────────

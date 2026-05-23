@@ -180,7 +180,7 @@ public partial class SettingsWindow : Window
 
         var typeLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "TYPE" };
         var typeCombo = new ComboBox { Style = (Style)FindResource("SComboBox") };
-        foreach (var t in new[] { "Ollama", "Anthropic", "Google AI", "Groq", "OpenRouter", "Mistral" })
+        foreach (var t in new[] { "Ollama", "Anthropic", "OpenAI ChatGPT", "Google AI", "Groq", "xAI Grok", "OpenRouter", "Mistral" })
             typeCombo.Items.Add(new ComboBoxItem { Content = t });
         SelectComboByContent(typeCombo, config.Type);
 
@@ -640,12 +640,14 @@ public partial class SettingsWindow : Window
     {
         hint.Text = provider switch
         {
-            "Anthropic"  => "Get your key at console.anthropic.com",
-            "Google AI"  => "Free tier at aistudio.google.com — no credit card required!",
-            "Groq"       => "Free tier at console.groq.com — no credit card required!",
-            "OpenRouter" => "Get your key at openrouter.ai/keys",
-            "Mistral"    => "Get your key at console.mistral.ai",
-            _            => ""
+            "Anthropic"      => "Get your key at console.anthropic.com",
+            "Google AI"      => "Free tier at aistudio.google.com — no credit card required!",
+            "Groq"           => "Free tier at console.groq.com — no credit card required!",
+            "OpenRouter"     => "Get your key at openrouter.ai/keys",
+            "Mistral"        => "Get your key at console.mistral.ai",
+            "xAI Grok"       => "Get your key at console.x.ai — requires credit card",
+            "OpenAI ChatGPT" => "Get your key at platform.openai.com — requires credit card",
+            _                => ""
         };
     }
 
@@ -665,21 +667,25 @@ public partial class SettingsWindow : Window
 
     private static string[] GetDefaultModels(string provider) => provider switch
     {
-        "Anthropic"  => AnthropicService.DefaultModels,
-        "Google AI"  => GoogleAIService.DefaultModels,
-        "Groq"       => GroqService.DefaultModels,
-        "OpenRouter" => OpenRouterService.DefaultModels,
-        "Mistral"    => MistralService.DefaultModels,
-        _            => []
+        "Anthropic"      => AnthropicService.DefaultModels,
+        "Google AI"      => GoogleAIService.DefaultModels,
+        "Groq"           => GroqService.DefaultModels,
+        "OpenRouter"     => OpenRouterService.DefaultModels,
+        "Mistral"        => MistralService.DefaultModels,
+        "xAI Grok"       => XAIGrokService.DefaultModels,
+        "OpenAI ChatGPT" => OpenAIService.DefaultModels,
+        _                => []
     };
 
     private static ICloudAIService BuildCloudAIService(string provider, string apiKey) =>
         provider switch
         {
-            "Google AI"  => new GoogleAIService(apiKey),
-            "Groq"       => new GroqService(apiKey),
-            "OpenRouter" => new OpenRouterService(apiKey),
-            "Mistral"    => new MistralService(apiKey),
-            _            => new AnthropicService(apiKey)
+            "Google AI"      => new GoogleAIService(apiKey),
+            "Groq"           => new GroqService(apiKey),
+            "OpenRouter"     => new OpenRouterService(apiKey),
+            "Mistral"        => new MistralService(apiKey),
+            "xAI Grok"       => new XAIGrokService(apiKey),
+            "OpenAI ChatGPT" => new OpenAIService(apiKey),
+            _                => new AnthropicService(apiKey)
         };
 }
