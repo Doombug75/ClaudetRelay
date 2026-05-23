@@ -151,6 +151,27 @@ public partial class SettingsWindow : Window
             string.IsNullOrWhiteSpace(settings.ProjectsFolder) ? "" : settings.ProjectsFolder);
         _projectsFolderBox = folderBox;
 
+        var browseFolderBtn = new Button
+        {
+            Content = "📁 Browse",
+            Style   = (Style)FindResource("SButtonSecondary"),
+            Height  = 36,
+            Margin  = new Thickness(6, 0, 0, 0),
+            ToolTip = "Open a folder picker"
+        };
+        browseFolderBtn.Click += (_, _) =>
+        {
+            var dlg = new Microsoft.Win32.OpenFolderDialog
+            {
+                Title            = "Select Projects Folder",
+                InitialDirectory = string.IsNullOrWhiteSpace(folderBox.Text)
+                    ? defaultFolder
+                    : folderBox.Text
+            };
+            if (dlg.ShowDialog(this) == true)
+                folderBox.Text = dlg.FolderName;
+        };
+
         var defaultFolderBtn = new Button
         {
             Content  = "↩ Default",
@@ -164,9 +185,12 @@ public partial class SettingsWindow : Window
         var folderGrid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
         folderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         folderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(folderOuter,    0);
-        Grid.SetColumn(defaultFolderBtn, 1);
+        folderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(folderOuter,      0);
+        Grid.SetColumn(browseFolderBtn,  1);
+        Grid.SetColumn(defaultFolderBtn, 2);
         folderGrid.Children.Add(folderOuter);
+        folderGrid.Children.Add(browseFolderBtn);
         folderGrid.Children.Add(defaultFolderBtn);
 
         var folderHint = new TextBlock

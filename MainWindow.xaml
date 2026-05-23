@@ -509,17 +509,20 @@
                                          Background="Transparent"
                                          Foreground="{DynamicResource TextBrush}"
                                          BorderThickness="0" FontSize="13" FontFamily="Segoe UI"
-                                         TextWrapping="Wrap" AcceptsReturn="False" MaxLines="5"
-                                         VerticalContentAlignment="Center"
+                                         TextWrapping="Wrap" AcceptsReturn="False" MaxLines="8"
+                                         VerticalContentAlignment="Top"
+                                         VerticalScrollBarVisibility="Disabled"
+                                         Padding="0,2,0,2"
                                          CaretBrush="{DynamicResource TextBrush}"
                                          SelectionBrush="{DynamicResource ClaudeBrush}"
                                          KeyDown="InputTextBox_KeyDown"
                                          TextChanged="InputTextBox_TextChanged"/>
                                 <TextBlock x:Name="PlaceholderText"
-                                           Text="Type a message...  (Enter to send)"
+                                           Text="Type a message...  (Enter ↵ send  •  Shift+Enter for new line)"
                                            Foreground="{DynamicResource SubtextBrush}"
                                            FontSize="13" FontFamily="Segoe UI"
-                                           VerticalAlignment="Center" IsHitTestVisible="False"/>
+                                           VerticalAlignment="Top" Margin="0,2,0,0"
+                                           IsHitTestVisible="False"/>
                             </Grid>
                         </Border>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">

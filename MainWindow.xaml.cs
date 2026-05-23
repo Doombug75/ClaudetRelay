@@ -519,56 +519,72 @@ public partial class MainWindow : Window
 
     private string? ShowInputDialog(string title, string prompt, string defaultValue = "")
     {
+        // FindResource is called on *this* (MainWindow) which has the theme loaded.
+        // SetResourceReference would search the popup's own empty resource tree and fall
+        // back to the default WPF chrome — producing black buttons on dark themes.
         var win = new Window
         {
             Title                 = title,
-            Width                 = 400, Height = 165,
+            Width                 = 400, Height = 170,
             Owner                 = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode            = ResizeMode.NoResize,
-            ShowInTaskbar         = false
+            ShowInTaskbar         = false,
+            Background            = (Brush)FindResource("SidebarBrush")
         };
-        win.SetResourceReference(Window.BackgroundProperty, "SidebarBrush");
 
         var lbl = new TextBlock
         {
-            Text = prompt, FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
-            Margin = new Thickness(16, 14, 16, 6)
+            Text       = prompt,
+            FontSize   = 13,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("TextBrush"),
+            Margin     = new Thickness(16, 16, 16, 6)
         };
-        lbl.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
         var tb = new TextBox
         {
-            Text = defaultValue, FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
-            Margin = new Thickness(16, 0, 16, 12), Height = 36,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(10, 0, 0, 0),
-            VerticalContentAlignment = VerticalAlignment.Center
+            Text                     = defaultValue,
+            FontSize                 = 13,
+            FontFamily               = new FontFamily("Segoe UI"),
+            Margin                   = new Thickness(16, 0, 16, 14),
+            Height                   = 36,
+            BorderThickness          = new Thickness(0),
+            Padding                  = new Thickness(10, 0, 0, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Background               = (Brush)FindResource("InputBrush"),
+            Foreground               = (Brush)FindResource("TextBrush"),
+            CaretBrush               = (Brush)FindResource("TextBrush"),
+            SelectionBrush           = (Brush)FindResource("ClaudeBrush")
         };
-        tb.SetResourceReference(TextBox.BackgroundProperty,  "InputBrush");
-        tb.SetResourceReference(TextBox.ForegroundProperty,  "TextBrush");
-        tb.SetResourceReference(TextBox.CaretBrushProperty,  "TextBrush");
 
         var okBtn = new Button
         {
-            Content = "Create", IsDefault = true,
-            Height = 34, Margin = new Thickness(16, 0, 8, 14)
+            Content    = "Create",
+            IsDefault  = true,
+            Height     = 34,
+            Margin     = new Thickness(16, 0, 8, 16),
+            Style      = (Style)FindResource("ModernButton"),
+            Background = (Brush)FindResource("ClaudeBrush"),
+            Foreground = (Brush)FindResource("SidebarBrush")
         };
-        okBtn.SetResourceReference(Button.BackgroundProperty,  "ClaudeBrush");
-        okBtn.SetResourceReference(Button.ForegroundProperty,  "SidebarBrush");
-        okBtn.SetResourceReference(Button.StyleProperty,       "ModernButton");
 
         var cancelBtn = new Button
         {
-            Content = "Cancel", IsCancel = true,
-            Height = 34, Margin = new Thickness(0, 0, 16, 14)
+            Content    = "Cancel",
+            IsCancel   = true,
+            Height     = 34,
+            Margin     = new Thickness(0, 0, 16, 16),
+            Style      = (Style)FindResource("ModernButton"),
+            Background = (Brush)FindResource("InputBrush"),
+            Foreground = (Brush)FindResource("TextBrush")
         };
-        cancelBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-        cancelBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
-        cancelBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
 
-        var btnRow = new StackPanel { Orientation = Orientation.Horizontal,
-                                      HorizontalAlignment = HorizontalAlignment.Right };
+        var btnRow = new StackPanel
+        {
+            Orientation         = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
         btnRow.Children.Add(okBtn);
         btnRow.Children.Add(cancelBtn);
 
@@ -580,8 +596,7 @@ public partial class MainWindow : Window
 
         string? result = null;
         okBtn.Click += (_, _) => { result = tb.Text.Trim(); win.DialogResult = true; };
-
-        win.Loaded += (_, _) => { tb.Focus(); tb.SelectAll(); };
+        win.Loaded  += (_, _) => { tb.Focus(); tb.SelectAll(); };
         win.ShowDialog();
         return result;
     }
@@ -1284,10 +1299,46 @@ public partial class MainWindow : Window
 
     private void InputTextBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None)
+        if (e.Key != Key.Enter) return;
+
+        if (Keyboard.Modifiers == ModifierKeys.None)
         {
+            // Plain Enter → send
             SendMessage();
             e.Handled = true;
+            return;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+        {
+            // Shift+Enter → new line, auto-continue list prefix if applicable
+            var tb  = InputTextBox;
+            int pos = tb.CaretIndex;
+
+            // Find where the current line starts
+            int lineStart = pos > 0 ? tb.Text.LastIndexOf('\n', pos - 1) + 1 : 0;
+            string currentLine = tb.Text.Substring(lineStart, pos - lineStart);
+
+            // Build the prefix to auto-repeat on the new line
+            string prefix = "";
+            var numMatch = Regex.Match(currentLine, @"^(\s*)(\d+)\.\s");
+            if (numMatch.Success)
+            {
+                // Numbered list: increment the counter
+                int n = int.Parse(numMatch.Groups[2].Value);
+                prefix = numMatch.Groups[1].Value + (n + 1) + ". ";
+            }
+            else
+            {
+                var bulletMatch = Regex.Match(currentLine, @"^(\s*)([-•*])\s");
+                if (bulletMatch.Success)
+                    prefix = bulletMatch.Groups[1].Value + bulletMatch.Groups[2].Value + " ";
+            }
+
+            string insert = "\n" + prefix;
+            tb.Text        = tb.Text.Insert(pos, insert);
+            tb.CaretIndex  = pos + insert.Length;
+            e.Handled      = true;
         }
     }
 
