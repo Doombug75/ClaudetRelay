@@ -39,6 +39,9 @@ public class AppSettings
     public bool   CloudAIEnabled      { get; set; } = true;
     public int    OllamaInstanceCount { get; set; } = 1;
 
+    /// <summary>Display name shown on the human user's own chat bubbles.</summary>
+    public string UserName { get; set; } = "You";
+
     /// <summary>Per-participant configuration (P1–P6). Populated on first load via migration.</summary>
     public List<ParticipantConfig> Participants { get; set; } = [];
 }
@@ -124,10 +127,12 @@ public static class SettingsService
             Enabled   = s.CloudAIEnabled
         });
 
-        // P3–P6 → disabled defaults
+        // P3–P8 → disabled defaults
         s.Participants.Add(new ParticipantConfig { Type = "Ollama",     Enabled = false });
         s.Participants.Add(new ParticipantConfig { Type = "Anthropic",  Enabled = false });
         s.Participants.Add(new ParticipantConfig { Type = "Groq",       Enabled = false });
         s.Participants.Add(new ParticipantConfig { Type = "Google AI",  Enabled = false });
+        s.Participants.Add(new ParticipantConfig { Type = "Mistral",    Enabled = false });
+        s.Participants.Add(new ParticipantConfig { Type = "OpenRouter", Enabled = false });
     }
 }

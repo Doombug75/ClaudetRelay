@@ -21,7 +21,7 @@
         <Style x:Key="STextBox" TargetType="TextBox">
             <Setter Property="Height"          Value="36"/>
             <Setter Property="Padding"         Value="10,8"/>
-            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="FontSize"        Value="14"/>
             <Setter Property="FontFamily"      Value="Segoe UI"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Background"      Value="{DynamicResource InputBrush}"/>

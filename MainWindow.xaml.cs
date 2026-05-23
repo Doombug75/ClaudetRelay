@@ -104,6 +104,7 @@ public partial class MainWindow : Window
     private CancellationTokenSource?             _streamCts;
     private List<string>                         _availableOllamaModels = [];
     private string?                              _currentThemePath;
+    private string                               _userName              = "You";
 
     // ──────────────────────────────────────────────────────────────────────
 
@@ -163,6 +164,9 @@ public partial class MainWindow : Window
             AddOllamaParticipant(settings.OllamaModel);
             AddSystemMessage("ℹ  No participants configured — open ⚙ Settings to set them up.");
         }
+
+        // User display name
+        _userName = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
     }
 
     // ── Re-initialize after Settings save ─────────────────────────────────
@@ -191,6 +195,8 @@ public partial class MainWindow : Window
 
         // Re-add from settings
         var settings = SettingsService.Load();
+        _userName = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
+
         foreach (var p in settings.Participants.Where(p => p.Enabled))
         {
             if (p.Type == "Ollama" && _ollamaParticipants.Count < 3)
@@ -954,7 +960,8 @@ public partial class MainWindow : Window
         var text = InputTextBox.Text.Trim();
         if (string.IsNullOrEmpty(text)) return;
 
-        AddMessage("You", "U", "UserBrush", "UserBubbleBrush", text, isUser: true);
+        var avatar = _userName.Length >= 2 ? _userName[..2].ToUpper() : _userName.ToUpper();
+        AddMessage(_userName, avatar, "UserBrush", "UserBubbleBrush", text, isUser: true);
         _sharedHistory.Add(new CloudAIMessage("user", text, "User"));
 
         InputTextBox.Clear();

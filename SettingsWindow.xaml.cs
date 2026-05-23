@@ -42,6 +42,7 @@ public partial class SettingsWindow : Window
     // ── State ──────────────────────────────────────────────────────────────
 
     private readonly List<ParticipantForm> _forms = [];
+    private TextBox _userNameBox = null!;
 
     // ── Constructor ────────────────────────────────────────────────────────
 
@@ -60,7 +61,12 @@ public partial class SettingsWindow : Window
         InitializeComponent();
 
         var settings = SettingsService.Load();
-        for (int i = 0; i < 6; i++)
+
+        // "General" tab is always first
+        BuildGeneralTab(settings);
+
+        // P1–P8
+        for (int i = 0; i < 8; i++)
         {
             var config = i < settings.Participants.Count
                 ? settings.Participants[i]
@@ -70,6 +76,42 @@ public partial class SettingsWindow : Window
 
         // Auto-test all participants once the window is fully rendered
         Loaded += async (_, _) => await AutoTestAllAsync();
+    }
+
+    // ── General tab ────────────────────────────────────────────────────────
+
+    private void BuildGeneralTab(AppSettings settings)
+    {
+        var nameLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "YOUR NAME" };
+
+        _userNameBox = new TextBox
+        {
+            Style  = (Style)FindResource("STextBox"),
+            Text   = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName,
+            Margin = new Thickness(0, 0, 0, 6)
+        };
+        _userNameBox.FontSize   = 14;
+        _userNameBox.FontFamily = new FontFamily("Segoe UI");
+        _userNameBox.SetResourceReference(Control.ForegroundProperty, "TextBrush");
+        _userNameBox.SetResourceReference(Control.BackgroundProperty, "InputBrush");
+
+        var nameHint = new TextBlock
+        {
+            Text         = "Shown on your own chat bubbles",
+            FontSize     = 11,
+            FontFamily   = new FontFamily("Segoe UI"),
+            Margin       = new Thickness(0, 0, 0, 0),
+            TextWrapping = TextWrapping.Wrap
+        };
+        nameHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        var root = new StackPanel { Margin = new Thickness(0) };
+        root.Children.Add(nameLabel);
+        root.Children.Add(_userNameBox);
+        root.Children.Add(nameHint);
+
+        var tab = new TabItem { Header = "General", Content = root };
+        ParticipantsTabControl.Items.Add(tab);
     }
 
     // ── Auto-test on open ──────────────────────────────────────────────────
@@ -111,7 +153,9 @@ public partial class SettingsWindow : Window
             Text        = config.Name,
             Margin      = new Thickness(0, 0, 0, 0)
         };
-        // Explicit dynamic-resource binding beats any system style that might shadow the colour
+        // Explicit local values ensure font + colour beat any system style override
+        nameBox.FontSize   = 14;
+        nameBox.FontFamily = new FontFamily("Segoe UI");
         nameBox.SetResourceReference(Control.ForegroundProperty, "TextBrush");
         nameBox.SetResourceReference(Control.BackgroundProperty, "InputBrush");
 
@@ -149,6 +193,8 @@ public partial class SettingsWindow : Window
             Style = (Style)FindResource("STextBox"),
             Text  = string.IsNullOrEmpty(config.ServerUrl) ? "http://localhost:11434" : config.ServerUrl
         };
+        serverUrlBox.FontSize   = 14;
+        serverUrlBox.FontFamily = new FontFamily("Segoe UI");
         serverUrlBox.SetResourceReference(Control.ForegroundProperty, "TextBrush");
         serverUrlBox.SetResourceReference(Control.BackgroundProperty, "InputBrush");
 
@@ -515,6 +561,11 @@ public partial class SettingsWindow : Window
     private void SaveAll_Click(object sender, RoutedEventArgs e)
     {
         var settings = SettingsService.Load();
+
+        // General settings
+        var userName = _userNameBox.Text.Trim();
+        settings.UserName = string.IsNullOrEmpty(userName) ? "You" : userName;
+
         settings.Participants.Clear();
 
         foreach (var form in _forms)
