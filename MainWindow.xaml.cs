@@ -753,7 +753,8 @@ public partial class MainWindow : Window
         }
 
         // Build a UI row for each participant and collect role accessors
-        var roleRows = new List<(string provider, string model, Func<ProjectParticipantRole> GetRole)>();
+        var roleRows       = new List<(string provider, string model, Func<ProjectParticipantRole> GetRole)>();
+        var allCoordChecks = new List<CheckBox>(); // used for single-coordinator enforcement
 
         foreach (var (provider, model, displayName) in enabledParticipants)
         {
@@ -807,8 +808,9 @@ public partial class MainWindow : Window
                 Foreground = (Brush)FindResource("TextBrush"),
                 Margin     = new Thickness(0, 0, 16, 0),
                 ToolTip    = "Coordinator: receives user messages first and decides routing.\n" +
-                             "Only one Coordinator should be active per project."
+                             "Only one Coordinator is allowed per project."
             };
+            allCoordChecks.Add(coordCheck);
             var reasonerCheck = new CheckBox
             {
                 Content    = "Reasoner",
@@ -890,6 +892,18 @@ public partial class MainWindow : Window
                 role.ReasonerPriority = (int)capturedPriority.Value;
                 return role;
             }));
+        }
+
+        // ── Single-coordinator enforcement ────────────────────────────────
+        // Checking one Coordinator checkbox automatically unchecks all others.
+        foreach (var cb in allCoordChecks)
+        {
+            var me = cb;
+            me.Checked += (_, _) =>
+            {
+                foreach (var other in allCoordChecks.Where(c => c != me))
+                    other.IsChecked = false;
+            };
         }
 
         // ── Buttons ────────────────────────────────────────────────────────

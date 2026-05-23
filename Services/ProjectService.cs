@@ -230,7 +230,7 @@ public static class ProjectService
 
         // Standard project subfolders
         Directory.CreateDirectory(Path.Combine(folder, "INPUT"));
-        Directory.CreateDirectory(Path.Combine(folder, "PROJEKTPLAN"));
+        Directory.CreateDirectory(Path.Combine(folder, "PROJECTPLAN"));
         Directory.CreateDirectory(Path.Combine(folder, "OUTPUT"));
 
         SaveMeta(folder, new ProjectMeta

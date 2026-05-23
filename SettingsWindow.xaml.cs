@@ -240,7 +240,7 @@ public partial class SettingsWindow : Window
         toneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         toneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var toneLeft = MakeHintText("Neutral");
-        var toneRight = MakeHintText("Freundlich");
+        var toneRight = MakeHintText("Friendly");
         Grid.SetColumn(toneLeft,   0);
         Grid.SetColumn(toneSlider, 1);
         Grid.SetColumn(toneRight,  2);
@@ -248,7 +248,7 @@ public partial class SettingsWindow : Window
         toneRow.Children.Add(toneSlider);
         toneRow.Children.Add(toneRight);
 
-        var toneHint = MakeHintText("0 = streng neutral  ·  50 = Modell-Standard (kein Eingriff)  ·  100 = sehr freundlich");
+        var toneHint = MakeHintText("0 = strictly neutral  ·  50 = model default (no change)  ·  100 = very friendly");
 
         var root = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         root.Children.Add(nameLabel);
@@ -783,13 +783,13 @@ public partial class SettingsWindow : Window
 
     private static string FormatToneLabel(int v) => v switch
     {
-        < 10  => "Streng neutral",
+        < 10  => "Strictly neutral",
         < 30  => "Neutral",
-        < 45  => "Leicht neutral",
-        <= 55 => "Modell-Standard",
-        < 70  => "Leicht freundlich",
-        < 90  => "Freundlich",
-        _     => "Sehr freundlich"
+        < 45  => "Slightly neutral",
+        <= 55 => "Model default",
+        < 70  => "Slightly friendly",
+        < 90  => "Friendly",
+        _     => "Very friendly"
     };
 
     private TextBlock MakeHintText(string text) => new TextBlock
