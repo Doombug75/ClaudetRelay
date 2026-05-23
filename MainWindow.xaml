@@ -283,33 +283,6 @@
                                 Margin="0,0,0,7"
                                 Click="AddOllamaButton_Click"/>
 
-                        <!-- ── User card ── -->
-                        <Border Background="{DynamicResource InputBrush}" CornerRadius="10"
-                                Padding="10" Margin="0,0,0,26">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="34" Height="34" CornerRadius="9"
-                                        Background="{DynamicResource UserBrush}" Margin="0,0,10,0">
-                                    <TextBlock Text="U" FontSize="15" FontWeight="Bold"
-                                               Foreground="{DynamicResource SidebarBrush}"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="You" FontSize="13" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextBrush}"/>
-                                    <TextBlock Text="User" FontSize="10"
-                                               Foreground="{DynamicResource SubtextBrush}"/>
-                                </StackPanel>
-                                <Ellipse Grid.Column="2" Width="8" Height="8"
-                                         Fill="{DynamicResource OllamaBrush}"
-                                         VerticalAlignment="Center"/>
-                            </Grid>
-                        </Border>
-
                         <!-- ── Theme ── -->
                         <TextBlock Text="THEME" FontSize="10" FontWeight="Bold"
                                    Foreground="{DynamicResource SubtextBrush}" Margin="2,0,0,10"/>
