@@ -24,7 +24,7 @@ public partial class MainWindow : Window
         public required OllamaService Service  { get; init; }
         public int   Position { get; set; }
         public bool  Enabled  { get; set; } = true;
-        public bool? IsOnline { get; set; }   // null = noch unbekannt
+        public bool? IsOnline { get; set; }
 
         public string ColorKey    => Position switch { 2 => "AccentBrush", 3 => "ClaudeBrush", _ => "OllamaBrush" };
         public string AvatarLabel => $"O{Position}";
@@ -47,31 +47,62 @@ public partial class MainWindow : Window
         public required Button            RemoveButton  { get; init; }
     }
 
-    // ── Dienste ────────────────────────────────────────────────────────────
-    private ICloudAIService?                   _cloudAI;
-    private readonly List<OllamaParticipantUI> _ollamaParticipants    = [];
-    private readonly List<OllamaChatMessage>   _sharedHistory         = [];
-    private readonly List<CloudAIMessage>      _cloudAIHistory        = [];
-    private CancellationTokenSource?           _streamCts;
-    private List<string>                       _availableOllamaModels = [];
+    private sealed class CloudAIParticipant
+    {
+        public required ICloudAIService Service  { get; init; }
+        public int   Position { get; set; }
+        public bool  Enabled  { get; set; } = true;
+        public bool? IsOnline { get; set; }
 
-    // ── Cloud AI Status ────────────────────────────────────────────────────
-    private bool? _isClaudeOnline;   // "Claude" kept as name for the UI slot
-    private bool  _claudeEnabled = true;
+        public string ColorKey => Position switch { 2 => "AccentBrush", 3 => "OllamaBrush", _ => "ClaudeBrush" };
+
+        public string AvatarLabel => Service.ProviderName switch
+        {
+            "Anthropic"  => "An",
+            "Google AI"  => "Gm",
+            "Groq"       => "Gq",
+            "OpenRouter" => "OR",
+            "Mistral"    => "Mi",
+            _            => Service.ProviderName.Length >= 2 ? Service.ProviderName[..2] : Service.ProviderName
+        };
+
+        public string DisplayName => Service.ProviderName;
+    }
+
+    private sealed class CloudAIParticipantUI
+    {
+        public required CloudAIParticipant Data          { get; init; }
+        public required Border             Card          { get; init; }
+        public required Border             AvatarBorder  { get; init; }
+        public required TextBlock          AvatarText    { get; init; }
+        public required TextBlock          NameLabel     { get; init; }
+        public required Ellipse            StatusDot     { get; init; }
+        public required TextBlock          ModelLabel    { get; init; }
+        public required TextBlock          OfflineLabel  { get; init; }
+        public required Popup              Popup         { get; init; }
+        public required TextBlock          PopupTitle    { get; init; }
+        public required CheckBox           EnabledToggle { get; init; }
+        public required ListBox            ModelList     { get; init; }
+        public required Button             RemoveButton  { get; init; }
+    }
+
+    // ── State ──────────────────────────────────────────────────────────────
+    private readonly List<CloudAIParticipantUI>  _cloudAIParticipants   = [];
+    private readonly List<OllamaParticipantUI>   _ollamaParticipants    = [];
+    private readonly List<CloudAIMessage>        _sharedHistory         = [];
+    private CancellationTokenSource?             _streamCts;
+    private List<string>                         _availableOllamaModels = [];
+    private string?                              _currentThemePath;
 
     // ──────────────────────────────────────────────────────────────────────
-
-    // ── Theme-State ────────────────────────────────────────────────────────
-    private string? _currentThemePath;
 
     public MainWindow()
     {
         InitializeComponent();
-        LoadThemesIntoComboBox();   // Load theme before first render
+        LoadThemesIntoComboBox();
         Loaded += async (_, _) =>
         {
             InitializeServices();
-            PopulateCloudAIModelList();
             AddSystemMessage("Chat started  ·  Cloud AI, Ollama and You are connected.");
             InputTextBox.Focus();
             await CheckAllStatusAsync();
@@ -79,7 +110,7 @@ public partial class MainWindow : Window
         };
     }
 
-    // ── Initialisierung ────────────────────────────────────────────────────
+    // ── Initialization ─────────────────────────────────────────────────────
 
     private void InitializeServices()
     {
@@ -96,120 +127,293 @@ public partial class MainWindow : Window
         // First Ollama participant
         AddOllamaParticipant(settings.OllamaModel);
 
-        // Cloud AI (provider from settings, key from Credential Manager)
-        InitializeCloudAI(settings);
-    }
-
-    private void InitializeCloudAI(AppSettings? settings = null)
-    {
-        settings ??= SettingsService.Load();
-
-        _cloudAI?.Dispose();
-        _cloudAI = null;
-
+        // Cloud AI: add the configured provider if it has an API key
         var provider = settings.SelectedProvider;
         var apiKey   = WindowsCredentialManager.Load(provider);
-
         if (!string.IsNullOrWhiteSpace(apiKey))
-        {
-            _cloudAI = CreateCloudAIService(provider, apiKey);
-            if (!string.IsNullOrEmpty(settings.SelectedCloudModel))
-                _cloudAI.CurrentModel = settings.SelectedCloudModel;
-        }
-
-        UpdateCloudAICardLabels(provider);
-
-        if (_cloudAI is null)
-        {
-            ClaudeModelLabel.Text = "No API key";
-            ClaudeStatusDot.SetResourceReference(Ellipse.FillProperty, "AccentBrush");
-            ClaudeCard.Opacity            = 0.6;
-            ClaudeEnabledToggle.IsChecked = false;
-            ClaudeEnabledToggle.IsEnabled = false;
-            AddSystemMessage($"ℹ  No {provider} API key — open Settings to add one.");
-        }
+            AddCloudAIParticipant(provider, settings.SelectedCloudModel);
         else
+            AddSystemMessage($"ℹ  No {provider} API key — open Settings to add one.");
+    }
+
+    // ── Cloud AI participant management ────────────────────────────────────
+
+    private void AddCloudAIParticipant(string provider, string model = "")
+    {
+        if (_cloudAIParticipants.Count >= 3) return;
+        if (_cloudAIParticipants.Any(ui => ui.Data.Service.ProviderName == provider)) return;
+
+        var apiKey = WindowsCredentialManager.Load(provider);
+        if (string.IsNullOrWhiteSpace(apiKey)) return;
+
+        var service = CreateCloudAIService(provider, apiKey);
+        if (!string.IsNullOrEmpty(model)) service.CurrentModel = model;
+
+        var participant = new CloudAIParticipant
         {
-            ClaudeEnabledToggle.IsEnabled = true;
+            Service  = service,
+            Position = _cloudAIParticipants.Count + 1
+        };
+        BuildCloudAICard(participant);
+        UpdateCloudAIAddRemoveButtons();
+    }
+
+    private void RemoveCloudAIParticipant(CloudAIParticipantUI ui)
+    {
+        CloudAICardsPanel.Children.Remove(ui.Popup);
+        CloudAICardsPanel.Children.Remove(ui.Card);
+        ui.Data.Service.Dispose();
+        _cloudAIParticipants.Remove(ui);
+        RenumberCloudAIParticipants();
+        UpdateCloudAIAddRemoveButtons();
+    }
+
+    private void RenumberCloudAIParticipants()
+    {
+        for (int i = 0; i < _cloudAIParticipants.Count; i++)
+        {
+            var ui  = _cloudAIParticipants[i];
+            ui.Data.Position = i + 1;
+            ui.AvatarBorder.SetResourceReference(Border.BackgroundProperty, ui.Data.ColorKey);
         }
     }
 
-    private void UpdateCloudAICardLabels(string? provider = null)
+    private void UpdateCloudAIAddRemoveButtons()
     {
-        provider ??= SettingsService.Load().SelectedProvider;
-        var initial = provider.Length > 0 ? provider[0].ToString() : "C";
+        AddCloudAIButton.Visibility = _cloudAIParticipants.Count < 3
+            ? Visibility.Visible : Visibility.Collapsed;
 
-        CloudAIAvatarText.Text  = initial;
-        CloudAINameLabel.Text   = provider;
-        CloudAIPopupTitle.Text  = provider;
-        ClaudeEnabledToggle.Content = $"{provider} enabled";
-
-        if (_cloudAI is not null)
-            ClaudeModelLabel.Text = _cloudAI.CurrentModel;
+        foreach (var ui in _cloudAIParticipants)
+            ui.RemoveButton.Visibility = Visibility.Visible;
     }
 
-    private static ICloudAIService CreateCloudAIService(string provider, string apiKey) =>
-        provider switch
+    private void BuildCloudAICard(CloudAIParticipant participant)
+    {
+        // ── Avatar ────────────────────────────────────────────────────────
+        var avatarText = new TextBlock
         {
-            "Google AI"  => new GoogleAIService(apiKey),
-            "Groq"       => new GroqService(apiKey),
-            "OpenRouter" => new OpenRouterService(apiKey),
-            "Mistral"    => new MistralService(apiKey),
-            _            => new AnthropicService(apiKey)
+            Text                = participant.AvatarLabel,
+            FontSize            = 11,
+            FontWeight          = FontWeights.Bold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment   = VerticalAlignment.Center
+        };
+        avatarText.SetResourceReference(TextBlock.ForegroundProperty, "SidebarBrush");
+
+        var avatarBorder = new Border
+        {
+            Width        = 34, Height = 34,
+            CornerRadius = new CornerRadius(9),
+            Margin       = new Thickness(0, 0, 10, 0),
+            Child        = avatarText
+        };
+        avatarBorder.SetResourceReference(Border.BackgroundProperty, participant.ColorKey);
+
+        // ── Status dot ────────────────────────────────────────────────────
+        var statusDot = new Ellipse { Width = 8, Height = 8, VerticalAlignment = VerticalAlignment.Center };
+        statusDot.SetResourceReference(Ellipse.FillProperty, "SubtextBrush");
+
+        // ── Labels ────────────────────────────────────────────────────────
+        var nameLabel = new TextBlock
+        {
+            Text       = participant.DisplayName,
+            FontSize   = 13,
+            FontWeight = FontWeights.SemiBold
+        };
+        nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+
+        var modelLabel = new TextBlock { Text = participant.Service.CurrentModel, FontSize = 10 };
+        modelLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        var offlineLabel = new TextBlock { Text = "Offline", FontSize = 10, Visibility = Visibility.Collapsed };
+        offlineLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+
+        // ── Remove button ─────────────────────────────────────────────────
+        var removeButton = new Button
+        {
+            Content           = "✕",
+            Width             = 22, Height = 22,
+            FontSize          = 10,
+            BorderThickness   = new Thickness(0),
+            Cursor            = Cursors.Hand,
+            Padding           = new Thickness(0),
+            Visibility        = Visibility.Visible,
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip           = "Remove participant",
+            Style             = (Style)FindResource("ModernButton")
+        };
+        removeButton.SetResourceReference(Button.BackgroundProperty, "SurfaceBrush");
+        removeButton.SetResourceReference(Button.ForegroundProperty, "SubtextBrush");
+
+        // ── Layout ────────────────────────────────────────────────────────
+        var labelPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        labelPanel.Children.Add(nameLabel);
+        labelPanel.Children.Add(modelLabel);
+        labelPanel.Children.Add(offlineLabel);
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        Grid.SetColumn(avatarBorder, 0);
+        Grid.SetColumn(labelPanel,   1);
+        Grid.SetColumn(statusDot,    2);
+        Grid.SetColumn(removeButton, 3);
+
+        grid.Children.Add(avatarBorder);
+        grid.Children.Add(labelPanel);
+        grid.Children.Add(statusDot);
+        grid.Children.Add(removeButton);
+
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(10),
+            Padding      = new Thickness(10),
+            Margin       = new Thickness(0, 0, 0, 7),
+            Cursor       = Cursors.Hand,
+            Child        = grid
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+
+        // ── Popup ─────────────────────────────────────────────────────────
+        var popupTitle = new TextBlock
+        {
+            Text       = participant.DisplayName,
+            FontSize   = 13,
+            FontWeight = FontWeights.SemiBold,
+            Margin     = new Thickness(0, 0, 0, 8)
+        };
+        popupTitle.SetResourceReference(TextBlock.ForegroundProperty, participant.ColorKey);
+
+        var separator = new Rectangle { Height = 1, Margin = new Thickness(0, 0, 0, 10) };
+        separator.SetResourceReference(Rectangle.FillProperty, "InputBrush");
+
+        var enabledToggle = new CheckBox
+        {
+            Style     = (Style)FindResource("ToggleSwitch"),
+            IsChecked = true,
+            Content   = $"{participant.DisplayName} enabled",
+            Margin    = new Thickness(0, 0, 0, 14)
         };
 
-    private static string[] GetDefaultModelsForProvider(string provider) => provider switch
-    {
-        "Anthropic"  => AnthropicService.DefaultModels,
-        "Google AI"  => GoogleAIService.DefaultModels,
-        "Groq"       => GroqService.DefaultModels,
-        "OpenRouter" => OpenRouterService.DefaultModels,
-        "Mistral"    => MistralService.DefaultModels,
-        _            => AnthropicService.DefaultModels
-    };
-
-    private void PopulateCloudAIModelList()
-    {
-        ClaudeModelList.Items.Clear();
-        var provider = SettingsService.Load().SelectedProvider;
-        var models   = GetDefaultModelsForProvider(provider);
-        foreach (var m in models)
-            ClaudeModelList.Items.Add(m);
-        ClaudeModelList.SelectedItem = _cloudAI?.CurrentModel
-                                    ?? (models.Length > 0 ? models[0] : null);
-    }
-
-    private async Task LoadOllamaModelsAsync()
-    {
-        if (_ollamaParticipants.Count == 0) return;
-        try
+        var modelHeader = new TextBlock
         {
-            // Alle Teilnehmer nutzen denselben Ollama-Endpunkt → einmal laden
-            var models = await _ollamaParticipants[0].Data.Service.GetModelsAsync();
-            _availableOllamaModels = models;
+            Text       = "MODEL",
+            FontSize   = 10,
+            FontWeight = FontWeights.Bold,
+            Margin     = new Thickness(2, 0, 0, 6)
+        };
+        modelHeader.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
 
-            foreach (var ui in _ollamaParticipants)
+        var modelList = new ListBox
+        {
+            Background         = Brushes.Transparent,
+            BorderThickness    = new Thickness(0),
+            MaxHeight          = 200,
+            ItemContainerStyle = (Style)FindResource("ModelListItem")
+        };
+        ScrollViewer.SetVerticalScrollBarVisibility(modelList, ScrollBarVisibility.Auto);
+
+        // Pre-populate with default models
+        var models = GetDefaultModelsForProvider(participant.DisplayName);
+        foreach (var m in models)
+            modelList.Items.Add(m);
+        modelList.SelectedItem = participant.Service.CurrentModel;
+
+        var popupContent = new StackPanel();
+        popupContent.Children.Add(popupTitle);
+        popupContent.Children.Add(separator);
+        popupContent.Children.Add(enabledToggle);
+        popupContent.Children.Add(modelHeader);
+        popupContent.Children.Add(modelList);
+
+        var popupBorder = new Border
+        {
+            BorderThickness = new Thickness(1),
+            CornerRadius    = new CornerRadius(12),
+            Padding         = new Thickness(14),
+            MinWidth        = 230,
+            Child           = popupContent,
+            Effect          = new DropShadowEffect { Color = Colors.Black, Opacity = 0.45, BlurRadius = 22, ShadowDepth = 4 }
+        };
+        popupBorder.SetResourceReference(Border.BackgroundProperty,  "SidebarBrush");
+        popupBorder.SetResourceReference(Border.BorderBrushProperty, "SurfaceBrush");
+
+        var popup = new Popup
+        {
+            PlacementTarget    = card,
+            Placement          = PlacementMode.Right,
+            HorizontalOffset   = 10,
+            VerticalOffset     = -8,
+            StaysOpen          = false,
+            AllowsTransparency = true,
+            Child              = popupBorder
+        };
+
+        // ── UI record ─────────────────────────────────────────────────────
+        var ui = new CloudAIParticipantUI
+        {
+            Data          = participant,
+            Card          = card,
+            AvatarBorder  = avatarBorder,
+            AvatarText    = avatarText,
+            NameLabel     = nameLabel,
+            StatusDot     = statusDot,
+            ModelLabel    = modelLabel,
+            OfflineLabel  = offlineLabel,
+            Popup         = popup,
+            PopupTitle    = popupTitle,
+            EnabledToggle = enabledToggle,
+            ModelList     = modelList,
+            RemoveButton  = removeButton
+        };
+
+        // ── Events ────────────────────────────────────────────────────────
+        card.MouseLeftButtonDown += (_, _) =>
+        {
+            enabledToggle.IsChecked = ui.Data.Enabled;
+            popup.IsOpen = !popup.IsOpen;
+        };
+
+        enabledToggle.Checked   += (_, _) => OnCloudAIEnabledChanged(ui, true);
+        enabledToggle.Unchecked += (_, _) => OnCloudAIEnabledChanged(ui, false);
+
+        modelList.SelectionChanged += (_, _) =>
+        {
+            if (modelList.SelectedItem is string m && m != ui.Data.Service.CurrentModel)
             {
-                if (models.Count > 0)
+                ui.Data.Service.CurrentModel = m;
+                ui.ModelLabel.Text           = m;
+
+                // Persist model if this is the primary participant
+                if (_cloudAIParticipants.Count > 0 && _cloudAIParticipants[0] == ui)
                 {
-                    if (!models.Contains(ui.Data.Service.CurrentModel))
-                        ui.Data.Service.CurrentModel = models[0];
-                    ui.ModelLabel.Text = ui.Data.Service.CurrentModel;
-                }
-                else
-                {
-                    ui.ModelLabel.Text = "no model found";
+                    var s = SettingsService.Load();
+                    s.SelectedCloudModel = m;
+                    SettingsService.Save(s);
                 }
             }
-        }
-        catch
-        {
-            foreach (var ui in _ollamaParticipants)
-                ui.ModelLabel.Text = "model list unavailable";
-        }
+        };
+
+        removeButton.Click += (_, _) => RemoveCloudAIParticipant(ui);
+
+        // ── Add to panel ──────────────────────────────────────────────────
+        // Popup must be in logical tree for DynamicResource to resolve
+        CloudAICardsPanel.Children.Add(popup);
+        CloudAICardsPanel.Children.Add(card);
+        _cloudAIParticipants.Add(ui);
     }
 
-    // ── Ollama-Teilnehmer-Management ───────────────────────────────────────
+    private void OnCloudAIEnabledChanged(CloudAIParticipantUI ui, bool enabled)
+    {
+        ui.Data.Enabled = enabled;
+        double op = (enabled && ui.Data.IsOnline == true) ? 1.0 : 0.6;
+        AnimateStatusChange(ui.Card, op);
+    }
+
+    // ── Ollama participant management ──────────────────────────────────────
 
     private void AddOllamaParticipant(string model = "llama3.2")
     {
@@ -268,7 +472,6 @@ public partial class MainWindow : Window
     {
         var pos = participant.Position;
 
-        // Avatar
         var avatarText = new TextBlock
         {
             Text                = participant.AvatarLabel,
@@ -288,11 +491,9 @@ public partial class MainWindow : Window
         };
         avatarBorder.SetResourceReference(Border.BackgroundProperty, participant.ColorKey);
 
-        // Status-Dot
         var statusDot = new Ellipse { Width = 8, Height = 8, VerticalAlignment = VerticalAlignment.Center };
         statusDot.SetResourceReference(Ellipse.FillProperty, "SubtextBrush");
 
-        // Labels
         var nameLabel = new TextBlock { Text = $"O{pos} · Ollama", FontSize = 13, FontWeight = FontWeights.SemiBold };
         nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
@@ -302,7 +503,6 @@ public partial class MainWindow : Window
         var offlineLabel = new TextBlock { Text = "Offline", FontSize = 10, Visibility = Visibility.Collapsed };
         offlineLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
 
-        // Remove-Button
         var removeButton = new Button
         {
             Content           = "✕",
@@ -316,10 +516,9 @@ public partial class MainWindow : Window
             ToolTip           = "Remove participant",
             Style             = (Style)FindResource("ModernButton")
         };
-        removeButton.SetResourceReference(Button.BackgroundProperty,  "SurfaceBrush");
-        removeButton.SetResourceReference(Button.ForegroundProperty,  "SubtextBrush");
+        removeButton.SetResourceReference(Button.BackgroundProperty, "SurfaceBrush");
+        removeButton.SetResourceReference(Button.ForegroundProperty, "SubtextBrush");
 
-        // Layout
         var labelPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         labelPanel.Children.Add(nameLabel);
         labelPanel.Children.Add(modelLabel);
@@ -351,7 +550,7 @@ public partial class MainWindow : Window
         };
         card.SetResourceReference(Border.BackgroundProperty, "InputBrush");
 
-        // ── Popup-Inhalt ───────────────────────────────────────────────────
+        // Popup
         var popupTitle = new TextBlock
         {
             Text       = $"O{pos} · Ollama",
@@ -400,8 +599,8 @@ public partial class MainWindow : Window
             Child           = popupContent,
             Effect          = new DropShadowEffect { Color = Colors.Black, Opacity = 0.45, BlurRadius = 22, ShadowDepth = 4 }
         };
-        popupBorder.SetResourceReference(Border.BackgroundProperty,   "SidebarBrush");
-        popupBorder.SetResourceReference(Border.BorderBrushProperty,  "SurfaceBrush");
+        popupBorder.SetResourceReference(Border.BackgroundProperty,  "SidebarBrush");
+        popupBorder.SetResourceReference(Border.BorderBrushProperty, "SurfaceBrush");
 
         var popup = new Popup
         {
@@ -414,7 +613,6 @@ public partial class MainWindow : Window
             Child              = popupBorder
         };
 
-        // ── UI-Daten ───────────────────────────────────────────────────────
         var ui = new OllamaParticipantUI
         {
             Data          = participant,
@@ -432,7 +630,6 @@ public partial class MainWindow : Window
             RemoveButton  = removeButton
         };
 
-        // ── Events (Closures über ui) ──────────────────────────────────────
         card.MouseLeftButtonDown += (_, _) =>
         {
             modelList.Items.Clear();
@@ -448,23 +645,28 @@ public partial class MainWindow : Window
 
         modelList.SelectionChanged += (_, _) =>
         {
-            if (modelList.SelectedItem is string model && model != ui.Data.Service.CurrentModel)
+            if (modelList.SelectedItem is string m && m != ui.Data.Service.CurrentModel)
             {
-                ui.Data.Service.CurrentModel = model;
-                ui.ModelLabel.Text           = model;
+                ui.Data.Service.CurrentModel = m;
+                ui.ModelLabel.Text           = m;
             }
         };
 
         removeButton.Click += (_, _) => RemoveOllamaParticipant(ui);
 
-        // ── Zum Panel hinzufügen ───────────────────────────────────────────
-        // Popup als logisches Kind → DynamicResource-Lookup funktioniert
         OllamaCardsPanel.Children.Add(popup);
         OllamaCardsPanel.Children.Add(card);
         _ollamaParticipants.Add(ui);
     }
 
-    // ── Status-Timer ───────────────────────────────────────────────────────
+    private void OnOllamaEnabledChanged(OllamaParticipantUI ui, bool enabled)
+    {
+        ui.Data.Enabled = enabled;
+        double op = (enabled && ui.Data.IsOnline == true) ? 1.0 : 0.6;
+        AnimateStatusChange(ui.Card, op);
+    }
+
+    // ── Status ─────────────────────────────────────────────────────────────
 
     private void StartStatusTimer()
     {
@@ -477,7 +679,6 @@ public partial class MainWindow : Window
     {
         if (_ollamaParticipants.Count > 0)
         {
-            // Alle Teilnehmer teilen den gleichen Endpunkt → einmal prüfen
             bool wasOnlineBefore = _ollamaParticipants[0].Data.IsOnline == true;
             var  ollamaOnline    = await _ollamaParticipants[0].Data.Service.IsAvailableAsync();
 
@@ -488,10 +689,10 @@ public partial class MainWindow : Window
                 await LoadOllamaModelsAsync();
         }
 
-        if (_cloudAI is not null)
+        foreach (var ui in _cloudAIParticipants)
         {
-            var claudeOnline = await _cloudAI.IsAvailableAsync();
-            ApplyClaudeStatus(claudeOnline);
+            var online = await ui.Data.Service.IsAvailableAsync();
+            ApplyCloudAIParticipantStatus(ui, online);
         }
     }
 
@@ -509,7 +710,6 @@ public partial class MainWindow : Window
         if (changed)
         {
             AnimateStatusChange(ui.Card, targetOpacity);
-            // Systemmeldung nur für den ersten Teilnehmer (gemeinsamer Endpunkt)
             if (_ollamaParticipants.Count > 0 && _ollamaParticipants[0] == ui)
                 AddSystemMessage(online ? "✓  Ollama is online." : "⚠  Ollama is offline.");
         }
@@ -519,28 +719,30 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ApplyClaudeStatus(bool online)
+    private void ApplyCloudAIParticipantStatus(CloudAIParticipantUI ui, bool online)
     {
-        bool changed = _isClaudeOnline != online;
-        _isClaudeOnline = online;
+        bool changed = ui.Data.IsOnline != online;
+        ui.Data.IsOnline = online;
 
-        ClaudeStatusDot.SetResourceReference(Ellipse.FillProperty, online ? "OllamaBrush" : "AccentBrush");
-        ClaudeOfflineLabel.Visibility = online ? Visibility.Collapsed : Visibility.Visible;
-        ClaudeModelLabel.Visibility   = online ? Visibility.Visible   : Visibility.Collapsed;
+        ui.StatusDot.SetResourceReference(Ellipse.FillProperty, online ? "OllamaBrush" : "AccentBrush");
+        ui.OfflineLabel.Visibility = online ? Visibility.Collapsed : Visibility.Visible;
+        ui.ModelLabel.Visibility   = online ? Visibility.Visible   : Visibility.Collapsed;
 
         if (online)
-            ClaudeModelLabel.Text = _cloudAI?.CurrentModel ?? "";
+            ui.ModelLabel.Text = ui.Data.Service.CurrentModel;
 
-        double targetOpacity = (online && _claudeEnabled) ? 1.0 : 0.6;
+        double targetOpacity = (online && ui.Data.Enabled) ? 1.0 : 0.6;
 
         if (changed)
         {
-            AnimateStatusChange(ClaudeCard, targetOpacity);
-            AddSystemMessage(online ? "✓  Claude is online." : "⚠  Claude is offline.");
+            AnimateStatusChange(ui.Card, targetOpacity);
+            AddSystemMessage(online
+                ? $"✓  {ui.Data.DisplayName} is online."
+                : $"⚠  {ui.Data.DisplayName} is offline.");
         }
         else
         {
-            ClaudeCard.Opacity = targetOpacity;
+            ui.Card.Opacity = targetOpacity;
         }
     }
 
@@ -556,50 +758,113 @@ public partial class MainWindow : Window
         sb.Begin();
     }
 
-    private void OnOllamaEnabledChanged(OllamaParticipantUI ui, bool enabled)
+    private async Task LoadOllamaModelsAsync()
     {
-        ui.Data.Enabled = enabled;
-        double op = (enabled && ui.Data.IsOnline == true) ? 1.0 : 0.6;
-        AnimateStatusChange(ui.Card, op);
-    }
-
-    // ── Claude-Popup ───────────────────────────────────────────────────────
-
-    private void ClaudeCard_Click(object sender, MouseButtonEventArgs e)
-    {
-        ClaudeModelList.SelectedItem  = _cloudAI?.CurrentModel;
-        ClaudeEnabledToggle.IsChecked = _claudeEnabled;
-        ClaudePopup.IsOpen = !ClaudePopup.IsOpen;
-    }
-
-    private void ClaudeEnabled_Changed(object sender, RoutedEventArgs e)
-    {
-        _claudeEnabled = ClaudeEnabledToggle.IsChecked == true;
-        double op = (_claudeEnabled && _isClaudeOnline == true) ? 1.0 : 0.6;
-        AnimateStatusChange(ClaudeCard, op);
-    }
-
-    private void ClaudeModel_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_cloudAI is null) return;
-        if (ClaudeModelList.SelectedItem is string model && model != _cloudAI.CurrentModel)
+        if (_ollamaParticipants.Count == 0) return;
+        try
         {
-            _cloudAI.CurrentModel = model;
-            ClaudeModelLabel.Text = model;
+            var models = await _ollamaParticipants[0].Data.Service.GetModelsAsync();
+            _availableOllamaModels = models;
 
-            // Persist
-            var s = SettingsService.Load();
-            s.SelectedCloudModel = model;
-            SettingsService.Save(s);
+            foreach (var ui in _ollamaParticipants)
+            {
+                if (models.Count > 0)
+                {
+                    if (!models.Contains(ui.Data.Service.CurrentModel))
+                        ui.Data.Service.CurrentModel = models[0];
+                    ui.ModelLabel.Text = ui.Data.Service.CurrentModel;
+                }
+                else
+                {
+                    ui.ModelLabel.Text = "no model found";
+                }
+            }
+        }
+        catch
+        {
+            foreach (var ui in _ollamaParticipants)
+                ui.ModelLabel.Text = "model list unavailable";
         }
     }
 
-    // ── Sidebar-Buttons ────────────────────────────────────────────────────
+    // ── Add Cloud AI popup handlers ────────────────────────────────────────
+
+    private void AddCloudAIButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_cloudAIParticipants.Count >= 3) return;
+
+        // Only show providers that have API keys and aren't already active
+        var active    = _cloudAIParticipants.Select(ui => ui.Data.Service.ProviderName).ToHashSet();
+        var allProviders = new[] { "Anthropic", "Google AI", "Groq", "OpenRouter", "Mistral" };
+        var available = allProviders
+            .Where(p => !active.Contains(p) && WindowsCredentialManager.Load(p) is not null)
+            .ToList();
+
+        if (available.Count == 0)
+        {
+            AddSystemMessage("ℹ  No more Cloud AI providers with API keys. Open Settings to configure one.");
+            return;
+        }
+
+        // Suppress SelectionChanged while rebuilding the list
+        AddCloudAIProviderCombo.SelectionChanged -= AddCloudAIProviderCombo_SelectionChanged;
+        AddCloudAIProviderCombo.Items.Clear();
+        foreach (var p in available)
+            AddCloudAIProviderCombo.Items.Add(new ComboBoxItem { Content = p });
+        AddCloudAIProviderCombo.SelectedIndex = 0;
+        AddCloudAIProviderCombo.SelectionChanged += AddCloudAIProviderCombo_SelectionChanged;
+
+        // Populate model combo for the initially selected provider
+        PopulateAddCloudAIModelCombo(available[0]);
+
+        AddCloudAIPopup.IsOpen = true;
+    }
+
+    private void AddCloudAIProviderCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var provider = (AddCloudAIProviderCombo.SelectedItem as ComboBoxItem)?.Content?.ToString();
+        if (provider is not null)
+            PopulateAddCloudAIModelCombo(provider);
+    }
+
+    private void PopulateAddCloudAIModelCombo(string provider)
+    {
+        var models = GetDefaultModelsForProvider(provider);
+        AddCloudAIModelCombo.Items.Clear();
+        foreach (var m in models)
+            AddCloudAIModelCombo.Items.Add(new ComboBoxItem { Content = m });
+        if (AddCloudAIModelCombo.Items.Count > 0)
+            AddCloudAIModelCombo.SelectedIndex = 0;
+    }
+
+    private void ConfirmAddCloudAI_Click(object sender, RoutedEventArgs e)
+    {
+        var provider = (AddCloudAIProviderCombo.SelectedItem as ComboBoxItem)?.Content?.ToString();
+        var model    = (AddCloudAIModelCombo.SelectedItem    as ComboBoxItem)?.Content?.ToString() ?? "";
+
+        if (provider is null) return;
+
+        AddCloudAIPopup.IsOpen = false;
+        AddCloudAIParticipant(provider, model);
+
+        // Kick off status check for the new participant
+        if (_cloudAIParticipants.Count > 0)
+        {
+            var ui = _cloudAIParticipants[^1];
+            _ = Task.Run(async () =>
+            {
+                var online = await ui.Data.Service.IsAvailableAsync();
+                Dispatcher.Invoke(() => ApplyCloudAIParticipantStatus(ui, online));
+            });
+        }
+    }
+
+    // ── Sidebar buttons ────────────────────────────────────────────────────
 
     private void AddOllamaButton_Click(object sender, RoutedEventArgs e)
         => AddOllamaParticipant();
 
-    // ── Eingabe ────────────────────────────────────────────────────────────
+    // ── Input ──────────────────────────────────────────────────────────────
 
     private void InputTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
@@ -624,15 +889,14 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(text)) return;
 
         AddMessage("You", "U", "UserBrush", "UserBubbleBrush", text, isUser: true);
-        _sharedHistory.Add(new OllamaChatMessage("user", text));
-        _cloudAIHistory.Add(new CloudAIMessage("user", text));
+        _sharedHistory.Add(new CloudAIMessage("user", text, "User"));
 
         InputTextBox.Clear();
         InputTextBox.Focus();
         _ = TriggerAiResponsesAsync();
     }
 
-    // ── KI-Antworten ───────────────────────────────────────────────────────
+    // ── AI responses ───────────────────────────────────────────────────────
 
     private async void AIRespond_Click(object sender, RoutedEventArgs e)
     {
@@ -646,12 +910,10 @@ public partial class MainWindow : Window
 
     private async Task TriggerAiResponsesAsync()
     {
-        var activeOllamas = _ollamaParticipants
-            .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true)
-            .ToList();
-        bool useClaude = _claudeEnabled && _isClaudeOnline == true && _cloudAI is not null;
+        var activeOllamas  = _ollamaParticipants .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true).ToList();
+        var activeCloudAIs = _cloudAIParticipants.Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true).ToList();
 
-        if (activeOllamas.Count == 0 && !useClaude)
+        if (activeOllamas.Count == 0 && activeCloudAIs.Count == 0)
         {
             AddSystemMessage("⚠  No active AI participant is available.");
             return;
@@ -669,8 +931,11 @@ public partial class MainWindow : Window
                 if (ct.IsCancellationRequested) break;
                 await RunOllamaStreamAsync(ui, ct);
             }
-            if (useClaude && !ct.IsCancellationRequested)
-                await RunCloudAIStreamAsync(ct);
+            foreach (var ui in activeCloudAIs)
+            {
+                if (ct.IsCancellationRequested) break;
+                await RunCloudAIStreamAsync(ui, ct);
+            }
         }
         finally
         {
@@ -683,9 +948,9 @@ public partial class MainWindow : Window
 
     private async Task RunOllamaStreamAsync(OllamaParticipantUI ui, CancellationToken ct)
     {
-        var pos      = ui.Data.Position;
-        var model    = ui.Data.Service.CurrentModel;
-        var sender   = $"O{pos} · {model}";
+        var pos    = ui.Data.Position;
+        var model  = ui.Data.Service.CurrentModel;
+        var sender = $"O{pos} · {model}";
 
         var bubbleTb = AddStreamingBubble(sender, ui.Data.AvatarLabel, ui.Data.ColorKey, "OllamaBubbleBrush", false);
         var sb = new StringBuilder();
@@ -698,10 +963,7 @@ public partial class MainWindow : Window
                 bubbleTb.Text = sb.ToString();
                 ChatScrollViewer.ScrollToBottom();
             }
-            // Store with sender so other participants can tell who said what
-            var response = sb.ToString();
-            _sharedHistory.Add(new OllamaChatMessage("assistant", response, ui.Data.AvatarLabel));
-            _cloudAIHistory.Add(new CloudAIMessage("assistant", response, ui.Data.AvatarLabel));
+            _sharedHistory.Add(new CloudAIMessage("assistant", sb.ToString(), ui.Data.AvatarLabel));
         }
         catch (OperationCanceledException)
         {
@@ -719,23 +981,24 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RunCloudAIStreamAsync(CancellationToken ct)
+    private async Task RunCloudAIStreamAsync(CloudAIParticipantUI ui, CancellationToken ct)
     {
-        var provider = _cloudAI!.ProviderName;
-        var bubbleTb = AddStreamingBubble(provider, provider[0].ToString(), "ClaudeBrush", "ClaudeBubbleBrush", false);
+        var provider = ui.Data.Service.ProviderName;
+        var model    = ui.Data.Service.CurrentModel;
+        var display  = $"{provider} · {model}";
+
+        var bubbleTb = AddStreamingBubble(display, ui.Data.AvatarLabel, ui.Data.ColorKey, "ClaudeBubbleBrush", false);
         var sb = new StringBuilder();
         try
         {
-            var (history, system) = BuildCloudAIHistory();
-            await foreach (var token in _cloudAI.StreamAsync(history, system, ct))
+            var (history, system) = BuildCloudAIHistoryFor(ui);
+            await foreach (var token in ui.Data.Service.StreamAsync(history, system, ct))
             {
                 sb.Append(token);
                 bubbleTb.Text = sb.ToString();
                 ChatScrollViewer.ScrollToBottom();
             }
-            var response = sb.ToString();
-            _cloudAIHistory.Add(new CloudAIMessage("assistant", response, provider));
-            _sharedHistory.Add(new OllamaChatMessage("assistant", response, provider));
+            _sharedHistory.Add(new CloudAIMessage("assistant", sb.ToString(), ui.Data.AvatarLabel));
         }
         catch (OperationCanceledException)
         {
@@ -745,7 +1008,7 @@ public partial class MainWindow : Window
         catch (HttpRequestException ex)
         {
             bubbleTb.Text = $"Connection error: {ex.Message}";
-            AddSystemMessage($"⚠  {provider} unreachable.");
+            AddSystemMessage($"⚠  {display} unreachable.");
         }
         catch (Exception ex)
         {
@@ -757,14 +1020,12 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Builds a history view tailored to one Ollama participant.
-    /// - Prepends a system message identifying the model.
-    /// - The participant's own past responses keep role "assistant".
-    /// - Every other AI's responses are presented as role "user" with a [Sender] prefix
-    ///   so the model does not mistake them for its own prior words.
+    /// Own past responses keep role "assistant"; every other AI's responses
+    /// appear as role "user" with a [Sender] prefix.
     /// </summary>
     private List<OllamaChatMessage> BuildOllamaHistoryFor(OllamaParticipantUI forUi)
     {
-        var myLabel = forUi.Data.AvatarLabel;          // "O1", "O2", "O3"
+        var myLabel = forUi.Data.AvatarLabel;   // "O1", "O2", "O3"
         var myModel = forUi.Data.Service.CurrentModel;
 
         var result = new List<OllamaChatMessage>
@@ -774,15 +1035,13 @@ public partial class MainWindow : Window
                 $"You are one of several participants in a relay group chat (human + multiple AI models). " +
                 $"Always respond as {myLabel}. " +
                 $"If asked who you are, say you are {myLabel} running {myModel}. " +
-                $"Messages from other AI participants are prefixed with their label, e.g. [O2].")
+                $"Messages from other AI participants are prefixed with their label.")
         };
 
         foreach (var msg in _sharedHistory)
         {
             if (msg.Role == "user")
-            {
                 result.Add(new OllamaChatMessage("user", msg.Content));
-            }
             else if (msg.Role == "assistant")
             {
                 if (msg.Sender == myLabel)
@@ -796,35 +1055,42 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Builds the history and system prompt for the active Cloud AI provider.
-    /// Other AI responses are presented as "user" messages with a [Sender] prefix.
+    /// Builds the message history and system prompt for one Cloud AI participant.
+    /// Own past responses keep role "assistant"; every other AI's responses
+    /// appear as role "user" with a [Sender] prefix.
     /// </summary>
-    private (List<CloudAIMessage> History, string System) BuildCloudAIHistory()
+    private (List<CloudAIMessage> History, string System) BuildCloudAIHistoryFor(CloudAIParticipantUI forUi)
     {
-        var myName     = _cloudAI?.ProviderName ?? "Cloud AI";
-        var otherNames = _ollamaParticipants
-            .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true)
-            .Select(ui => $"{ui.Data.AvatarLabel} ({ui.Data.Service.CurrentModel})");
-        var othersStr  = string.Join(", ", otherNames);
-        var othersNote = string.IsNullOrEmpty(othersStr)
-            ? ""
-            : $" Other AI participants in this chat: {othersStr}.";
+        var myLabel = forUi.Data.AvatarLabel;   // "An", "Gm", "Gq", "OR", "Mi"
+        var myName  = forUi.Data.DisplayName;
+        var myModel = forUi.Data.Service.CurrentModel;
+
+        // Describe the other active participants so the model knows its peers
+        var otherOllamas = _ollamaParticipants
+            .Where(ui => ui.Data.Enabled)
+            .Select(ui => $"{ui.Data.AvatarLabel} (Ollama/{ui.Data.Service.CurrentModel})");
+        var otherCloud = _cloudAIParticipants
+            .Where(ui => ui != forUi && ui.Data.Enabled)
+            .Select(ui => $"{ui.Data.AvatarLabel} ({ui.Data.DisplayName}/{ui.Data.Service.CurrentModel})");
+
+        var others = otherOllamas.Concat(otherCloud).ToList();
+        var othersNote = others.Count > 0
+            ? $" Other AI participants: {string.Join(", ", others)}."
+            : "";
 
         var system =
-            $"You are {myName}. " +
+            $"You are {myName} ({myLabel}), running model {myModel}. " +
             $"You are participating in a relay group chat with a human user and other AI models.{othersNote} " +
             $"Always respond as {myName}. If asked who you are, identify yourself as {myName}.";
 
         var history = new List<CloudAIMessage>();
-        foreach (var msg in _cloudAIHistory)
+        foreach (var msg in _sharedHistory)
         {
             if (msg.Role == "user")
-            {
                 history.Add(new CloudAIMessage("user", msg.Content));
-            }
             else if (msg.Role == "assistant")
             {
-                if (msg.Sender == myName)
+                if (msg.Sender == myLabel)
                     history.Add(new CloudAIMessage("assistant", msg.Content));
                 else
                     history.Add(new CloudAIMessage("user", $"[{msg.Sender}]: {msg.Content}"));
@@ -834,14 +1100,13 @@ public partial class MainWindow : Window
         return (history, system);
     }
 
-    // ── Sidebar-Aktionen ───────────────────────────────────────────────────
+    // ── Sidebar actions ────────────────────────────────────────────────────
 
     private void ClearChat_Click(object sender, RoutedEventArgs e)
     {
         _streamCts?.Cancel();
         ChatPanel.Children.Clear();
         _sharedHistory.Clear();
-        _cloudAIHistory.Clear();
         AddSystemMessage("Chat cleared.");
     }
 
@@ -851,8 +1116,27 @@ public partial class MainWindow : Window
         if (win.ShowDialog() == true)
         {
             var s = SettingsService.Load();
-            InitializeCloudAI(s);
-            PopulateCloudAIModelList();
+
+            // Update model on the matching active participant (if already present)
+            if (!string.IsNullOrEmpty(s.SelectedCloudModel))
+            {
+                var match = _cloudAIParticipants.FirstOrDefault(
+                    ui => ui.Data.Service.ProviderName == s.SelectedProvider);
+                if (match is not null)
+                {
+                    match.Data.Service.CurrentModel = s.SelectedCloudModel;
+                    match.ModelLabel.Text           = s.SelectedCloudModel;
+                }
+            }
+
+            // Auto-add the configured provider if no Cloud AI participants exist yet
+            if (_cloudAIParticipants.Count == 0)
+            {
+                var key = WindowsCredentialManager.Load(s.SelectedProvider);
+                if (!string.IsNullOrWhiteSpace(key))
+                    AddCloudAIParticipant(s.SelectedProvider, s.SelectedCloudModel);
+            }
+
             _ = CheckAllStatusAsync();
         }
     }
@@ -864,7 +1148,6 @@ public partial class MainWindow : Window
             ApplyTheme(path);
     }
 
-    /// <summary>Scannt den Themes-Ordner und befüllt die ComboBox.</summary>
     private void LoadThemesIntoComboBox()
     {
         var themesDir = SysIO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Themes");
@@ -875,7 +1158,6 @@ public partial class MainWindow : Window
                                       StringComparer.OrdinalIgnoreCase)
                              .ToList();
 
-        // Suppress SelectionChanged events while populating
         ThemeComboBox.SelectionChanged -= ThemeComboBox_SelectionChanged;
         ThemeComboBox.Items.Clear();
 
@@ -900,7 +1182,6 @@ public partial class MainWindow : Window
 
         ThemeComboBox.SelectionChanged += ThemeComboBox_SelectionChanged;
 
-        // Priority: saved theme → CatppuccinMocha → first available
         var target = savedItem
                   ?? mochaItem
                   ?? (ThemeComboBox.Items.Count > 0 ? (ComboBoxItem)ThemeComboBox.Items[0]! : null);
@@ -912,21 +1193,15 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// Lädt eine Theme-XAML vom Dateisystem. Bei Fehler: Popup-Meldung,
-    /// vorheriges Theme bleibt aktiv.
-    /// </summary>
     private void ApplyTheme(string absolutePath)
     {
         try
         {
             var dict = new ResourceDictionary { Source = new Uri(absolutePath) };
-            // Erst ersetzen wenn der Load erfolgreich war
             Resources.MergedDictionaries.Clear();
             Resources.MergedDictionaries.Add(dict);
             _currentThemePath = absolutePath;
 
-            // Persist the selected theme name
             var settings = SettingsService.Load();
             settings.LastTheme = SysIO.Path.GetFileNameWithoutExtension(absolutePath);
             SettingsService.Save(settings);
@@ -941,7 +1216,6 @@ public partial class MainWindow : Window
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
 
-            // Restore previous theme
             if (_currentThemePath is not null && _currentThemePath != absolutePath)
             {
                 try
@@ -950,16 +1224,11 @@ public partial class MainWindow : Window
                     Resources.MergedDictionaries.Clear();
                     Resources.MergedDictionaries.Add(prev);
                 }
-                catch { /* silent – prefer no theme over a crash */ }
+                catch { /* silent */ }
             }
         }
     }
 
-    /// <summary>
-    /// CamelCase-Dateinamen → lesbarer Anzeigename
-    /// z.B. "CatppuccinMocha" → "Catppuccin Mocha"
-    ///      "NCRDesolation"   → "NCR Desolation"
-    /// </summary>
     private static string FormatThemeName(string name)
     {
         if (string.IsNullOrEmpty(name)) return name;
@@ -969,11 +1238,8 @@ public partial class MainWindow : Window
             char c = name[i];
             if (i > 0)
             {
-                // Großbuchstabe nach Kleinbuchstabe:  "FooBar" → "Foo Bar"
                 if (char.IsUpper(c) && char.IsLower(name[i - 1]))
                     sb.Append(' ');
-                // Großbuchstabe nach Großbuchstabe + nächstes Zeichen klein:
-                // "NCRFoo" → "NCR Foo"
                 else if (char.IsUpper(c) && char.IsUpper(name[i - 1])
                          && i + 1 < name.Length && char.IsLower(name[i + 1]))
                     sb.Append(' ');
@@ -983,7 +1249,29 @@ public partial class MainWindow : Window
         return sb.ToString();
     }
 
-    // ── Nachrichten-Rendering ──────────────────────────────────────────────
+    // ── Service factories ──────────────────────────────────────────────────
+
+    private static ICloudAIService CreateCloudAIService(string provider, string apiKey) =>
+        provider switch
+        {
+            "Google AI"  => new GoogleAIService(apiKey),
+            "Groq"       => new GroqService(apiKey),
+            "OpenRouter" => new OpenRouterService(apiKey),
+            "Mistral"    => new MistralService(apiKey),
+            _            => new AnthropicService(apiKey)
+        };
+
+    private static string[] GetDefaultModelsForProvider(string provider) => provider switch
+    {
+        "Anthropic"  => AnthropicService.DefaultModels,
+        "Google AI"  => GoogleAIService.DefaultModels,
+        "Groq"       => GroqService.DefaultModels,
+        "OpenRouter" => OpenRouterService.DefaultModels,
+        "Mistral"    => MistralService.DefaultModels,
+        _            => AnthropicService.DefaultModels
+    };
+
+    // ── Message rendering ──────────────────────────────────────────────────
 
     private void AddSystemMessage(string text)
     {
@@ -1010,7 +1298,6 @@ public partial class MainWindow : Window
     private TextBlock AddStreamingBubble(string senderName, string avatarText, string accentKey,
                                           string bubbleKey, bool isUser)
     {
-        // Avatar
         var avatarInner = new TextBlock
         {
             Text                = avatarText,
@@ -1031,8 +1318,12 @@ public partial class MainWindow : Window
         };
         avatar.SetResourceReference(Border.BackgroundProperty, accentKey);
 
-        // Bubble
-        var contentTb = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 13, FontFamily = new FontFamily("Segoe UI") };
+        var contentTb = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            FontSize     = 13,
+            FontFamily   = new FontFamily("Segoe UI")
+        };
         contentTb.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
         var bubble = new Border
@@ -1043,7 +1334,6 @@ public partial class MainWindow : Window
         };
         bubble.SetResourceReference(Border.BackgroundProperty, bubbleKey);
 
-        // Labels
         var nameLabel = new TextBlock
         {
             Text                = senderName,
@@ -1081,8 +1371,4 @@ public partial class MainWindow : Window
         ChatPanel.Children.Add(wrapper);
         return contentTb;
     }
-
-    // ── Hilfsmethoden ──────────────────────────────────────────────────────
-
-    private Brush GetRes(string key) => (Brush)FindResource(key);
 }

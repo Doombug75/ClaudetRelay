@@ -263,40 +263,15 @@
                         <TextBlock Text="PARTICIPANTS" FontSize="10" FontWeight="Bold"
                                    Foreground="{DynamicResource SubtextBrush}" Margin="2,0,0,10"/>
 
-                        <!-- ── Claude card ── -->
-                        <Border x:Name="ClaudeCard"
-                                Background="{DynamicResource InputBrush}" CornerRadius="10"
-                                Padding="10" Margin="0,0,0,7" Cursor="Hand"
-                                MouseLeftButtonDown="ClaudeCard_Click">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="34" Height="34" CornerRadius="9"
-                                        Background="{DynamicResource ClaudeBrush}" Margin="0,0,10,0">
-                                    <TextBlock x:Name="CloudAIAvatarText"
-                                               Text="C" FontSize="15" FontWeight="Bold"
-                                               Foreground="{DynamicResource SidebarBrush}"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock x:Name="CloudAINameLabel"
-                                               Text="Cloud AI" FontSize="13" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextBrush}"/>
-                                    <TextBlock x:Name="ClaudeModelLabel" Text="checking..."
-                                               FontSize="10" Foreground="{DynamicResource SubtextBrush}"/>
-                                    <TextBlock x:Name="ClaudeOfflineLabel" Text="Offline"
-                                               FontSize="10" Foreground="{DynamicResource AccentBrush}"
-                                               Visibility="Collapsed"/>
-                                </StackPanel>
-                                <Ellipse x:Name="ClaudeStatusDot" Grid.Column="2"
-                                         Width="8" Height="8"
-                                         Fill="{DynamicResource SubtextBrush}"
-                                         VerticalAlignment="Center"/>
-                            </Grid>
-                        </Border>
+                        <!-- ── Cloud AI cards (dynamic) ── -->
+                        <StackPanel x:Name="CloudAICardsPanel"/>
+
+                        <Button x:Name="AddCloudAIButton"
+                                Content="+ Add Cloud AI"
+                                Style="{StaticResource SidebarButton}"
+                                Foreground="{DynamicResource ClaudeBrush}"
+                                Margin="0,0,0,7"
+                                Click="AddCloudAIButton_Click"/>
 
                         <!-- ── Ollama cards (dynamic) ── -->
                         <StackPanel x:Name="OllamaCardsPanel"/>
@@ -342,11 +317,9 @@
                                   Style="{StaticResource ModernComboBox}"
                                   SelectionChanged="ThemeComboBox_SelectionChanged"/>
 
-                        <!-- ══ POPUPS (in visual tree, float over UI) ══ -->
-
-                        <!-- Claude Popup -->
-                        <Popup x:Name="ClaudePopup"
-                               PlacementTarget="{Binding ElementName=ClaudeCard}"
+                        <!-- ══ Add Cloud AI popup ══ -->
+                        <Popup x:Name="AddCloudAIPopup"
+                               PlacementTarget="{Binding ElementName=AddCloudAIButton}"
                                Placement="Right" HorizontalOffset="10" VerticalOffset="-8"
                                StaysOpen="False" AllowsTransparency="True">
                             <Border Background="{DynamicResource SidebarBrush}"
@@ -358,26 +331,35 @@
                                                       BlurRadius="22" ShadowDepth="4"/>
                                 </Border.Effect>
                                 <StackPanel>
-                                    <TextBlock x:Name="CloudAIPopupTitle"
-                                               Text="Cloud AI" FontSize="13" FontWeight="SemiBold"
+                                    <TextBlock Text="Add Cloud AI" FontSize="13" FontWeight="SemiBold"
                                                Foreground="{DynamicResource ClaudeBrush}"
                                                Margin="0,0,0,8"/>
                                     <Rectangle Height="1" Fill="{DynamicResource InputBrush}"
                                                Margin="0,0,0,10"/>
-                                    <CheckBox x:Name="ClaudeEnabledToggle"
-                                              Style="{StaticResource ToggleSwitch}"
-                                              IsChecked="True"
-                                              Content="Claude enabled"
-                                              Margin="0,0,0,14"
-                                              Checked="ClaudeEnabled_Changed"
-                                              Unchecked="ClaudeEnabled_Changed"/>
+                                    <TextBlock Text="PROVIDER" FontSize="10" FontWeight="Bold"
+                                               Foreground="{DynamicResource SubtextBrush}"
+                                               Margin="2,0,0,6"/>
+                                    <ComboBox x:Name="AddCloudAIProviderCombo"
+                                              Style="{StaticResource ModernComboBox}"
+                                              Margin="0,0,0,10"
+                                              SelectionChanged="AddCloudAIProviderCombo_SelectionChanged">
+                                        <ComboBoxItem Content="Anthropic"/>
+                                        <ComboBoxItem Content="Google AI"/>
+                                        <ComboBoxItem Content="Groq"/>
+                                        <ComboBoxItem Content="OpenRouter"/>
+                                        <ComboBoxItem Content="Mistral"/>
+                                    </ComboBox>
                                     <TextBlock Text="MODEL" FontSize="10" FontWeight="Bold"
                                                Foreground="{DynamicResource SubtextBrush}"
                                                Margin="2,0,0,6"/>
-                                    <ListBox x:Name="ClaudeModelList"
-                                             Background="Transparent" BorderThickness="0"
-                                             ItemContainerStyle="{StaticResource ModelListItem}"
-                                             SelectionChanged="ClaudeModel_SelectionChanged"/>
+                                    <ComboBox x:Name="AddCloudAIModelCombo"
+                                              Style="{StaticResource ModernComboBox}"
+                                              Margin="0,0,0,14"/>
+                                    <Button Content="Add to Chat"
+                                            x:Name="ConfirmAddCloudAIButton"
+                                            Style="{StaticResource SidebarButton}"
+                                            Foreground="{DynamicResource ClaudeBrush}"
+                                            Click="ConfirmAddCloudAI_Click"/>
                                 </StackPanel>
                             </Border>
                         </Popup>
