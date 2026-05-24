@@ -1,0 +1,25 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Tokyo Night - Backgrounds -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#1A1B2E"/>
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#16172A"/>
+    <SolidColorBrush x:Key="InputBrush"      Color="#1F2040"/>
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#292B50"/>
+
+    <!-- Tokyo Night - Text -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#C0CAF5"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#565F89"/>
+
+    <!-- Tokyo Night - Accents -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#BB9AF7"/> <!-- Purple    -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#9ECE6A"/> <!-- Green     -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#7DCFFF"/> <!-- Cyan      -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#F7768E"/> <!-- Red-Pink  -->
+
+    <!-- Tokyo Night - Bubble Backgrounds -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#1E1A35"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#1A2415"/>
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#151A2E"/>
+
+</ResourceDictionary>

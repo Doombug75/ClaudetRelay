@@ -1,0 +1,25 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Arctic Aurora - Backgrounds -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#0D1117"/>
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#080D12"/>
+    <SolidColorBrush x:Key="InputBrush"      Color="#161D27"/>
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#1E2835"/>
+
+    <!-- Arctic Aurora - Text -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#E1EBF5"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#4A6070"/>
+
+    <!-- Arctic Aurora - Accents (northern lights palette) -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#A855F7"/> <!-- Aurora Violet  -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#34D399"/> <!-- Aurora Green   -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#60A5FA"/> <!-- Glacier Blue   -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#F472B6"/> <!-- Aurora Pink    -->
+
+    <!-- Arctic Aurora - Bubble Backgrounds -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#150D25"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#0D2520"/>
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#0D1828"/>
+
+</ResourceDictionary>

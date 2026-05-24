@@ -1,0 +1,25 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Gruvbox Dark - Backgrounds -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#282828"/>
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#1D2021"/>
+    <SolidColorBrush x:Key="InputBrush"      Color="#3C3836"/>
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#504945"/>
+
+    <!-- Gruvbox Dark - Text -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#EBDBB2"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#928374"/>
+
+    <!-- Gruvbox Dark - Accents -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#D3869B"/> <!-- Gruvbox Purple  -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#B8BB26"/> <!-- Gruvbox Yellow-Green -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#83A598"/> <!-- Gruvbox Aqua    -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#FABD2F"/> <!-- Gruvbox Yellow  -->
+
+    <!-- Gruvbox Dark - Bubble Backgrounds -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#2A1F25"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#24261A"/>
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#1E2626"/>
+
+</ResourceDictionary>

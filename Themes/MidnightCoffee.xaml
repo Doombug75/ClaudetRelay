@@ -1,0 +1,25 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Midnight Coffee - Backgrounds -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#1A1210"/>
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#120D0B"/>
+    <SolidColorBrush x:Key="InputBrush"      Color="#2A1F1C"/>
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#3A2C28"/>
+
+    <!-- Midnight Coffee - Text -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#E8D5C4"/>
+    <SolidColorBrush x:Key="SubtextBrush" Color="#7A5C50"/>
+
+    <!-- Midnight Coffee - Accents -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#C4956A"/> <!-- Caramel        -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#8FAF7A"/> <!-- Sage Green     -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#9BB5C8"/> <!-- Cream Blue     -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#E8A87C"/> <!-- Warm Peach     -->
+
+    <!-- Midnight Coffee - Bubble Backgrounds -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#251810"/>
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#1A2015"/>
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#181E25"/>
+
+</ResourceDictionary>
