@@ -1,26 +1,29 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- VaultTec - Hintergründe (Steril, kontrolliert, synthetisch) -->
-    <SolidColorBrush x:Key="BackgroundBrush" Color="#2C3848"/> <!-- Deep Corporate Blue/Gray -->
-    <SolidColorBrush x:Key="SidebarBrush" Color="#3E5060"/>
-    <SolidColorBrush x:Key="InputBrush" Color="#4D6575"/>
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#5E758A"/>
+    <!-- Vault-Tec — "Securing Your Future Since 2021"                     -->
+    <!-- Brand palette: Vault-Tec Cobalt Blue + Signature Gold Yellow      -->
+    <!-- Deep vault-interior navy backgrounds, warm cream bureaucratic text -->
 
-    <!-- VaultTec - Text (Bureaukratisch, maschinell) -->
-    <SolidColorBrush x:Key="TextBrush" Color="#C0CFC0"/>
-    <SolidColorBrush x:Key="SubtextBrush" Color="#8C9DA0"/>
+    <!-- Backgrounds — the inside of a vault -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#0B1422"/> <!-- Vault floor — near-black navy -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#080E18"/> <!-- Inner sanctum              -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#13213A"/> <!-- Control panel recess       -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#1C3258"/> <!-- Raised panel / terminal    -->
 
-    <!-- VaultTec - Akzente (Kalt, perfektioniert, unheimlich) -->
-    <SolidColorBrush x:Key="ClaudeBrush" Color="#70B8E0"/> <!-- Institutional Sky Blue -->
-    <SolidColorBrush x:Key="OllamaBrush" Color="#A3C97D"/> <!-- Mint Green/Safe Color -->
-    <SolidColorBrush x:Key="UserBrush" Color="#6C90C8"/> <!-- Standard Utility Blue -->
-    <SolidColorBrush x:Key="AccentBrush" Color="#DA7E5E"/> <!-- Warning Beige/Tan -->
+    <!-- Text — Vault-Tec bureaucratic documentation -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#EDE5BF"/> <!-- Warm cream — printed forms  -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#5A7898"/> <!-- Muted institutional blue    -->
 
-    <!-- VaultTec - Bubble Hintergründe -->
-    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#2E3F55"/>
-    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#224033"/>
-    <SolidColorBrush x:Key="UserBubbleBrush" Color="#2B3C50"/>
+    <!-- Accents — the two Vault-Tec brand colours -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#FFD200"/> <!-- Vault-Tec Signature Yellow  -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#4E90D8"/> <!-- Vault-Tec Cobalt Blue       -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#8ABDE8"/> <!-- Terminal screen blue        -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#F0AD00"/> <!-- Deep amber gold — warnings  -->
+
+    <!-- Bubble backgrounds -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#1E1900"/> <!-- Dark warm — yellow tint  -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#0C1C30"/> <!-- Dark cobalt              -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#0E1E34"/> <!-- Deep vault navy          -->
 
 </ResourceDictionary>
-
