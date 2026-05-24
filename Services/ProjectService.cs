@@ -69,6 +69,18 @@ public class ProjectParticipantRole
 
     /// <summary>Task priority 1 (lowest) – 10 (highest). Meaningful only when IsReasoner = true.</summary>
     public int  ReasonerPriority   { get; set; } = 5;
+
+    /// <summary>
+    /// Character name this participant answers as in this project.
+    /// Empty = use default display name.
+    /// </summary>
+    public string AnswerAsName     { get; set; } = "";
+
+    /// <summary>
+    /// Custom role / character instruction injected into the system prompt for this
+    /// participant in this project. Empty = no custom role.
+    /// </summary>
+    public string RoleInstruction  { get; set; } = "";
 }
 
 /// <summary>Per-project settings saved as <c>project-settings.json</c> inside the project folder.</summary>
@@ -83,7 +95,14 @@ public class ProjectSettings
     /// </summary>
     public string Language { get; set; } = "";
 
-    /// <summary>Looks up the role for a participant by provider + model (case-insensitive).</summary>
+    /// <summary>
+    /// Maximum number of consecutive AI-to-AI response rounds after a user message.
+    /// 1 = only respond to user (no chaining). Default = 3.
+    /// </summary>
+    public int MaxDialogDepth { get; set; } = 3;
+
+    /// <summary>Looks up the role for a participant by provider + model (case-insensitive).
+    /// Creates and registers a new empty role if none exists.</summary>
     public ProjectParticipantRole GetOrCreate(string provider, string model, string displayName)
     {
         var existing = Roles.FirstOrDefault(r =>
@@ -97,6 +116,12 @@ public class ProjectSettings
         Roles.Add(newRole);
         return newRole;
     }
+
+    /// <summary>Returns the role for a participant, or null if none is saved.</summary>
+    public ProjectParticipantRole? Get(string provider, string model) =>
+        Roles.FirstOrDefault(r =>
+            string.Equals(r.Provider, provider, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(r.Model,    model,    StringComparison.OrdinalIgnoreCase));
 }
 
 public class ChatLogEntry

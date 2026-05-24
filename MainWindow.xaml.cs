@@ -127,6 +127,8 @@ public partial class MainWindow : Window
     private int                                  _toneLevel             = 50;
     private bool                                 _mockingbirdMode       = false;
     private string                               _projectLanguage       = "";
+    private int                                  _maxDialogDepth        = 1;
+    private ProjectSettings?                     _projectSettings;
 
     // ── Project state ──────────────────────────────────────────────────────
     private string?       _currentProjectFolder;
@@ -477,7 +479,10 @@ public partial class MainWindow : Window
         // Store project state
         _currentProjectFolder = projFolder;
         _currentProject       = meta;
-        _projectLanguage      = ProjectService.LoadProjectSettings(projFolder).Language;
+        var loadedPs          = ProjectService.LoadProjectSettings(projFolder);
+        _projectSettings      = loadedPs;
+        _projectLanguage      = loadedPs.Language;
+        _maxDialogDepth       = Math.Max(1, loadedPs.MaxDialogDepth);
 
         // Update header
         ChatHeaderTitle.Text              = meta.ProjectName;
@@ -500,7 +505,9 @@ public partial class MainWindow : Window
     {
         _currentProjectFolder            = null;
         _currentProject                  = null;
+        _projectSettings                 = null;
         _projectLanguage                 = "";
+        _maxDialogDepth                  = 1;
         ChatHeaderTitle.Text             = "Chat";
         ProjectSettingsButton.Visibility = Visibility.Collapsed;
     }
@@ -752,6 +759,54 @@ public partial class MainWindow : Window
         root.Children.Add(langCombo);
         root.Children.Add(langHint);
 
+        // ── Max. Dialog Depth ──────────────────────────────────────────────
+        var depthLabel = new TextBlock
+        {
+            Text       = "MAX. DIALOG DEPTH",
+            FontSize   = 11, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(0, 0, 0, 6),
+            Foreground = (Brush)FindResource("SubtextBrush")
+        };
+
+        var depthBox = new TextBox
+        {
+            Text              = ps.MaxDialogDepth.ToString(),
+            Width             = 60,
+            Height            = 32,
+            FontSize          = 13,
+            FontFamily        = new FontFamily("Segoe UI"),
+            TextAlignment     = TextAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Margin            = new Thickness(0, 0, 10, 0),
+            ToolTip           = "Positive integer. 1 = only respond to user (no AI-to-AI chaining)."
+        };
+        depthBox.SetResourceReference(TextBox.ForegroundProperty,   "TextBrush");
+        depthBox.SetResourceReference(TextBox.BackgroundProperty,   "InputBrush");
+        depthBox.SetResourceReference(TextBox.BorderBrushProperty,  "InputBrush");
+        // Allow only digits
+        depthBox.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsDigit);
+
+        var depthHintTb = new TextBlock
+        {
+            Text              = "How many AI-to-AI response rounds are allowed before the user must send a new message.",
+            FontSize          = 11, FontFamily = new FontFamily("Segoe UI"),
+            TextWrapping      = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground        = (Brush)FindResource("SubtextBrush")
+        };
+
+        var depthRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin      = new Thickness(0, 0, 0, 16)
+        };
+        depthRow.Children.Add(depthBox);
+        depthRow.Children.Add(depthHintTb);
+
+        root.Children.Add(depthLabel);
+        root.Children.Add(depthRow);
+
         // ── Separator ──────────────────────────────────────────────────────
         var sep = new Rectangle
         {
@@ -916,11 +971,74 @@ public partial class MainWindow : Window
             checkStack.Children.Add(checkRow);
             checkStack.Children.Add(priorityRow);
 
+            // ── Answer As ─────────────────────────────────────────────────
+            var answerAsLabel = new TextBlock
+            {
+                Text       = "ANSWER AS (character name)",
+                FontSize   = 10, FontWeight = FontWeights.SemiBold,
+                FontFamily = new FontFamily("Segoe UI"),
+                Margin     = new Thickness(0, 10, 0, 4),
+                Foreground = (Brush)FindResource("SubtextBrush")
+            };
+            var answerAsBox = new TextBox
+            {
+                Text             = role.AnswerAsName,
+                FontSize         = 12, FontFamily = new FontFamily("Segoe UI"),
+                Height           = 30,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Margin           = new Thickness(0, 0, 0, 8),
+                ToolTip          = "The name this participant answers as in this project. Empty = use default name."
+            };
+            answerAsBox.SetResourceReference(TextBox.ForegroundProperty,  "TextBrush");
+            answerAsBox.SetResourceReference(TextBox.BackgroundProperty,  "InputBrush");
+            answerAsBox.SetResourceReference(TextBox.BorderBrushProperty, "InputBrush");
+
+            // ── Role Instruction ───────────────────────────────────────────
+            var roleInstrLabel = new TextBlock
+            {
+                Text       = "ROLE INSTRUCTION",
+                FontSize   = 10, FontWeight = FontWeights.SemiBold,
+                FontFamily = new FontFamily("Segoe UI"),
+                Margin     = new Thickness(0, 0, 0, 4),
+                Foreground = (Brush)FindResource("SubtextBrush")
+            };
+            var roleInstrBox = new TextBox
+            {
+                Text             = role.RoleInstruction,
+                FontSize         = 12, FontFamily = new FontFamily("Segoe UI"),
+                MinHeight        = 80,
+                AcceptsReturn    = true,
+                TextWrapping     = TextWrapping.Wrap,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Margin           = new Thickness(0, 0, 0, 4),
+                ToolTip          = "Character description injected into the system prompt for this participant."
+            };
+            roleInstrBox.SetResourceReference(TextBox.ForegroundProperty,  "TextBrush");
+            roleInstrBox.SetResourceReference(TextBox.BackgroundProperty,  "InputBrush");
+            roleInstrBox.SetResourceReference(TextBox.BorderBrushProperty, "InputBrush");
+
+            var resetRoleBtn = new Button
+            {
+                Content  = "↩ Reset to model standard",
+                FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                Height   = 26,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin   = new Thickness(0, 0, 0, 0),
+                Style    = (Style)FindResource("SButtonSecondary"),
+                ToolTip  = "Clear both the character name and role instruction."
+            };
+            resetRoleBtn.Click += (_, _) => { answerAsBox.Text = ""; roleInstrBox.Text = ""; };
+
             var rightStack = new StackPanel();
             rightStack.Children.Add(nameStack);
             rightStack.Children.Add(checkStack);
+            rightStack.Children.Add(answerAsLabel);
+            rightStack.Children.Add(answerAsBox);
+            rightStack.Children.Add(roleInstrLabel);
+            rightStack.Children.Add(roleInstrBox);
+            rightStack.Children.Add(resetRoleBtn);
 
-            var rowGrid = new Grid { Margin = new Thickness(0, 0, 0, 14) };
+            var rowGrid = new Grid { Margin = new Thickness(0, 0, 0, 18) };
             rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             Grid.SetColumn(avatar,     0);
@@ -933,11 +1051,15 @@ public partial class MainWindow : Window
             var capturedCoord    = coordCheck;
             var capturedReasoner = reasonerCheck;
             var capturedPriority = prioritySlider;
+            var capturedAnswerAs = answerAsBox;
+            var capturedRoleInstr = roleInstrBox;
             roleRows.Add((provider, model, () =>
             {
                 role.IsCoordinator    = capturedCoord.IsChecked    == true;
                 role.IsReasoner       = capturedReasoner.IsChecked  == true;
                 role.ReasonerPriority = (int)capturedPriority.Value;
+                role.AnswerAsName     = capturedAnswerAs.Text.Trim();
+                role.RoleInstruction  = capturedRoleInstr.Text.Trim();
                 return role;
             }));
         }
@@ -1008,6 +1130,9 @@ public partial class MainWindow : Window
             // Collect language
             ps.Language = langCombo.Text.Trim();
 
+            // Collect max dialog depth
+            ps.MaxDialogDepth = int.TryParse(depthBox.Text, out var d) && d >= 1 ? d : 1;
+
             // Collect roles
             ps.Roles.Clear();
             foreach (var (_, _, getRoleSnapshot) in roleRows)
@@ -1015,9 +1140,13 @@ public partial class MainWindow : Window
 
             ProjectService.SaveProjectSettings(projFolder, ps);
 
-            // Keep live field in sync if this is the currently open project
+            // Keep live fields in sync if this is the currently open project
             if (_currentProjectFolder == projFolder)
+            {
                 _projectLanguage = ps.Language;
+                _maxDialogDepth  = ps.MaxDialogDepth;
+                _projectSettings = ps;
+            }
 
             win.DialogResult = true;
         };
@@ -1871,17 +2000,31 @@ public partial class MainWindow : Window
         _streamCts = new CancellationTokenSource();
         var ct = _streamCts.Token;
 
+        // Depth > 1 only makes sense when multiple participants can talk to each other
+        var maxRounds = (activeOllamas.Count + activeCloudAIs.Count) > 1 ? _maxDialogDepth : 1;
+
         try
         {
-            foreach (var ui in activeOllamas)
+            for (int round = 0; round < maxRounds && !ct.IsCancellationRequested; round++)
             {
-                if (ct.IsCancellationRequested) break;
-                await RunOllamaStreamAsync(ui, ct);
-            }
-            foreach (var ui in activeCloudAIs)
-            {
-                if (ct.IsCancellationRequested) break;
-                await RunCloudAIStreamAsync(ui, ct);
+                // From round 2 onward: only continue if the last history entry is an AI message
+                if (round > 0)
+                {
+                    if (_sharedHistory.Count == 0 || _sharedHistory.Last().Role != "assistant")
+                        break;
+                    AddSystemMessage($"— Round {round + 1} —");
+                }
+
+                foreach (var ui in activeOllamas)
+                {
+                    if (ct.IsCancellationRequested) break;
+                    await RunOllamaStreamAsync(ui, ct);
+                }
+                foreach (var ui in activeCloudAIs)
+                {
+                    if (ct.IsCancellationRequested) break;
+                    await RunCloudAIStreamAsync(ui, ct);
+                }
             }
         }
         finally
@@ -2036,6 +2179,7 @@ public partial class MainWindow : Window
         var myLabel = forUi.Data.AvatarLabel;
         var myName  = forUi.Data.DisplayName;
         var myModel = forUi.Data.Service.CurrentModel;
+        var myRole  = _projectSettings?.Get("Ollama", myModel);
 
         var result = new List<OllamaChatMessage>
         {
@@ -2045,6 +2189,7 @@ public partial class MainWindow : Window
                 $"Always respond as {myName}. " +
                 $"If asked who you are, say you are {myName} running {myModel}. " +
                 $"Messages from other AI participants are prefixed with their ID in square brackets." +
+                BuildRoleInstruction(myRole) +
                 BuildLanguageInstruction(_projectLanguage) +
                 BuildInputFilesContext(_currentProjectFolder) +
                 BuildToneInstruction(_toneLevel, _mockingbirdMode))
@@ -2068,9 +2213,11 @@ public partial class MainWindow : Window
 
     private (List<CloudAIMessage> History, string System) BuildCloudAIHistoryFor(CloudAIParticipantUI forUi)
     {
-        var myLabel = forUi.Data.AvatarLabel;
-        var myName  = forUi.Data.DisplayName;
-        var myModel = forUi.Data.Service.CurrentModel;
+        var myLabel    = forUi.Data.AvatarLabel;
+        var myName     = forUi.Data.DisplayName;
+        var myModel    = forUi.Data.Service.CurrentModel;
+        var myProvider = forUi.Data.Service.ProviderName;
+        var myRole     = _projectSettings?.Get(myProvider, myModel);
 
         var otherOllamas = _ollamaParticipants
             .Where(ui => ui.Data.Enabled)
@@ -2088,6 +2235,7 @@ public partial class MainWindow : Window
             $"You are {myName} (ID: {myLabel}), running model {myModel}. " +
             $"You are participating in a relay group chat with a human user and other AI models.{othersNote} " +
             $"Always respond as {myName}. If asked who you are, identify yourself as {myName}." +
+            BuildRoleInstruction(myRole) +
             BuildLanguageInstruction(_projectLanguage) +
             BuildInputFilesContext(_currentProjectFolder) +
             BuildToneInstruction(_toneLevel, _mockingbirdMode);
@@ -2369,6 +2517,20 @@ public partial class MainWindow : Window
         bubble.StopThinking();
         bubble.Content.Text = text;
         ChatScrollViewer.ScrollToBottom();
+    }
+
+    // ── Role / character instruction ──────────────────────────────────────
+
+    private static string BuildRoleInstruction(ProjectParticipantRole? role)
+    {
+        if (role is null) return "";
+        var sb = new System.Text.StringBuilder();
+        if (!string.IsNullOrWhiteSpace(role.AnswerAsName))
+            sb.Append($"\n\nFor this project you are playing the character \"{role.AnswerAsName}\". " +
+                      $"Always respond as {role.AnswerAsName} and never break character.");
+        if (!string.IsNullOrWhiteSpace(role.RoleInstruction))
+            sb.Append($"\n\n{role.RoleInstruction}");
+        return sb.ToString();
     }
 
     // ── Language instruction ───────────────────────────────────────────────
