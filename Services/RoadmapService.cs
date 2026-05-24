@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
 namespace ClaudetRelay.Services;
@@ -82,24 +83,33 @@ public static class RoadmapService
 
             foreach (var ms in root.Elements("Milestone"))
             {
+                // Description: prefer <Desc> child element; fall back to legacy attribute
+                var msDesc = ms.Element("Desc")?.Value
+                          ?? ms.Attribute("description")?.Value
+                          ?? "";
+
                 var milestone = new RoadmapMilestone
                 {
-                    Id          = ms.Attribute("id")?.Value          ?? NewId(),
-                    Title       = ms.Attribute("title")?.Value       ?? "",
-                    Description = ms.Attribute("description")?.Value ?? "",
+                    Id          = ms.Attribute("id")?.Value        ?? NewId(),
+                    Title       = ms.Attribute("title")?.Value     ?? "",
+                    Description = msDesc,
                     Status      = ParseStatus(ms.Attribute("status")?.Value),
-                    CreatedBy   = ms.Attribute("createdBy")?.Value   ?? "User",
+                    CreatedBy   = ms.Attribute("createdBy")?.Value ?? "User",
                     CreatedAt   = ParseDt(ms.Attribute("createdAt")?.Value),
                     CompletedAt = ParseDtNull(ms.Attribute("completedAt")?.Value)
                 };
 
                 foreach (var it in ms.Elements("Item"))
                 {
+                    var itDesc = it.Element("Desc")?.Value
+                              ?? it.Attribute("description")?.Value
+                              ?? "";
+
                     milestone.Items.Add(new RoadmapItem
                     {
                         Id          = it.Attribute("id")?.Value          ?? NewId(),
                         Title       = it.Attribute("title")?.Value       ?? "",
-                        Description = it.Attribute("description")?.Value ?? "",
+                        Description = itDesc,
                         Status      = ParseStatus(it.Attribute("status")?.Value),
                         Progress    = int.TryParse(it.Attribute("progress")?.Value, out var p)
                                           ? Math.Clamp(p, 0, 100) : 0,
@@ -132,24 +142,30 @@ public static class RoadmapService
             var msEl = new XElement("Milestone",
                 new XAttribute("id",          ms.Id),
                 new XAttribute("title",       ms.Title),
-                new XAttribute("description", ms.Description),
                 new XAttribute("status",      ms.Status.ToString()),
                 new XAttribute("createdBy",   ms.CreatedBy),
                 new XAttribute("createdAt",   ms.CreatedAt.ToString("O")),
                 new XAttribute("completedAt", ms.CompletedAt?.ToString("O") ?? ""));
 
+            if (!string.IsNullOrEmpty(ms.Description))
+                msEl.Add(new XElement("Desc", new XCData(ms.Description)));
+
             foreach (var it in ms.Items)
             {
-                msEl.Add(new XElement("Item",
+                var itEl = new XElement("Item",
                     new XAttribute("id",          it.Id),
                     new XAttribute("title",       it.Title),
-                    new XAttribute("description", it.Description),
                     new XAttribute("status",      it.Status.ToString()),
                     new XAttribute("progress",    it.Progress),
                     new XAttribute("createdBy",   it.CreatedBy),
                     new XAttribute("createdAt",   it.CreatedAt.ToString("O")),
                     new XAttribute("completedBy", it.CompletedBy),
-                    new XAttribute("completedAt", it.CompletedAt?.ToString("O") ?? "")));
+                    new XAttribute("completedAt", it.CompletedAt?.ToString("O") ?? ""));
+
+                if (!string.IsNullOrEmpty(it.Description))
+                    itEl.Add(new XElement("Desc", new XCData(it.Description)));
+
+                msEl.Add(itEl);
             }
 
             root.Add(msEl);
@@ -173,12 +189,19 @@ public static class RoadmapService
         foreach (var ms in roadmap.Milestones)
         {
             sb.AppendLine($"{StatusIcon(ms.Status)} {ms.Title}  [{ms.Progress}%]");
+            var msDesc = DescToPlainText(ms.Description);
+            if (!string.IsNullOrEmpty(msDesc))
+                sb.AppendLine($"  {msDesc}");
+
             foreach (var it in ms.Items)
             {
-                var done = it.Status == ItemStatus.Done
+                var done   = it.Status == ItemStatus.Done
                     ? $" (completed by {it.CompletedBy})" : "";
                 sb.AppendLine(
                     $"  {StatusIcon(it.Status)} [id:{it.Id}] {it.Title} — {it.Progress}%{done}");
+                var itDesc = DescToPlainText(it.Description);
+                if (!string.IsNullOrEmpty(itDesc))
+                    sb.AppendLine($"    {itDesc}");
             }
         }
 
@@ -196,6 +219,22 @@ public static class RoadmapService
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Extracts plain text from a description that may contain XAML FlowDocument markup
+    /// or be a legacy plain-text string. Safe to call from non-WPF contexts.
+    /// </summary>
+    public static string DescToPlainText(string? desc)
+    {
+        if (string.IsNullOrWhiteSpace(desc)) return "";
+        if (!desc.TrimStart().StartsWith('<')) return desc;   // already plain text
+        // Strip XML/XAML tags
+        var text = Regex.Replace(desc, @"<[^>]+>", " ");
+        // Decode XML entities (&amp; &lt; etc.)
+        text = System.Net.WebUtility.HtmlDecode(text);
+        // Collapse whitespace
+        return Regex.Replace(text, @"\s{2,}", " ").Trim();
+    }
 
     private static string NewId() => Guid.NewGuid().ToString("N")[..8];
 

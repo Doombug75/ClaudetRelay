@@ -6,7 +6,9 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
@@ -22,11 +24,13 @@ public partial class MainWindow : Window
 
     /// <summary>Returned by AddStreamingBubble. Content is the selectable TextBox;
     /// StopThinking kills the thinking animation and clears the thinking tooltip;
-    /// UpdateThinkingTooltip sets the live tooltip on the thinking-dots element.</summary>
+    /// UpdateThinkingTooltip sets the live tooltip on the thinking-dots element;
+    /// OuterWrapper is the root Grid added to ChatPanel — remove it to erase the bubble.</summary>
     private sealed record StreamBubble(
         TextBox        Content,
         Action         StopThinking,
-        Action<string> UpdateThinkingTooltip);
+        Action<string> UpdateThinkingTooltip,
+        UIElement      OuterWrapper);
 
     // ── Nested types ───────────────────────────────────────────────────────
 
@@ -117,10 +121,11 @@ public partial class MainWindow : Window
     }
 
     // ── State ──────────────────────────────────────────────────────────────
-    private readonly List<CloudAIParticipantUI>  _cloudAIParticipants   = [];
-    private readonly List<OllamaParticipantUI>   _ollamaParticipants    = [];
-    private readonly List<CloudAIMessage>        _sharedHistory         = [];
-    private CancellationTokenSource?             _streamCts;
+    private readonly List<CloudAIParticipantUI>          _cloudAIParticipants = [];
+    private readonly List<OllamaParticipantUI>           _ollamaParticipants  = [];
+    private readonly List<CloudAIMessage>                _sharedHistory       = [];
+    private readonly Dictionary<string, ProviderRateLimiter> _rateLimiters    = new();
+    private CancellationTokenSource?                     _streamCts;
     private List<string>                         _availableOllamaModels = [];
     private string?                              _currentThemePath;
     private string                               _userName              = "You";
@@ -198,6 +203,23 @@ public partial class MainWindow : Window
         _userName        = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
         _toneLevel       = settings.ToneLevel;
         _mockingbirdMode = settings.MockingbirdMode;
+
+        // Rate limiters
+        ApplyThrottleSettings(settings);
+    }
+
+    /// <summary>
+    /// Rebuilds the per-provider rate-limiter table from saved settings.
+    /// Call once on startup and again whenever the settings window is saved.
+    /// </summary>
+    private void ApplyThrottleSettings(AppSettings settings)
+    {
+        _rateLimiters.Clear();
+        foreach (var (provider, throttle) in settings.ProviderThrottle)
+        {
+            if (throttle.Enabled && throttle.Rpm >= 1)
+                _rateLimiters[provider] = new ProviderRateLimiter(throttle.Rpm);
+        }
     }
 
     // ── Re-initialize after Settings save ─────────────────────────────────
@@ -240,6 +262,126 @@ public partial class MainWindow : Window
 
         if (_ollamaParticipants.Count == 0 && _cloudAIParticipants.Count == 0)
             AddSystemMessage("⚠  No participants enabled — configure them in ⚙ Settings.");
+
+        UpdateAddRemoveButtons();
+        UpdateCloudAIAddRemoveButtons();
+        _ = CheckAllStatusAsync();
+    }
+
+    // ── Per-project participant persistence ────────────────────────────────
+
+    /// <summary>
+    /// Snapshots the current live participants into the open project's settings file.
+    /// Safe to call when no project is open (no-op).
+    /// </summary>
+    private void SaveProjectParticipants()
+    {
+        if (_currentProjectFolder is null || _projectSettings is null) return;
+
+        var saved = new List<ParticipantConfig>();
+
+        foreach (var ui in _ollamaParticipants)
+            saved.Add(new ParticipantConfig
+            {
+                Name      = ui.Data.CustomName ?? "",
+                Type      = "Ollama",
+                Model     = ui.Data.Service.CurrentModel,
+                ServerUrl = ui.Data.Service.BaseUrl,
+                Enabled   = ui.Data.Enabled
+            });
+
+        foreach (var ui in _cloudAIParticipants)
+            saved.Add(new ParticipantConfig
+            {
+                Name      = ui.Data.CustomName ?? "",
+                Type      = ui.Data.Service.ProviderName,
+                Model     = ui.Data.Service.CurrentModel,
+                ServerUrl = "",
+                Enabled   = ui.Data.Enabled
+            });
+
+        _projectSettings.ActiveParticipants = saved;
+        try { ProjectService.SaveProjectSettings(_currentProjectFolder, _projectSettings); }
+        catch { /* non-fatal — settings will re-save next time */ }
+    }
+
+    /// <summary>
+    /// Clears all current participants and re-adds from the saved list.
+    /// Falls back to global settings if nothing from the list can be added.
+    /// </summary>
+    private void ReInitializeParticipantsFrom(List<ParticipantConfig> saved)
+    {
+        _streamCts?.Cancel();
+
+        // Remove Cloud AI
+        foreach (var ui in _cloudAIParticipants.ToList())
+        {
+            CloudAICardsPanel.Children.Remove(ui.Popup);
+            CloudAICardsPanel.Children.Remove(ui.Card);
+            ui.Data.Service.Dispose();
+        }
+        _cloudAIParticipants.Clear();
+
+        // Remove Ollama
+        foreach (var ui in _ollamaParticipants.ToList())
+        {
+            OllamaCardsPanel.Children.Remove(ui.Popup);
+            OllamaCardsPanel.Children.Remove(ui.Card);
+        }
+        _ollamaParticipants.Clear();
+        _availableOllamaModels.Clear();
+
+        // Re-add from saved list
+        foreach (var p in saved)
+        {
+            if (p.Type == "Ollama")
+                AddOllamaParticipant(p.Model, p.ServerUrl, p.Name);
+            else
+                AddCloudAIParticipant(p.Type, p.Model, p.Name);
+        }
+
+        // Apply saved enabled/disabled state (add functions default to enabled=true)
+        foreach (var p in saved)
+        {
+            if (p.Enabled) continue; // already enabled — skip
+            if (p.Type == "Ollama")
+            {
+                var match = _ollamaParticipants.FirstOrDefault(ui =>
+                    ui.Data.Service.CurrentModel == p.Model &&
+                    ui.Data.Service.BaseUrl      == p.ServerUrl);
+                if (match is not null)
+                {
+                    match.Data.Enabled  = false;
+                    match.Card.Opacity  = 0.6;
+                }
+            }
+            else
+            {
+                var match = _cloudAIParticipants.FirstOrDefault(ui =>
+                    ui.Data.Service.ProviderName == p.Type &&
+                    ui.Data.Service.CurrentModel == p.Model);
+                if (match is not null)
+                {
+                    match.Data.Enabled  = false;
+                    match.Card.Opacity  = 0.6;
+                }
+            }
+        }
+
+        // Fallback: if nothing was restored (e.g. all API keys gone), use global settings
+        if (_ollamaParticipants.Count == 0 && _cloudAIParticipants.Count == 0)
+        {
+            var settings = SettingsService.Load();
+            foreach (var p in settings.Participants.Where(p => p.Enabled))
+            {
+                if (p.Type == "Ollama")
+                    AddOllamaParticipant(p.Model, p.ServerUrl, p.Name);
+                else
+                    AddCloudAIParticipant(p.Type, p.Model, p.Name);
+            }
+            if (_ollamaParticipants.Count == 0 && _cloudAIParticipants.Count == 0)
+                AddOllamaParticipant(); // last-resort default
+        }
 
         UpdateAddRemoveButtons();
         UpdateCloudAIAddRemoveButtons();
@@ -355,16 +497,27 @@ public partial class MainWindow : Window
         };
         dateLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
 
+        // Show currently-active participants from live project settings (not the creation-time snapshot)
+        var livePs          = ProjectService.LoadProjectSettings(projFolder);
+        var liveActiveNames = livePs.Roles
+            .Where(r => r.IsActive && !string.IsNullOrWhiteSpace(r.DisplayName))
+            .Select(r => r.DisplayName)
+            .ToList();
+        // Fall back to meta snapshot if settings have no roles yet (e.g. fresh project)
+        if (liveActiveNames.Count == 0)
+            liveActiveNames = meta.Participants
+                .Where(p => p.IsActive && !string.IsNullOrWhiteSpace(p.DisplayName))
+                .Select(p => p.DisplayName)
+                .ToList();
+
         var participantsLabel = new TextBlock
         {
             FontSize     = 11, FontFamily = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap
         };
         participantsLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
-        if (meta.Participants.Count > 0)
-            participantsLabel.Text = string.Join(", ", meta.Participants
-                .Where(p => p.IsActive)
-                .Select(p => p.DisplayName));
+        if (liveActiveNames.Count > 0)
+            participantsLabel.Text = string.Join(", ", liveActiveNames);
 
         var infoStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         infoStack.Children.Add(titleRow);
@@ -776,6 +929,10 @@ public partial class MainWindow : Window
         var meta    = ProjectService.LoadMeta(projFolder);
         if (meta is null) { MessageBox.Show("Could not read project.json.", "Error"); return; }
 
+        // Save participant state for the project we're leaving (before changing _currentProjectFolder)
+        if (_currentProjectFolder is not null && _currentProjectFolder != projFolder)
+            SaveProjectParticipants();
+
         // Update LastOpened
         meta.LastOpened = DateTime.UtcNow;
         ProjectService.SaveMeta(projFolder, meta);
@@ -797,6 +954,10 @@ public partial class MainWindow : Window
         _projectSettings      = loadedPs;
         _projectLanguage      = loadedPs.Language;
         _maxDialogDepth       = Math.Max(1, loadedPs.MaxDialogDepth);
+
+        // Restore this project's saved participants (if any were saved before)
+        if (loadedPs.ActiveParticipants is { Count: > 0 })
+            ReInitializeParticipantsFrom(loadedPs.ActiveParticipants);
 
         // Update header
         ChatHeaderTitle.Text              = meta.ProjectName;
@@ -823,6 +984,7 @@ public partial class MainWindow : Window
     private void CloseCurrentProject()
     {
         ShowRoadmapPanel(false);
+        SaveProjectParticipants();   // persist current participants before clearing state
         _currentProjectFolder            = null;
         _currentProject                  = null;
         _currentProjectType              = null;
@@ -1384,38 +1546,193 @@ public partial class MainWindow : Window
         return new Border { Padding = new Thickness(14, 8, 10, 8), Child = rowGrid };
     }
 
+    // ── Roadmap rich-text helpers ─────────────────────────────────────────
+
+    /// <summary>Serializes the RichTextBox FlowDocument to a XAML string.
+    /// Returns empty string if the document is effectively empty.</summary>
+    private static string RtbToXaml(RichTextBox rtb)
+    {
+        var range = new TextRange(rtb.Document.ContentStart, rtb.Document.ContentEnd);
+        if (string.IsNullOrWhiteSpace(range.Text)) return "";
+        try   { return XamlWriter.Save(rtb.Document); }
+        catch { return range.Text; }   // plain-text fallback
+    }
+
+    /// <summary>Loads a stored description (XAML or legacy plain text) into a RichTextBox.</summary>
+    private static void LoadXamlIntoRtb(RichTextBox rtb, string content)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return;
+        if (content.TrimStart().StartsWith('<'))
+        {
+            try
+            {
+                var doc = (FlowDocument)XamlReader.Parse(content);
+                rtb.Document = doc;
+                return;
+            }
+            catch { /* fall through to plain text */ }
+        }
+        rtb.Document = new FlowDocument(new Paragraph(new Run(content)));
+    }
+
+    /// <summary>Builds a compact rich-text formatting toolbar that sends editing commands
+    /// to <paramref name="rtb"/>. Returns a Border suitable for placing above the editor.</summary>
+    private FrameworkElement BuildFormattingToolbar(
+        RichTextBox rtb, Brush inputBrush, Brush textBrush, Brush subtextBrush)
+    {
+        var bar = new WrapPanel { Orientation = Orientation.Horizontal };
+
+        void AddSep() => bar.Children.Add(new Rectangle
+        {
+            Width  = 1, Height = 18, Fill = subtextBrush, Opacity = 0.35,
+            Margin = new Thickness(4, 1, 4, 1), VerticalAlignment = VerticalAlignment.Center
+        });
+
+        // ── Formatting buttons ─────────────────────────────────────────────
+        Button FmtBtn(string text, string tip,
+                      FontWeight fw, FontStyle fs, RoutedUICommand cmd)
+        {
+            var b = new Button
+            {
+                Content         = text,
+                ToolTip         = tip,
+                Width           = 28, Height = 26,
+                Margin          = new Thickness(1),
+                BorderThickness = new Thickness(0),
+                Background      = Brushes.Transparent,
+                Foreground      = textBrush,
+                FontSize        = 13,
+                FontFamily      = new FontFamily("Segoe UI"),
+                FontWeight      = fw,
+                FontStyle       = fs,
+                Cursor          = Cursors.Hand,
+                Padding         = new Thickness(2, 0, 2, 0)
+            };
+            b.Click += (_, _) => { cmd.Execute(null, rtb); rtb.Focus(); };
+            return b;
+        }
+
+        // ── Swatch buttons (text color / highlight) ────────────────────────
+        Button SwatchBtn(Color fillColor, string tip, bool isHighlight)
+        {
+            bool reset = fillColor == Colors.Transparent;
+            var b = new Button
+            {
+                Width           = 20, Height = 20,
+                Margin          = new Thickness(1),
+                BorderThickness = new Thickness(reset ? 1 : 0),
+                BorderBrush     = subtextBrush,
+                Background      = reset ? inputBrush : new SolidColorBrush(fillColor),
+                Foreground      = textBrush,
+                FontSize        = 9,
+                Cursor          = Cursors.Hand,
+                Padding         = new Thickness(0),
+                ToolTip         = tip,
+                Content         = reset ? (object)(isHighlight ? "✕" : "A") : null
+            };
+            var fc = fillColor;
+            b.Click += (_, _) =>
+            {
+                var prop = isHighlight
+                    ? TextElement.BackgroundProperty
+                    : TextElement.ForegroundProperty;
+                if (reset)
+                    rtb.Selection.ApplyPropertyValue(prop, DependencyProperty.UnsetValue);
+                else
+                    rtb.Selection.ApplyPropertyValue(prop, new SolidColorBrush(fc));
+                rtb.Focus();
+            };
+            return b;
+        }
+
+        // Bold / Italic / Underline
+        bar.Children.Add(FmtBtn("B",  "Bold (Ctrl+B)",
+            FontWeights.Bold,   FontStyles.Normal, EditingCommands.ToggleBold));
+        bar.Children.Add(FmtBtn("I",  "Italic (Ctrl+I)",
+            FontWeights.Normal, FontStyles.Italic, EditingCommands.ToggleItalic));
+        bar.Children.Add(FmtBtn("U",  "Underline (Ctrl+U)",
+            FontWeights.Normal, FontStyles.Normal, EditingCommands.ToggleUnderline));
+        AddSep();
+
+        // Lists
+        bar.Children.Add(FmtBtn("•",  "Bullet list",
+            FontWeights.Bold,   FontStyles.Normal, EditingCommands.ToggleBullets));
+        bar.Children.Add(FmtBtn("1.", "Numbered list",
+            FontWeights.Normal, FontStyles.Normal, EditingCommands.ToggleNumbering));
+        AddSep();
+
+        // Text color swatches
+        foreach (var (color, tip) in new (Color col, string tip)[]
+        {
+            (Colors.Transparent,               "Default text color"),
+            (Color.FromRgb(0xE8, 0x48, 0x55),  "Red"),
+            (Color.FromRgb(0xF4, 0xA2, 0x61),  "Orange"),
+            (Color.FromRgb(0x52, 0xB7, 0x88),  "Green"),
+            (Color.FromRgb(0x4C, 0xC9, 0xF0),  "Blue"),
+            (Color.FromRgb(0xB5, 0x17, 0x9E),  "Purple"),
+        })
+            bar.Children.Add(SwatchBtn(color, tip, isHighlight: false));
+
+        AddSep();
+
+        // Highlight swatches
+        foreach (var (color, tip) in new (Color col, string tip)[]
+        {
+            (Colors.Transparent,               "No highlight"),
+            (Color.FromRgb(0xFF, 0xF0, 0x00),  "Yellow highlight"),
+            (Color.FromRgb(0xA8, 0xFF, 0xC0),  "Green highlight"),
+            (Color.FromRgb(0xAE, 0xD6, 0xFF),  "Blue highlight"),
+            (Color.FromRgb(0xFF, 0xAE, 0xD6),  "Pink highlight"),
+        })
+            bar.Children.Add(SwatchBtn(color, tip, isHighlight: true));
+
+        return new Border
+        {
+            Child        = bar,
+            Background   = inputBrush,
+            CornerRadius = new CornerRadius(6),
+            Padding      = new Thickness(6, 4, 6, 4),
+            Margin       = new Thickness(16, 0, 16, 6)
+        };
+    }
+
     // ── Roadmap dialogs ───────────────────────────────────────────────────
 
     private (string title, string desc)? ShowMilestoneDialog(
         string title = "", string desc = "")
     {
-        var isEdit    = !string.IsNullOrEmpty(title);
-        var bgBrush   = (Brush)FindResource("SidebarBrush");
-        var textBrush = (Brush)FindResource("TextBrush");
-        var inputBrush= (Brush)FindResource("InputBrush");
-        var claudeBrush=(Brush)FindResource("ClaudeBrush");
-        var btnStyle  = (Style)FindResource("ModernButton");
+        var isEdit     = !string.IsNullOrEmpty(title);
+        var bgBrush    = (Brush)FindResource("SidebarBrush");
+        var textBrush  = (Brush)FindResource("TextBrush");
+        var subBrush   = (Brush)FindResource("SubtextBrush");
+        var inputBrush = (Brush)FindResource("InputBrush");
+        var accentBrush= (Brush)FindResource("AccentBrush");
+        var claudeBrush= (Brush)FindResource("ClaudeBrush");
+        var btnStyle   = (Style)FindResource("ModernButton");
 
         (string, string)? result = null;
 
         var dlg = new Window
         {
             Title                 = isEdit ? "Edit Milestone" : "Add Milestone",
-            Width                 = 420,
-            Height                = 210,
+            Width                 = 560,
+            Height                = 500,
+            MinWidth              = 420,
+            MinHeight             = 360,
             Owner                 = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            ResizeMode            = ResizeMode.NoResize,
+            ResizeMode            = ResizeMode.CanResize,
             ShowInTaskbar         = false,
             Background            = bgBrush
         };
 
+        // Title input
         var titleBox = new TextBox
         {
             Text                     = title,
             FontSize                 = 13,
             FontFamily               = new FontFamily("Segoe UI"),
-            Margin                   = new Thickness(16, 0, 16, 8),
+            Margin                   = new Thickness(16, 0, 16, 0),
             Height                   = 36,
             Padding                  = new Thickness(10, 0, 0, 0),
             VerticalContentAlignment = VerticalAlignment.Center,
@@ -1425,27 +1742,43 @@ public partial class MainWindow : Window
             CaretBrush               = textBrush
         };
 
-        var descBox = new TextBox
+        // Description rich-text editor
+        var descRtb = new RichTextBox
         {
-            Text                     = desc,
-            FontSize                 = 12,
-            FontFamily               = new FontFamily("Segoe UI"),
-            Margin                   = new Thickness(16, 0, 16, 12),
-            Height                   = 32,
-            Padding                  = new Thickness(10, 0, 0, 0),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            BorderThickness          = new Thickness(0),
-            Background               = inputBrush,
-            Foreground               = textBrush,
-            CaretBrush               = textBrush
+            FontSize                     = 13,
+            FontFamily                   = new FontFamily("Segoe UI"),
+            BorderThickness              = new Thickness(0),
+            Background                   = Brushes.Transparent,
+            Foreground                   = textBrush,
+            CaretBrush                   = textBrush,
+            SelectionBrush               = accentBrush,
+            AcceptsReturn                = true,
+            AcceptsTab                   = false,
+            VerticalScrollBarVisibility  = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility= ScrollBarVisibility.Disabled,
+            Padding                      = new Thickness(8)
+        };
+        descRtb.Document.PagePadding = new Thickness(0);
+        if (!string.IsNullOrEmpty(desc)) LoadXamlIntoRtb(descRtb, desc);
+
+        var toolbar   = BuildFormattingToolbar(descRtb, inputBrush, textBrush, subBrush);
+        var descBorder= new Border
+        {
+            Background   = inputBrush,
+            CornerRadius = new CornerRadius(8),
+            Margin       = new Thickness(16, 0, 16, 0),
+            Padding      = new Thickness(2),
+            Child        = descRtb
         };
 
+        // Buttons
         var okBtn = new Button
         {
             Content    = isEdit ? "Save" : "Add",
             IsDefault  = true,
             Height     = 34,
-            Margin     = new Thickness(16, 0, 8, 16),
+            MinWidth   = 80,
+            Margin     = new Thickness(0, 0, 8, 0),
             Style      = btnStyle,
             Background = claudeBrush,
             Foreground = (Brush)FindResource("SidebarBrush")
@@ -1453,7 +1786,7 @@ public partial class MainWindow : Window
         okBtn.Click += (_, _) =>
         {
             if (string.IsNullOrWhiteSpace(titleBox.Text)) return;
-            result = (titleBox.Text.Trim(), descBox.Text.Trim());
+            result = (titleBox.Text.Trim(), RtbToXaml(descRtb));
             dlg.Close();
         };
 
@@ -1462,7 +1795,7 @@ public partial class MainWindow : Window
             Content    = "Cancel",
             IsCancel   = true,
             Height     = 34,
-            Margin     = new Thickness(0, 0, 16, 16),
+            MinWidth   = 80,
             Style      = btnStyle,
             Background = inputBrush,
             Foreground = textBrush
@@ -1472,22 +1805,32 @@ public partial class MainWindow : Window
         var btnRow = new StackPanel
         {
             Orientation         = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin              = new Thickness(16, 10, 16, 14)
         };
         btnRow.Children.Add(okBtn);
         btnRow.Children.Add(cancelBtn);
 
-        MakeDialogLabel("Title", textBrush, out var titleLbl);
+        // Labels
+        MakeDialogLabel("Title",                  textBrush, out var titleLbl);
         MakeDialogLabel("Description (optional)", textBrush, out var descLbl);
+        descLbl.Margin = new Thickness(16, 10, 16, 4);
 
-        var panel = new StackPanel();
-        panel.Children.Add(titleLbl);
-        panel.Children.Add(titleBox);
-        panel.Children.Add(descLbl);
-        panel.Children.Add(descBox);
-        panel.Children.Add(btnRow);
-        dlg.Content = panel;
+        // Layout: DockPanel — buttons bottom, title+toolbar top, RTB fills
+        var topSection = new StackPanel();
+        topSection.Children.Add(titleLbl);
+        topSection.Children.Add(titleBox);
+        topSection.Children.Add(descLbl);
+        topSection.Children.Add(toolbar);
 
+        var outerDock = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(btnRow,     Dock.Bottom);
+        outerDock.Children.Add(btnRow);
+        DockPanel.SetDock(topSection, Dock.Top);
+        outerDock.Children.Add(topSection);
+        outerDock.Children.Add(descBorder);   // fills remaining height
+
+        dlg.Content = outerDock;
         dlg.Loaded += (_, _) => { titleBox.Focus(); titleBox.SelectAll(); };
         dlg.ShowDialog();
         return result;
@@ -1496,35 +1839,38 @@ public partial class MainWindow : Window
     private (string title, string desc, int progress)? ShowItemDialog(
         string title = "", string desc = "", int progress = 0)
     {
-        var isEdit     = !string.IsNullOrEmpty(title);
-        var bgBrush    = (Brush)FindResource("SidebarBrush");
-        var textBrush  = (Brush)FindResource("TextBrush");
-        var subtextBrush=(Brush)FindResource("SubtextBrush");
-        var inputBrush = (Brush)FindResource("InputBrush");
-        var claudeBrush= (Brush)FindResource("ClaudeBrush");
-        var accentBrush= (Brush)FindResource("AccentBrush");
-        var btnStyle   = (Style)FindResource("ModernButton");
+        var isEdit      = !string.IsNullOrEmpty(title);
+        var bgBrush     = (Brush)FindResource("SidebarBrush");
+        var textBrush   = (Brush)FindResource("TextBrush");
+        var subBrush    = (Brush)FindResource("SubtextBrush");
+        var inputBrush  = (Brush)FindResource("InputBrush");
+        var claudeBrush = (Brush)FindResource("ClaudeBrush");
+        var accentBrush = (Brush)FindResource("AccentBrush");
+        var btnStyle    = (Style)FindResource("ModernButton");
 
         (string, string, int)? result = null;
 
         var dlg = new Window
         {
             Title                 = isEdit ? "Edit Item" : "Add Item",
-            Width                 = 420,
-            Height                = 280,
+            Width                 = 560,
+            Height                = 560,
+            MinWidth              = 420,
+            MinHeight             = 420,
             Owner                 = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            ResizeMode            = ResizeMode.NoResize,
+            ResizeMode            = ResizeMode.CanResize,
             ShowInTaskbar         = false,
             Background            = bgBrush
         };
 
+        // Title input
         var titleBox = new TextBox
         {
             Text                     = title,
             FontSize                 = 13,
             FontFamily               = new FontFamily("Segoe UI"),
-            Margin                   = new Thickness(16, 0, 16, 8),
+            Margin                   = new Thickness(16, 0, 16, 0),
             Height                   = 36,
             Padding                  = new Thickness(10, 0, 0, 0),
             VerticalContentAlignment = VerticalAlignment.Center,
@@ -1534,30 +1880,44 @@ public partial class MainWindow : Window
             CaretBrush               = textBrush
         };
 
-        var descBox = new TextBox
+        // Description rich-text editor
+        var descRtb = new RichTextBox
         {
-            Text                     = desc,
-            FontSize                 = 12,
-            FontFamily               = new FontFamily("Segoe UI"),
-            Margin                   = new Thickness(16, 0, 16, 10),
-            Height                   = 32,
-            Padding                  = new Thickness(10, 0, 0, 0),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            BorderThickness          = new Thickness(0),
-            Background               = inputBrush,
-            Foreground               = textBrush,
-            CaretBrush               = textBrush
+            FontSize                     = 13,
+            FontFamily                   = new FontFamily("Segoe UI"),
+            BorderThickness              = new Thickness(0),
+            Background                   = Brushes.Transparent,
+            Foreground                   = textBrush,
+            CaretBrush                   = textBrush,
+            SelectionBrush               = accentBrush,
+            AcceptsReturn                = true,
+            AcceptsTab                   = false,
+            VerticalScrollBarVisibility  = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility= ScrollBarVisibility.Disabled,
+            Padding                      = new Thickness(8)
+        };
+        descRtb.Document.PagePadding = new Thickness(0);
+        if (!string.IsNullOrEmpty(desc)) LoadXamlIntoRtb(descRtb, desc);
+
+        var toolbar    = BuildFormattingToolbar(descRtb, inputBrush, textBrush, subBrush);
+        var descBorder = new Border
+        {
+            Background   = inputBrush,
+            CornerRadius = new CornerRadius(8),
+            Margin       = new Thickness(16, 0, 16, 0),
+            Padding      = new Thickness(2),
+            Child        = descRtb
         };
 
+        // Progress
         var pctLabel = new TextBlock
         {
             Text       = $"Initial progress: {progress}%",
             FontSize   = 12,
             FontFamily = new FontFamily("Segoe UI"),
-            Foreground = subtextBrush,
-            Margin     = new Thickness(16, 0, 16, 2)
+            Foreground = subBrush,
+            Margin     = new Thickness(16, 8, 16, 2)
         };
-
         var slider = new Slider
         {
             Minimum             = 0,
@@ -1565,17 +1925,19 @@ public partial class MainWindow : Window
             Value               = progress,
             TickFrequency       = 10,
             IsSnapToTickEnabled = false,
-            Margin              = new Thickness(16, 0, 16, 12)
+            Margin              = new Thickness(16, 0, 16, 0)
         };
         slider.ValueChanged += (_, e) =>
             pctLabel.Text = $"Initial progress: {(int)e.NewValue}%";
 
+        // Buttons
         var okBtn = new Button
         {
             Content    = isEdit ? "Save" : "Add",
             IsDefault  = true,
             Height     = 34,
-            Margin     = new Thickness(16, 0, 8, 16),
+            MinWidth   = 80,
+            Margin     = new Thickness(0, 0, 8, 0),
             Style      = btnStyle,
             Background = claudeBrush,
             Foreground = (Brush)FindResource("SidebarBrush")
@@ -1583,7 +1945,7 @@ public partial class MainWindow : Window
         okBtn.Click += (_, _) =>
         {
             if (string.IsNullOrWhiteSpace(titleBox.Text)) return;
-            result = (titleBox.Text.Trim(), descBox.Text.Trim(), (int)slider.Value);
+            result = (titleBox.Text.Trim(), RtbToXaml(descRtb), (int)slider.Value);
             dlg.Close();
         };
 
@@ -1592,7 +1954,7 @@ public partial class MainWindow : Window
             Content    = "Cancel",
             IsCancel   = true,
             Height     = 34,
-            Margin     = new Thickness(0, 0, 16, 16),
+            MinWidth   = 80,
             Style      = btnStyle,
             Background = inputBrush,
             Foreground = textBrush
@@ -1602,24 +1964,39 @@ public partial class MainWindow : Window
         var btnRow = new StackPanel
         {
             Orientation         = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin              = new Thickness(16, 10, 16, 14)
         };
         btnRow.Children.Add(okBtn);
         btnRow.Children.Add(cancelBtn);
 
-        MakeDialogLabel("Title", textBrush, out var titleLbl);
+        // Labels
+        MakeDialogLabel("Title",                  textBrush, out var titleLbl);
         MakeDialogLabel("Description (optional)", textBrush, out var descLbl);
+        descLbl.Margin = new Thickness(16, 10, 16, 4);
 
-        var panel = new StackPanel();
-        panel.Children.Add(titleLbl);
-        panel.Children.Add(titleBox);
-        panel.Children.Add(descLbl);
-        panel.Children.Add(descBox);
-        panel.Children.Add(pctLabel);
-        panel.Children.Add(slider);
-        panel.Children.Add(btnRow);
-        dlg.Content = panel;
+        // Bottom section: progress + buttons (fixed height)
+        var bottomSection = new StackPanel();
+        bottomSection.Children.Add(pctLabel);
+        bottomSection.Children.Add(slider);
+        bottomSection.Children.Add(btnRow);
 
+        // Top section: title + desc label + toolbar
+        var topSection = new StackPanel();
+        topSection.Children.Add(titleLbl);
+        topSection.Children.Add(titleBox);
+        topSection.Children.Add(descLbl);
+        topSection.Children.Add(toolbar);
+
+        // Layout: DockPanel — fixed sections dock, RTB fills
+        var outerDock = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(bottomSection, Dock.Bottom);
+        outerDock.Children.Add(bottomSection);
+        DockPanel.SetDock(topSection, Dock.Top);
+        outerDock.Children.Add(topSection);
+        outerDock.Children.Add(descBorder);   // fills remaining height
+
+        dlg.Content = outerDock;
         dlg.Loaded += (_, _) => { titleBox.Focus(); titleBox.SelectAll(); };
         dlg.ShowDialog();
         return result;
@@ -2949,7 +3326,8 @@ public partial class MainWindow : Window
             Maximum             = 10,
             Value               = role.ReasonerPriority,
             TickFrequency       = 1,
-            IsSnapToTickEnabled = true
+            IsSnapToTickEnabled = true,
+            ToolTip             = "Higher number = higher priority (called first among reasoners). Lower number = called later."
         };
         prioritySlider.ValueChanged += (_, e) =>
             priorityLbl.Text = $"Priority: {(int)e.NewValue}  (1 = lowest, 10 = highest)";
@@ -3180,7 +3558,6 @@ public partial class MainWindow : Window
     private void AddCloudAIParticipant(string provider, string model = "", string customName = "")
     {
         if (_cloudAIParticipants.Count >= 20) return;
-        if (_cloudAIParticipants.Any(ui => ui.Data.Service.ProviderName == provider)) return;
 
         var apiKey = WindowsCredentialManager.Load(provider);
         if (string.IsNullOrWhiteSpace(apiKey)) return;
@@ -3802,12 +4179,30 @@ public partial class MainWindow : Window
 
         foreach (var p in enabled)
         {
-            bool alreadyAdded = p.Type == "Ollama"
-                ? _ollamaParticipants.Any(ui =>
-                      ui.Data.Service.CurrentModel == p.Model &&
-                      ui.Data.Service.BaseUrl      == p.ServerUrl)
-                : _cloudAIParticipants.Any(ui =>
-                      ui.Data.Service.ProviderName == p.Type);
+            // Count-based duplicate check: allow re-adding a removed participant, and
+            // support multiple settings entries for the same model/provider.
+            bool alreadyAdded;
+            if (p.Type == "Ollama")
+            {
+                int liveCount     = _ollamaParticipants.Count(ui =>
+                    ui.Data.Service.CurrentModel == p.Model &&
+                    ui.Data.Service.BaseUrl      == p.ServerUrl);
+                int settingsCount = enabled.Count(s =>
+                    s.Type      == "Ollama" &&
+                    s.Model     == p.Model  &&
+                    s.ServerUrl == p.ServerUrl);
+                alreadyAdded = liveCount >= settingsCount;
+            }
+            else
+            {
+                int liveCount     = _cloudAIParticipants.Count(ui =>
+                    ui.Data.Service.ProviderName == p.Type &&
+                    ui.Data.Service.CurrentModel == p.Model);
+                int settingsCount = enabled.Count(s =>
+                    s.Type  == p.Type &&
+                    s.Model == p.Model);
+                alreadyAdded = liveCount >= settingsCount;
+            }
 
             bool hasKey = p.Type == "Ollama"
                 || !string.IsNullOrWhiteSpace(WindowsCredentialManager.Load(p.Type));
@@ -4015,13 +4410,22 @@ public partial class MainWindow : Window
 
     private async Task TriggerAiResponsesAsync()
     {
+        var mode = _projectSettings?.OrchestrationMode ?? OrchestrationMode.AllRespond;
+
+        // In CoordinatorFirst mode, reasoners are filtered inside RunCoordinatorFirstModeAsync.
+        // In all other modes, reasoners are completely passive — they only participate when
+        // explicitly mentioned by name in the conversation (no auto-triggering).
+        bool suppressReasoners = mode != OrchestrationMode.CoordinatorFirst;
+
         var activeOllamas  = _ollamaParticipants
             .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true &&
-                         IsParticipantActiveInProject("Ollama", ui.Data.Service.CurrentModel))
+                         IsParticipantActiveInProject("Ollama", ui.Data.Service.CurrentModel) &&
+                         !(suppressReasoners && IsReasoner(ui)))
             .ToList();
         var activeCloudAIs = _cloudAIParticipants
             .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true &&
-                         IsParticipantActiveInProject(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel))
+                         IsParticipantActiveInProject(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel) &&
+                         !(suppressReasoners && IsReasoner(ui)))
             .ToList();
 
         if (activeOllamas.Count == 0 && activeCloudAIs.Count == 0)
@@ -4040,7 +4444,6 @@ public partial class MainWindow : Window
 
         try
         {
-            var mode = _projectSettings?.OrchestrationMode ?? OrchestrationMode.AllRespond;
             switch (mode)
             {
                 case OrchestrationMode.CoordinatorFirst:
@@ -4152,22 +4555,26 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Tell the coordinator who it can delegate to
-        var delegatableNames = activeOllamas
-            .Where(u => u != coordOllama).Select(GetEffectiveName)
-            .Concat(activeCloudAIs
-                .Where(u => u != coordCloud).Select(GetEffectiveName))
+        // Split non-coordinator participants into:
+        //   • free participants (IsReasoner = false) — respond automatically after the coordinator
+        //   • reasoners (IsReasoner = true)          — only respond when tagged by the coordinator
+        var freeOllamas      = activeOllamas .Where(u => u != coordOllama && !IsReasoner(u)).ToList();
+        var freeCloudAIs     = activeCloudAIs.Where(u => u != coordCloud  && !IsReasoner(u)).ToList();
+        var reasonerOllamas  = activeOllamas .Where(u => u != coordOllama &&  IsReasoner(u)).ToList();
+        var reasonerCloudAIs = activeCloudAIs.Where(u => u != coordCloud  &&  IsReasoner(u)).ToList();
+
+        var reasonerNames = reasonerOllamas.Select(GetEffectiveName)
+            .Concat(reasonerCloudAIs.Select(GetEffectiveName))
             .ToList();
 
-        var coordinatorHint =
-            "You respond first in this conversation round. " +
-            (delegatableNames.Count > 0
-                ? $"If you need specific participants to weigh in, tag them with @Name in your reply " +
-                  $"(e.g. '@{delegatableNames[0]}, please analyse the technical side'). " +
-                  $"Available to delegate to: {string.Join(", ", delegatableNames.Select(n => "@" + n))}. " +
-                  "Only the participants you tag will respond after you. " +
-                  "If you tag nobody, your response concludes this round."
-                : "You are the only active participant — respond directly.");
+        var freeCount = freeOllamas.Count + freeCloudAIs.Count;
+
+        // Do NOT list reasoners in the coordinator hint — advertising them causes reflexive tagging.
+        // The coordinator naturally decides to call them by name if it genuinely needs them.
+        string coordinatorHint = freeCount > 0
+            ? "You respond first in this conversation round. " +
+              "After your response the other active participants will also contribute."
+            : "You are the only active participant — respond directly.";
 
         // Coordinator goes first
         if (coordCloud is not null)
@@ -4175,29 +4582,48 @@ public partial class MainWindow : Window
         else
             await RunOllamaStreamAsync(coordOllama!, ct, coordinatorHint);
 
-        if (ct.IsCancellationRequested || delegatableNames.Count == 0) return;
+        if (ct.IsCancellationRequested) return;
 
-        // Parse coordinator's response for @Name delegations
-        var coordResponse = _sharedHistory.LastOrDefault(m => m.Role == "assistant")?.Content ?? "";
-        var taggedOllamas = activeOllamas
-            .Where(u => u != coordOllama && IsTaggedInResponse(coordResponse, GetEffectiveName(u)))
-            .ToList();
-        var taggedClouds = activeCloudAIs
-            .Where(u => u != coordCloud && IsTaggedInResponse(coordResponse, GetEffectiveName(u)))
-            .ToList();
-
-        if (taggedOllamas.Count == 0 && taggedClouds.Count == 0) return;
-
-        AddSystemMessage("— Delegated —");
-        foreach (var ui in taggedOllamas)
+        // Free participants respond automatically — no coordinator tagging required
+        foreach (var ui in freeOllamas)
         {
             if (ct.IsCancellationRequested) break;
             await RunOllamaStreamAsync(ui, ct);
         }
-        foreach (var ui in taggedClouds)
+        foreach (var ui in freeCloudAIs)
         {
             if (ct.IsCancellationRequested) break;
             await RunCloudAIStreamAsync(ui, ct);
+        }
+
+        if (ct.IsCancellationRequested || reasonerNames.Count == 0) return;
+
+        // Parse the coordinator's response for @Name mentions — if a reasoner is named, call them
+        var coordResponse = _sharedHistory.LastOrDefault(m => m.Role == "assistant")?.Content ?? "";
+        var taggedOllamas = reasonerOllamas
+            .Where(u => IsTaggedInResponse(coordResponse, GetEffectiveName(u)))
+            .ToList();
+        var taggedClouds = reasonerCloudAIs
+            .Where(u => IsTaggedInResponse(coordResponse, GetEffectiveName(u)))
+            .ToList();
+
+        if (taggedOllamas.Count == 0 && taggedClouds.Count == 0) return;
+
+        // Tell each reasoner it was specifically delegated to — helps it stay focused
+        const string reasonerDelegationHint =
+            "The Coordinator has specifically delegated a task to you. " +
+            "Respond only to that delegated task or question.";
+
+        AddSystemMessage("— Delegated to Reasoners —");
+        foreach (var ui in taggedOllamas)
+        {
+            if (ct.IsCancellationRequested) break;
+            await RunOllamaStreamAsync(ui, ct, reasonerDelegationHint, skipLatestUserMessage: true);
+        }
+        foreach (var ui in taggedClouds)
+        {
+            if (ct.IsCancellationRequested) break;
+            await RunCloudAIStreamAsync(ui, ct, reasonerDelegationHint, skipLatestUserMessage: true);
         }
     }
 
@@ -4277,6 +4703,14 @@ public partial class MainWindow : Window
             : ui.Data.CustomName;
     }
 
+    /// <summary>Returns true when the participant is flagged as a Reasoner in the current project settings.</summary>
+    private bool IsReasoner(OllamaParticipantUI ui) =>
+        _projectSettings?.Get("Ollama", ui.Data.Service.CurrentModel)?.IsReasoner == true;
+
+    /// <summary>Returns true when the participant is flagged as a Reasoner in the current project settings.</summary>
+    private bool IsReasoner(CloudAIParticipantUI ui) =>
+        _projectSettings?.Get(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel)?.IsReasoner == true;
+
     /// <summary>Returns true when <paramref name="name"/> is mentioned with an @ prefix in the response.</summary>
     private static bool IsTaggedInResponse(string response, string name) =>
         !string.IsNullOrWhiteSpace(name) &&
@@ -4290,8 +4724,29 @@ public partial class MainWindow : Window
         text.Trim().TrimEnd('.', '!', '…').Trim()
             .Equals("PASS", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Turns an <see cref="HttpRequestException"/> into a human-readable sentence,
+    /// with special handling for common HTTP status codes.
+    /// </summary>
+    private static string HttpErrorMessage(HttpRequestException ex, string participantName) =>
+        ex.StatusCode switch
+        {
+            System.Net.HttpStatusCode.TooManyRequests =>
+                "Rate limit hit (429 Too Many Requests). " +
+                "The free tier allows only a few requests per minute — please wait a moment before continuing.",
+            System.Net.HttpStatusCode.Unauthorized =>
+                "Unauthorized (401) — the API key was rejected. Check or re-enter the key in ⚙ Settings.",
+            System.Net.HttpStatusCode.Forbidden =>
+                "Forbidden (403) — the API key does not have permission for this model.",
+            System.Net.HttpStatusCode.ServiceUnavailable =>
+                "Service unavailable (503) — the API is temporarily down. Try again shortly.",
+            null => $"Connection error: {ex.Message}",
+            _    => $"API error {(int)ex.StatusCode}: {ex.Message}"
+        };
+
     private async Task<bool> RunOllamaStreamAsync(OllamaParticipantUI ui, CancellationToken ct,
-                                                   string? systemHint = null)
+                                                   string? systemHint = null,
+                                                   bool skipLatestUserMessage = false)
     {
         var modelName = ui.Data.Service.CurrentModel;
         var display   = string.IsNullOrEmpty(ui.Data.CustomName)
@@ -4312,7 +4767,7 @@ public partial class MainWindow : Window
 
         try
         {
-            var history = BuildOllamaHistoryFor(ui);
+            var history = BuildOllamaHistoryFor(ui, skipLatestUserMessage);
             if (systemHint is not null)
                 history.Insert(1, new OllamaChatMessage("system", systemHint));
             await foreach (var token in svc.StreamAsync(history, ct))
@@ -4374,14 +4829,16 @@ public partial class MainWindow : Window
         }
         catch (HttpRequestException ex)
         {
-            if (firstToken) bubble.StopThinking();
-            bubble.Content.Text = $"Connection error: {ex.Message}";
-            AddSystemMessage($"⚠  {display} unreachable.");
+            bubble.StopThinking();
+            ChatPanel.Children.Remove(bubble.OuterWrapper);
+            var httpMsg = HttpErrorMessage(ex, display);
+            AddSystemMessage($"⚠  {display} — {httpMsg}");
         }
         catch (Exception ex)
         {
-            if (firstToken) bubble.StopThinking();
-            bubble.Content.Text = $"Error: {ex.Message}";
+            bubble.StopThinking();
+            ChatPanel.Children.Remove(bubble.OuterWrapper);
+            AddSystemMessage($"⚠  {display} — Error: {ex.Message}");
         }
         finally
         {
@@ -4391,7 +4848,8 @@ public partial class MainWindow : Window
     }
 
     private async Task<bool> RunCloudAIStreamAsync(CloudAIParticipantUI ui, CancellationToken ct,
-                                                    string? systemHint = null)
+                                                    string? systemHint = null,
+                                                    bool skipLatestUserMessage = false)
     {
         var model       = ui.Data.Service.CurrentModel;
         var display     = string.IsNullOrEmpty(ui.Data.CustomName)
@@ -4404,9 +4862,19 @@ public partial class MainWindow : Window
         var sb         = new StringBuilder();
         bool firstToken = true;
 
+        // ── Rate limiting ─────────────────────────────────────────────────
+        var providerName = ui.Data.Service.ProviderName;
+        if (_rateLimiters.TryGetValue(providerName, out var rateLimiter))
+        {
+            bubble.UpdateThinkingTooltip(
+                $"⏳ Waiting — rate limit {rateLimiter.Rpm} req/min");
+            await rateLimiter.WaitAsync(ct);
+            bubble.UpdateThinkingTooltip("");
+        }
+
         try
         {
-            var (history, system) = BuildCloudAIHistoryFor(ui);
+            var (history, system) = BuildCloudAIHistoryFor(ui, skipLatestUserMessage);
             if (systemHint is not null)
                 system += "\n\n" + systemHint;
             await foreach (var token in ui.Data.Service.StreamAsync(history, system, ct))
@@ -4468,21 +4936,24 @@ public partial class MainWindow : Window
         }
         catch (HttpRequestException ex)
         {
-            if (firstToken) bubble.StopThinking();
-            bubble.Content.Text = $"Connection error: {ex.Message}";
-            AddSystemMessage($"⚠  {display} unreachable.");
+            bubble.StopThinking();
+            ChatPanel.Children.Remove(bubble.OuterWrapper);
+            var httpMsg = HttpErrorMessage(ex, display);
+            AddSystemMessage($"⚠  {display} — {httpMsg}");
         }
         catch (Exception ex)
         {
-            if (firstToken) bubble.StopThinking();
-            bubble.Content.Text = $"Error: {ex.Message}";
+            bubble.StopThinking();
+            ChatPanel.Children.Remove(bubble.OuterWrapper);
+            AddSystemMessage($"⚠  {display} — Error: {ex.Message}");
         }
         return true; // error path still counts as "responded" (error bubble is shown)
     }
 
     // ── Per-participant history builders ───────────────────────────────────
 
-    private List<OllamaChatMessage> BuildOllamaHistoryFor(OllamaParticipantUI forUi)
+    private List<OllamaChatMessage> BuildOllamaHistoryFor(OllamaParticipantUI forUi,
+                                                          bool skipLatestUserMessage = false)
     {
         var myLabel = forUi.Data.AvatarLabel;
         var myName  = forUi.Data.DisplayName;
@@ -4505,8 +4976,16 @@ public partial class MainWindow : Window
                 BuildRoadmapContext(myRole))
         };
 
-        foreach (var msg in _sharedHistory)
+        // When called as a reasoner, skip the latest user message so the reasoner only
+        // responds to the coordinator's explicit delegation, not the user's question directly.
+        int skipIndex = skipLatestUserMessage
+            ? _sharedHistory.FindLastIndex(m => m.Role == "user")
+            : -1;
+
+        for (int i = 0; i < _sharedHistory.Count; i++)
         {
+            if (i == skipIndex) continue;
+            var msg = _sharedHistory[i];
             if (msg.Role == "user")
                 result.Add(new OllamaChatMessage("user", msg.Content));
             else if (msg.Role == "assistant")
@@ -4521,7 +5000,8 @@ public partial class MainWindow : Window
         return result;
     }
 
-    private (List<CloudAIMessage> History, string System) BuildCloudAIHistoryFor(CloudAIParticipantUI forUi)
+    private (List<CloudAIMessage> History, string System) BuildCloudAIHistoryFor(
+        CloudAIParticipantUI forUi, bool skipLatestUserMessage = false)
     {
         var myLabel    = forUi.Data.AvatarLabel;
         var myName     = forUi.Data.DisplayName;
@@ -4552,9 +5032,17 @@ public partial class MainWindow : Window
             BuildFileOperationInstruction(_currentProjectFolder) +
             BuildRoadmapContext(myRole);
 
+        // When called as a reasoner, skip the latest user message so the reasoner only
+        // responds to the coordinator's explicit delegation, not the user's question directly.
+        int skipIndex = skipLatestUserMessage
+            ? _sharedHistory.FindLastIndex(m => m.Role == "user")
+            : -1;
+
         var history = new List<CloudAIMessage>();
-        foreach (var msg in _sharedHistory)
+        for (int i = 0; i < _sharedHistory.Count; i++)
         {
+            if (i == skipIndex) continue;
+            var msg = _sharedHistory[i];
             if (msg.Role == "user")
                 history.Add(new CloudAIMessage("user", msg.Content));
             else if (msg.Role == "assistant")
@@ -4584,7 +5072,11 @@ public partial class MainWindow : Window
     {
         var win = new SettingsWindow(_currentThemePath) { Owner = this };
         if (win.ShowDialog() == true)
+        {
+            var updated = SettingsService.Load();
             ReInitializeParticipants();
+            ApplyThrottleSettings(updated);
+        }
     }
 
     private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -4882,6 +5374,15 @@ public partial class MainWindow : Window
     {
         if (role is null) return "";
         var sb = new System.Text.StringBuilder();
+        if (role.IsCoordinator)
+            sb.Append("\n\nYou are the Coordinator in this multi-agent session. " +
+                      "Respond to the user's message directly and in your own voice. " +
+                      "Do NOT address, instruct, or assign tasks to other participants in your response — " +
+                      "just provide your own answer.");
+        if (role.IsReasoner)
+            sb.Append("\n\nYou are operating as a specialist Reasoner in this multi-agent session. " +
+                      "Do not volunteer responses to general conversation. " +
+                      "Only engage when the Coordinator explicitly delegates a specific task to you by name.");
         if (!string.IsNullOrWhiteSpace(role.AnswerAsName))
             sb.Append($"\n\nFor this project you are playing the character \"{role.AnswerAsName}\". " +
                       $"Always respond as {role.AnswerAsName} and never break character.");
@@ -5506,6 +6007,6 @@ public partial class MainWindow : Window
             thinkingTb.ToolTip = string.IsNullOrEmpty(tip) ? null : (object)$"💭 {tip}";
         }
 
-        return new StreamBubble(contentTb, StopThinking, UpdateThinkingTooltip);
+        return new StreamBubble(contentTb, StopThinking, UpdateThinkingTooltip, wrapper);
     }
 }

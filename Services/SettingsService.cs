@@ -3,6 +3,16 @@ using System.Text.Json;
 
 namespace ClaudetRelay.Services;
 
+/// <summary>Rate-limit settings for one cloud API provider.</summary>
+public class ProviderThrottleSettings
+{
+    /// <summary>Whether request throttling is enabled for this provider.</summary>
+    public bool Enabled { get; set; } = false;
+
+    /// <summary>Maximum requests per minute. Must be ≥ 1.</summary>
+    public int  Rpm     { get; set; } = 15;
+}
+
 /// <summary>Configuration for one chat participant slot (P1–P8).</summary>
 public class ParticipantConfig
 {
@@ -59,6 +69,12 @@ public class AppSettings
 
     /// <summary>Per-participant configuration (P1–P8). Populated on first load via migration.</summary>
     public List<ParticipantConfig> Participants { get; set; } = [];
+
+    /// <summary>
+    /// Per-provider request rate-limit settings.
+    /// Key = provider name, e.g. "Google AI", "Groq".
+    /// </summary>
+    public Dictionary<string, ProviderThrottleSettings> ProviderThrottle { get; set; } = new();
 }
 
 public static class SettingsService

@@ -24,27 +24,29 @@ public partial class SettingsWindow : Window
         public required TextBlock   OllamaTestLabel  { get; init; }
         // Cloud AI section
         public required Border      CloudAISection   { get; init; }
-        public required PasswordBox ApiKeyBox        { get; init; }
-        public required TextBox     ApiKeyTextBox    { get; init; }
-        // ApiKeyOuter is the Border wrapping ApiKeyBox; its Visibility tells us which mode is active
-        public required Border      ApiKeyOuter      { get; init; }
-        public required TextBlock   ApiKeyHintLabel  { get; init; }
         public required ComboBox    CloudModelCombo  { get; init; }
         public required TextBlock   CloudTestLabel   { get; init; }
+        // Rate-limit row (Cloud AI only)
+        public required CheckBox  RpmEnabledCheck  { get; init; }
+        public required TextBox   RpmValueBox      { get; init; }
+        public required TextBlock RpmHintLabel     { get; init; }
 
         public string CurrentProvider =>
             (TypeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Ollama";
-
-        // Password mode is active when ApiKeyOuter (the PasswordBox wrapper) is visible
-        public string CurrentApiKey =>
-            ApiKeyOuter.Visibility == Visibility.Visible
-                ? ApiKeyBox.Password
-                : ApiKeyTextBox.Text;
     }
+
+    /// <summary>Holds the key-input controls for one cloud provider on the Providers tab.</summary>
+    private sealed record ProviderKeyForm(
+        string      Provider,
+        PasswordBox KeyBox,
+        TextBox     KeyTextBox,
+        Border      KeyOuter,      // PasswordBox wrapper — toggles with KeyTextBox
+        TextBlock   TestLabel);
 
     // ── State ──────────────────────────────────────────────────────────────
 
-    private readonly List<ParticipantForm> _forms = [];
+    private readonly List<ParticipantForm>  _forms            = [];
+    private readonly List<ProviderKeyForm>  _providerKeyForms = [];
     private TextBox   _userNameBox       = null!;
     private TextBox   _projectsFolderBox = null!;
     private Slider    _toneSlider        = null!;
@@ -68,16 +70,17 @@ public partial class SettingsWindow : Window
 
         var settings = SettingsService.Load();
 
-        // "General" tab is always first
+        // "General" tab is always first, then "Providers" for API keys
         BuildGeneralTab(settings);
+        BuildProvidersTab();
 
-        // P1–P8
-        for (int i = 0; i < 8; i++)
+        // P1–P20
+        for (int i = 0; i < 20; i++)
         {
             var config = i < settings.Participants.Count
                 ? settings.Participants[i]
                 : new ParticipantConfig();
-            BuildTab(i, config);
+            BuildTab(i, config, settings);
         }
 
         // Auto-test all participants once the window is fully rendered
@@ -310,6 +313,183 @@ public partial class SettingsWindow : Window
         ParticipantsTabControl.Items.Add(tab);
     }
 
+    // ── Providers tab ─────────────────────────────────────────────────────
+
+    private void BuildProvidersTab()
+    {
+        var root = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
+
+        var introHint = new TextBlock
+        {
+            Text         = "Enter your API key for each provider once. All participants of the same provider share the same key.",
+            FontSize     = 12,
+            FontFamily   = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 16)
+        };
+        introHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        root.Children.Add(introHint);
+
+        foreach (var provider in new[]
+            { "Anthropic", "OpenAI ChatGPT", "Google AI", "Groq", "xAI Grok", "OpenRouter", "Mistral" })
+        {
+            // ── Provider heading ──────────────────────────────────────────
+            var heading = new TextBlock
+            {
+                Style  = (Style)FindResource("SLabel"),
+                Text   = provider.ToUpperInvariant(),
+                Margin = new Thickness(0, 8, 0, 6)
+            };
+
+            // ── Key input (password + plain-text toggle) ──────────────────
+            var (keyOuter, keyBox)         = MakePasswordInput();
+            var (keyTextOuter, keyTextBox) = MakeTextInput();
+            keyTextOuter.Visibility = Visibility.Collapsed;
+
+            var existingKey   = WindowsCredentialManager.Load(provider) ?? "";
+            keyBox.Password   = existingKey;
+            keyTextBox.Text   = existingKey;
+
+            // Show/Hide toggles between "Show" and "Hide" text — no fixed width needed
+            var showHideBtn = new Button
+            {
+                Content = "Show",
+                Height  = 36,
+                Padding = new Thickness(10, 0, 10, 0),
+                Margin  = new Thickness(6, 0, 0, 0),
+                Style   = (Style)FindResource("SButtonSecondary"),
+                ToolTip = "Show / hide key"
+            };
+
+            // Row 1: key input + show/hide button
+            var keyGrid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+            keyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            keyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(keyOuter,     0);
+            Grid.SetColumn(keyTextOuter, 0);   // same cell — they toggle
+            Grid.SetColumn(showHideBtn,  1);
+            keyGrid.Children.Add(keyOuter);
+            keyGrid.Children.Add(keyTextOuter);
+            keyGrid.Children.Add(showHideBtn);
+
+            var hintText = new TextBlock
+            {
+                FontSize     = 11,
+                FontFamily   = new FontFamily("Segoe UI"),
+                TextWrapping = TextWrapping.Wrap,
+                Margin       = new Thickness(0, 0, 0, 6)
+            };
+            hintText.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+            UpdateApiKeyHint(hintText, provider);
+
+            // Row 2: test button + status label, side by side
+            var testBtn = new Button
+            {
+                Content = "Test Connection",
+                Style   = (Style)FindResource("SButtonSecondary"),
+                Margin  = new Thickness(0, 0, 10, 0),
+                Height  = 32
+            };
+
+            var testLabel = new TextBlock
+            {
+                FontSize          = 12,
+                FontFamily        = new FontFamily("Segoe UI"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            testLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+            var testRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin      = new Thickness(0, 0, 0, 14)
+            };
+            testRow.Children.Add(testBtn);
+            testRow.Children.Add(testLabel);
+
+            root.Children.Add(heading);
+            root.Children.Add(keyGrid);
+            root.Children.Add(hintText);
+            root.Children.Add(testRow);
+
+            // ── Store form record ─────────────────────────────────────────
+            _providerKeyForms.Add(new ProviderKeyForm(provider, keyBox, keyTextBox, keyOuter, testLabel));
+
+            // ── Events ────────────────────────────────────────────────────
+            showHideBtn.Click += (_, _) =>
+            {
+                if (keyOuter.Visibility == Visibility.Visible)   // currently dots → show plain text
+                {
+                    keyTextBox.Text         = keyBox.Password;
+                    keyOuter.Visibility     = Visibility.Collapsed;
+                    keyTextOuter.Visibility = Visibility.Visible;
+                    showHideBtn.Content     = "Hide";
+                    keyTextBox.Focus();
+                    keyTextBox.CaretIndex   = keyTextBox.Text.Length;
+                }
+                else                                             // currently plain text → back to dots
+                {
+                    keyBox.Password         = keyTextBox.Text;
+                    keyTextOuter.Visibility = Visibility.Collapsed;
+                    keyOuter.Visibility     = Visibility.Visible;
+                    showHideBtn.Content     = "Show";
+                }
+            };
+
+            keyBox.PasswordChanged += (_, _) => keyTextBox.Text  = keyBox.Password;
+            keyTextBox.TextChanged  += (_, _) => keyBox.Password = keyTextBox.Text;
+
+            var capturedProvider = provider;
+            testBtn.Click += async (_, _) =>
+            {
+                testLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+                testLabel.Text = "Testing…";
+                try
+                {
+                    var key = GetApiKeyForProvider(capturedProvider);
+                    if (string.IsNullOrWhiteSpace(key))
+                    {
+                        testLabel.Text = "⚠  Enter a key first.";
+                        return;
+                    }
+                    using var svc = BuildCloudAIService(capturedProvider, key);
+                    var ok = await svc.IsAvailableAsync();
+                    testLabel.SetResourceReference(TextBlock.ForegroundProperty,
+                        ok ? "OllamaBrush" : "AccentBrush");
+                    testLabel.Text = ok ? "Connected ✓" : "Failed ✗  (check your key)";
+                }
+                catch (Exception ex)
+                {
+                    testLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+                    testLabel.Text = $"Error: {ex.Message}";
+                }
+            };
+        }
+
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = root
+        };
+        ParticipantsTabControl.Items.Add(new TabItem { Header = "Providers", Content = scroll });
+    }
+
+    // ── API-key helper ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the current API key for <paramref name="provider"/> from the Providers tab
+    /// (reflecting any unsaved edits), falling back to Credential Manager if the tab
+    /// hasn't been built yet.
+    /// </summary>
+    private string GetApiKeyForProvider(string provider)
+    {
+        var pkf = _providerKeyForms.FirstOrDefault(f => f.Provider == provider);
+        if (pkf is null) return WindowsCredentialManager.Load(provider) ?? "";
+        return pkf.KeyOuter.Visibility == Visibility.Visible
+            ? pkf.KeyBox.Password
+            : pkf.KeyTextBox.Text;
+    }
+
     // ── Auto-test on open ──────────────────────────────────────────────────
 
     private async Task AutoTestAllAsync()
@@ -318,7 +498,7 @@ public partial class SettingsWindow : Window
         {
             if (form.CurrentProvider == "Ollama")
                 await TestOllamaAsync(form);
-            else if (!string.IsNullOrEmpty(form.CurrentApiKey))
+            else if (!string.IsNullOrEmpty(GetApiKeyForProvider(form.CurrentProvider)))
                 await TestCloudAIAsync(form);
         });
         await Task.WhenAll(tasks);
@@ -326,7 +506,7 @@ public partial class SettingsWindow : Window
 
     // ── Tab builder ────────────────────────────────────────────────────────
 
-    private void BuildTab(int index, ParticipantConfig config)
+    private void BuildTab(int index, ParticipantConfig config, AppSettings settings)
     {
         bool isOllama  = config.Type == "Ollama";
         var  tabHeader = string.IsNullOrWhiteSpace(config.Name) ? $"P{index + 1}" : config.Name;
@@ -444,52 +624,7 @@ public partial class SettingsWindow : Window
         };
 
         // ── CLOUD AI SECTION ──────────────────────────────────────────────
-
-        var apiKeyLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "API KEY" };
-
-        // Password mode (default visible) and show-key mode (initially collapsed)
-        var (apiKeyOuter, apiKeyBox)         = MakePasswordInput();
-        var (apiKeyTextOuter, apiKeyTextBox) = MakeTextInput();
-        apiKeyTextOuter.Visibility = Visibility.Collapsed;
-
-        var showHideBtn = new Button
-        {
-            Content  = "👁",
-            Width    = 36,
-            Height   = 36,
-            FontSize = 15,
-            Margin   = new Thickness(6, 0, 0, 0),
-            Style    = (Style)FindResource("SButtonSecondary"),
-            ToolTip  = "Show / hide key"
-        };
-
-        // Pre-load API key from Credential Manager for the current provider
-        if (!isOllama)
-        {
-            var existingKey      = WindowsCredentialManager.Load(config.Type) ?? "";
-            apiKeyBox.Password   = existingKey;
-            apiKeyTextBox.Text   = existingKey;
-        }
-
-        var apiKeyGrid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
-        apiKeyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        apiKeyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(apiKeyOuter,     0);
-        Grid.SetColumn(apiKeyTextOuter, 0);   // same cell — they toggle
-        Grid.SetColumn(showHideBtn,     1);
-        apiKeyGrid.Children.Add(apiKeyOuter);
-        apiKeyGrid.Children.Add(apiKeyTextOuter);
-        apiKeyGrid.Children.Add(showHideBtn);
-
-        var apiKeyHint = new TextBlock
-        {
-            FontSize     = 11,
-            FontFamily   = new FontFamily("Segoe UI"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin       = new Thickness(0, 0, 0, 12)
-        };
-        apiKeyHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
-        UpdateApiKeyHint(apiKeyHint, config.Type);
+        // API keys are managed in the Providers tab — not per participant.
 
         var cloudModelLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "MODEL" };
         var cloudModelCombo = new ComboBox
@@ -518,12 +653,82 @@ public partial class SettingsWindow : Window
         cloudTestRow.Children.Add(cloudTestLabel);
 
         var cloudContent = new StackPanel();
-        cloudContent.Children.Add(apiKeyLabel);
-        cloudContent.Children.Add(apiKeyGrid);
-        cloudContent.Children.Add(apiKeyHint);
         cloudContent.Children.Add(cloudModelLabel);
         cloudContent.Children.Add(cloudModelCombo);
         cloudContent.Children.Add(cloudTestRow);
+
+        // ── RATE LIMIT ROW ────────────────────────────────────────────────
+        var rpmSep = new Rectangle { Style = (Style)FindResource("SSep") };
+
+        var rpmCheck = new CheckBox
+        {
+            Style             = (Style)FindResource("SToggle"),
+            Content           = "Limit to",
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin            = new Thickness(0, 0, 8, 0)
+        };
+
+        // Small numeric input (no wrapper helper — we need a custom width)
+        var rpmValueTb = new TextBox { Style = (Style)FindResource("STextBox"), Text = "15" };
+        rpmValueTb.FontSize   = 13;
+        rpmValueTb.FontFamily = new FontFamily("Segoe UI");
+        rpmValueTb.SetResourceReference(Control.ForegroundProperty,  "TextBrush");
+        rpmValueTb.SetResourceReference(TextBox.CaretBrushProperty,  "TextBrush");
+        // Accept only digits
+        rpmValueTb.PreviewTextInput += (_, e) =>
+        {
+            e.Handled = !e.Text.All(char.IsDigit);
+        };
+
+        var rpmValueOuter = new Border
+        {
+            Width        = 64,
+            Height       = 32,
+            CornerRadius = new CornerRadius(8),
+            Child        = rpmValueTb
+        };
+        rpmValueOuter.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+
+        var rpmSuffix = new TextBlock
+        {
+            Text              = " requests / minute",
+            FontSize          = 13,
+            FontFamily        = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin            = new Thickness(8, 0, 0, 0)
+        };
+        rpmSuffix.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+
+        var rpmRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin      = new Thickness(0, 0, 0, 4)
+        };
+        rpmRow.Children.Add(rpmCheck);
+        rpmRow.Children.Add(rpmValueOuter);
+        rpmRow.Children.Add(rpmSuffix);
+
+        // Hint label — content set per-provider below and on provider change
+        var rpmHintLabel = new TextBlock
+        {
+            FontSize     = 11,
+            FontFamily   = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 4)
+        };
+        rpmHintLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        // Load initial state for current provider
+        if (settings.ProviderThrottle.TryGetValue(config.Type, out var initThrottle))
+        {
+            rpmCheck.IsChecked = initThrottle.Enabled;
+            rpmValueTb.Text    = initThrottle.Rpm.ToString();
+        }
+        UpdateRpmHint(rpmHintLabel, config.Type);
+
+        cloudContent.Children.Add(rpmSep);
+        cloudContent.Children.Add(rpmRow);
+        cloudContent.Children.Add(rpmHintLabel);
 
         var cloudAISection = new Border
         {
@@ -561,12 +766,11 @@ public partial class SettingsWindow : Window
             OllamaModelCombo = ollamaModelCombo,
             OllamaTestLabel  = ollamaTestLabel,
             CloudAISection   = cloudAISection,
-            ApiKeyBox        = apiKeyBox,
-            ApiKeyTextBox    = apiKeyTextBox,
-            ApiKeyOuter      = apiKeyOuter,
-            ApiKeyHintLabel  = apiKeyHint,
             CloudModelCombo  = cloudModelCombo,
-            CloudTestLabel   = cloudTestLabel
+            CloudTestLabel   = cloudTestLabel,
+            RpmEnabledCheck  = rpmCheck,
+            RpmValueBox      = rpmValueTb,
+            RpmHintLabel     = rpmHintLabel
         };
         _forms.Add(form);
 
@@ -584,37 +788,24 @@ public partial class SettingsWindow : Window
         {
             ApplySectionVisibility(form);
             var provider = form.CurrentProvider;
-            UpdateApiKeyHint(form.ApiKeyHintLabel, provider);
             if (provider != "Ollama")
             {
-                var key                  = WindowsCredentialManager.Load(provider) ?? "";
-                form.ApiKeyBox.Password  = key;
-                form.ApiKeyTextBox.Text  = key;
                 PopulateCloudModelCombo(form.CloudModelCombo, provider, "");
+
+                // Refresh RPM controls for the newly selected provider
+                if (settings.ProviderThrottle.TryGetValue(provider, out var t))
+                {
+                    form.RpmEnabledCheck.IsChecked = t.Enabled;
+                    form.RpmValueBox.Text          = t.Rpm.ToString();
+                }
+                else
+                {
+                    form.RpmEnabledCheck.IsChecked = false;
+                    form.RpmValueBox.Text          = "15";
+                }
+                UpdateRpmHint(form.RpmHintLabel, provider);
             }
         };
-
-        // Toggle password / plain-text view using the OUTER borders
-        showHideBtn.Click += (_, _) =>
-        {
-            if (apiKeyOuter.Visibility == Visibility.Visible)   // currently showing password dots
-            {
-                apiKeyTextBox.Text         = apiKeyBox.Password;
-                apiKeyOuter.Visibility     = Visibility.Collapsed;
-                apiKeyTextOuter.Visibility = Visibility.Visible;
-                apiKeyTextBox.Focus();
-                apiKeyTextBox.CaretIndex   = apiKeyTextBox.Text.Length;
-            }
-            else                                                 // currently showing plain text
-            {
-                apiKeyBox.Password         = apiKeyTextBox.Text;
-                apiKeyTextOuter.Visibility = Visibility.Collapsed;
-                apiKeyOuter.Visibility     = Visibility.Visible;
-            }
-        };
-
-        apiKeyBox.PasswordChanged += (_, _) => apiKeyTextBox.Text  = apiKeyBox.Password;
-        apiKeyTextBox.TextChanged  += (_, _) => apiKeyBox.Password = apiKeyTextBox.Text;
 
         localhostBtn.Click += (_, _) => serverUrlBox.Text = "http://localhost:11434";
 
@@ -688,10 +879,10 @@ public partial class SettingsWindow : Window
 
         try
         {
-            var apiKey = form.CurrentApiKey;
+            var apiKey = GetApiKeyForProvider(form.CurrentProvider);
             if (string.IsNullOrWhiteSpace(apiKey))
             {
-                form.CloudTestLabel.Text = "⚠  Enter an API key first.";
+                form.CloudTestLabel.Text = "⚠  Enter an API key in the Providers tab first.";
                 return;
             }
 
@@ -747,6 +938,16 @@ public partial class SettingsWindow : Window
         settings.ToneLevel       = (int)_toneSlider.Value;
         settings.MockingbirdMode = _mockingbirdBox.IsChecked == true;
 
+        // Save API keys from the Providers tab to Windows Credential Manager
+        foreach (var pkf in _providerKeyForms)
+        {
+            var key = pkf.KeyOuter.Visibility == Visibility.Visible
+                ? pkf.KeyBox.Password
+                : pkf.KeyTextBox.Text;
+            if (!string.IsNullOrWhiteSpace(key))
+                WindowsCredentialManager.Save(pkf.Provider, key);
+        }
+
         settings.Participants.Clear();
 
         foreach (var form in _forms)
@@ -769,9 +970,7 @@ public partial class SettingsWindow : Window
                 Enabled   = form.EnabledCheck.IsChecked == true
             });
 
-            // Persist Cloud AI API key to Windows Credential Manager
-            if (!isOllama && !string.IsNullOrWhiteSpace(form.CurrentApiKey))
-                WindowsCredentialManager.Save(form.CurrentProvider, form.CurrentApiKey);
+            // API keys are saved from the Providers tab (see above)
         }
 
         // Keep legacy fields in sync for any code that still reads them
@@ -787,6 +986,33 @@ public partial class SettingsWindow : Window
             settings.SelectedProvider   = firstCloud.Type;
             settings.SelectedCloudModel = firstCloud.Model;
         }
+
+        // Persist per-provider throttle settings.
+        // Multiple participant slots can share the same provider type (e.g. two "Google AI" slots).
+        // Merge with "any-enabled-wins": if any slot has the checkbox checked, the setting is
+        // saved as enabled.  The RPM value is taken from the first enabled slot found.
+        var providerThrottle = new Dictionary<string, ProviderThrottleSettings>();
+        foreach (var form in _forms)
+        {
+            var provider = form.CurrentProvider;
+            if (provider == "Ollama") continue;
+            if (!int.TryParse(form.RpmValueBox.Text.Trim(), out var rpm) || rpm < 1) rpm = 15;
+            var enabled = form.RpmEnabledCheck.IsChecked == true;
+            if (!providerThrottle.TryGetValue(provider, out var existing))
+            {
+                providerThrottle[provider] = new ProviderThrottleSettings { Enabled = enabled, Rpm = rpm };
+            }
+            else
+            {
+                providerThrottle[provider] = new ProviderThrottleSettings
+                {
+                    Enabled = existing.Enabled || enabled,   // any checked = checked
+                    Rpm     = enabled ? rpm : existing.Rpm   // prefer rpm from an enabled slot
+                };
+            }
+        }
+        foreach (var (provider, ts) in providerThrottle)
+            settings.ProviderThrottle[provider] = ts;
 
         SettingsService.Save(settings);
         SaveStatusLabel.Text = "Saved ✓";
@@ -817,6 +1043,21 @@ public partial class SettingsWindow : Window
             "Mistral"        => "Get your key at console.mistral.ai",
             "xAI Grok"       => "Get your key at console.x.ai — requires credit card",
             "OpenAI ChatGPT" => "Get your key at platform.openai.com — requires credit card",
+            _                => ""
+        };
+    }
+
+    private static void UpdateRpmHint(TextBlock hint, string provider)
+    {
+        hint.Text = provider switch
+        {
+            "Google AI"      => "Free tier limits: 2–15 rpm (Pro/Ultra), 15–30 rpm (Flash) · aistudio.google.com",
+            "Groq"           => "Free tier limits vary by model — check console.groq.com for your model",
+            "Anthropic"      => "API rate limits depend on your usage tier — check console.anthropic.com",
+            "OpenRouter"     => "Free models have per-model rate limits — check openrouter.ai for details",
+            "Mistral"        => "Free tier: limited rpm — check console.mistral.ai for details",
+            "xAI Grok"       => "Rate limits depend on your plan — check console.x.ai",
+            "OpenAI ChatGPT" => "Rate limits depend on your usage tier — check platform.openai.com",
             _                => ""
         };
     }

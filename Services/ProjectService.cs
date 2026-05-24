@@ -125,6 +125,13 @@ public class ProjectSettings
     /// </summary>
     public int DefaultResponseLength { get; set; } = 50;
 
+    /// <summary>
+    /// Participants that were active the last time this project was open.
+    /// <c>null</c> = project has never been saved with participant state yet;
+    /// the app falls back to the global participant settings on first open.
+    /// </summary>
+    public List<ParticipantConfig>? ActiveParticipants { get; set; } = null;
+
     /// <summary>Looks up the role for a participant by provider + model (case-insensitive).
     /// Creates and registers a new empty role if none exists, using
     /// <see cref="DefaultResponseLength"/> as the initial ResponseLength.</summary>
