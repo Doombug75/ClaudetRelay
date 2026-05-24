@@ -1032,17 +1032,31 @@ public partial class MainWindow : Window
         var roleRows = new List<(string provider, string model, Func<ProjectParticipantRole> GetRole)>();
 
         // If no coordinator is set yet, default the first participant to CO
-        bool anyCoordinator     = ps.Roles.Any(r => r.IsCoordinator);
-        bool isFirstParticipant = true;
+        bool anyCoordinator = ps.Roles.Any(r => r.IsCoordinator);
 
-        foreach (var (provider, model, displayName) in enabledParticipants)
+        for (int pi = 0; pi < enabledParticipants.Count; pi++)
         {
-            var existing  = ps.Get(provider, model);
+            var (provider, model, displayName) = enabledParticipants[pi];
+
+            // ── Role lookup: positional first, key-based as fallback ───────
+            // When the old aliasing bug saved duplicate provider+model entries,
+            // a key-only lookup always returned entry[0] for every participant,
+            // making everyone appear as coordinator.  Positional matching gives
+            // each participant its own dedicated slot regardless of duplicate keys.
+            ProjectParticipantRole? existing = null;
+            if (pi < ps.Roles.Count)
+            {
+                var candidate = ps.Roles[pi];
+                if (string.Equals(candidate.Provider, provider, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(candidate.Model,    model,    StringComparison.OrdinalIgnoreCase))
+                    existing = candidate;
+            }
+            existing ??= ps.Get(provider, model);   // fallback for changed participant list
+
             bool available = provider == "Ollama"
                              || !string.IsNullOrWhiteSpace(WindowsCredentialManager.Load(provider));
 
-            // Always create a fresh working copy — prevents aliasing if two participants
-            // share the same provider+model key in the lookup.
+            // Fresh working copy — one per participant, no shared references
             var role = new ProjectParticipantRole
             {
                 Provider         = provider,
@@ -1051,12 +1065,11 @@ public partial class MainWindow : Window
                 AnswerAsName     = existing?.AnswerAsName     ?? "",
                 RoleInstruction  = existing?.RoleInstruction  ?? "",
                 ResponseLength   = existing?.ResponseLength   ?? 50,
-                IsCoordinator    = existing?.IsCoordinator    ?? (!anyCoordinator && isFirstParticipant),
+                IsCoordinator    = existing?.IsCoordinator    ?? (!anyCoordinator && pi == 0),
                 IsReasoner       = existing?.IsReasoner       ?? false,
                 ReasonerPriority = existing?.ReasonerPriority ?? 5,
                 IsActive         = existing?.IsActive         ?? true
             };
-            isFirstParticipant = false;
 
             // ── Avatar chip with CO / R badge overlay ────────────────────────
             var avatarCircle = new Border
