@@ -3249,15 +3249,25 @@ public partial class MainWindow : Window
             };
         }
 
+        // Honesty anchor — appended to every warm level.
+        // The role-instruction override clause keeps acting / storytelling characters free.
+        const string honest =
+            " Unless your role or character instruction specifies otherwise: " +
+            "always be honest. Gentle criticism is not only allowed — it is expected. " +
+            "Never soften a real problem into invisibility. " +
+            "Truth and warmth are not opposites.";
+
         return level switch
         {
             < 10  => "\n\nRespond with strict neutrality: pure facts, no pleasantries, no emotional language, no greetings or affirmations.",
             < 30  => "\n\nKeep your tone neutral and objective. Minimise pleasantries and focus on accurate information.",
             < 45  => "\n\nBe slightly more direct and factual; avoid excessive friendliness.",
             <= 55 => "",   // 50 = model default — no injection
-            < 70  => "\n\nBe a little warmer and more conversational in your responses.",
-            < 90  => "\n\nBe friendly and supportive in your responses.",
-            _     => "\n\nBe very warm, encouraging, and enthusiastic. Use positive and motivating language."
+            < 70  => "\n\nBe a little warmer and more conversational in your responses." + honest,
+            < 90  => "\n\nBe friendly and supportive in your responses." + honest,
+            _     => "\n\nBe warm, encouraging, and enthusiastic in your responses. " +
+                     "Celebrate what genuinely works; name what doesn't, kindly but clearly. " +
+                     "Enthusiasm without honesty is empty flattery." + honest
         };
     }
 
