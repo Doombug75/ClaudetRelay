@@ -171,19 +171,13 @@ public partial class MainWindow : Window
         {
             if (p.Type == "Ollama")
             {
-                if (_ollamaParticipants.Count < 3)
-                {
-                    AddOllamaParticipant(p.Model, p.ServerUrl, p.Name);
-                    anyAdded = true;
-                }
+                AddOllamaParticipant(p.Model, p.ServerUrl, p.Name);
+                anyAdded = true;
             }
             else
             {
-                if (_cloudAIParticipants.Count < 3)
-                {
-                    AddCloudAIParticipant(p.Type, p.Model, p.Name);
-                    anyAdded = true;
-                }
+                AddCloudAIParticipant(p.Type, p.Model, p.Name);
+                anyAdded = true;
             }
         }
 
@@ -232,9 +226,9 @@ public partial class MainWindow : Window
 
         foreach (var p in settings.Participants.Where(p => p.Enabled))
         {
-            if (p.Type == "Ollama" && _ollamaParticipants.Count < 3)
+            if (p.Type == "Ollama")
                 AddOllamaParticipant(p.Model, p.ServerUrl, p.Name);
-            else if (p.Type != "Ollama" && _cloudAIParticipants.Count < 3)
+            else
                 AddCloudAIParticipant(p.Type, p.Model, p.Name);
         }
 
@@ -1162,7 +1156,7 @@ public partial class MainWindow : Window
 
     private void AddCloudAIParticipant(string provider, string model = "", string customName = "")
     {
-        if (_cloudAIParticipants.Count >= 3) return;
+        if (_cloudAIParticipants.Count >= 20) return;
         if (_cloudAIParticipants.Any(ui => ui.Data.Service.ProviderName == provider)) return;
 
         var apiKey = WindowsCredentialManager.Load(provider);
@@ -1203,9 +1197,6 @@ public partial class MainWindow : Window
 
     private void UpdateCloudAIAddRemoveButtons()
     {
-        AddCloudAIButton.Visibility = _cloudAIParticipants.Count < 3
-            ? Visibility.Visible : Visibility.Collapsed;
-
         foreach (var ui in _cloudAIParticipants)
             ui.RemoveButton.Visibility = Visibility.Visible;
     }
@@ -1413,7 +1404,7 @@ public partial class MainWindow : Window
                                       string serverUrl = "http://localhost:11434",
                                       string customName = "")
     {
-        if (_ollamaParticipants.Count >= 3) return;
+        if (_ollamaParticipants.Count >= 20) return;
 
         var participant = new OllamaParticipant
         {
@@ -1427,7 +1418,7 @@ public partial class MainWindow : Window
 
     private void RemoveOllamaParticipant(OllamaParticipantUI ui)
     {
-        if (_ollamaParticipants.Count <= 1) return;
+        if (_ollamaParticipants.Count + _cloudAIParticipants.Count <= 1) return;
 
         OllamaCardsPanel.Children.Remove(ui.Popup);
         OllamaCardsPanel.Children.Remove(ui.Card);
@@ -1458,10 +1449,8 @@ public partial class MainWindow : Window
 
     private void UpdateAddRemoveButtons()
     {
-        AddOllamaButton.Visibility = _ollamaParticipants.Count < 3
-            ? Visibility.Visible : Visibility.Collapsed;
-
-        bool showRemove = _ollamaParticipants.Count > 1;
+        // Show remove on Ollama cards when there is more than one participant total
+        bool showRemove = (_ollamaParticipants.Count + _cloudAIParticipants.Count) > 1;
         foreach (var ui in _ollamaParticipants)
             ui.RemoveButton.Visibility = showRemove ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -1777,74 +1766,78 @@ public partial class MainWindow : Window
 
     // ── Add Cloud AI popup handlers ────────────────────────────────────────
 
-    private void AddCloudAIButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_cloudAIParticipants.Count >= 3) return;
+    // ── Add Participant dropdown ───────────────────────────────────────────
 
-        var active    = _cloudAIParticipants.Select(ui => ui.Data.Service.ProviderName).ToHashSet();
-        var available = new[] { "Anthropic", "OpenAI ChatGPT", "Google AI", "Groq", "xAI Grok", "OpenRouter", "Mistral" }
-            .Where(p => !active.Contains(p) && WindowsCredentialManager.Load(p) is not null)
+    private void AddParticipantButton_Click(object sender, RoutedEventArgs e)
+    {
+        var settings = SettingsService.Load();
+        var enabled  = settings.Participants
+            .Where(p => p.Enabled && !string.IsNullOrEmpty(p.Model))
             .ToList();
 
-        if (available.Count == 0)
+        var menu = new ContextMenu { FontFamily = new FontFamily("Segoe UI"), FontSize = 13 };
+
+        foreach (var p in enabled)
         {
-            AddSystemMessage("ℹ  No more Cloud AI providers with API keys. Configure them in ⚙ Settings.");
-            return;
+            bool alreadyAdded = p.Type == "Ollama"
+                ? _ollamaParticipants.Any(ui =>
+                      ui.Data.Service.CurrentModel == p.Model &&
+                      ui.Data.Service.BaseUrl      == p.ServerUrl)
+                : _cloudAIParticipants.Any(ui =>
+                      ui.Data.Service.ProviderName == p.Type);
+
+            var displayName = string.IsNullOrWhiteSpace(p.Name)
+                ? FormatModelDisplayName(p.Model)
+                : p.Name;
+
+            var typeIcon = p.Type == "Ollama" ? "🦙" : "☁️";
+            var item = new MenuItem
+            {
+                Header    = $"{typeIcon}  {displayName}  ·  {p.Model}",
+                IsEnabled = !alreadyAdded
+            };
+
+            if (!alreadyAdded)
+            {
+                var cap = p;
+                item.Click += (_, _) =>
+                {
+                    if (cap.Type == "Ollama")
+                    {
+                        AddOllamaParticipant(cap.Model, cap.ServerUrl, cap.Name);
+                        _ = CheckAllStatusAsync();
+                    }
+                    else
+                    {
+                        AddCloudAIParticipant(cap.Type, cap.Model, cap.Name);
+                        if (_cloudAIParticipants.Count > 0)
+                        {
+                            var ui = _cloudAIParticipants[^1];
+                            _ = Task.Run(async () =>
+                            {
+                                var online = await ui.Data.Service.IsAvailableAsync();
+                                Dispatcher.Invoke(() => ApplyCloudAIParticipantStatus(ui, online));
+                            });
+                        }
+                    }
+                };
+            }
+            menu.Items.Add(item);
         }
 
-        AddCloudAIProviderCombo.SelectionChanged -= AddCloudAIProviderCombo_SelectionChanged;
-        AddCloudAIProviderCombo.Items.Clear();
-        foreach (var p in available)
-            AddCloudAIProviderCombo.Items.Add(new ComboBoxItem { Content = p });
-        AddCloudAIProviderCombo.SelectedIndex = 0;
-        AddCloudAIProviderCombo.SelectionChanged += AddCloudAIProviderCombo_SelectionChanged;
-
-        PopulateAddCloudAIModelCombo(available[0]);
-        AddCloudAIPopup.IsOpen = true;
-    }
-
-    private void AddCloudAIProviderCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        var provider = (AddCloudAIProviderCombo.SelectedItem as ComboBoxItem)?.Content?.ToString();
-        if (provider is not null)
-            PopulateAddCloudAIModelCombo(provider);
-    }
-
-    private void PopulateAddCloudAIModelCombo(string provider)
-    {
-        var models = GetDefaultModelsForProvider(provider);
-        AddCloudAIModelCombo.Items.Clear();
-        foreach (var m in models)
-            AddCloudAIModelCombo.Items.Add(new ComboBoxItem { Content = m });
-        if (AddCloudAIModelCombo.Items.Count > 0)
-            AddCloudAIModelCombo.SelectedIndex = 0;
-    }
-
-    private void ConfirmAddCloudAI_Click(object sender, RoutedEventArgs e)
-    {
-        var provider = (AddCloudAIProviderCombo.SelectedItem as ComboBoxItem)?.Content?.ToString();
-        var model    = (AddCloudAIModelCombo.SelectedItem    as ComboBoxItem)?.Content?.ToString() ?? "";
-
-        if (provider is null) return;
-
-        AddCloudAIPopup.IsOpen = false;
-        AddCloudAIParticipant(provider, model);
-
-        if (_cloudAIParticipants.Count > 0)
+        if (menu.Items.Count == 0)
         {
-            var ui = _cloudAIParticipants[^1];
-            _ = Task.Run(async () =>
+            menu.Items.Add(new MenuItem
             {
-                var online = await ui.Data.Service.IsAvailableAsync();
-                Dispatcher.Invoke(() => ApplyCloudAIParticipantStatus(ui, online));
+                Header    = "No participants configured — open ⚙ Settings",
+                IsEnabled = false
             });
         }
+
+        menu.PlacementTarget = AddParticipantButton;
+        menu.Placement       = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen          = true;
     }
-
-    // ── Sidebar buttons ────────────────────────────────────────────────────
-
-    private void AddOllamaButton_Click(object sender, RoutedEventArgs e)
-        => AddOllamaParticipant();
 
     // ── Input ──────────────────────────────────────────────────────────────
 
