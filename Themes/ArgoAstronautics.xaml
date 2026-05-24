@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Argo Astronautics — "Workhorse of the Verse"                              -->
+    <!-- Brand: safety yellow, industrial grey, utilitarian — MPUV, SRV, Mole     -->
+    <!-- Cockpit displays: amber warning yellow on steel grey industrial panels    -->
+
+    <!-- Backgrounds — industrial dark, machine floor -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#0A0C0A"/> <!-- Industrial dark          -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#070908"/> <!-- Machine floor deep       -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#101410"/> <!-- Panel recess             -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#181C18"/> <!-- Console steel surface    -->
+
+    <!-- Text — warm grey-white, operator manual print -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#D0CCBC"/> <!-- Warm grey-white           -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#607068"/> <!-- Muted industrial          -->
+
+    <!-- Accents — Argo safety yellow, steel grey-blue, warning amber -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#D0A020"/> <!-- Argo safety yellow        -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#789098"/> <!-- Industrial steel grey-blue-->
+    <SolidColorBrush x:Key="UserBrush"    Color="#B8C0C8"/> <!-- Pale industrial grey      -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#F0C030"/> <!-- Bright Argo warning yellow-->
+
+    <!-- Bubble backgrounds — industrial display tints -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#141008"/> <!-- Dark amber tint       -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#0E1210"/> <!-- Steel grey dark       -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#0E1012"/> <!-- Industrial dark       -->
+
+</ResourceDictionary>

@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Esperia — "Authentic Replicas of the Verse"                               -->
+    <!-- Brand: antique gold/amber, collector's warmth — Prowler, Talon, Blade    -->
+    <!-- Cockpit displays: warm amber on dark antique — alien ship replicas        -->
+
+    <!-- Backgrounds — antique dark, collector's vault -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#0C0A08"/> <!-- Antique vault dark       -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#0A0806"/> <!-- Deeper antiquity         -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#141008"/> <!-- Panel recess             -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#1E1810"/> <!-- Aged surface             -->
+
+    <!-- Text — antique parchment, catalog page -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#E0D0A8"/> <!-- Antique parchment         -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#806848"/> <!-- Muted amber-dust          -->
+
+    <!-- Accents — collector gold, alien teal origin, warm amber -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#C8940C"/> <!-- Esperia antique gold      -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#30A888"/> <!-- Alien origin teal — replica-->
+    <SolidColorBrush x:Key="UserBrush"    Color="#C0A868"/> <!-- Warm amber antiquity      -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#E0A818"/> <!-- Bright gold — certificate -->
+
+    <!-- Bubble backgrounds — collector display tints -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#140E04"/> <!-- Dark amber            -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#080E0C"/> <!-- Alien teal dark       -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#140E06"/> <!-- Antique dark          -->
+
+</ResourceDictionary>

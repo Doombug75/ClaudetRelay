@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Origin Jumpworks — "Beyond the Horizon"                                   -->
+    <!-- Brand: luxury gold, champagne, pearl white — premium 300 series, 890 Jump -->
+    <!-- Cockpit displays: warm gold accent on near-white premium panels            -->
+
+    <!-- Backgrounds — premium near-black, velvet dark interior -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#0C0C0E"/> <!-- Premium dark near-black  -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#08080A"/> <!-- Deeper velvet            -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#141416"/> <!-- Panel recess             -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#1E1E24"/> <!-- Polished console surface -->
+
+    <!-- Text — warm cream, luxury interior finish -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#F0EEE4"/> <!-- Warm cream — 890 interior -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#7870A0"/> <!-- Muted violet-silver trim  -->
+
+    <!-- Accents — Origin gold, champagne, pearl cockpit glass -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#D8B840"/> <!-- Origin gold — luxury trim -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#B89828"/> <!-- Champagne secondary       -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#90A8C8"/> <!-- Pearl blue — cockpit glass-->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#F0CC50"/> <!-- Bright Origin gold        -->
+
+    <!-- Bubble backgrounds — luxury display tints -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#141008"/> <!-- Dark gold tint        -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#100E06"/> <!-- Champagne dark        -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#0C0E14"/> <!-- Pearl blue dark       -->
+
+</ResourceDictionary>

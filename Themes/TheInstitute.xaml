@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- The Institute — "Mankind, Redefined"                                      -->
+    <!-- Brand: clinical white/blue, holographic synth cyan, sterile precision     -->
+    <!-- Aesthetic: underground lab, synth-blue terminals, cold perfection         -->
+
+    <!-- Backgrounds — clinical near-black blue, underground lab -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#080E14"/> <!-- Clinical deep navy        -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#060A10"/> <!-- Deeper lab black          -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#0C1420"/> <!-- Panel recess              -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#14202E"/> <!-- Console surface           -->
+
+    <!-- Text — cool clinical white-blue, Institute sterile -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#D4EEF8"/> <!-- Clinical cool white       -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#3870A0"/> <!-- Muted Institute blue      -->
+
+    <!-- Accents — synth-cyan, tech department blue, holographic glow -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#1ABCE0"/> <!-- Institute cyan — synth ID -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#1888C0"/> <!-- Tech department blue      -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#40D8F0"/> <!-- Holographic interface     -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#00E8FF"/> <!-- Synth activation glow     -->
+
+    <!-- Bubble backgrounds — synth lab display tints -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#041018"/> <!-- Deep lab blue         -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#040C16"/> <!-- Darker navy           -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#041418"/> <!-- Tech cyan-dark        -->
+
+</ResourceDictionary>

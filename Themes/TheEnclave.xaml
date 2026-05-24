@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- The Enclave — "The Future of America"                                     -->
+    <!-- Brand: black authority, Enclave green, Vertibird gunship power            -->
+    <!-- Aesthetic: shadow government, advanced power armor, oil-slick military    -->
+
+    <!-- Backgrounds — black military void, shadow government ops -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#080A0C"/> <!-- Black military void      -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#050708"/> <!-- Deeper ops black         -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#0C1010"/> <!-- Panel recess             -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#141A18"/> <!-- Ops console surface      -->
+
+    <!-- Text — military readout, green-grey tactical -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#B8C8B4"/> <!-- Military readout grey-green-->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#406048"/> <!-- Muted tactical green      -->
+
+    <!-- Accents — Enclave emerald, military olive, Vertibird blue -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#189040"/> <!-- Enclave green — power armor-->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#307040"/> <!-- Military olive — ops      -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#4898A8"/> <!-- Vertibird display blue    -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#20B858"/> <!-- Enclave flag emerald      -->
+
+    <!-- Bubble backgrounds — black ops terminal tints -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#080E08"/> <!-- Dark Enclave green    -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#0A1008"/> <!-- Military dark         -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#080C10"/> <!-- Vertibird dark blue   -->
+
+</ResourceDictionary>

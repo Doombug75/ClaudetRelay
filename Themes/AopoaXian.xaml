@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Aopoa — Xi'an Ship Manufacturer                                           -->
+    <!-- Brand: bioluminescent teal-green, organic curves, alien precision         -->
+    <!-- Cockpit displays: Xi'an flowing teal on void-black — Khartu-Al, San'tok.yāi-->
+
+    <!-- Backgrounds — alien void, deep space Xi'an dark -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#040C0A"/> <!-- Alien void-dark          -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#030908"/> <!-- Deeper void              -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#081410"/> <!-- Panel recess             -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#101C18"/> <!-- Organic surface          -->
+
+    <!-- Text — alien cool teal-white, Xi'an interface -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#B8F4E8"/> <!-- Alien teal-white          -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#208870"/> <!-- Muted Xi'an teal          -->
+
+    <!-- Accents — Xi'an bioluminescence, organic teal-green -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#00D8B0"/> <!-- Xi'an primary glow       -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#20C0A0"/> <!-- Secondary teal           -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#50ECC0"/> <!-- Interface bright         -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#00FFD8"/> <!-- Blinding alien light     -->
+
+    <!-- Bubble backgrounds — bioluminescent tints -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#041210"/> <!-- Deep Xi'an teal      -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#040E0C"/> <!-- Darker void          -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#061410"/> <!-- Organic dark         -->
+
+</ResourceDictionary>

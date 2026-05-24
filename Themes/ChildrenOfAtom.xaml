@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Children of Atom — "Division is a Gift"                                   -->
+    <!-- Brand: nuclear teal-green glow, devotional light, irradiated blessings    -->
+    <!-- Aesthetic: Geiger clicks, glowing devotees, Far Harbor mist + radiation   -->
+
+    <!-- Backgrounds — nuclear dark void, reactor depth -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#06100C"/> <!-- Nuclear void-dark        -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#040C08"/> <!-- Deeper reactor dark      -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#0A1810"/> <!-- Panel recess             -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#101E18"/> <!-- Glow-lit surface         -->
+
+    <!-- Text — irradiated pale teal, blessed by Atom -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#B8F0E0"/> <!-- Irradiated pale teal     -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#308858"/> <!-- Muted nuclear green      -->
+
+    <!-- Accents — Atom's glow, reactor-green, divine radiation -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#00D0A0"/> <!-- Atom's glow — teal       -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#30C878"/> <!-- Blessed green             -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#50E8B0"/> <!-- Reactor-glow cyan        -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#00FFB8"/> <!-- Divine nuclear light     -->
+
+    <!-- Bubble backgrounds — irradiated display tints -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#040E08"/> <!-- Deep atom-glow       -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#041008"/> <!-- Dark reactor green   -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#041210"/> <!-- Nuclear teal dark    -->
+
+</ResourceDictionary>
