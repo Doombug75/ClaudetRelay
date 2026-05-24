@@ -523,6 +523,18 @@ public partial class MainWindow : Window
     /// </summary>
     private ProjectTypeDefinition? ShowProjectTypePicker()
     {
+        // ── Cache brushes from MainWindow (theme-aware) ───────────────────
+        // New Window instances don't inherit MainWindow's MergedDictionaries,
+        // so SetResourceReference would resolve nothing → black window.
+        // Resolve once here on 'this' and assign directly, same as all other dialogs.
+        var bgBrush      = (Brush)FindResource("BackgroundBrush");
+        var textBrush    = (Brush)FindResource("TextBrush");
+        var subtextBrush = (Brush)FindResource("SubtextBrush");
+        var inputBrush   = (Brush)FindResource("InputBrush");
+        var surfaceBrush = (Brush)FindResource("SurfaceBrush");
+        var accentBrush  = (Brush)FindResource("AccentBrush");
+        var btnStyle     = (Style)FindResource("ModernButton");
+
         ProjectTypeDefinition? result = null;
 
         // ── Dialog window ─────────────────────────────────────────────────
@@ -534,9 +546,9 @@ public partial class MainWindow : Window
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner                 = this,
             ResizeMode            = ResizeMode.NoResize,
-            ShowInTaskbar         = false
+            ShowInTaskbar         = false,
+            Background            = bgBrush
         };
-        dlg.SetResourceReference(Window.BackgroundProperty, "BackgroundBrush");
 
         // ── Header ────────────────────────────────────────────────────────
         var header = new TextBlock
@@ -545,21 +557,21 @@ public partial class MainWindow : Window
             FontSize     = 15,
             FontWeight   = FontWeights.SemiBold,
             FontFamily   = new FontFamily("Segoe UI"),
+            Foreground   = textBrush,
             Margin       = new Thickness(20, 20, 20, 4)
         };
-        header.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
         var subtitle = new TextBlock
         {
             Text         = "Choose the type that best fits your project. You can change it later.",
             FontSize     = 12,
             FontFamily   = new FontFamily("Segoe UI"),
+            Foreground   = subtextBrush,
             Margin       = new Thickness(20, 0, 20, 14),
             TextWrapping = TextWrapping.Wrap
         };
-        subtitle.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
 
-        // ── Type cards grid ───────────────────────────────────────────────
+        // ── Type cards ────────────────────────────────────────────────────
         var typePanel = new WrapPanel
         {
             Orientation = Orientation.Horizontal,
@@ -577,35 +589,35 @@ public partial class MainWindow : Window
 
             var iconTb = new TextBlock
             {
-                Text              = ptd.Icon,
-                FontSize          = 24,
+                Text                = ptd.Icon,
+                FontSize            = 24,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Margin            = new Thickness(0, 0, 0, 4)
+                Margin              = new Thickness(0, 0, 0, 4)
             };
 
             var nameTb = new TextBlock
             {
-                Text              = ptd.Name,
-                FontSize          = 12,
-                FontWeight        = FontWeights.SemiBold,
-                FontFamily        = new FontFamily("Segoe UI"),
+                Text                = ptd.Name,
+                FontSize            = 12,
+                FontWeight          = FontWeights.SemiBold,
+                FontFamily          = new FontFamily("Segoe UI"),
+                Foreground          = textBrush,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                TextWrapping      = TextWrapping.Wrap,
-                TextAlignment     = TextAlignment.Center
+                TextWrapping        = TextWrapping.Wrap,
+                TextAlignment       = TextAlignment.Center
             };
-            nameTb.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
 
             var descTb = new TextBlock
             {
-                Text              = ptd.Description,
-                FontSize          = 10,
-                FontFamily        = new FontFamily("Segoe UI"),
+                Text                = ptd.Description,
+                FontSize            = 10,
+                FontFamily          = new FontFamily("Segoe UI"),
+                Foreground          = subtextBrush,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                TextWrapping      = TextWrapping.Wrap,
-                TextAlignment     = TextAlignment.Center,
-                Margin            = new Thickness(0, 4, 0, 0)
+                TextWrapping        = TextWrapping.Wrap,
+                TextAlignment       = TextAlignment.Center,
+                Margin              = new Thickness(0, 4, 0, 0)
             };
-            descTb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
 
             var cardContent = new StackPanel { Width = 130 };
             cardContent.Children.Add(iconTb);
@@ -614,26 +626,26 @@ public partial class MainWindow : Window
 
             var typeCard = new Border
             {
-                CornerRadius = new CornerRadius(10),
-                Padding      = new Thickness(10, 12, 10, 12),
-                Margin       = new Thickness(4, 4, 4, 4),
-                Cursor       = Cursors.Hand,
-                Child        = cardContent,
-                Width        = 150,
+                CornerRadius    = new CornerRadius(10),
+                Padding         = new Thickness(10, 12, 10, 12),
+                Margin          = new Thickness(4, 4, 4, 4),
+                Cursor          = Cursors.Hand,
+                Child           = cardContent,
+                Width           = 150,
                 BorderThickness = new Thickness(2),
-                BorderBrush  = Brushes.Transparent
+                BorderBrush     = Brushes.Transparent,
+                Background      = inputBrush
             };
-            typeCard.SetResourceReference(Border.BackgroundProperty, "InputBrush");
 
             typeCard.MouseEnter += (_, _) =>
             {
                 if (typeCard != selectedCard)
-                    typeCard.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
+                    typeCard.Background = surfaceBrush;
             };
             typeCard.MouseLeave += (_, _) =>
             {
                 if (typeCard != selectedCard)
-                    typeCard.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+                    typeCard.Background = inputBrush;
             };
             typeCard.MouseLeftButtonDown += (_, _) =>
             {
@@ -641,27 +653,27 @@ public partial class MainWindow : Window
                 if (selectedCard is not null)
                 {
                     selectedCard.BorderBrush = Brushes.Transparent;
-                    selectedCard.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+                    selectedCard.Background  = inputBrush;
                 }
                 // Select this
                 selectedCard = typeCard;
                 selectedType = capturedPtd;
-                typeCard.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
-                typeCard.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+                typeCard.Background  = surfaceBrush;
+                typeCard.BorderBrush = accentBrush;
                 if (okBtn is not null) okBtn.IsEnabled = true;
             };
 
             typePanel.Children.Add(typeCard);
         }
 
-        // Pre-select General
+        // Pre-select General (first card)
         var generalCard = typePanel.Children.OfType<Border>().FirstOrDefault();
         if (generalCard is not null)
         {
             selectedCard = generalCard;
             selectedType = _projectTypes.FirstOrDefault();
-            generalCard.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
-            generalCard.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+            generalCard.Background  = surfaceBrush;
+            generalCard.BorderBrush = accentBrush;
         }
 
         // ── Buttons ───────────────────────────────────────────────────────
@@ -674,10 +686,10 @@ public partial class MainWindow : Window
             FontSize   = 13,
             Margin     = new Thickness(0, 0, 8, 0),
             IsEnabled  = true,
-            Style      = (Style)FindResource("ModernButton")
+            Style      = btnStyle,
+            Background = accentBrush,
+            Foreground = textBrush
         };
-        okBtn.SetResourceReference(Button.BackgroundProperty, "AccentBrush");
-        okBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
 
         var cancelBtn = new Button
         {
@@ -686,10 +698,10 @@ public partial class MainWindow : Window
             Height     = 32,
             FontFamily = new FontFamily("Segoe UI"),
             FontSize   = 13,
-            Style      = (Style)FindResource("ModernButton")
+            Style      = btnStyle,
+            Background = inputBrush,
+            Foreground = subtextBrush
         };
-        cancelBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-        cancelBtn.SetResourceReference(Button.ForegroundProperty, "SubtextBrush");
 
         okBtn    .Click += (_, _) => { result = selectedType; dlg.DialogResult = true; };
         cancelBtn.Click += (_, _) => dlg.DialogResult = false;
