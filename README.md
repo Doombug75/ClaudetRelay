@@ -8,9 +8,9 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 ## Screenshots
 ![Settings](Assets/Settings.png)
 ![Projects](Assets/Projects.png)
-![Themes](Assets/themeEB.png)
-![Themes](Assets/themeNW.png)
-![Themes](Assets/themeNB.png)
+![ThemeEB](Assets/themeEB.png)
+![ThemeNW](Assets/themeNW.png)
+![ThemeNB](Assets/themeNB.png)
 
 
 ## Features
