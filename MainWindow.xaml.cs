@@ -642,6 +642,141 @@ public partial class MainWindow : Window
         return result;
     }
 
+    // ── About / Version ────────────────────────────────────────────────────
+
+    private void AboutButton_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu();
+
+        var infoItem    = new MenuItem { Header = "ℹ  Info" };
+        var versionItem = new MenuItem { Header = "📋  Version" };
+        infoItem   .Click += (_, _) => ShowAboutInfoDialog();
+        versionItem.Click += (_, _) => ShowAboutVersionDialog();
+
+        menu.Items.Add(infoItem);
+        menu.Items.Add(versionItem);
+        menu.PlacementTarget = (Button)sender;
+        menu.Placement       = System.Windows.Controls.Primitives.PlacementMode.Top;
+        menu.IsOpen          = true;
+    }
+
+    private void ShowAboutInfoDialog()
+    {
+        var win = new Window
+        {
+            Title                 = "About ClaudetRelay",
+            Width                 = 360,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            Background            = (Brush)FindResource("BackgroundBrush"),
+            ResizeMode            = ResizeMode.NoResize
+        };
+
+        var panel = new StackPanel { Margin = new Thickness(28, 24, 28, 24) };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = "ClaudetRelay", FontSize = 22, FontWeight = FontWeights.Bold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("TextBrush"),
+            Margin = new Thickness(0, 0, 0, 4)
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Multi-AI group chat relay",
+            FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("SubtextBrush"),
+            Margin = new Thickness(0, 0, 0, 20)
+        });
+        panel.Children.Add(new Rectangle
+        {
+            Height = 1, Fill = (Brush)FindResource("InputBrush"),
+            Margin = new Thickness(0, 0, 0, 20)
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "by H.-R. Matthes and Claude Code",
+            FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("TextBrush"),
+            Margin = new Thickness(0, 0, 0, 20)
+        });
+
+        var closeBtn = new Button
+        {
+            Content = "Close", IsDefault = true,
+            Height = 34, Padding = new Thickness(20, 0, 20, 0),
+            Style = (Style)FindResource("ModernButton"),
+            Background = (Brush)FindResource("ClaudeBrush"),
+            Foreground = (Brush)FindResource("SidebarBrush"),
+            FontWeight = FontWeights.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        closeBtn.Click += (_, _) => win.Close();
+        panel.Children.Add(closeBtn);
+
+        win.Content = panel;
+        win.ShowDialog();
+    }
+
+    private void ShowAboutVersionDialog()
+    {
+        var asm     = System.Reflection.Assembly.GetExecutingAssembly();
+        var ver     = asm.GetName().Version;
+        var verStr  = ver is not null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "dev";
+        var built   = SysIO.File.GetLastWriteTime(asm.Location);
+
+        var win = new Window
+        {
+            Title                 = "Version",
+            Width                 = 300,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            Background            = (Brush)FindResource("BackgroundBrush"),
+            ResizeMode            = ResizeMode.NoResize
+        };
+
+        var panel = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = "ClaudetRelay", FontSize = 16, FontWeight = FontWeights.Bold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("TextBrush"),
+            Margin = new Thickness(0, 0, 0, 10)
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"Version {verStr}",
+            FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("TextBrush"),
+            Margin = new Thickness(0, 0, 0, 4)
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"Build  {built:yyyy-MM-dd}",
+            FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("SubtextBrush"),
+            Margin = new Thickness(0, 0, 0, 18)
+        });
+
+        var closeBtn = new Button
+        {
+            Content = "Close", IsDefault = true,
+            Height = 32, Padding = new Thickness(16, 0, 16, 0),
+            Style = (Style)FindResource("ModernButton"),
+            Background = (Brush)FindResource("InputBrush"),
+            Foreground = (Brush)FindResource("TextBrush"),
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        closeBtn.Click += (_, _) => win.Close();
+        panel.Children.Add(closeBtn);
+
+        win.Content = panel;
+        win.ShowDialog();
+    }
+
     // ── Project settings dialog ────────────────────────────────────────────
 
     private void ProjectSettingsButton_Click(object sender, RoutedEventArgs e)
@@ -897,30 +1032,44 @@ public partial class MainWindow : Window
                 Foreground = (Brush)FindResource("SidebarBrush")
             };
 
-            var badgeText = new TextBlock
+            // CO badge — gold, top-right
+            var coBadgeText = new TextBlock
             {
-                Text                = role.IsCoordinator ? "CO" : (role.IsReasoner ? "R" : ""),
-                FontSize            = 8, FontWeight = FontWeights.Bold,
-                FontFamily          = new FontFamily("Segoe UI"),
-                Foreground          = Brushes.Black,
+                Text = "CO", FontSize = 8, FontWeight = FontWeights.Bold,
+                FontFamily = new FontFamily("Segoe UI"), Foreground = Brushes.Black,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment   = VerticalAlignment.Center
             };
-            var badgeBorder = new Border
+            var coBadgeBorder = new Border
             {
                 CornerRadius        = new CornerRadius(3),
                 Padding             = new Thickness(2, 0, 2, 0),
                 Height              = 13,
-                Background          = role.IsCoordinator
-                    ? new SolidColorBrush(Color.FromRgb(255, 215, 0))
-                    : role.IsReasoner
-                    ? (Brush)FindResource("SubtextBrush")
-                    : Brushes.Transparent,
+                Background          = new SolidColorBrush(Color.FromRgb(255, 215, 0)),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment   = VerticalAlignment.Top,
+                Visibility          = role.IsCoordinator ? Visibility.Visible : Visibility.Collapsed,
+                Child = coBadgeText
+            };
+
+            // R badge — silver, bottom-right
+            var rBadgeText = new TextBlock
+            {
+                Text = "R", FontSize = 8, FontWeight = FontWeights.Bold,
+                FontFamily = new FontFamily("Segoe UI"), Foreground = Brushes.Black,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment   = VerticalAlignment.Center
+            };
+            var rBadgeBorder = new Border
+            {
+                CornerRadius        = new CornerRadius(3),
+                Padding             = new Thickness(2, 0, 2, 0),
+                Height              = 13,
+                Background          = (Brush)FindResource("SubtextBrush"),
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment   = VerticalAlignment.Bottom,
-                Visibility          = (role.IsCoordinator || role.IsReasoner)
-                    ? Visibility.Visible : Visibility.Collapsed,
-                Child = badgeText
+                Visibility          = role.IsReasoner ? Visibility.Visible : Visibility.Collapsed,
+                Child = rBadgeText
             };
 
             // Grid container (still named avatarBorder — column-set code below unchanged)
@@ -931,7 +1080,8 @@ public partial class MainWindow : Window
                 VerticalAlignment = VerticalAlignment.Center
             };
             avatarBorder.Children.Add(avatarCircle);
-            avatarBorder.Children.Add(badgeBorder);
+            avatarBorder.Children.Add(coBadgeBorder);
+            avatarBorder.Children.Add(rBadgeBorder);
 
             // ── Name + model sub-label ─────────────────────────────────────
             var nameTb = new TextBlock
@@ -975,10 +1125,10 @@ public partial class MainWindow : Window
                 VerticalAlignment = VerticalAlignment.Center
             };
 
-            var capturedRole        = role;
-            var capturedModelTb     = modelTb;
-            var capturedBadgeBorder = badgeBorder;
-            var capturedBadgeText   = badgeText;
+            var capturedRole    = role;
+            var capturedModelTb = modelTb;
+            var capturedCoBadge = coBadgeBorder;
+            var capturedRBadge  = rBadgeBorder;
             editBtn.Click += (_, _) =>
             {
                 if (ShowCharacterEditorDialog(capturedRole, projFolder, displayName))
@@ -987,16 +1137,10 @@ public partial class MainWindow : Window
                     capturedModelTb.Text = string.IsNullOrWhiteSpace(capturedRole.AnswerAsName)
                         ? $"{provider}  ·  {model}"
                         : $"{provider}  ·  {model}  ·  🎭 {capturedRole.AnswerAsName}";
-                    // Refresh CO/R badge
-                    capturedBadgeText.Text = capturedRole.IsCoordinator ? "CO"
-                        : capturedRole.IsReasoner ? "R" : "";
-                    capturedBadgeBorder.Background = capturedRole.IsCoordinator
-                        ? new SolidColorBrush(Color.FromRgb(255, 215, 0))
-                        : capturedRole.IsReasoner
-                        ? (Brush)FindResource("SubtextBrush")
-                        : Brushes.Transparent;
-                    capturedBadgeBorder.Visibility =
-                        (capturedRole.IsCoordinator || capturedRole.IsReasoner)
+                    // Refresh CO / R badges independently
+                    capturedCoBadge.Visibility = capturedRole.IsCoordinator
+                        ? Visibility.Visible : Visibility.Collapsed;
+                    capturedRBadge.Visibility  = capturedRole.IsReasoner
                         ? Visibility.Visible : Visibility.Collapsed;
                 }
             };

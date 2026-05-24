@@ -261,7 +261,20 @@
                             Click="SettingsButton_Click"/>
                     <Button Content="🗑  Clear Chat"
                             Style="{StaticResource SidebarButton}"
+                            Margin="0,0,0,6"
                             Click="ClearChat_Click"/>
+                    <!-- About / Version -->
+                    <Button x:Name="AboutButton"
+                            Content="?"
+                            Style="{StaticResource ModernButton}"
+                            HorizontalAlignment="Right"
+                            Width="26" Height="26"
+                            FontSize="13" FontWeight="Bold"
+                            Padding="0"
+                            Background="{DynamicResource InputBrush}"
+                            Foreground="{DynamicResource SubtextBrush}"
+                            ToolTip="About / Version"
+                            Click="AboutButton_Click"/>
                 </StackPanel>
 
                 <!-- Scrollable content -->
