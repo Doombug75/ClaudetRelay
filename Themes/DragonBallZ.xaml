@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Dragon Ball Z — "It's Over 9000!"                                         -->
+    <!-- Brand: Super Saiyan gold aura, Goku's orange gi, Kamehameha blue          -->
+    <!-- Aesthetic: void battle sky, blinding power level, scouter readings        -->
+
+    <!-- Backgrounds — void battle sky, darkened fight arena -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#060810"/> <!-- Void battle sky dark     -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#04060C"/> <!-- Deeper void              -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#0C0E16"/> <!-- Scouter panel recess     -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#141620"/> <!-- Console surface          -->
+
+    <!-- Text — warm battle-worn, Capsule Corp readout -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#E8E0C0"/> <!-- Warm battle-worn white   -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#806040"/> <!-- Muted earth-brown        -->
+
+    <!-- Accents — Super Saiyan gold, Kamehameha blue, orange gi -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#F0C010"/> <!-- Super Saiyan gold aura   -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#2858E0"/> <!-- Kamehameha wave blue     -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#E07018"/> <!-- Goku's orange gi         -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#FFD820"/> <!-- Blinding power aura      -->
+
+    <!-- Bubble backgrounds — power level display tints -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#161000"/> <!-- Dark gold aura        -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#080C20"/> <!-- Deep Kamehameha blue  -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#180C04"/> <!-- Orange gi dark        -->
+
+</ResourceDictionary>

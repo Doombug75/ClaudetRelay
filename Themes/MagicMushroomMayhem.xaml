@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Magic Mushroom Mayhem — "The walls are breathing."                        -->
+    <!-- Brand: FULL NEON. Hot pink, acid green, electric cyan, blinding yellow    -->
+    <!-- Aesthetic: blacklight void, melting reality, UV everything                -->
+
+    <!-- Backgrounds — blacklight void, the trip begins here -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#070408"/> <!-- Blacklight void dark     -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#050306"/> <!-- Deeper void              -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#0E060E"/> <!-- Purple-black recess      -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#160C16"/> <!-- UV-lit surface           -->
+
+    <!-- Text — near-white with a violet tinge — still readable, barely -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#F4F0FF"/> <!-- Ghost white UV           -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#A070D8"/> <!-- Electric violet subtext  -->
+
+    <!-- Accents — hold on tight -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#FF10C0"/> <!-- Hot magenta — eye-melting-->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#30FF10"/> <!-- Toxic acid green         -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#00E8FF"/> <!-- Electric cyan            -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#FFE800"/> <!-- Acid yellow — it's alive -->
+
+    <!-- Bubble backgrounds — dark enough to stay legible (barely) -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#1A0014"/> <!-- Deep magenta void     -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#031800"/> <!-- Deep acid-green dark  -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#001818"/> <!-- Electric cyan abyss   -->
+
+</ResourceDictionary>
