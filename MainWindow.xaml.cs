@@ -3750,7 +3750,7 @@ public partial class MainWindow : Window
             RegexOptions.IgnoreCase).Replace(response, m =>
         {
             var folder    = m.Groups[1].Value.Trim();
-            var allowed   = new[] { "INPUT", "PROJECTPLAN", "OUTPUT", "Characters" };
+            var allowed   = new[] { "INPUT", "PROJECTPLAN", "OUTPUT", "AI-Characters" };
             var canonical = allowed.FirstOrDefault(f =>
                 string.Equals(f, folder, StringComparison.OrdinalIgnoreCase));
             if (canonical is null)

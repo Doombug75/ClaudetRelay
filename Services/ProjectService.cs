@@ -362,7 +362,7 @@ public static class ProjectService
         Directory.CreateDirectory(Path.Combine(folder, "INPUT"));
         Directory.CreateDirectory(Path.Combine(folder, "PROJECTPLAN"));
         Directory.CreateDirectory(Path.Combine(folder, "OUTPUT"));
-        Directory.CreateDirectory(Path.Combine(folder, "Characters"));
+        Directory.CreateDirectory(Path.Combine(folder, "AI-Characters"));
 
         SaveMeta(folder, new ProjectMeta
         {
@@ -427,10 +427,10 @@ public static class ProjectService
         return Directory.GetFiles(input).Select(Path.GetFileName).ToList()!;
     }
 
-    // ── Characters folder ──────────────────────────────────────────────────
+    // ── AI-Characters folder ───────────────────────────────────────────────
 
     public static string GetCharactersFolder(string projectFolder) =>
-        Path.Combine(projectFolder, "Characters");
+        Path.Combine(projectFolder, "AI-Characters");
 
     public static List<string> ListCharacterFiles(string projectFolder)
     {
