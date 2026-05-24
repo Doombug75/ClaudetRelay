@@ -243,18 +243,56 @@ public static class ProjectService
 
     // ── Chat log ──────────────────────────────────────────────────────────
 
-    public static List<ChatLogEntry> LoadChatLog(string projectFolder)
+    /// <summary>
+    /// Maximum number of entries per chatlog segment file.
+    /// When chatlog.json reaches this count it is rotated to chatlog-N.json
+    /// and a fresh chatlog.json is started.
+    /// </summary>
+    public const int ChatLogMaxEntries = 500;
+
+    /// <summary>
+    /// Returns all chatlog segment files in chronological order:
+    /// chatlog-1.json, chatlog-2.json, …, chatlog.json (current).
+    /// </summary>
+    private static IEnumerable<string> GetChatLogFiles(string projectFolder)
     {
-        var path = Path.Combine(projectFolder, "chatlog.json");
-        if (!File.Exists(path)) return [];
-        try
-        {
-            return JsonSerializer.Deserialize<List<ChatLogEntry>>(
-                       File.ReadAllText(path), ReadOpts) ?? [];
-        }
-        catch { return []; }
+        var prefix   = "chatlog-";
+        var archived = Directory.Exists(projectFolder)
+            ? Directory.GetFiles(projectFolder, "chatlog-*.json")
+                .Select(f => (Path: f,
+                              Idx : int.TryParse(
+                                        Path.GetFileNameWithoutExtension(f)[prefix.Length..],
+                                        out int n) ? n : -1))
+                .Where(t => t.Idx >= 1)
+                .OrderBy(t => t.Idx)
+                .Select(t => t.Path)
+            : Enumerable.Empty<string>();
+
+        var current = Path.Combine(projectFolder, "chatlog.json");
+        return File.Exists(current) ? archived.Append(current) : archived;
     }
 
+    /// <summary>Loads all chatlog segments and returns them as one flat list.</summary>
+    public static List<ChatLogEntry> LoadChatLog(string projectFolder)
+    {
+        var result = new List<ChatLogEntry>();
+        foreach (var file in GetChatLogFiles(projectFolder))
+        {
+            try
+            {
+                var entries = JsonSerializer.Deserialize<List<ChatLogEntry>>(
+                                  File.ReadAllText(file), ReadOpts);
+                if (entries is not null) result.AddRange(entries);
+            }
+            catch { /* skip corrupt segment */ }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Writes <paramref name="log"/> to chatlog.json (current segment only).
+    /// Does NOT rotate — use <see cref="AppendEntry"/> for normal message flow.
+    /// </summary>
     public static void SaveChatLog(string projectFolder, List<ChatLogEntry> log)
     {
         Directory.CreateDirectory(projectFolder);
@@ -263,11 +301,51 @@ public static class ProjectService
             JsonSerializer.Serialize(log, WriteOpts));
     }
 
+    /// <summary>
+    /// Appends one entry to the current chatlog segment.
+    /// If the segment has reached <see cref="ChatLogMaxEntries"/> it is first
+    /// rotated to chatlog-N.json and a fresh chatlog.json is started.
+    /// </summary>
     public static void AppendEntry(string projectFolder, ChatLogEntry entry)
     {
-        var log = LoadChatLog(projectFolder);
-        log.Add(entry);
-        SaveChatLog(projectFolder, log);
+        Directory.CreateDirectory(projectFolder);
+        var currentPath = Path.Combine(projectFolder, "chatlog.json");
+
+        // Load only the current segment (not all history)
+        List<ChatLogEntry> current = [];
+        if (File.Exists(currentPath))
+        {
+            try
+            {
+                current = JsonSerializer.Deserialize<List<ChatLogEntry>>(
+                              File.ReadAllText(currentPath), ReadOpts) ?? [];
+            }
+            catch { current = []; }
+        }
+
+        // Rotate when full
+        if (current.Count >= ChatLogMaxEntries)
+        {
+            var nextIdx  = GetNextArchiveIndex(projectFolder);
+            File.Move(currentPath, Path.Combine(projectFolder, $"chatlog-{nextIdx}.json"));
+            current = [];
+        }
+
+        current.Add(entry);
+        File.WriteAllText(currentPath, JsonSerializer.Serialize(current, WriteOpts));
+    }
+
+    /// <summary>Returns the next available chatlog archive index (1-based).</summary>
+    private static int GetNextArchiveIndex(string projectFolder)
+    {
+        var prefix = "chatlog-";
+        return Directory.GetFiles(projectFolder, "chatlog-*.json")
+            .Select(f => {
+                var stem = Path.GetFileNameWithoutExtension(f);
+                return int.TryParse(stem[prefix.Length..], out int n) ? n : 0;
+            })
+            .DefaultIfEmpty(0)
+            .Max() + 1;
     }
 
     // ── Create / Delete ────────────────────────────────────────────────────
