@@ -1786,18 +1786,24 @@ public partial class MainWindow : Window
                 : _cloudAIParticipants.Any(ui =>
                       ui.Data.Service.ProviderName == p.Type);
 
+            bool hasKey = p.Type == "Ollama"
+                || !string.IsNullOrWhiteSpace(WindowsCredentialManager.Load(p.Type));
+
             var displayName = string.IsNullOrWhiteSpace(p.Name)
                 ? FormatModelDisplayName(p.Model)
                 : p.Name;
 
             var typeIcon = p.Type == "Ollama" ? "🦙" : "☁️";
+            var suffix   = alreadyAdded ? "  · already in chat"
+                         : !hasKey      ? "  · ⚠ no API key"
+                         : "";
             var item = new MenuItem
             {
-                Header    = $"{typeIcon}  {displayName}  ·  {p.Model}",
-                IsEnabled = !alreadyAdded
+                Header    = $"{typeIcon}  {displayName}  ·  {p.Model}{suffix}",
+                IsEnabled = !alreadyAdded && hasKey
             };
 
-            if (!alreadyAdded)
+            if (!alreadyAdded && hasKey)
             {
                 var cap = p;
                 item.Click += (_, _) =>
@@ -1809,16 +1815,19 @@ public partial class MainWindow : Window
                     }
                     else
                     {
+                        var countBefore = _cloudAIParticipants.Count;
                         AddCloudAIParticipant(cap.Type, cap.Model, cap.Name);
-                        if (_cloudAIParticipants.Count > 0)
+                        if (_cloudAIParticipants.Count == countBefore)
                         {
-                            var ui = _cloudAIParticipants[^1];
-                            _ = Task.Run(async () =>
-                            {
-                                var online = await ui.Data.Service.IsAvailableAsync();
-                                Dispatcher.Invoke(() => ApplyCloudAIParticipantStatus(ui, online));
-                            });
+                            AddSystemMessage($"⚠  Could not add {cap.Type} — no API key saved. Open ⚙ Settings.");
+                            return;
                         }
+                        var ui = _cloudAIParticipants[^1];
+                        _ = Task.Run(async () =>
+                        {
+                            var online = await ui.Data.Service.IsAvailableAsync();
+                            Dispatcher.Invoke(() => ApplyCloudAIParticipantStatus(ui, online));
+                        });
                     }
                 };
             }
