@@ -809,6 +809,30 @@ public partial class MainWindow : Window
     {
         var ps = ProjectService.LoadProjectSettings(projFolder);
 
+        // ── Normalize potentially corrupted role data ──────────────────────
+        // The old aliasing bug (before the deep-copy fix) could save every
+        // participant with IsCoordinator=true and/or IsReasoner=true because
+        // all rows shared the same role object.  We silently repair both:
+        //   • More than one coordinator → impossible by design; keep only first.
+        //   • All participants are reasoners → almost certainly a bug artefact;
+        //     reset all to false so the user starts from a clean slate.
+        if (ps.Roles.Count > 1)
+        {
+            bool foundCoord = false;
+            foreach (var r in ps.Roles)
+            {
+                if (r.IsCoordinator)
+                {
+                    if (foundCoord) r.IsCoordinator = false;
+                    else            foundCoord = true;
+                }
+            }
+
+            if (ps.Roles.All(r => r.IsReasoner))
+                foreach (var r in ps.Roles)
+                    r.IsReasoner = false;
+        }
+
         var win = new Window
         {
             Title                 = $"Project Settings — {projectName}",
