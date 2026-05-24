@@ -1019,13 +1019,15 @@ public partial class MainWindow : Window
 
             var resetRoleBtn = new Button
             {
-                Content  = "↩ Reset to model standard",
-                FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
-                Height   = 26,
+                Content    = "↩ Reset to model standard",
+                FontSize   = 11, FontFamily = new FontFamily("Segoe UI"),
+                Height     = 26,
                 HorizontalAlignment = HorizontalAlignment.Left,
-                Margin   = new Thickness(0, 0, 0, 0),
-                Style    = (Style)FindResource("SButtonSecondary"),
-                ToolTip  = "Clear both the character name and role instruction."
+                Margin     = new Thickness(0, 0, 0, 0),
+                Style      = (Style)FindResource("ModernButton"),
+                Background = (Brush)FindResource("InputBrush"),
+                Foreground = (Brush)FindResource("TextBrush"),
+                ToolTip    = "Clear both the character name and role instruction."
             };
             resetRoleBtn.Click += (_, _) => { answerAsBox.Text = ""; roleInstrBox.Text = ""; };
 
