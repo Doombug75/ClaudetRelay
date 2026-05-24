@@ -849,229 +849,111 @@ public partial class MainWindow : Window
             root.Children.Add(noParticipants);
         }
 
-        // Build a UI row for each participant and collect role accessors
-        var roleRows       = new List<(string provider, string model, Func<ProjectParticipantRole> GetRole)>();
-        var allCoordChecks = new List<CheckBox>(); // used for single-coordinator enforcement
+        // Build a compact row per participant; full editing via per-character popup
+        var roleRows = new List<(string provider, string model, Func<ProjectParticipantRole> GetRole)>();
 
         foreach (var (provider, model, displayName) in enabledParticipants)
         {
-            var role = ps.GetOrCreate(provider, model, displayName);
+            var role      = ps.GetOrCreate(provider, model, displayName);
+            bool available = provider == "Ollama"
+                             || !string.IsNullOrWhiteSpace(WindowsCredentialManager.Load(provider));
 
-            // Avatar chip
-            var avatar = new Border
+            // ── Avatar chip ────────────────────────────────────────────────
+            var avatarBorder = new Border
             {
-                Width        = 34, Height       = 34,
-                CornerRadius = new CornerRadius(17),
-                Background   = (Brush)FindResource("OllamaBrush"),
-                Margin       = new Thickness(0, 0, 10, 0),
-                VerticalAlignment = VerticalAlignment.Top
+                Width = 34, Height = 34, CornerRadius = new CornerRadius(17),
+                Background = (Brush)FindResource(available ? "OllamaBrush" : "SubtextBrush"),
+                Margin = new Thickness(0, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = available ? 1.0 : 0.45
             };
-            var avatarTb = new TextBlock
+            avatarBorder.Child = new TextBlock
             {
-                Text              = FormatModelAvatarLabel(model),
-                FontSize          = 11, FontWeight = FontWeights.Bold,
-                FontFamily        = new FontFamily("Segoe UI"),
+                Text = FormatModelAvatarLabel(model),
+                FontSize = 11, FontWeight = FontWeights.Bold,
+                FontFamily = new FontFamily("Segoe UI"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment   = VerticalAlignment.Center,
-                Foreground        = (Brush)FindResource("SidebarBrush")
+                Foreground = (Brush)FindResource("SidebarBrush")
             };
-            avatar.Child = avatarTb;
 
-            // Name + model sub-label
+            // ── Name + model sub-label ─────────────────────────────────────
             var nameTb = new TextBlock
             {
-                Text       = displayName,
-                FontSize   = 13, FontFamily = new FontFamily("Segoe UI"),
+                Text = displayName, FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
                 FontWeight = FontWeights.SemiBold,
-                Foreground = (Brush)FindResource("TextBrush")
+                Foreground = (Brush)FindResource(available ? "TextBrush" : "SubtextBrush")
             };
             var modelTb = new TextBlock
             {
-                Text       = $"{provider}  ·  {model}",
-                FontSize   = 11, FontFamily = new FontFamily("Segoe UI"),
+                Text = string.IsNullOrWhiteSpace(role.AnswerAsName)
+                           ? $"{provider}  ·  {model}"
+                           : $"{provider}  ·  {model}  ·  🎭 {role.AnswerAsName}",
+                FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
                 Foreground = (Brush)FindResource("SubtextBrush"),
-                Margin     = new Thickness(0, 1, 0, 0)
+                Margin = new Thickness(0, 1, 0, 0)
             };
             var nameStack = new StackPanel();
             nameStack.Children.Add(nameTb);
             nameStack.Children.Add(modelTb);
 
-            // Checkboxes
-            var coordCheck = new CheckBox
+            // ── Active toggle ──────────────────────────────────────────────
+            var activeCheck = new CheckBox
             {
-                Content    = "Coordinator",
-                IsChecked  = role.IsCoordinator,
-                FontSize   = 12, FontFamily = new FontFamily("Segoe UI"),
-                Foreground = (Brush)FindResource("TextBrush"),
-                Margin     = new Thickness(0, 0, 16, 0),
-                ToolTip    = "Coordinator: receives user messages first and decides routing.\n" +
-                             "Only one Coordinator is allowed per project."
-            };
-            allCoordChecks.Add(coordCheck);
-            var reasonerCheck = new CheckBox
-            {
-                Content    = "Reasoner",
-                IsChecked  = role.IsReasoner,
-                FontSize   = 12, FontFamily = new FontFamily("Segoe UI"),
-                Foreground = (Brush)FindResource("TextBrush"),
-                ToolTip    = "Reasoner: executes tasks delegated by the Coordinator.\n" +
-                             "Multiple Reasoners are allowed; higher priority = preferred first."
+                IsChecked  = role.IsActive,
+                IsEnabled  = available,
+                ToolTip    = "Active in this scene",
+                Margin     = new Thickness(8, 0, 8, 0),
+                VerticalAlignment = VerticalAlignment.Center
             };
 
-            // Priority slider (shown only when Reasoner is checked)
-            var prioritySlider = new Slider
+            // ── Edit button ────────────────────────────────────────────────
+            var editBtn = new Button
             {
-                Minimum             = 1, Maximum = 10,
-                Value               = role.ReasonerPriority,
-                TickFrequency       = 1, IsSnapToTickEnabled = true,
-                Width               = 100,
-                Margin              = new Thickness(8, 0, 4, 0),
-                ToolTip             = "Reasoner priority: 1 (lowest) – 10 (highest)"
-            };
-            var priorityTb = new TextBlock
-            {
-                Text       = $"{(int)role.ReasonerPriority}",
-                FontSize   = 12, FontFamily = new FontFamily("Segoe UI"),
-                Foreground = (Brush)FindResource("SubtextBrush"),
-                VerticalAlignment = VerticalAlignment.Center,
-                Width      = 18
-            };
-            prioritySlider.ValueChanged += (_, e) => priorityTb.Text = $"{(int)e.NewValue}";
-
-            var priorityRow = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Margin      = new Thickness(20, 2, 0, 0),
-                Visibility  = role.IsReasoner ? Visibility.Visible : Visibility.Collapsed
-            };
-            priorityRow.Children.Add(new TextBlock
-            {
-                Text = "Priority:",
-                FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
-                Foreground = (Brush)FindResource("SubtextBrush"),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 4, 0)
-            });
-            priorityRow.Children.Add(prioritySlider);
-            priorityRow.Children.Add(priorityTb);
-
-            reasonerCheck.Checked   += (_, _) => priorityRow.Visibility = Visibility.Visible;
-            reasonerCheck.Unchecked += (_, _) => priorityRow.Visibility = Visibility.Collapsed;
-
-            var checkStack = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
-            var checkRow   = new StackPanel { Orientation = Orientation.Horizontal };
-            checkRow.Children.Add(coordCheck);
-            checkRow.Children.Add(reasonerCheck);
-            checkStack.Children.Add(checkRow);
-            checkStack.Children.Add(priorityRow);
-
-            // ── Answer As ─────────────────────────────────────────────────
-            var answerAsLabel = new TextBlock
-            {
-                Text       = "ANSWER AS (character name)",
-                FontSize   = 10, FontWeight = FontWeights.SemiBold,
-                FontFamily = new FontFamily("Segoe UI"),
-                Margin     = new Thickness(0, 10, 0, 4),
-                Foreground = (Brush)FindResource("SubtextBrush")
-            };
-            var answerAsBox = new TextBox
-            {
-                Text             = role.AnswerAsName,
-                FontSize         = 12, FontFamily = new FontFamily("Segoe UI"),
-                Height           = 30,
-                VerticalContentAlignment = VerticalAlignment.Center,
-                Margin           = new Thickness(0, 0, 0, 8),
-                Foreground       = (Brush)FindResource("TextBrush"),
-                Background       = (Brush)FindResource("InputBrush"),
-                BorderBrush      = (Brush)FindResource("InputBrush"),
-                ToolTip          = "The name this participant answers as in this project. Empty = use default name."
-            };
-
-            // ── Role Instruction ───────────────────────────────────────────
-            var roleInstrLabel = new TextBlock
-            {
-                Text       = "ROLE INSTRUCTION",
-                FontSize   = 10, FontWeight = FontWeights.SemiBold,
-                FontFamily = new FontFamily("Segoe UI"),
-                Margin     = new Thickness(0, 0, 0, 4),
-                Foreground = (Brush)FindResource("SubtextBrush")
-            };
-            var roleInstrBox = new TextBox
-            {
-                Text             = role.RoleInstruction,
-                FontSize         = 12, FontFamily = new FontFamily("Segoe UI"),
-                MinHeight        = 80,
-                AcceptsReturn    = true,
-                TextWrapping     = TextWrapping.Wrap,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Margin           = new Thickness(0, 0, 0, 4),
-                Foreground       = (Brush)FindResource("TextBrush"),
-                Background       = (Brush)FindResource("InputBrush"),
-                BorderBrush      = (Brush)FindResource("InputBrush"),
-                CaretBrush       = (Brush)FindResource("TextBrush"),
-                ToolTip          = "Character description injected into the system prompt for this participant."
-            };
-
-            var resetRoleBtn = new Button
-            {
-                Content    = "↩ Reset to model standard",
-                FontSize   = 11, FontFamily = new FontFamily("Segoe UI"),
-                Height     = 32,
-                Padding    = new Thickness(10, 0, 10, 0),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin     = new Thickness(0, 0, 0, 0),
+                Content    = "✏ Edit",
+                Height     = 28, Padding = new Thickness(10, 0, 10, 0),
                 Style      = (Style)FindResource("ModernButton"),
                 Background = (Brush)FindResource("InputBrush"),
                 Foreground = (Brush)FindResource("TextBrush"),
-                ToolTip    = "Clear both the character name and role instruction."
+                IsEnabled  = available,
+                VerticalAlignment = VerticalAlignment.Center
             };
-            resetRoleBtn.Click += (_, _) => { answerAsBox.Text = ""; roleInstrBox.Text = ""; };
 
-            var rightStack = new StackPanel();
-            rightStack.Children.Add(nameStack);
-            rightStack.Children.Add(checkStack);
-            rightStack.Children.Add(answerAsLabel);
-            rightStack.Children.Add(answerAsBox);
-            rightStack.Children.Add(roleInstrLabel);
-            rightStack.Children.Add(roleInstrBox);
-            rightStack.Children.Add(resetRoleBtn);
+            var capturedRole    = role;
+            var capturedModelTb = modelTb;
+            editBtn.Click += (_, _) =>
+            {
+                if (ShowCharacterEditorDialog(capturedRole, projFolder, displayName))
+                {
+                    // Refresh subtitle to reflect any character name change
+                    capturedModelTb.Text = string.IsNullOrWhiteSpace(capturedRole.AnswerAsName)
+                        ? $"{provider}  ·  {model}"
+                        : $"{provider}  ·  {model}  ·  🎭 {capturedRole.AnswerAsName}";
+                }
+            };
 
-            var rowGrid = new Grid { Margin = new Thickness(0, 0, 0, 18) };
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            Grid.SetColumn(avatar,     0);
-            Grid.SetColumn(rightStack, 1);
-            rowGrid.Children.Add(avatar);
-            rowGrid.Children.Add(rightStack);
+            // ── Row grid ───────────────────────────────────────────────────
+            var rowGrid = new Grid { Margin = new Thickness(0, 0, 0, 10), Opacity = available ? 1.0 : 0.5 };
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // avatar
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // name
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // toggle
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // edit
+            Grid.SetColumn(avatarBorder, 0);
+            Grid.SetColumn(nameStack,    1);
+            Grid.SetColumn(activeCheck,  2);
+            Grid.SetColumn(editBtn,      3);
+            rowGrid.Children.Add(avatarBorder);
+            rowGrid.Children.Add(nameStack);
+            rowGrid.Children.Add(activeCheck);
+            rowGrid.Children.Add(editBtn);
             root.Children.Add(rowGrid);
 
-            // Capture live state via closures
-            var capturedCoord    = coordCheck;
-            var capturedReasoner = reasonerCheck;
-            var capturedPriority = prioritySlider;
-            var capturedAnswerAs = answerAsBox;
-            var capturedRoleInstr = roleInstrBox;
+            var capturedActive = activeCheck;
             roleRows.Add((provider, model, () =>
             {
-                role.IsCoordinator    = capturedCoord.IsChecked    == true;
-                role.IsReasoner       = capturedReasoner.IsChecked  == true;
-                role.ReasonerPriority = (int)capturedPriority.Value;
-                role.AnswerAsName     = capturedAnswerAs.Text.Trim();
-                role.RoleInstruction  = capturedRoleInstr.Text.Trim();
-                return role;
+                capturedRole.IsActive = capturedActive.IsChecked == true;
+                return capturedRole;
             }));
-        }
-
-        // ── Single-coordinator enforcement ────────────────────────────────
-        // Checking one Coordinator checkbox automatically unchecks all others.
-        foreach (var cb in allCoordChecks)
-        {
-            var me = cb;
-            me.Checked += (_, _) =>
-            {
-                foreach (var other in allCoordChecks.Where(c => c != me))
-                    other.IsChecked = false;
-            };
         }
 
         // ── Buttons ────────────────────────────────────────────────────────
@@ -1136,6 +1018,16 @@ public partial class MainWindow : Window
             foreach (var (_, _, getRoleSnapshot) in roleRows)
                 ps.Roles.Add(getRoleSnapshot());
 
+            // Enforce single coordinator
+            if (ps.Roles.Count(r => r.IsCoordinator) > 1)
+            {
+                MessageBox.Show(
+                    "Only one participant can be Coordinator.\n" +
+                    "Please open each participant's editor and ensure only one is marked as Coordinator.",
+                    "Multiple Coordinators", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             ProjectService.SaveProjectSettings(projFolder, ps);
 
             // Keep live fields in sync if this is the currently open project
@@ -1150,6 +1042,427 @@ public partial class MainWindow : Window
         };
 
         win.ShowDialog();
+    }
+
+    // ── Per-participant character editor ───────────────────────────────────
+
+    /// <summary>
+    /// Opens a modal character editor for one participant.
+    /// Edits <paramref name="role"/> in-place when the user presses OK.
+    /// Returns true if the user confirmed.
+    /// </summary>
+    private bool ShowCharacterEditorDialog(ProjectParticipantRole role, string projFolder, string displayName)
+    {
+        // ── Snapshot for reset ────────────────────────────────────────────
+        var snap = new ProjectParticipantRole
+        {
+            Provider         = role.Provider,
+            Model            = role.Model,
+            DisplayName      = role.DisplayName,
+            AnswerAsName     = role.AnswerAsName,
+            RoleInstruction  = role.RoleInstruction,
+            ResponseLength   = role.ResponseLength,
+            IsCoordinator    = role.IsCoordinator,
+            IsReasoner       = role.IsReasoner,
+            ReasonerPriority = role.ReasonerPriority,
+            IsActive         = role.IsActive
+        };
+
+        // ── Window ────────────────────────────────────────────────────────
+        var win = new Window
+        {
+            Title                 = $"Character Editor — {displayName}",
+            Width                 = 480,
+            MaxHeight             = 800,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            Background            = (Brush)FindResource("BackgroundBrush"),
+            ResizeMode            = ResizeMode.NoResize
+        };
+
+        var root = new StackPanel { Margin = new Thickness(24, 20, 24, 8) };
+
+        // ── Local helpers ─────────────────────────────────────────────────
+        TextBlock SectionHeader(string text) => new TextBlock
+        {
+            Text             = text,
+            FontSize         = 11,
+            FontWeight       = FontWeights.SemiBold,
+            FontFamily       = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("SubtextBrush"),
+            Margin     = new Thickness(0, 14, 0, 6)
+        };
+
+        TextBlock MakeLabel(string text) => new TextBlock
+        {
+            Text       = text,
+            FontSize   = 12,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("TextBrush"),
+            Margin     = new Thickness(0, 0, 0, 4)
+        };
+
+        TextBox MakeTextBox(string text, bool multiline = false) => new TextBox
+        {
+            Text            = text,
+            FontSize        = 13,
+            FontFamily      = new FontFamily("Segoe UI"),
+            Background      = (Brush)FindResource("InputBrush"),
+            Foreground      = (Brush)FindResource("TextBrush"),
+            CaretBrush      = (Brush)FindResource("TextBrush"),
+            BorderBrush     = (Brush)FindResource("SubtextBrush"),
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(8, 6, 8, 6),
+            Margin          = new Thickness(0, 0, 0, 12),
+            AcceptsReturn   = multiline,
+            TextWrapping    = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap,
+            MinHeight       = multiline ? 110 : 0,
+            MaxHeight       = multiline ? 200 : double.PositiveInfinity,
+            VerticalScrollBarVisibility = multiline ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled
+        };
+
+        Button MakeBtn(string content, Brush bg, Brush fg) => new Button
+        {
+            Content    = content,
+            Height     = 30,
+            Padding    = new Thickness(12, 0, 12, 0),
+            Style      = (Style)FindResource("ModernButton"),
+            Background = bg,
+            Foreground = fg,
+            Margin     = new Thickness(0, 0, 8, 0)
+        };
+
+        static string LengthLabel(double v) => v switch
+        {
+            < 10  => "One-liner",
+            < 30  => "Short",
+            < 45  => "Concise",
+            <= 55 => "Default",
+            < 70  => "Moderate",
+            < 90  => "Elaborate",
+            _     => "Monologue"
+        };
+
+        // ── IDENTITY ──────────────────────────────────────────────────────
+        root.Children.Add(SectionHeader("IDENTITY"));
+
+        root.Children.Add(MakeLabel("Answer as (character name):"));
+        var answerAsBox = MakeTextBox(role.AnswerAsName);
+        root.Children.Add(answerAsBox);
+
+        root.Children.Add(MakeLabel("Role instruction:"));
+        var instrBox = MakeTextBox(role.RoleInstruction, multiline: true);
+        root.Children.Add(instrBox);
+
+        // ── RESPONSE LENGTH ───────────────────────────────────────────────
+        root.Children.Add(SectionHeader("RESPONSE LENGTH"));
+
+        var lengthValueLbl = new TextBlock
+        {
+            Text                = LengthLabel(role.ResponseLength),
+            FontSize            = 12,
+            FontFamily          = new FontFamily("Segoe UI"),
+            Foreground          = (Brush)FindResource("SubtextBrush"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin              = new Thickness(0, 0, 0, 4)
+        };
+        var lengthSlider = new Slider
+        {
+            Minimum             = 0,
+            Maximum             = 100,
+            Value               = role.ResponseLength,
+            TickFrequency       = 10,
+            IsSnapToTickEnabled = false,
+            Margin              = new Thickness(0, 0, 0, 2)
+        };
+        lengthSlider.ValueChanged += (_, e) => lengthValueLbl.Text = LengthLabel(e.NewValue);
+
+        // End labels row (Short — Long)
+        var lengthEndRow = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        lengthEndRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        lengthEndRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var shortEndLbl = new TextBlock { Text = "Short", FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("SubtextBrush"), HorizontalAlignment = HorizontalAlignment.Left };
+        var longEndLbl  = new TextBlock { Text = "Long",  FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("SubtextBrush"), HorizontalAlignment = HorizontalAlignment.Right };
+        Grid.SetColumn(shortEndLbl, 0); Grid.SetColumn(longEndLbl, 1);
+        lengthEndRow.Children.Add(shortEndLbl); lengthEndRow.Children.Add(longEndLbl);
+
+        root.Children.Add(lengthValueLbl);
+        root.Children.Add(lengthSlider);
+        root.Children.Add(lengthEndRow);
+
+        // ── ORCHESTRATION ─────────────────────────────────────────────────
+        root.Children.Add(SectionHeader("ORCHESTRATION"));
+
+        var coordCheck = new CheckBox
+        {
+            Content    = "Coordinator — routes messages to reasoners",
+            IsChecked  = role.IsCoordinator,
+            FontSize   = 13,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("TextBrush"),
+            ToolTip    = "Only one coordinator per project.",
+            Margin     = new Thickness(0, 0, 0, 8)
+        };
+        root.Children.Add(coordCheck);
+
+        var reasonerCheck = new CheckBox
+        {
+            Content    = "Reasoner — executes delegated tasks",
+            IsChecked  = role.IsReasoner,
+            FontSize   = 13,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("TextBrush"),
+            Margin     = new Thickness(0, 0, 0, 8)
+        };
+        root.Children.Add(reasonerCheck);
+
+        // Priority sub-panel (shown only when IsReasoner)
+        var priorityPanel = new StackPanel
+        {
+            Visibility = role.IsReasoner ? Visibility.Visible : Visibility.Collapsed,
+            Margin     = new Thickness(20, 0, 0, 10)
+        };
+        var priorityLbl = new TextBlock
+        {
+            Text       = $"Priority: {role.ReasonerPriority}  (1 = lowest, 10 = highest)",
+            FontSize   = 12,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("TextBrush"),
+            Margin     = new Thickness(0, 0, 0, 4)
+        };
+        var prioritySlider = new Slider
+        {
+            Minimum             = 1,
+            Maximum             = 10,
+            Value               = role.ReasonerPriority,
+            TickFrequency       = 1,
+            IsSnapToTickEnabled = true
+        };
+        prioritySlider.ValueChanged += (_, e) =>
+            priorityLbl.Text = $"Priority: {(int)e.NewValue}  (1 = lowest, 10 = highest)";
+        priorityPanel.Children.Add(priorityLbl);
+        priorityPanel.Children.Add(prioritySlider);
+        root.Children.Add(priorityPanel);
+
+        reasonerCheck.Checked   += (_, _) => priorityPanel.Visibility = Visibility.Visible;
+        reasonerCheck.Unchecked += (_, _) => priorityPanel.Visibility = Visibility.Collapsed;
+
+        // ── CHARACTER FILE ────────────────────────────────────────────────
+        root.Children.Add(SectionHeader("CHARACTER FILE"));
+
+        var fileRow    = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
+        var loadCharBtn = MakeBtn("📂 Load character", (Brush)FindResource("InputBrush"), (Brush)FindResource("TextBrush"));
+        var saveCharBtn = MakeBtn("💾 Save as character", (Brush)FindResource("InputBrush"), (Brush)FindResource("TextBrush"));
+        fileRow.Children.Add(loadCharBtn);
+        fileRow.Children.Add(saveCharBtn);
+        root.Children.Add(fileRow);
+
+        // Load character
+        loadCharBtn.Click += (_, _) =>
+        {
+            var chars = ProjectService.ListCharacterFiles(projFolder);
+            if (chars.Count == 0)
+            {
+                MessageBox.Show("No character files found in this project's Characters folder.",
+                    "No Characters", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var picker = new Window
+            {
+                Title                 = "Load Character",
+                Width                 = 300,
+                SizeToContent         = SizeToContent.Height,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner                 = win,
+                Background            = (Brush)FindResource("BackgroundBrush"),
+                ResizeMode            = ResizeMode.NoResize
+            };
+            var pp = new StackPanel { Margin = new Thickness(20, 16, 20, 16) };
+            pp.Children.Add(new TextBlock
+            {
+                Text = "Select a character:", FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
+                Foreground = (Brush)FindResource("TextBrush"), Margin = new Thickness(0, 0, 0, 8)
+            });
+            var lb = new ListBox
+            {
+                Background = (Brush)FindResource("InputBrush"), Foreground = (Brush)FindResource("TextBrush"),
+                BorderBrush = (Brush)FindResource("SubtextBrush"), BorderThickness = new Thickness(1),
+                MaxHeight = 200, Margin = new Thickness(0, 0, 0, 12)
+            };
+            foreach (var c in chars) lb.Items.Add(c);
+            lb.SelectedIndex = 0;
+            pp.Children.Add(lb);
+
+            var pRow    = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var pOk     = new Button { Content = "Load", IsDefault = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
+                Style = (Style)FindResource("ModernButton"),
+                Background = (Brush)FindResource("ClaudeBrush"), Foreground = (Brush)FindResource("SidebarBrush"),
+                FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 8, 0) };
+            var pCancel = new Button { Content = "Cancel", IsCancel = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
+                Style = (Style)FindResource("ModernButton"),
+                Background = (Brush)FindResource("InputBrush"), Foreground = (Brush)FindResource("TextBrush") };
+            pRow.Children.Add(pOk); pRow.Children.Add(pCancel);
+            pp.Children.Add(pRow);
+            picker.Content = pp;
+            pOk.Click += (_, _) => { if (lb.SelectedItem is string) picker.DialogResult = true; };
+
+            if (picker.ShowDialog() == true && lb.SelectedItem is string chosen)
+            {
+                var data = ProjectService.LoadCharacterFile(projFolder, chosen);
+                if (data is not null)
+                {
+                    answerAsBox.Text   = data.AnswerAsName;
+                    instrBox.Text      = data.RoleInstruction;
+                    lengthSlider.Value = data.ResponseLength;
+                }
+            }
+        };
+
+        // Save character
+        saveCharBtn.Click += (_, _) =>
+        {
+            var suggestedName = string.IsNullOrWhiteSpace(answerAsBox.Text) ? displayName : answerAsBox.Text.Trim();
+
+            var nameWin = new Window
+            {
+                Title                 = "Save Character",
+                Width                 = 300,
+                SizeToContent         = SizeToContent.Height,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner                 = win,
+                Background            = (Brush)FindResource("BackgroundBrush"),
+                ResizeMode            = ResizeMode.NoResize
+            };
+            var np = new StackPanel { Margin = new Thickness(20, 16, 20, 16) };
+            np.Children.Add(new TextBlock
+            {
+                Text = "Save as character name:", FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
+                Foreground = (Brush)FindResource("TextBrush"), Margin = new Thickness(0, 0, 0, 8)
+            });
+            var nameBox = new TextBox
+            {
+                Text = suggestedName, FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
+                Background = (Brush)FindResource("InputBrush"), Foreground = (Brush)FindResource("TextBrush"),
+                CaretBrush = (Brush)FindResource("TextBrush"),
+                BorderBrush = (Brush)FindResource("SubtextBrush"), BorderThickness = new Thickness(1),
+                Padding = new Thickness(8, 6, 8, 6), Margin = new Thickness(0, 0, 0, 12)
+            };
+            np.Children.Add(nameBox);
+            var nRow    = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var nOk     = new Button { Content = "Save", IsDefault = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
+                Style = (Style)FindResource("ModernButton"),
+                Background = (Brush)FindResource("ClaudeBrush"), Foreground = (Brush)FindResource("SidebarBrush"),
+                FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 8, 0) };
+            var nCancel = new Button { Content = "Cancel", IsCancel = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
+                Style = (Style)FindResource("ModernButton"),
+                Background = (Brush)FindResource("InputBrush"), Foreground = (Brush)FindResource("TextBrush") };
+            nRow.Children.Add(nOk); nRow.Children.Add(nCancel);
+            np.Children.Add(nRow);
+            nameWin.Content = np;
+            nOk.Click += (_, _) => { nameWin.DialogResult = true; };
+
+            if (nameWin.ShowDialog() == true)
+            {
+                var finalName = nameBox.Text.Trim();
+                if (!string.IsNullOrWhiteSpace(finalName))
+                {
+                    ProjectService.SaveCharacterFile(projFolder, finalName, new CharacterData
+                    {
+                        AnswerAsName    = answerAsBox.Text.Trim(),
+                        RoleInstruction = instrBox.Text.Trim(),
+                        ResponseLength  = (int)Math.Round(lengthSlider.Value)
+                    });
+                    MessageBox.Show($"Character \"{finalName}\" saved to the Characters folder.",
+                        "Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+        };
+
+        // ── Separator ─────────────────────────────────────────────────────
+        root.Children.Add(new Rectangle
+        {
+            Height = 1, Fill = (Brush)FindResource("InputBrush"), Margin = new Thickness(0, 4, 0, 12)
+        });
+
+        // ── Bottom row: Reset | [spacer] | OK · Cancel ────────────────────
+        var bottomRow = new Grid { Margin = new Thickness(0, 0, 0, 16) };
+        bottomRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        bottomRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        bottomRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var resetBtn = new Button
+        {
+            Content   = "↩ Reset",
+            Height    = 34, Padding = new Thickness(12, 0, 12, 0),
+            Style     = (Style)FindResource("ModernButton"),
+            Background = (Brush)FindResource("InputBrush"),
+            Foreground = (Brush)FindResource("TextBrush")
+        };
+        Grid.SetColumn(resetBtn, 0);
+
+        var rightBtns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var okBtn = new Button
+        {
+            Content    = "OK",
+            IsDefault  = true,
+            Height     = 34, Padding = new Thickness(20, 0, 20, 0),
+            Style      = (Style)FindResource("ModernButton"),
+            Background = (Brush)FindResource("ClaudeBrush"),
+            Foreground = (Brush)FindResource("SidebarBrush"),
+            FontWeight = FontWeights.SemiBold,
+            Margin     = new Thickness(0, 0, 8, 0)
+        };
+        var cancelEditorBtn = new Button
+        {
+            Content    = "Cancel",
+            IsCancel   = true,
+            Height     = 34, Padding = new Thickness(14, 0, 14, 0),
+            Style      = (Style)FindResource("ModernButton"),
+            Background = (Brush)FindResource("InputBrush"),
+            Foreground = (Brush)FindResource("TextBrush")
+        };
+        rightBtns.Children.Add(okBtn);
+        rightBtns.Children.Add(cancelEditorBtn);
+        Grid.SetColumn(rightBtns, 2);
+
+        bottomRow.Children.Add(resetBtn);
+        bottomRow.Children.Add(rightBtns);
+        root.Children.Add(bottomRow);
+
+        win.Content = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = root
+        };
+
+        // ── Reset handler ─────────────────────────────────────────────────
+        resetBtn.Click += (_, _) =>
+        {
+            answerAsBox.Text        = snap.AnswerAsName;
+            instrBox.Text           = snap.RoleInstruction;
+            lengthSlider.Value      = snap.ResponseLength;
+            coordCheck.IsChecked    = snap.IsCoordinator;
+            reasonerCheck.IsChecked = snap.IsReasoner;
+            prioritySlider.Value    = snap.ReasonerPriority;
+        };
+
+        // ── OK handler — write back in-place ──────────────────────────────
+        okBtn.Click += (_, _) =>
+        {
+            role.AnswerAsName     = answerAsBox.Text.Trim();
+            role.RoleInstruction  = instrBox.Text.Trim();
+            role.ResponseLength   = (int)Math.Round(lengthSlider.Value);
+            role.IsCoordinator    = coordCheck.IsChecked    == true;
+            role.IsReasoner       = reasonerCheck.IsChecked == true;
+            role.ReasonerPriority = (int)Math.Round(prioritySlider.Value);
+            win.DialogResult      = true;
+        };
+
+        return win.ShowDialog() == true;
     }
 
     // ── Cloud AI participant management ────────────────────────────────────
@@ -1992,8 +2305,14 @@ public partial class MainWindow : Window
 
     private async Task TriggerAiResponsesAsync()
     {
-        var activeOllamas  = _ollamaParticipants .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true).ToList();
-        var activeCloudAIs = _cloudAIParticipants.Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true).ToList();
+        var activeOllamas  = _ollamaParticipants
+            .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true &&
+                         IsParticipantActiveInProject("Ollama", ui.Data.Service.CurrentModel))
+            .ToList();
+        var activeCloudAIs = _cloudAIParticipants
+            .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true &&
+                         IsParticipantActiveInProject(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel))
+            .ToList();
 
         if (activeOllamas.Count == 0 && activeCloudAIs.Count == 0)
         {
@@ -2527,6 +2846,9 @@ public partial class MainWindow : Window
 
     // ── Role / character instruction ──────────────────────────────────────
 
+    private bool IsParticipantActiveInProject(string provider, string model) =>
+        _projectSettings?.Get(provider, model)?.IsActive ?? true;
+
     private static string BuildRoleInstruction(ProjectParticipantRole? role)
     {
         if (role is null) return "";
@@ -2536,6 +2858,16 @@ public partial class MainWindow : Window
                       $"Always respond as {role.AnswerAsName} and never break character.");
         if (!string.IsNullOrWhiteSpace(role.RoleInstruction))
             sb.Append($"\n\n{role.RoleInstruction}");
+        sb.Append(role.ResponseLength switch
+        {
+            < 10  => "\n\nKeep your response to one or two sentences. Be extremely brief.",
+            < 30  => "\n\nKeep your response short.",
+            < 45  => "\n\nFavor concise responses.",
+            <= 55 => "",   // 50 = model default
+            < 70  => "\n\nGive a moderately detailed response.",
+            < 90  => "\n\nGive a thorough, elaborate response.",
+            _     => "\n\nThis is your moment — write a long, expressive, detailed response. Don't hold back."
+        });
         return sb.ToString();
     }
 

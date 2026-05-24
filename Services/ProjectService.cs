@@ -81,6 +81,17 @@ public class ProjectParticipantRole
     /// participant in this project. Empty = no custom role.
     /// </summary>
     public string RoleInstruction  { get; set; } = "";
+
+    /// <summary>
+    /// Response length hint: 0 = one-liner, 50 = model default (no injection), 100 = monologue.
+    /// </summary>
+    public int ResponseLength      { get; set; } = 50;
+
+    /// <summary>
+    /// Whether this participant is active in the current project / scene.
+    /// Inactive participants are skipped during AI response rounds.
+    /// </summary>
+    public bool IsActive           { get; set; } = true;
 }
 
 /// <summary>Per-project settings saved as <c>project-settings.json</c> inside the project folder.</summary>
@@ -122,6 +133,20 @@ public class ProjectSettings
         Roles.FirstOrDefault(r =>
             string.Equals(r.Provider, provider, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(r.Model,    model,    StringComparison.OrdinalIgnoreCase));
+}
+
+// ── Character file (portable character definition) ─────────────────────────
+
+/// <summary>
+/// Portable character definition saved as a .json file in the project's
+/// Characters folder.  Lets authors build a library of characters that can
+/// be loaded into any participant slot.
+/// </summary>
+public class CharacterData
+{
+    public string AnswerAsName    { get; set; } = "";
+    public string RoleInstruction { get; set; } = "";
+    public int    ResponseLength  { get; set; } = 50;
 }
 
 public class ChatLogEntry
@@ -263,6 +288,7 @@ public static class ProjectService
         Directory.CreateDirectory(Path.Combine(folder, "INPUT"));
         Directory.CreateDirectory(Path.Combine(folder, "PROJECTPLAN"));
         Directory.CreateDirectory(Path.Combine(folder, "OUTPUT"));
+        Directory.CreateDirectory(Path.Combine(folder, "Characters"));
 
         SaveMeta(folder, new ProjectMeta
         {
@@ -325,6 +351,39 @@ public static class ProjectService
         var input = Path.Combine(projectFolder, "INPUT");
         if (!Directory.Exists(input)) return [];
         return Directory.GetFiles(input).Select(Path.GetFileName).ToList()!;
+    }
+
+    // ── Characters folder ──────────────────────────────────────────────────
+
+    public static string GetCharactersFolder(string projectFolder) =>
+        Path.Combine(projectFolder, "Characters");
+
+    public static List<string> ListCharacterFiles(string projectFolder)
+    {
+        var folder = GetCharactersFolder(projectFolder);
+        if (!Directory.Exists(folder)) return [];
+        return Directory.GetFiles(folder, "*.json")
+                        .Select(Path.GetFileNameWithoutExtension)
+                        .Where(n => n is not null)
+                        .ToList()!;
+    }
+
+    public static void SaveCharacterFile(string projectFolder, string name, CharacterData data)
+    {
+        var folder = GetCharactersFolder(projectFolder);
+        Directory.CreateDirectory(folder);
+        var safe = new string(name.Where(c => !Path.GetInvalidFileNameChars().Contains(c)).ToArray()).Trim();
+        if (string.IsNullOrEmpty(safe)) safe = "Character";
+        File.WriteAllText(Path.Combine(folder, safe + ".json"),
+                          JsonSerializer.Serialize(data, WriteOpts));
+    }
+
+    public static CharacterData? LoadCharacterFile(string projectFolder, string name)
+    {
+        var path = Path.Combine(GetCharactersFolder(projectFolder), name + ".json");
+        if (!File.Exists(path)) return null;
+        try { return JsonSerializer.Deserialize<CharacterData>(File.ReadAllText(path), ReadOpts); }
+        catch { return null; }
     }
 
     public static void DeleteProject(string projectFolder)
