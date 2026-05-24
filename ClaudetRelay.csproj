@@ -22,6 +22,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Exclude build output from compilation -->
+    <Page Remove="publish\**\*.xaml" />
+    <Content Remove="publish\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Themes nicht kompilieren – zur Laufzeit vom Dateisystem laden -->
     <Page Remove="Themes\*.xaml" />
     <Content Include="Themes\*.xaml">

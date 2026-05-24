@@ -61,6 +61,8 @@ public partial class MainWindow : Window
         public required Border            Card          { get; init; }
         public required Border            AvatarBorder  { get; init; }
         public required TextBlock         AvatarText    { get; init; }
+        public required Border            CoBadge       { get; init; }
+        public required Border            RBadge        { get; init; }
         public required TextBlock         NameLabel     { get; init; }
         public required Ellipse           StatusDot     { get; init; }
         public required TextBlock         ModelLabel    { get; init; }
@@ -110,6 +112,8 @@ public partial class MainWindow : Window
         public required Border             Card          { get; init; }
         public required Border             AvatarBorder  { get; init; }
         public required TextBlock          AvatarText    { get; init; }
+        public required Border             CoBadge       { get; init; }
+        public required Border             RBadge        { get; init; }
         public required TextBlock          NameLabel     { get; init; }
         public required Ellipse            StatusDot     { get; init; }
         public required TextBlock          ModelLabel    { get; init; }
@@ -959,6 +963,9 @@ public partial class MainWindow : Window
         if (loadedPs.ActiveParticipants is { Count: > 0 })
             ReInitializeParticipantsFrom(loadedPs.ActiveParticipants);
 
+        // Reflect CO / R roles on all sidebar cards for this project
+        RefreshParticipantBadges();
+
         // Update header
         ChatHeaderTitle.Text              = meta.ProjectName;
         ProjectSettingsButton.Visibility  = Visibility.Visible;
@@ -997,6 +1004,13 @@ public partial class MainWindow : Window
         CloseProjectButton   .Visibility = Visibility.Collapsed;
         RoadmapButton        .Visibility = Visibility.Collapsed;
         WorldButton          .Visibility = Visibility.Collapsed;
+
+        // Clear CO/R badges — no project is active
+        RefreshParticipantBadges();
+
+        // Restore the globally configured participants
+        var globalSettings = SettingsService.Load();
+        ReInitializeParticipantsFrom(globalSettings.Participants);
     }
 
     private void RoadmapButton_Click(object sender, RoutedEventArgs e)
@@ -3123,6 +3137,7 @@ public partial class MainWindow : Window
                 _projectLanguage = ps.Language;
                 _maxDialogDepth  = ps.MaxDialogDepth;
                 _projectSettings = ps;
+                RefreshParticipantBadges();
             }
 
             win.DialogResult = true;
@@ -3618,10 +3633,48 @@ public partial class MainWindow : Window
         {
             Width        = 34, Height = 34,
             CornerRadius = new CornerRadius(9),
-            Margin       = new Thickness(0, 0, 10, 0),
             Child        = avatarText
         };
         avatarBorder.SetResourceReference(Border.BackgroundProperty, participant.ColorKey);
+
+        var coBadge = new Border
+        {
+            CornerRadius        = new CornerRadius(3),
+            Padding             = new Thickness(2, 0, 2, 0),
+            Height              = 13,
+            Background          = new SolidColorBrush(Color.FromRgb(255, 215, 0)),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment   = VerticalAlignment.Top,
+            Visibility          = Visibility.Collapsed,
+            Child               = new TextBlock { Text = "CO", FontSize = 8, FontWeight = FontWeights.Bold,
+                                      Foreground = Brushes.Black,
+                                      HorizontalAlignment = HorizontalAlignment.Center,
+                                      VerticalAlignment   = VerticalAlignment.Center }
+        };
+        var rBadge = new Border
+        {
+            CornerRadius        = new CornerRadius(3),
+            Padding             = new Thickness(2, 0, 2, 0),
+            Height              = 13,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment   = VerticalAlignment.Bottom,
+            Visibility          = Visibility.Collapsed,
+            Child               = new TextBlock { Text = "R", FontSize = 8, FontWeight = FontWeights.Bold,
+                                      Foreground = Brushes.Black,
+                                      HorizontalAlignment = HorizontalAlignment.Center,
+                                      VerticalAlignment   = VerticalAlignment.Center }
+        };
+        rBadge.SetResourceReference(Border.BackgroundProperty, "SubtextBrush");
+
+        var avatarContainer = new Grid
+        {
+            Width             = 38, Height = 38,
+            Margin            = new Thickness(0, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        avatarContainer.Children.Add(avatarBorder);
+        avatarContainer.Children.Add(coBadge);
+        avatarContainer.Children.Add(rBadge);
 
         // ── Status dot ────────────────────────────────────────────────────
         var statusDot = new Ellipse { Width = 8, Height = 8, VerticalAlignment = VerticalAlignment.Center };
@@ -3675,12 +3728,12 @@ public partial class MainWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        Grid.SetColumn(avatarBorder, 0);
-        Grid.SetColumn(labelPanel,   1);
-        Grid.SetColumn(statusDot,    2);
-        Grid.SetColumn(removeButton, 3);
+        Grid.SetColumn(avatarContainer, 0);
+        Grid.SetColumn(labelPanel,      1);
+        Grid.SetColumn(statusDot,       2);
+        Grid.SetColumn(removeButton,    3);
 
-        grid.Children.Add(avatarBorder);
+        grid.Children.Add(avatarContainer);
         grid.Children.Add(labelPanel);
         grid.Children.Add(statusDot);
         grid.Children.Add(removeButton);
@@ -3764,6 +3817,8 @@ public partial class MainWindow : Window
             Card          = card,
             AvatarBorder  = avatarBorder,
             AvatarText    = avatarText,
+            CoBadge       = coBadge,
+            RBadge        = rBadge,
             NameLabel     = nameLabel,
             StatusDot     = statusDot,
             ModelLabel    = modelLabel,
@@ -3873,10 +3928,48 @@ public partial class MainWindow : Window
         {
             Width        = 34, Height = 34,
             CornerRadius = new CornerRadius(9),
-            Margin       = new Thickness(0, 0, 10, 0),
             Child        = avatarText
         };
         avatarBorder.SetResourceReference(Border.BackgroundProperty, participant.ColorKey);
+
+        var coBadge = new Border
+        {
+            CornerRadius        = new CornerRadius(3),
+            Padding             = new Thickness(2, 0, 2, 0),
+            Height              = 13,
+            Background          = new SolidColorBrush(Color.FromRgb(255, 215, 0)),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment   = VerticalAlignment.Top,
+            Visibility          = Visibility.Collapsed,
+            Child               = new TextBlock { Text = "CO", FontSize = 8, FontWeight = FontWeights.Bold,
+                                      Foreground = Brushes.Black,
+                                      HorizontalAlignment = HorizontalAlignment.Center,
+                                      VerticalAlignment   = VerticalAlignment.Center }
+        };
+        var rBadge = new Border
+        {
+            CornerRadius        = new CornerRadius(3),
+            Padding             = new Thickness(2, 0, 2, 0),
+            Height              = 13,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment   = VerticalAlignment.Bottom,
+            Visibility          = Visibility.Collapsed,
+            Child               = new TextBlock { Text = "R", FontSize = 8, FontWeight = FontWeights.Bold,
+                                      Foreground = Brushes.Black,
+                                      HorizontalAlignment = HorizontalAlignment.Center,
+                                      VerticalAlignment   = VerticalAlignment.Center }
+        };
+        rBadge.SetResourceReference(Border.BackgroundProperty, "SubtextBrush");
+
+        var avatarContainer = new Grid
+        {
+            Width             = 38, Height = 38,
+            Margin            = new Thickness(0, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        avatarContainer.Children.Add(avatarBorder);
+        avatarContainer.Children.Add(coBadge);
+        avatarContainer.Children.Add(rBadge);
 
         var statusDot = new Ellipse { Width = 8, Height = 8, VerticalAlignment = VerticalAlignment.Center };
         statusDot.SetResourceReference(Ellipse.FillProperty, "SubtextBrush");
@@ -3917,12 +4010,12 @@ public partial class MainWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        Grid.SetColumn(avatarBorder, 0);
-        Grid.SetColumn(labelPanel,   1);
-        Grid.SetColumn(statusDot,    2);
-        Grid.SetColumn(removeButton, 3);
+        Grid.SetColumn(avatarContainer, 0);
+        Grid.SetColumn(labelPanel,      1);
+        Grid.SetColumn(statusDot,       2);
+        Grid.SetColumn(removeButton,    3);
 
-        grid.Children.Add(avatarBorder);
+        grid.Children.Add(avatarContainer);
         grid.Children.Add(labelPanel);
         grid.Children.Add(statusDot);
         grid.Children.Add(removeButton);
@@ -4006,6 +4099,8 @@ public partial class MainWindow : Window
             Card          = card,
             AvatarBorder  = avatarBorder,
             AvatarText    = avatarText,
+            CoBadge       = coBadge,
+            RBadge        = rBadge,
             NameLabel     = nameLabel,
             StatusDot     = statusDot,
             ModelLabel    = modelLabel,
@@ -4710,6 +4805,27 @@ public partial class MainWindow : Window
     /// <summary>Returns true when the participant is flagged as a Reasoner in the current project settings.</summary>
     private bool IsReasoner(CloudAIParticipantUI ui) =>
         _projectSettings?.Get(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel)?.IsReasoner == true;
+
+    /// <summary>
+    /// Updates the CO / R badge overlays on every sidebar participant card to reflect
+    /// the current <see cref="_projectSettings"/>. Call after loading or saving project
+    /// settings, and after closing a project (badges go hidden when settings are null).
+    /// </summary>
+    private void RefreshParticipantBadges()
+    {
+        foreach (var ui in _ollamaParticipants)
+        {
+            var role = _projectSettings?.Get("Ollama", ui.Data.Service.CurrentModel);
+            ui.CoBadge.Visibility = role?.IsCoordinator == true ? Visibility.Visible : Visibility.Collapsed;
+            ui.RBadge .Visibility = role?.IsReasoner    == true ? Visibility.Visible : Visibility.Collapsed;
+        }
+        foreach (var ui in _cloudAIParticipants)
+        {
+            var role = _projectSettings?.Get(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel);
+            ui.CoBadge.Visibility = role?.IsCoordinator == true ? Visibility.Visible : Visibility.Collapsed;
+            ui.RBadge .Visibility = role?.IsReasoner    == true ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
 
     /// <summary>Returns true when <paramref name="name"/> is mentioned with an @ prefix in the response.</summary>
     private static bool IsTaggedInResponse(string response, string name) =>
