@@ -481,6 +481,7 @@ public partial class MainWindow : Window
         // Update header
         ChatHeaderTitle.Text              = meta.ProjectName;
         ProjectSettingsButton.Visibility  = Visibility.Visible;
+        CloseProjectButton   .Visibility  = Visibility.Visible;
 
         // Load chat history
         var log = ProjectService.LoadChatLog(projFolder);
@@ -504,6 +505,25 @@ public partial class MainWindow : Window
         _maxDialogDepth                  = 1;
         ChatHeaderTitle.Text             = "Chat";
         ProjectSettingsButton.Visibility = Visibility.Collapsed;
+        CloseProjectButton   .Visibility = Visibility.Collapsed;
+    }
+
+    private void CloseProjectButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentProjectFolder is null || _currentProject is null) return;
+
+        // Persist last-opened timestamp before closing
+        _currentProject.LastOpened = DateTime.UtcNow;
+        ProjectService.SaveMeta(_currentProjectFolder, _currentProject);
+
+        // Stop any running stream, clear the chat panel
+        _streamCts?.Cancel();
+        ChatPanel.Children.Clear();
+        _sharedHistory.Clear();
+
+        CloseCurrentProject();
+
+        AddSystemMessage("Project closed. Start a new chat or open a project from the Projects tab.");
     }
 
     private void RenderChatLogEntry(ChatLogEntry entry)

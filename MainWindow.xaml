@@ -388,16 +388,28 @@
                                FontFamily="Segoe UI"
                                Foreground="{DynamicResource TextBrush}"
                                VerticalAlignment="Center"/>
-                    <Button x:Name="ProjectSettingsButton"
-                            Content="⚙ Settings"
-                            HorizontalAlignment="Right" VerticalAlignment="Center"
-                            Visibility="Collapsed"
-                            Style="{StaticResource ModernButton}"
-                            Background="{DynamicResource InputBrush}"
-                            Foreground="{DynamicResource TextBrush}"
-                            FontSize="12" Padding="10,5"
-                            Click="ProjectSettingsButton_Click"
-                            ToolTip="Open project settings (roles, orchestration mode)"/>
+                    <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Orientation="Horizontal">
+                        <Button x:Name="CloseProjectButton"
+                                Content="✕ Close Project"
+                                Visibility="Collapsed"
+                                Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource InputBrush}"
+                                Foreground="{DynamicResource TextBrush}"
+                                FontSize="12" Padding="10,5"
+                                Margin="0,0,6,0"
+                                Click="CloseProjectButton_Click"
+                                ToolTip="Save and close the current project"/>
+                        <Button x:Name="ProjectSettingsButton"
+                                Content="⚙ Settings"
+                                Visibility="Collapsed"
+                                Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource InputBrush}"
+                                Foreground="{DynamicResource TextBrush}"
+                                FontSize="12" Padding="10,5"
+                                Click="ProjectSettingsButton_Click"
+                                ToolTip="Open project settings (roles, orchestration mode)"/>
+                    </StackPanel>
                 </Grid>
             </Border>
             <Rectangle x:Name="ChatHeaderSep" Grid.Row="1" Height="1" VerticalAlignment="Bottom"
