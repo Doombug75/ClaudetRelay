@@ -2611,26 +2611,18 @@ public partial class MainWindow : Window
 
         try
         {
-            for (int round = 0; round < maxRounds && !ct.IsCancellationRequested; round++)
+            var mode = _projectSettings?.OrchestrationMode ?? OrchestrationMode.AllRespond;
+            switch (mode)
             {
-                // From round 2 onward: only continue if the last history entry is an AI message
-                if (round > 0)
-                {
-                    if (_sharedHistory.Count == 0 || _sharedHistory.Last().Role != "assistant")
-                        break;
-                    AddSystemMessage($"— Round {round + 1} —");
-                }
-
-                foreach (var ui in activeOllamas)
-                {
-                    if (ct.IsCancellationRequested) break;
-                    await RunOllamaStreamAsync(ui, ct);
-                }
-                foreach (var ui in activeCloudAIs)
-                {
-                    if (ct.IsCancellationRequested) break;
-                    await RunCloudAIStreamAsync(ui, ct);
-                }
+                case OrchestrationMode.CoordinatorFirst:
+                    await RunCoordinatorFirstModeAsync(activeOllamas, activeCloudAIs, ct);
+                    break;
+                case OrchestrationMode.CoordinatorSummarizes:
+                    await RunCoordinatorSummarizesModeAsync(activeOllamas, activeCloudAIs, ct);
+                    break;
+                default:
+                    await RunAllRespondModeAsync(activeOllamas, activeCloudAIs, ct, maxRounds);
+                    break;
             }
         }
         finally
@@ -2646,7 +2638,179 @@ public partial class MainWindow : Window
             await MaybeCompressHistoryAsync(CancellationToken.None);
     }
 
-    private async Task RunOllamaStreamAsync(OllamaParticipantUI ui, CancellationToken ct)
+    // ── Orchestration mode runners ─────────────────────────────────────────
+
+    private async Task RunAllRespondModeAsync(
+        List<OllamaParticipantUI>   activeOllamas,
+        List<CloudAIParticipantUI>  activeCloudAIs,
+        CancellationToken ct, int maxRounds)
+    {
+        for (int round = 0; round < maxRounds && !ct.IsCancellationRequested; round++)
+        {
+            if (round > 0)
+            {
+                if (_sharedHistory.Count == 0 || _sharedHistory.Last().Role != "assistant")
+                    break;
+                AddSystemMessage($"— Round {round + 1} —");
+            }
+            foreach (var ui in activeOllamas)
+            {
+                if (ct.IsCancellationRequested) break;
+                await RunOllamaStreamAsync(ui, ct);
+            }
+            foreach (var ui in activeCloudAIs)
+            {
+                if (ct.IsCancellationRequested) break;
+                await RunCloudAIStreamAsync(ui, ct);
+            }
+        }
+    }
+
+    private async Task RunCoordinatorFirstModeAsync(
+        List<OllamaParticipantUI>   activeOllamas,
+        List<CloudAIParticipantUI>  activeCloudAIs,
+        CancellationToken ct)
+    {
+        var (coordOllama, coordCloud) = FindCoordinatorInLists(activeOllamas, activeCloudAIs);
+        if (coordOllama is null && coordCloud is null)
+        {
+            AddSystemMessage("⚠  CoordinatorFirst: no coordinator found — falling back to AllRespond.");
+            await RunAllRespondModeAsync(activeOllamas, activeCloudAIs, ct, 1);
+            return;
+        }
+
+        // Tell the coordinator who it can delegate to
+        var delegatableNames = activeOllamas
+            .Where(u => u != coordOllama).Select(GetEffectiveName)
+            .Concat(activeCloudAIs
+                .Where(u => u != coordCloud).Select(GetEffectiveName))
+            .ToList();
+
+        var coordinatorHint =
+            "You respond first in this conversation round. " +
+            (delegatableNames.Count > 0
+                ? $"If you need specific participants to weigh in, tag them with @Name in your reply " +
+                  $"(e.g. '@{delegatableNames[0]}, please analyse the technical side'). " +
+                  $"Available to delegate to: {string.Join(", ", delegatableNames.Select(n => "@" + n))}. " +
+                  "Only the participants you tag will respond after you. " +
+                  "If you tag nobody, your response concludes this round."
+                : "You are the only active participant — respond directly.");
+
+        // Coordinator goes first
+        if (coordCloud is not null)
+            await RunCloudAIStreamAsync(coordCloud, ct, coordinatorHint);
+        else
+            await RunOllamaStreamAsync(coordOllama!, ct, coordinatorHint);
+
+        if (ct.IsCancellationRequested || delegatableNames.Count == 0) return;
+
+        // Parse coordinator's response for @Name delegations
+        var coordResponse = _sharedHistory.LastOrDefault(m => m.Role == "assistant")?.Content ?? "";
+        var taggedOllamas = activeOllamas
+            .Where(u => u != coordOllama && IsTaggedInResponse(coordResponse, GetEffectiveName(u)))
+            .ToList();
+        var taggedClouds = activeCloudAIs
+            .Where(u => u != coordCloud && IsTaggedInResponse(coordResponse, GetEffectiveName(u)))
+            .ToList();
+
+        if (taggedOllamas.Count == 0 && taggedClouds.Count == 0) return;
+
+        AddSystemMessage("— Delegated —");
+        foreach (var ui in taggedOllamas)
+        {
+            if (ct.IsCancellationRequested) break;
+            await RunOllamaStreamAsync(ui, ct);
+        }
+        foreach (var ui in taggedClouds)
+        {
+            if (ct.IsCancellationRequested) break;
+            await RunCloudAIStreamAsync(ui, ct);
+        }
+    }
+
+    private async Task RunCoordinatorSummarizesModeAsync(
+        List<OllamaParticipantUI>   activeOllamas,
+        List<CloudAIParticipantUI>  activeCloudAIs,
+        CancellationToken ct)
+    {
+        var (coordOllama, coordCloud) = FindCoordinatorInLists(activeOllamas, activeCloudAIs);
+
+        // All non-coordinator participants respond first
+        foreach (var ui in activeOllamas.Where(u => u != coordOllama))
+        {
+            if (ct.IsCancellationRequested) return;
+            await RunOllamaStreamAsync(ui, ct);
+        }
+        foreach (var ui in activeCloudAIs.Where(u => u != coordCloud))
+        {
+            if (ct.IsCancellationRequested) return;
+            await RunCloudAIStreamAsync(ui, ct);
+        }
+
+        if (ct.IsCancellationRequested || (coordOllama is null && coordCloud is null)) return;
+
+        // Coordinator synthesizes all responses above
+        AddSystemMessage("— Coordinator synthesizing —");
+        const string synthesisHint =
+            "All other participants have now given their responses above. " +
+            "Please write a final synthesizing response: draw together their key points, " +
+            "highlight agreements and any meaningful differences, and add your own concluding assessment.";
+
+        if (coordCloud is not null)
+            await RunCloudAIStreamAsync(coordCloud, ct, synthesisHint);
+        else
+            await RunOllamaStreamAsync(coordOllama!, ct, synthesisHint);
+    }
+
+    // ── Orchestration helpers ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Finds the coordinator among the already-filtered active participant lists.
+    /// Cloud AI is preferred over Ollama (larger context windows for coordination).
+    /// </summary>
+    private (OllamaParticipantUI? Ollama, CloudAIParticipantUI? Cloud) FindCoordinatorInLists(
+        List<OllamaParticipantUI> ollamas, List<CloudAIParticipantUI> clouds)
+    {
+        if (_projectSettings is null) return (null, null);
+
+        var cloud = clouds.FirstOrDefault(ui =>
+            _projectSettings.Get(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel)
+                            ?.IsCoordinator == true);
+        if (cloud is not null) return (null, cloud);
+
+        var ollama = ollamas.FirstOrDefault(ui =>
+            _projectSettings.Get("Ollama", ui.Data.Service.CurrentModel)
+                            ?.IsCoordinator == true);
+        return (ollama, null);
+    }
+
+    /// <summary>Effective display name for a participant: AnswerAsName if set, else CustomName/model name.</summary>
+    private string GetEffectiveName(OllamaParticipantUI ui)
+    {
+        var role = _projectSettings?.Get("Ollama", ui.Data.Service.CurrentModel);
+        if (!string.IsNullOrWhiteSpace(role?.AnswerAsName)) return role.AnswerAsName;
+        return string.IsNullOrEmpty(ui.Data.CustomName)
+            ? FormatModelDisplayName(ui.Data.Service.CurrentModel)
+            : ui.Data.CustomName;
+    }
+
+    /// <summary>Effective display name for a participant: AnswerAsName if set, else CustomName/model name.</summary>
+    private string GetEffectiveName(CloudAIParticipantUI ui)
+    {
+        var role = _projectSettings?.Get(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel);
+        if (!string.IsNullOrWhiteSpace(role?.AnswerAsName)) return role.AnswerAsName;
+        return string.IsNullOrEmpty(ui.Data.CustomName)
+            ? FormatModelDisplayName(ui.Data.Service.CurrentModel)
+            : ui.Data.CustomName;
+    }
+
+    /// <summary>Returns true when <paramref name="name"/> is mentioned with an @ prefix in the response.</summary>
+    private static bool IsTaggedInResponse(string response, string name) =>
+        !string.IsNullOrWhiteSpace(name) &&
+        Regex.IsMatch(response, $@"@{Regex.Escape(name)}\b", RegexOptions.IgnoreCase);
+
+    private async Task RunOllamaStreamAsync(OllamaParticipantUI ui, CancellationToken ct,
+                                             string? systemHint = null)
     {
         var modelName = ui.Data.Service.CurrentModel;
         var display   = string.IsNullOrEmpty(ui.Data.CustomName)
@@ -2668,6 +2832,8 @@ public partial class MainWindow : Window
         try
         {
             var history = BuildOllamaHistoryFor(ui);
+            if (systemHint is not null)
+                history.Insert(1, new OllamaChatMessage("system", systemHint));
             await foreach (var token in svc.StreamAsync(history, ct))
             {
                 if (firstToken)
@@ -2723,7 +2889,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RunCloudAIStreamAsync(CloudAIParticipantUI ui, CancellationToken ct)
+    private async Task RunCloudAIStreamAsync(CloudAIParticipantUI ui, CancellationToken ct,
+                                              string? systemHint = null)
     {
         var model       = ui.Data.Service.CurrentModel;
         var display     = string.IsNullOrEmpty(ui.Data.CustomName)
@@ -2739,6 +2906,8 @@ public partial class MainWindow : Window
         try
         {
             var (history, system) = BuildCloudAIHistoryFor(ui);
+            if (systemHint is not null)
+                system += "\n\n" + systemHint;
             await foreach (var token in ui.Data.Service.StreamAsync(history, system, ct))
             {
                 if (firstToken)
