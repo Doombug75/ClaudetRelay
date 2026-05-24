@@ -393,14 +393,21 @@ public partial class MainWindow : Window
         var ctxMenu    = new ContextMenu();
         var exportHtml = new MenuItem { Header = "📄  Export as HTML…" };
         var exportMd   = new MenuItem { Header = "📝  Export as Markdown…" };
+        var browseItem = new MenuItem { Header = "📁  Browse project files…" };
 
         var capturedFolder = projFolder;
         var capturedMeta   = meta;
         exportHtml.Click += (_, _) => ExportProject(capturedFolder, capturedMeta, "html");
         exportMd.Click   += (_, _) => ExportProject(capturedFolder, capturedMeta, "md");
+        browseItem.Click += (_, _) =>
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(capturedFolder)
+                    { UseShellExecute = true });
 
         ctxMenu.Items.Add(exportHtml);
         ctxMenu.Items.Add(exportMd);
+        ctxMenu.Items.Add(new Separator());
+        ctxMenu.Items.Add(browseItem);
         card.ContextMenu = ctxMenu;
 
         return card;
@@ -1034,6 +1041,74 @@ public partial class MainWindow : Window
         root.Children.Add(depthLabel);
         root.Children.Add(depthRow);
 
+        // ── Default Response Length ────────────────────────────────────────
+        var defLenLabel = new TextBlock
+        {
+            Text       = "DEFAULT RESPONSE LENGTH",
+            FontSize   = 11, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(0, 0, 0, 6),
+            Foreground = (Brush)FindResource("SubtextBrush")
+        };
+
+        var defLenSlider = new Slider
+        {
+            Minimum             = 0, Maximum = 100,
+            Value               = ps.DefaultResponseLength,
+            TickFrequency       = 10,
+            IsSnapToTickEnabled = false,
+            Width               = 220,
+            Margin              = new Thickness(0, 0, 10, 0),
+            VerticalAlignment   = VerticalAlignment.Center
+        };
+
+        var defLenValueTb = new TextBlock
+        {
+            FontSize          = 12, FontFamily = new FontFamily("Segoe UI"),
+            Width             = 80,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground        = (Brush)FindResource("TextBrush")
+        };
+
+        string DefLenName(int v) => v switch
+        {
+            < 10  => "One-liner",
+            < 30  => "Brief",
+            < 45  => "Concise",
+            <= 55 => "Balanced",
+            < 70  => "Moderate",
+            < 90  => "Detailed",
+            _     => "Monologue"
+        };
+        defLenValueTb.Text = DefLenName(ps.DefaultResponseLength);
+        defLenSlider.ValueChanged += (_, e) =>
+            defLenValueTb.Text = DefLenName((int)e.NewValue);
+
+        // "Apply to All" is wired after the allRoles list is populated below
+        var applyAllBtn = new Button
+        {
+            Content           = "Apply to all",
+            Height            = 28, Padding = new Thickness(10, 0, 10, 0),
+            Style             = (Style)FindResource("ModernButton"),
+            Background        = (Brush)FindResource("InputBrush"),
+            Foreground        = (Brush)FindResource("TextBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin            = new Thickness(10, 0, 0, 0),
+            ToolTip           = "Override the response length for every participant in this project"
+        };
+
+        var defLenRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin      = new Thickness(0, 0, 0, 16)
+        };
+        defLenRow.Children.Add(defLenSlider);
+        defLenRow.Children.Add(defLenValueTb);
+        defLenRow.Children.Add(applyAllBtn);
+
+        root.Children.Add(defLenLabel);
+        root.Children.Add(defLenRow);
+
         // ── Separator ──────────────────────────────────────────────────────
         var sep = new Rectangle
         {
@@ -1084,6 +1159,7 @@ public partial class MainWindow : Window
 
         // Build a compact row per participant; full editing via per-character popup
         var roleRows = new List<(string provider, string model, Func<ProjectParticipantRole> GetRole)>();
+        var allRoles = new List<ProjectParticipantRole>(); // for "Apply to All"
 
         // If no coordinator is set yet, default the first participant to CO
         bool anyCoordinator = ps.Roles.Any(r => r.IsCoordinator);
@@ -1118,7 +1194,7 @@ public partial class MainWindow : Window
                 DisplayName      = displayName,
                 AnswerAsName     = existing?.AnswerAsName     ?? "",
                 RoleInstruction  = existing?.RoleInstruction  ?? "",
-                ResponseLength   = existing?.ResponseLength   ?? 50,
+                ResponseLength   = existing?.ResponseLength   ?? ps.DefaultResponseLength,
                 IsCoordinator    = existing?.IsCoordinator    ?? (!anyCoordinator && pi == 0),
                 IsReasoner       = existing?.IsReasoner       ?? false,
                 ReasonerPriority = existing?.ReasonerPriority ?? 5,
@@ -1289,7 +1365,17 @@ public partial class MainWindow : Window
                 capturedRole.IsActive = capturedActive.IsChecked == true;
                 return capturedRole;
             }));
+            allRoles.Add(role);
         }
+
+        // Wire "Apply to All" now that allRoles is fully populated
+        applyAllBtn.Click += (_, _) =>
+        {
+            var len = (int)defLenSlider.Value;
+            foreach (var r in allRoles)
+                r.ResponseLength = len;
+            AddSystemMessage($"✅  Response length set to {DefLenName(len)} for all participants.");
+        };
 
         // ── Buttons ────────────────────────────────────────────────────────
         var sep2 = new Rectangle
@@ -1347,6 +1433,9 @@ public partial class MainWindow : Window
 
             // Collect max dialog depth
             ps.MaxDialogDepth = int.TryParse(depthBox.Text, out var d) && d >= 1 ? d : 1;
+
+            // Collect default response length
+            ps.DefaultResponseLength = (int)defLenSlider.Value;
 
             // Collect roles
             ps.Roles.Clear();

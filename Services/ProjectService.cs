@@ -112,8 +112,16 @@ public class ProjectSettings
     /// </summary>
     public int MaxDialogDepth { get; set; } = 3;
 
+    /// <summary>
+    /// Default response length (0–100) applied to new participants when they are first
+    /// added to this project. Existing roles are not changed unless "Apply to All" is used.
+    /// 50 = model default (no injection).
+    /// </summary>
+    public int DefaultResponseLength { get; set; } = 50;
+
     /// <summary>Looks up the role for a participant by provider + model (case-insensitive).
-    /// Creates and registers a new empty role if none exists.</summary>
+    /// Creates and registers a new empty role if none exists, using
+    /// <see cref="DefaultResponseLength"/> as the initial ResponseLength.</summary>
     public ProjectParticipantRole GetOrCreate(string provider, string model, string displayName)
     {
         var existing = Roles.FirstOrDefault(r =>
@@ -123,7 +131,8 @@ public class ProjectSettings
         if (existing is not null) return existing;
 
         var newRole = new ProjectParticipantRole
-            { Provider = provider, Model = model, DisplayName = displayName };
+            { Provider = provider, Model = model, DisplayName = displayName,
+              ResponseLength = DefaultResponseLength };
         Roles.Add(newRole);
         return newRole;
     }
