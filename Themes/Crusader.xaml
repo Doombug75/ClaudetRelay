@@ -1,30 +1,29 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Crusader - Hintergründe (Bedrohlich, schwer) -->
-    <SolidColorBrush x:Key="BackgroundBrush" Color="#1A1212"/> <!-- Near Black/Charcoal -->
-    <SolidColorBrush x:Key="SidebarBrush" Color="#281A1A"/>
-    <SolidColorBrush x:Key="InputBrush" Color="#3A2222"/>
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#4A3333"/>
+    <!-- Crusader Industries — "Getting You There"                               -->
+    <!-- Brand: clean blue/white, reliable civilian transport                    -->
+    <!-- Cockpit displays: crisp blue/white interface — Mercury Star Runner      -->
 
-    <!-- Crusader - Text (Kalt, dominant) -->
-    <SolidColorBrush x:Key="TextBrush" Color="#C0A0A0"/>
-    <SolidColorBrush x:Key="SubtextBrush" Color="#8D7070"/>
+    <!-- Backgrounds — clean civilian bulkhead, corporate blue -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#0A1220"/> <!-- Deep civilian navy      -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#070C18"/> <!-- Hull inner              -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#101E34"/> <!-- Panel recess            -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#1A2E4C"/> <!-- Console surface         -->
 
-    <!-- Crusader - Akzente (Blutrot, Gefahr) -->
-    <SolidColorBrush x:Key="ClaudeBrush" Color="#B53A3A"/> <!-- Deep Blood Red -->
-    <SolidColorBrush x:Key="OllamaBrush" Color="#66CC66"/> <!-- Industrial Green Accent -->
-    <SolidColorBrush x:Key="UserBrush" Color="#9966FF"/> <!-- Overpowering Violet -->
-    <SolidColorBrush x:Key="AccentBrush" Color="#FF5555"/> <!-- Warning Red Flare -->
+    <!-- Text — clean, readable, civilian standard -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#DCE8F4"/> <!-- Cool clean white         -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#4E70A0"/> <!-- Muted Crusader blue      -->
 
-    <!-- Crusader - Bubble Hintergründe -->
-    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#150A0A"/>
-    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#0F130E"/>
-    <SolidColorBrush x:Key="UserBubbleBrush" Color="#120B0B"/>
+    <!-- Accents — Crusader blue, cyan, warm gold complement -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#2080D0"/> <!-- Crusader signature blue  -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#38A8D0"/> <!-- Secondary cyan-blue      -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#78B8E8"/> <!-- Interface pale blue      -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#E0A028"/> <!-- Gold accent — nav marker -->
+
+    <!-- Bubble backgrounds — flight deck display tints -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#0C1C34"/> <!-- Deep nav blue        -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#0A1A2C"/> <!-- Darker blue          -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#0C1C30"/> <!-- Comms blue           -->
 
 </ResourceDictionary>
-
-
-
-
-

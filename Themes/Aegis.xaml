@@ -1,30 +1,30 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Aegis - Hintergründe (Militärisch, stabil) -->
-    <SolidColorBrush x:Key="BackgroundBrush" Color="#1E2438"/> <!-- Deep Navy Charcoal -->
-    <SolidColorBrush x:Key="SidebarBrush" Color="#28304E"/>
-    <SolidColorBrush x:Key="InputBrush" Color="#363F60"/>
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#4B5880"/>
+    <!-- Aegis Dynamics — "Built for War"                                         -->
+    <!-- Brand: gunmetal grey, military dark, targeting red/alert orange          -->
+    <!-- Cockpit displays: dark grey with red targeting reticles, orange alerts   -->
+    <!-- Ships: Hammerhead, Gladius, Vanguard, Eclipse, Idris                     -->
 
-    <!-- Aegis - Text (Klar, autoritär) -->
-    <SolidColorBrush x:Key="TextBrush" Color="#C9DCE3"/>
-    <SolidColorBrush x:Key="SubtextBrush" Color="#9AADC0"/>
+    <!-- Backgrounds — military grey steel, stealth bomber interior -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#0C0F14"/> <!-- Stealth gunmetal black  -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#080B0F"/> <!-- Armoured hull           -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#141820"/> <!-- Tactical panel recess   -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#1E2530"/> <!-- Weapons console surface -->
 
-    <!-- Aegis - Akzente (Standardisiert, militärisch) -->
-    <SolidColorBrush x:Key="ClaudeBrush" Color="#708090"/> <!-- Slate Steel Grey -->
-    <SolidColorBrush x:Key="OllamaBrush" Color="#6A9E80"/> <!-- Deep Military Teal -->
-    <SolidColorBrush x:Key="UserBrush" Color="#9CB3FF"/> <!-- Official Light Blue -->
-    <SolidColorBrush x:Key="AccentBrush" Color="#D9534F"/> <!-- Emergency Red -->
+    <!-- Text — cold, authoritative, military readout -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#C8D4DC"/> <!-- Cold military white      -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#506070"/> <!-- Muted tactical grey      -->
 
-    <!-- Aegis - Bubble Hintergründe -->
-    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#1F263A"/>
-    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#19202C"/>
-    <SolidColorBrush x:Key="UserBubbleBrush" Color="#1D2235"/>
+    <!-- Accents — targeting red, alert orange, status blue -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#C03028"/> <!-- Targeting reticle red    -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#6888A0"/> <!-- Gunmetal status blue     -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#4A7898"/> <!-- Comms channel blue       -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#E05818"/> <!-- Alert orange — warning   -->
+
+    <!-- Bubble backgrounds — targeting computer display tints -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#180A08"/> <!-- Dark red targeting   -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#0C1018"/> <!-- Dark steel           -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#0A1018"/> <!-- Comms dark blue      -->
 
 </ResourceDictionary>
-
-
-
-
-

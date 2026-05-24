@@ -1,30 +1,29 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Irradiated Wasteland Core - Hintergründe (Staub, Verfall, Rost) -->
-    <SolidColorBrush x:Key="BackgroundBrush" Color="#1D1812"/> <!-- Dark Grime Brown/Gray -->
-    <SolidColorBrush x:Key="SidebarBrush" Color="#25201C"/>
-    <SolidColorBrush x:Key="InputBrush" Color="#302824"/>
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#403833"/>
+    <!-- Irradiated Wasteland Core — "Warning: Radiation Level Critical"           -->
+    <!-- Brand: ash grey, sickly radioactive green, rust red — decay and rads      -->
+    <!-- Aesthetic: Geiger counter clicks, glowing barrels, dead zone atmosphere   -->
 
-    <!-- Irradiated Wasteland Core - Text (Verblasst, müde) -->
-    <SolidColorBrush x:Key="TextBrush" Color="#C5C0B0"/>
-    <SolidColorBrush x:Key="SubtextBrush" Color="#807565"/>
+    <!-- Backgrounds — ash and grime, post-nuclear decay -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#1D1812"/> <!-- Dark grime ash brown     -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#25201C"/> <!-- Deeper ashen wall        -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#302824"/> <!-- Panel recess             -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#403833"/> <!-- Corroded console surface -->
 
-    <!-- Irradiated Wasteland Core - Akzente (Gefahr, Radiation) -->
-    <SolidColorBrush x:Key="ClaudeBrush" Color="#D2B53D"/> <!-- Mustard Yellow (Artefakt-Glow) -->
-    <SolidColorBrush x:Key="OllamaBrush" Color="#66FF66"/> <!-- Sickly Radioactive Green (Radiation Alert) -->
-    <SolidColorBrush x:Key="UserBrush" Color="#CC99FF"/> <!-- Purple/Electric Discharge (Powered Device) -->
-    <SolidColorBrush x:Key="AccentBrush" Color="#D40000"/> <!-- Critical Red (Danger Sign) -->
+    <!-- Text — faded, tired, survival standard -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#C5C0B0"/> <!-- Bleached ash white        -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#807565"/> <!-- Muted dust                -->
 
-    <!-- Irradiated Wasteland Core - Bubble Hintergründe -->
-    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#1A1610"/>
-    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#0B120B"/>
-    <SolidColorBrush x:Key="UserBubbleBrush" Color="#150B10"/>
+    <!-- Accents — radiation alert, artefact glow, danger signs -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#D2B53D"/> <!-- Mustard artefact-glow     -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#50C840"/> <!-- Sickly radioactive green  -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#A878D8"/> <!-- Electric discharge purple -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#D42020"/> <!-- Critical red — DANGER     -->
+
+    <!-- Bubble backgrounds — contaminated display tints -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#1A1610"/> <!-- Dark mustard tint     -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#0C1408"/> <!-- Dark rad-green        -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#160C1C"/> <!-- Dark purple discharge -->
 
 </ResourceDictionary>
-
-
-
-
-

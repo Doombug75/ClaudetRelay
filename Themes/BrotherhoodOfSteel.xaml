@@ -1,30 +1,29 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Brotherhood of Steel - Hintergründe (Stahl, Beton, Ordnung) -->
-    <SolidColorBrush x:Key="BackgroundBrush" Color="#101418"/> <!-- Deep Matte Charcoal -->
-    <SolidColorBrush x:Key="SidebarBrush" Color="#1A2025"/>
-    <SolidColorBrush x:Key="InputBrush" Color="#252B35"/>
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#3A4550"/>
+    <!-- Brotherhood of Steel — "Ad Victoriam"                                  -->
+    <!-- Brand: dark steel grey + Brotherhood gold/yellow — power armor, order  -->
+    <!-- The BoS logo is gold on grey; terminals glow gold on black steel        -->
 
-    <!-- Brotherhood of Steel - Text (Kalt, stahlartig) -->
-    <SolidColorBrush x:Key="TextBrush" Color="#DCDFE5"/>
-    <SolidColorBrush x:Key="SubtextBrush" Color="#9CADBC"/>
+    <!-- Backgrounds — bunker steel, dark grey like Power Armor plating -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#0C0E12"/> <!-- Dark steel plate        -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#080A0E"/> <!-- Bunker inner wall       -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#141820"/> <!-- Panel recess            -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#202830"/> <!-- Console steel surface   -->
 
-    <!-- Brotherhood of Steel - Akzente (Militärisch, elektrisch, stahlblau) -->
-    <SolidColorBrush x:Key="ClaudeBrush" Color="#4A699C"/> <!-- Authority Blue -->
-    <SolidColorBrush x:Key="OllamaBrush" Color="#55A066"/> <!-- Military Olive Green -->
-    <SolidColorBrush x:Key="UserBrush" Color="#8EA7D3"/> <!-- Assigned Duty Blue -->
-    <SolidColorBrush x:Key="AccentBrush" Color="#A03333"/> <!-- Warning Crimson (Urgency) -->
+    <!-- Text — cold, authoritative, Brotherhood standard -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#D8D0B8"/> <!-- Warm steel white         -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#587080"/> <!-- Muted tactical grey      -->
 
-    <!-- Brotherhood of Steel - Bubble Hintergründe -->
-    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#1C212B"/>
-    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#13181C"/>
-    <SolidColorBrush x:Key="UserBubbleBrush" Color="#1B2430"/>
+    <!-- Accents — Brotherhood gold + steel blue -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#C8A020"/> <!-- Brotherhood gold — cog   -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#5880A0"/> <!-- Steel blue — tech        -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#98B0C8"/> <!-- Cold armour grey-blue    -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#E0B828"/> <!-- Bright gold — "Ad Victoriam" -->
+
+    <!-- Bubble backgrounds — terminal screen tints -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#1C1600"/> <!-- Dark gold tint        -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#0C1420"/> <!-- Dark steel blue       -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#0E1420"/> <!-- Cold armour dark      -->
 
 </ResourceDictionary>
-
-
-
-
-

@@ -1,29 +1,29 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Anvil Forge - Hintergründe -->
-    <SolidColorBrush x:Key="BackgroundBrush" Color="#1A1A16"/> <!-- Near Black / Engine Room -->
-    <SolidColorBrush x:Key="SidebarBrush" Color="#282824"/>
-    <SolidColorBrush x:Key="InputBrush" Color="#33332D"/>
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#454540"/>
+    <!-- Anvil Aerospace — "The Backbone of the UEE Military"                    -->
+    <!-- Brand: military olive green, khaki, amber safety markings               -->
+    <!-- Cockpit displays: green/amber on dark olive — Hornet, Valkyrie, Carrack -->
 
-    <!-- Anvil Forge - Text -->
-    <SolidColorBrush x:Key="TextBrush" Color="#B0B0A8"/>
-    <SolidColorBrush x:Key="SubtextBrush" Color="#777770"/>
+    <!-- Backgrounds — military flight deck, dark olive steel -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#0C1008"/> <!-- Dark military olive     -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#080C06"/> <!-- Armoured flight deck    -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#161E10"/> <!-- Tactical panel recess   -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#222E18"/> <!-- Console surface         -->
 
-    <!-- Anvil Forge - Akzente -->
-    <SolidColorBrush x:Key="ClaudeBrush" Color="#CC6666"/> <!-- Rusted Red / Warning -->
-    <SolidColorBrush x:Key="OllamaBrush" Color="#66CC66"/> <!-- Maintenance Green -->
-    <SolidColorBrush x:Key="UserBrush" Color="#6699FF"/> <!-- Standard Indicator Blue -->
-    <SolidColorBrush x:Key="AccentBrush" Color="#FF9933"/> <!-- Warning Amber -->
+    <!-- Text — military green-white, combat readout -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#C8D4A8"/> <!-- Field-manual green-white -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#607050"/> <!-- Muted olive              -->
 
-    <!-- Anvil Forge - Bubble Hintergründe -->
-    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#252520"/>
-    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#1E201C"/>
-    <SolidColorBrush x:Key="UserBubbleBrush" Color="#22221F"/>
+    <!-- Accents — Anvil olive green, amber safety, khaki -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#88B030"/> <!-- Anvil military olive     -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#D0A018"/> <!-- Amber safety marking     -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#60A058"/> <!-- Field green              -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#E89028"/> <!-- Warning amber — caution  -->
+
+    <!-- Bubble backgrounds — HUD display tints -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#101808"/> <!-- Dark olive           -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#181400"/> <!-- Dark amber tint      -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#0E1808"/> <!-- Field dark green     -->
 
 </ResourceDictionary>
-
-
-
-

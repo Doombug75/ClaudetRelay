@@ -1,30 +1,29 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Mirai Conduit - Hintergründe -->
-    <SolidColorBrush x:Key="BackgroundBrush" Color="#050308"/> <!-- Near Black / Vacuum -->
-    <SolidColorBrush x:Key="SidebarBrush" Color="#0A0713"/>
-    <SolidColorBrush x:Key="InputBrush" Color="#151020"/>
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#20182B"/>
+    <!-- Mirai — "The Future, Refined"                                           -->
+    <!-- Brand: minimalist, clean, teal/cyan highlights, Japanese aesthetic      -->
+    <!-- Cockpit displays: crisp teal/cyan on near-black — Fury, Guardian        -->
 
-    <!-- Mirai Conduit - Text -->
-    <SolidColorBrush x:Key="TextBrush" Color="#C0B2FF"/>
-    <SolidColorBrush x:Key="SubtextBrush" Color="#8A84C0"/>
+    <!-- Backgrounds — void-black minimalism, ultra-clean -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#080C10"/> <!-- Near-black, clean       -->
+    <SolidColorBrush x:Key="SidebarBrush"    Color="#050810"/> <!-- Pure void               -->
+    <SolidColorBrush x:Key="InputBrush"      Color="#0C1220"/> <!-- Panel recess            -->
+    <SolidColorBrush x:Key="SurfaceBrush"    Color="#141E30"/> <!-- Raised surface          -->
 
-    <!-- Mirai Conduit - Akzente -->
-    <SolidColorBrush x:Key="ClaudeBrush" Color="#8C4AF0"/> <!-- Deep Electric Purple -->
-    <SolidColorBrush x:Key="OllamaBrush" Color="#3DD2A7"/> <!-- Bright Teal Accent -->
-    <SolidColorBrush x:Key="UserBrush" Color="#6A5ACD"/> <!-- Slate Blue/Violet -->
-    <SolidColorBrush x:Key="AccentBrush" Color="#FFD700"/> <!-- Highlight Yellow -->
+    <!-- Text — cool, clinical, teal-tinted white -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#D8F0F4"/> <!-- Teal-white clean         -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#387888"/> <!-- Muted teal               -->
 
-    <!-- Mirai Conduit - Bubble Hintergründe -->
-    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#150815"/>
-    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#0D101A"/>
-    <SolidColorBrush x:Key="UserBubbleBrush" Color="#100A15"/>
+    <!-- Accents — Mirai teal, cyan, precise minimal highlights -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#00C0B0"/> <!-- Mirai signature teal     -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#20A8D0"/> <!-- System cyan-blue         -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#58D8E0"/> <!-- Interface light cyan     -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#00E0C8"/> <!-- Bright teal — highlight  -->
+
+    <!-- Bubble backgrounds — holographic display tints -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#041410"/> <!-- Deep teal dark        -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#080E18"/> <!-- Dark cyan-blue        -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#061412"/> <!-- Teal-dark             -->
 
 </ResourceDictionary>
-
-
-
-
-
