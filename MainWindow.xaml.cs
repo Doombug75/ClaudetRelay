@@ -389,7 +389,61 @@ public partial class MainWindow : Window
             if (e.ClickCount >= 2) OpenProject(projFolder);
         };
 
+        // ── Right-click context menu ───────────────────────────────────────
+        var ctxMenu    = new ContextMenu();
+        var exportHtml = new MenuItem { Header = "📄  Export as HTML…" };
+        var exportMd   = new MenuItem { Header = "📝  Export as Markdown…" };
+
+        var capturedFolder = projFolder;
+        var capturedMeta   = meta;
+        exportHtml.Click += (_, _) => ExportProject(capturedFolder, capturedMeta, "html");
+        exportMd.Click   += (_, _) => ExportProject(capturedFolder, capturedMeta, "md");
+
+        ctxMenu.Items.Add(exportHtml);
+        ctxMenu.Items.Add(exportMd);
+        card.ContextMenu = ctxMenu;
+
         return card;
+    }
+
+    private void ExportProject(string projFolder, ProjectMeta meta, string format)
+    {
+        var entries = ProjectService.LoadChatLog(projFolder);
+        if (entries.Count == 0)
+        {
+            MessageBox.Show("This project has no chat history to export.",
+                            "Nothing to export", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var isHtml   = format == "html";
+        var safeName = string.Join("_", meta.ProjectName
+            .Split(SysIO.Path.GetInvalidFileNameChars())).Trim();
+
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title       = $"Export \"{meta.ProjectName}\"",
+            FileName    = $"{safeName}-export",
+            Filter      = isHtml
+                ? "HTML file (*.html)|*.html"
+                : "Markdown file (*.md)|*.md|Text file (*.txt)|*.txt",
+            DefaultExt  = format
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        var content = isHtml
+            ? ExportService.GenerateHtml(meta.ProjectName, entries)
+            : ExportService.GenerateMarkdown(meta.ProjectName, entries);
+
+        SysIO.File.WriteAllText(dlg.FileName, content, System.Text.Encoding.UTF8);
+
+        var result = MessageBox.Show(
+            $"Exported {entries.Count} messages to\n{dlg.FileName}\n\nOpen the file now?",
+            "Export complete", MessageBoxButton.YesNo, MessageBoxImage.Information);
+
+        if (result == MessageBoxResult.Yes)
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true });
     }
 
     private void SelectProjectCard(Border clicked, string folder)
