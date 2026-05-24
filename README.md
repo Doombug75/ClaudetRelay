@@ -5,6 +5,13 @@ A **multi-agent AI workspace** for Windows — run up to 20 AI participants from
 Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq, OpenRouter, xAI Grok) and local models via Ollama side by side. Each participant gets its own persona, tone, and role. You direct the conversation — or step back and let the agents coordinate among themselves.
 
 ---
+## Screenshots
+![Settings](Assets/Settings.png)
+![Projects](Assets/Projects.png)
+![Themes](Assets/themeEB.png)
+![Themes](Assets/themeNW.png)
+![Themes](Assets/themeNB.png)
+
 
 ## Features
 
@@ -25,7 +32,7 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 
 - Windows 10 / 11
 - .NET 10 Desktop Runtime
-- At least one API key (Anthropic, OpenAI, Google Gemini, Mistral, Groq, OpenRouter, xAI Grok) **or** a running [Ollama](https://ollama.com) instance
+- At least one API key (Anthropic, OpenAI, Google Gemini, Mistral, Groq, OpenRouter, xAI Grok) **OR** a running [Ollama](https://ollama.com) instance
 
 ---
 
