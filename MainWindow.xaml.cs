@@ -2847,7 +2847,7 @@ public partial class MainWindow : Window
             }
             if (firstToken) bubble.StopThinking(); // empty response
             var ollamaFinalText = _currentProjectFolder is not null
-                ? ProcessProjectPlanBlocks(sb.ToString(), display, _currentProjectFolder)
+                ? ProcessAIFileOperationTags(sb.ToString(), display, _currentProjectFolder)
                 : sb.ToString();
             if (ollamaFinalText != sb.ToString()) bubble.Content.Text = ollamaFinalText;
             _sharedHistory.Add(new CloudAIMessage("assistant", ollamaFinalText, avatarLabel));
@@ -2921,7 +2921,7 @@ public partial class MainWindow : Window
             }
             if (firstToken) bubble.StopThinking();
             var cloudFinalText = _currentProjectFolder is not null
-                ? ProcessProjectPlanBlocks(sb.ToString(), display, _currentProjectFolder)
+                ? ProcessAIFileOperationTags(sb.ToString(), display, _currentProjectFolder)
                 : sb.ToString();
             if (cloudFinalText != sb.ToString()) bubble.Content.Text = cloudFinalText;
             _sharedHistory.Add(new CloudAIMessage("assistant", cloudFinalText, avatarLabel));
@@ -2980,7 +2980,7 @@ public partial class MainWindow : Window
                 BuildLanguageInstruction(_projectLanguage) +
                 BuildInputFilesContext(_currentProjectFolder) +
                 BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage) +
-                BuildProjectPlanInstruction(_currentProjectFolder))
+                BuildFileOperationInstruction(_currentProjectFolder))
         };
 
         foreach (var msg in _sharedHistory)
@@ -3027,7 +3027,7 @@ public partial class MainWindow : Window
             BuildLanguageInstruction(_projectLanguage) +
             BuildInputFilesContext(_currentProjectFolder) +
             BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage) +
-            BuildProjectPlanInstruction(_currentProjectFolder);
+            BuildFileOperationInstruction(_currentProjectFolder);
 
         var history = new List<CloudAIMessage>();
         foreach (var msg in _sharedHistory)
@@ -3344,6 +3344,10 @@ public partial class MainWindow : Window
 
     // ── INPUT file context ─────────────────────────────────────────────────
 
+    /// <summary>Files under this size are injected into the system prompt automatically.
+    /// Larger files are listed with a readfile hint so the AI can request them on demand.</summary>
+    private const long InputAutoInjectMaxBytes = 8_192; // 8 KB
+
     private static string BuildInputFilesContext(string? projectFolder)
     {
         if (string.IsNullOrEmpty(projectFolder)) return "";
@@ -3351,18 +3355,42 @@ public partial class MainWindow : Window
         var files = ProjectService.ListInputFiles(projectFolder);
         if (files.Count == 0) return "";
 
-        var sb = new System.Text.StringBuilder();
+        var sb    = new System.Text.StringBuilder();
+        var large = new List<(string Name, long Size)>();
+        bool hasInlined = false;
+
         sb.Append("\n\n--- Project INPUT files (read-only reference) ---");
 
         foreach (var fileName in files)
         {
+            var fullPath = SysIO.Path.Combine(projectFolder, "INPUT", fileName);
+            var size     = new SysIO.FileInfo(fullPath).Length;
+
+            if (size > InputAutoInjectMaxBytes)
+            {
+                large.Add((fileName, size));
+                continue;
+            }
+
             var content = ProjectService.SafeReadFile(
-                projectFolder, System.IO.Path.Combine("INPUT", fileName));
+                projectFolder, SysIO.Path.Combine("INPUT", fileName));
             if (content is null) continue;
 
             sb.Append($"\n\n[{fileName}]\n");
             sb.Append(content);
+            hasInlined = true;
         }
+
+        if (large.Count > 0)
+        {
+            sb.Append("\n\nThe following INPUT files are too large for automatic injection " +
+                      "and must be requested on demand:");
+            foreach (var (name, size) in large)
+                sb.Append($"\n  {name} ({size / 1024.0:F1} KB)" +
+                          $" — request with: <readfile path=\"INPUT/{name}\"/>");
+        }
+
+        if (!hasInlined && large.Count == 0) return "";
 
         sb.Append("\n\n--- End of INPUT files ---");
         sb.Append("\nYou may read and reference these files. You cannot modify them.");
@@ -3440,59 +3468,167 @@ public partial class MainWindow : Window
         };
     }
 
-    // ── PROJECTPLAN write support ──────────────────────────────────────────
+    // ── AI file operation support ──────────────────────────────────────────
 
     /// <summary>
-    /// System-prompt snippet telling participants they can write files to PROJECTPLAN.
+    /// System-prompt snippet describing all available file operation tags.
     /// Only injected when a project is open.
     /// </summary>
-    private static string BuildProjectPlanInstruction(string? projectFolder)
+    private static string BuildFileOperationInstruction(string? projectFolder)
     {
         if (string.IsNullOrEmpty(projectFolder)) return "";
         return
-            "\n\nYou can write persistent content to the project's PROJECTPLAN folder " +
-            "by embedding a special block anywhere in your response:\n" +
-            "<projectplan file=\"filename.md\">\n" +
-            "File content goes here.\n" +
-            "</projectplan>\n" +
-            "Use this for project plans, task lists, meeting notes, decisions, or any " +
-            "information that should persist across the conversation. " +
-            "The file is created or overwritten automatically and a confirmation appears in the chat. " +
-            "You may write multiple blocks in one response. " +
-            "The blocks are stripped from the visible reply — only the surrounding prose remains.";
+            "\n\n## Project file operations" +
+            "\nEmbed these tags anywhere in your response to interact with project files. " +
+            "Tags are stripped from the visible reply; a confirmation appears in chat.\n" +
+
+            "\n**Write to PROJECTPLAN** (plans, decisions, task lists, notes):\n" +
+            "<projectplan file=\"filename.md\">\nContent here.\n</projectplan>\n" +
+
+            "\n**Write to OUTPUT** (deliverables, reports, generated documents, final results):\n" +
+            "<output file=\"filename.md\">\nContent here.\n</output>\n" +
+
+            "\n**Read a specific file on demand** (content is injected into the conversation):\n" +
+            "<readfile path=\"INPUT/filename.txt\"/>\n" +
+
+            "\n**List the contents of a folder:**\n" +
+            "<listfiles folder=\"INPUT\"/>\n" +
+            "(Available folders: INPUT, PROJECTPLAN, OUTPUT, Characters)\n" +
+
+            "\n**Delete a file** (OUTPUT and PROJECTPLAN only):\n" +
+            "<deletefile path=\"OUTPUT/draft.md\"/>\n" +
+
+            "\nAll paths are sandboxed within the project folder. " +
+            "You may include multiple file operation tags in a single response.";
     }
 
     /// <summary>
-    /// Parses &lt;projectplan file="…"&gt;…&lt;/projectplan&gt; blocks in <paramref name="response"/>,
-    /// writes each to PROJECTPLAN/, shows a chat notification, and returns the
-    /// response with those blocks replaced by a compact one-liner.
-    /// Returns the original string unchanged when no project is open.
+    /// Processes all AI file operation tags in <paramref name="response"/>:
+    /// &lt;projectplan&gt;, &lt;output&gt;, &lt;readfile&gt;, &lt;listfiles&gt;, &lt;deletefile&gt;.
+    /// Each tag is executed, a system message is posted, and the tag is replaced
+    /// by a compact one-liner. Returns the cleaned response text.
     /// </summary>
-    private string ProcessProjectPlanBlocks(string response, string senderName, string projFolder)
+    private string ProcessAIFileOperationTags(string response, string senderName, string projFolder)
     {
-        var regex = new Regex(
+        // ── Write to PROJECTPLAN ───────────────────────────────────────────
+        response = new Regex(
             @"<projectplan\s+file=""([^""]+)"">\s*([\s\S]*?)\s*</projectplan>",
-            RegexOptions.IgnoreCase);
-
-        return regex.Replace(response, m =>
+            RegexOptions.IgnoreCase).Replace(response, m =>
         {
-            // Sanitise filename
-            var raw      = m.Groups[1].Value.Trim();
-            var fileName = string.Join("_",
-                raw.Split(SysIO.Path.GetInvalidFileNameChars()))
-                .Trim('_', '.');
-            if (string.IsNullOrEmpty(fileName)) fileName = "projectplan.md";
-
-            var content = m.Groups[2].Value;
-            var relPath = SysIO.Path.Combine("PROJECTPLAN", fileName);
-
-            if (ProjectService.SafeWriteFile(projFolder, relPath, content))
+            var fileName = SanitizeFileName(m.Groups[1].Value, "projectplan.md");
+            var relPath  = SysIO.Path.Combine("PROJECTPLAN", fileName);
+            if (ProjectService.SafeWriteFile(projFolder, relPath, m.Groups[2].Value))
                 AddSystemMessage($"📝  {senderName} → PROJECTPLAN/{fileName}");
             else
                 AddSystemMessage($"⚠  Could not write PROJECTPLAN/{fileName} (path rejected).");
-
             return $"*(→ PROJECTPLAN/{fileName})*";
         });
+
+        // ── Write to OUTPUT ────────────────────────────────────────────────
+        response = new Regex(
+            @"<output\s+file=""([^""]+)"">\s*([\s\S]*?)\s*</output>",
+            RegexOptions.IgnoreCase).Replace(response, m =>
+        {
+            var fileName = SanitizeFileName(m.Groups[1].Value, "output.md");
+            var relPath  = SysIO.Path.Combine("OUTPUT", fileName);
+            if (ProjectService.SafeWriteFile(projFolder, relPath, m.Groups[2].Value))
+                AddSystemMessage($"📤  {senderName} → OUTPUT/{fileName}");
+            else
+                AddSystemMessage($"⚠  Could not write OUTPUT/{fileName} (path rejected).");
+            return $"*(→ OUTPUT/{fileName})*";
+        });
+
+        // ── Read file on demand ────────────────────────────────────────────
+        response = new Regex(
+            @"<readfile\s+path=""([^""]+)""\s*/>",
+            RegexOptions.IgnoreCase).Replace(response, m =>
+        {
+            var path    = m.Groups[1].Value.Trim();
+            var content = ProjectService.SafeReadFile(projFolder, path);
+            if (content is null)
+            {
+                AddSystemMessage($"⚠  {senderName} requested '{path}' — file not found.");
+                return $"*(⚠ not found: {path})*";
+            }
+            AddSystemMessage($"📂  {senderName} read: {path}");
+            // Inject into shared history so all subsequent AI responses can see the content
+            _sharedHistory.Add(new CloudAIMessage("user",
+                $"[File content: {path}]\n\n{content}", "System"));
+            return $"*(→ read: {path})*";
+        });
+
+        // ── List folder contents ───────────────────────────────────────────
+        response = new Regex(
+            @"<listfiles\s+folder=""([^""]+)""\s*/>",
+            RegexOptions.IgnoreCase).Replace(response, m =>
+        {
+            var folder    = m.Groups[1].Value.Trim();
+            var allowed   = new[] { "INPUT", "PROJECTPLAN", "OUTPUT", "Characters" };
+            var canonical = allowed.FirstOrDefault(f =>
+                string.Equals(f, folder, StringComparison.OrdinalIgnoreCase));
+            if (canonical is null)
+            {
+                AddSystemMessage($"⚠  {senderName} listed unknown folder '{folder}' — ignored.");
+                return $"*(⚠ unknown folder: {folder})*";
+            }
+            var absFolder = SysIO.Path.Combine(projFolder, canonical);
+            var files     = SysIO.Directory.Exists(absFolder)
+                ? SysIO.Directory.GetFiles(absFolder)
+                    .Select(SysIO.Path.GetFileName)
+                    .OrderBy(f => f)
+                    .ToList()
+                : [];
+            var listing = files.Count > 0
+                ? string.Join("\n", files.Select(f => $"  {f}"))
+                : "  (empty)";
+            var summary = $"{canonical}/ ({files.Count} file{(files.Count == 1 ? "" : "s")}):\n{listing}";
+            AddSystemMessage($"📁  {senderName} listed {canonical}/");
+            _sharedHistory.Add(new CloudAIMessage("user",
+                $"[Directory listing: {canonical}/]\n\n{summary}", "System"));
+            return $"*(→ listed {canonical}/)*";
+        });
+
+        // ── Delete file (OUTPUT and PROJECTPLAN only) ──────────────────────
+        response = new Regex(
+            @"<deletefile\s+path=""([^""]+)""\s*/>",
+            RegexOptions.IgnoreCase).Replace(response, m =>
+        {
+            var path           = m.Groups[1].Value.Trim();
+            var allowedFolders = new[] { "OUTPUT", "PROJECTPLAN" };
+            bool inAllowed     = allowedFolders.Any(f =>
+                path.StartsWith(f + "/",  StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith(f + "\\", StringComparison.OrdinalIgnoreCase));
+            if (!inAllowed)
+            {
+                AddSystemMessage($"⚠  {senderName} tried to delete '{path}' — restricted to OUTPUT and PROJECTPLAN.");
+                return $"*(⚠ delete not allowed: {path})*";
+            }
+            var full = SysIO.Path.GetFullPath(SysIO.Path.Combine(projFolder, path));
+            if (!ProjectService.IsPathSafe(full, projFolder))
+            {
+                AddSystemMessage($"⚠  {senderName} delete rejected (path escape): {path}");
+                return $"*(⚠ delete rejected: {path})*";
+            }
+            if (!SysIO.File.Exists(full))
+            {
+                AddSystemMessage($"⚠  {senderName} tried to delete '{path}' — not found.");
+                return $"*(⚠ not found: {path})*";
+            }
+            SysIO.File.Delete(full);
+            AddSystemMessage($"🗑  {senderName} deleted: {path}");
+            return $"*(→ deleted: {path})*";
+        });
+
+        return response;
+    }
+
+    /// <summary>Strips invalid filename characters and trims separators. Returns fallback if empty.</summary>
+    private static string SanitizeFileName(string raw, string fallback)
+    {
+        var safe = string.Join("_", raw.Trim()
+            .Split(SysIO.Path.GetInvalidFileNameChars()))
+            .Trim('_', '.');
+        return string.IsNullOrEmpty(safe) ? fallback : safe;
     }
 
     // ── History compression ────────────────────────────────────────────────
