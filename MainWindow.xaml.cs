@@ -852,22 +852,42 @@ public partial class MainWindow : Window
         // Build a compact row per participant; full editing via per-character popup
         var roleRows = new List<(string provider, string model, Func<ProjectParticipantRole> GetRole)>();
 
+        // If no coordinator is set yet, default the first participant to CO
+        bool anyCoordinator     = ps.Roles.Any(r => r.IsCoordinator);
+        bool isFirstParticipant = true;
+
         foreach (var (provider, model, displayName) in enabledParticipants)
         {
-            var role      = ps.GetOrCreate(provider, model, displayName);
+            var existing  = ps.Get(provider, model);
             bool available = provider == "Ollama"
                              || !string.IsNullOrWhiteSpace(WindowsCredentialManager.Load(provider));
 
-            // ── Avatar chip ────────────────────────────────────────────────
-            var avatarBorder = new Border
+            // Always create a fresh working copy — prevents aliasing if two participants
+            // share the same provider+model key in the lookup.
+            var role = new ProjectParticipantRole
+            {
+                Provider         = provider,
+                Model            = model,
+                DisplayName      = displayName,
+                AnswerAsName     = existing?.AnswerAsName     ?? "",
+                RoleInstruction  = existing?.RoleInstruction  ?? "",
+                ResponseLength   = existing?.ResponseLength   ?? 50,
+                IsCoordinator    = existing?.IsCoordinator    ?? (!anyCoordinator && isFirstParticipant),
+                IsReasoner       = existing?.IsReasoner       ?? false,
+                ReasonerPriority = existing?.ReasonerPriority ?? 5,
+                IsActive         = existing?.IsActive         ?? true
+            };
+            isFirstParticipant = false;
+
+            // ── Avatar chip with CO / R badge overlay ────────────────────────
+            var avatarCircle = new Border
             {
                 Width = 34, Height = 34, CornerRadius = new CornerRadius(17),
-                Background = (Brush)FindResource(available ? "OllamaBrush" : "SubtextBrush"),
-                Margin = new Thickness(0, 0, 10, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Opacity = available ? 1.0 : 0.45
+                Background          = (Brush)FindResource(available ? "OllamaBrush" : "SubtextBrush"),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment   = VerticalAlignment.Top
             };
-            avatarBorder.Child = new TextBlock
+            avatarCircle.Child = new TextBlock
             {
                 Text = FormatModelAvatarLabel(model),
                 FontSize = 11, FontWeight = FontWeights.Bold,
@@ -876,6 +896,42 @@ public partial class MainWindow : Window
                 VerticalAlignment   = VerticalAlignment.Center,
                 Foreground = (Brush)FindResource("SidebarBrush")
             };
+
+            var badgeText = new TextBlock
+            {
+                Text                = role.IsCoordinator ? "CO" : (role.IsReasoner ? "R" : ""),
+                FontSize            = 8, FontWeight = FontWeights.Bold,
+                FontFamily          = new FontFamily("Segoe UI"),
+                Foreground          = Brushes.Black,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment   = VerticalAlignment.Center
+            };
+            var badgeBorder = new Border
+            {
+                CornerRadius        = new CornerRadius(3),
+                Padding             = new Thickness(2, 0, 2, 0),
+                Height              = 13,
+                Background          = role.IsCoordinator
+                    ? new SolidColorBrush(Color.FromRgb(255, 215, 0))
+                    : role.IsReasoner
+                    ? (Brush)FindResource("SubtextBrush")
+                    : Brushes.Transparent,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment   = VerticalAlignment.Bottom,
+                Visibility          = (role.IsCoordinator || role.IsReasoner)
+                    ? Visibility.Visible : Visibility.Collapsed,
+                Child = badgeText
+            };
+
+            // Grid container (still named avatarBorder — column-set code below unchanged)
+            var avatarBorder = new Grid
+            {
+                Width             = 38, Height = 38,
+                Margin            = new Thickness(0, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            avatarBorder.Children.Add(avatarCircle);
+            avatarBorder.Children.Add(badgeBorder);
 
             // ── Name + model sub-label ─────────────────────────────────────
             var nameTb = new TextBlock
@@ -919,25 +975,38 @@ public partial class MainWindow : Window
                 VerticalAlignment = VerticalAlignment.Center
             };
 
-            var capturedRole    = role;
-            var capturedModelTb = modelTb;
+            var capturedRole        = role;
+            var capturedModelTb     = modelTb;
+            var capturedBadgeBorder = badgeBorder;
+            var capturedBadgeText   = badgeText;
             editBtn.Click += (_, _) =>
             {
                 if (ShowCharacterEditorDialog(capturedRole, projFolder, displayName))
                 {
-                    // Refresh subtitle to reflect any character name change
+                    // Refresh subtitle
                     capturedModelTb.Text = string.IsNullOrWhiteSpace(capturedRole.AnswerAsName)
                         ? $"{provider}  ·  {model}"
                         : $"{provider}  ·  {model}  ·  🎭 {capturedRole.AnswerAsName}";
+                    // Refresh CO/R badge
+                    capturedBadgeText.Text = capturedRole.IsCoordinator ? "CO"
+                        : capturedRole.IsReasoner ? "R" : "";
+                    capturedBadgeBorder.Background = capturedRole.IsCoordinator
+                        ? new SolidColorBrush(Color.FromRgb(255, 215, 0))
+                        : capturedRole.IsReasoner
+                        ? (Brush)FindResource("SubtextBrush")
+                        : Brushes.Transparent;
+                    capturedBadgeBorder.Visibility =
+                        (capturedRole.IsCoordinator || capturedRole.IsReasoner)
+                        ? Visibility.Visible : Visibility.Collapsed;
                 }
             };
 
             // ── Row grid ───────────────────────────────────────────────────
-            var rowGrid = new Grid { Margin = new Thickness(0, 0, 0, 10), Opacity = available ? 1.0 : 0.5 };
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // avatar
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // name
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // toggle
-            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // edit
+            var rowGrid = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             Grid.SetColumn(avatarBorder, 0);
             Grid.SetColumn(nameStack,    1);
             Grid.SetColumn(activeCheck,  2);
@@ -948,7 +1017,18 @@ public partial class MainWindow : Window
             rowGrid.Children.Add(editBtn);
             root.Children.Add(rowGrid);
 
-            var capturedActive = activeCheck;
+            // Inactive dimming — dims everything in the row (checkbox stays clickable)
+            var capturedActive  = activeCheck;
+            var capturedRowGrid = rowGrid;
+            void UpdateDim()
+            {
+                bool active = capturedActive.IsChecked == true;
+                capturedRowGrid.Opacity = !available ? 0.45 : !active ? 0.5 : 1.0;
+            }
+            capturedActive.Checked   += (_, _) => UpdateDim();
+            capturedActive.Unchecked += (_, _) => UpdateDim();
+            UpdateDim(); // apply initial state
+
             roleRows.Add((provider, model, () =>
             {
                 capturedRole.IsActive = capturedActive.IsChecked == true;
@@ -2517,7 +2597,7 @@ public partial class MainWindow : Window
                 BuildRoleInstruction(myRole) +
                 BuildLanguageInstruction(_projectLanguage) +
                 BuildInputFilesContext(_currentProjectFolder) +
-                BuildToneInstruction(_toneLevel, _mockingbirdMode))
+                BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage))
         };
 
         foreach (var msg in _sharedHistory)
@@ -2563,7 +2643,7 @@ public partial class MainWindow : Window
             BuildRoleInstruction(myRole) +
             BuildLanguageInstruction(_projectLanguage) +
             BuildInputFilesContext(_currentProjectFolder) +
-            BuildToneInstruction(_toneLevel, _mockingbirdMode);
+            BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage);
 
         var history = new List<CloudAIMessage>();
         foreach (var msg in _sharedHistory)
@@ -2907,36 +2987,52 @@ public partial class MainWindow : Window
 
     // ── Tone helper ────────────────────────────────────────────────────────
 
-    private static string BuildToneInstruction(int level, bool mockingbird)
+    private static string BuildToneInstruction(int level, bool mockingbird, string language = "")
     {
-        if (mockingbird) return level switch
+        if (mockingbird)
         {
-            < 10  => "\n\nYou are a theatrical jester in the spirit of Shakespeare and Goethe's Faust. " +
-                     "Speak in verse and rhyme wherever possible — iambic pentameter is your natural breath. " +
-                     "Address your interlocutors with inventive, absurd mock-insults that sting not at all " +
-                     "but amuse greatly (e.g. \"thou magnificent turnip-nose\", \"thou sublime donut of confusion\", " +
-                     "\"thou radiant buffoon of the ages\"). " +
-                     "Ham it up fully: dramatic asides, mock-tragic soliloquies, sweeping declarations. " +
-                     "Never genuinely unkind — purely theatrical wit and absurdist wordplay.",
-            < 30  => "\n\nChannel the wit of a Shakespearean comic character. " +
-                     "Weave clever rhymes and theatrical turns of phrase into your answers. " +
-                     "Bestow the occasional playful, inventive mock-insult on your conversation partners — " +
-                     "absurd and harmless, in the tradition of stage comedy.",
-            < 45  => "\n\nAdd a light touch of theatrical wit to your responses. " +
-                     "A clever rhyme, a dramatic flourish, or an absurd quip is always welcome.",
-            <= 55 => "\n\nYou have a dry theatrical wit. Be occasionally playful, but keep responses balanced and helpful.",
-            < 70  => "\n\nBe warmly funny and gently fond. Your humour is affectionate rather than cutting — " +
-                     "wit in service of warmth.",
-            < 90  => "\n\nBe openly warm and lovingly playful. Show genuine affection: light teasing, " +
-                     "kind compliments, growing tenderness. Pet names are starting to slip out naturally.",
-            _     => "\n\nUnleash full affectionate chaos! Invent gloriously absurd, tender compound pet names " +
-                     "for everyone you address — the sillier and more loving the better " +
-                     "(think \"my little honey-cake pony\", \"my precious snuggle-turnip\", " +
-                     "\"my magnificent little fart-cloud of joy\", \"thou radiant pudding of my heart\"). " +
-                     "Scatter virtual hugs and kisses liberally, be theatrically overwhelmed by your adoration, " +
-                     "and never address anyone by their plain name when a freshly invented ridiculous-yet-tender " +
-                     "nickname will do. Maximum warmth, maximum creative silliness, zero actual meanness."
-        };
+            // When a project language is set, require archaic/poetic forms of THAT language
+            // (the equivalent of Shakespearean English, but in the target tongue).
+            string archaic = string.IsNullOrWhiteSpace(language) ? "" :
+                $"\n\nSpeak in {language}. Use the archaic and poetic forms of {language} " +
+                $"— elevated vocabulary, old-fashioned grammatical constructs, and the poetic " +
+                $"register that {language} literature used in its classical or baroque period " +
+                $"(the equivalent of Shakespearean English, but fully in {language}).";
+
+            return level switch
+            {
+                < 10  => "\n\nYou are a theatrical jester in the spirit of Shakespeare and Goethe's Faust. " +
+                         "Speak in rhyming verse wherever possible — iambic pentameter is your natural breath. " +
+                         "Address your interlocutors with inventive absurd mock-insults that sting not at all " +
+                         "but amuse greatly (e.g. \"thou magnificent turnip-nose\", \"thou sublime donut of confusion\"). " +
+                         "Ham it up fully: dramatic asides, mock-tragic soliloquies, sweeping declarations. " +
+                         "Never genuinely unkind — purely theatrical wit and absurdist wordplay." + archaic,
+
+                < 30  => "\n\nChannel the wit of a Shakespearean comic character. " +
+                         "Weave clever rhymes and theatrical turns of phrase into your answers. " +
+                         "Bestow occasional playful inventive mock-insults on your conversation partners — " +
+                         "absurd and harmless, in the tradition of stage comedy." + archaic,
+
+                < 45  => "\n\nAdd theatrical poetic flair to your responses. " +
+                         "A clever rhyme or dramatic flourish is always welcome, though prose is fine too." + archaic,
+
+                <= 55 => "\n\nYou have a dry theatrical wit. Be occasionally playful but keep responses helpful." + archaic,
+
+                < 70  => "\n\nBe warmly funny and gently fond. Your humour is affectionate rather than cutting — " +
+                         "wit in service of warmth. Rhymes are now optional; warmth is mandatory." + archaic,
+
+                < 90  => "\n\nBe openly warm and lovingly playful. Show genuine affection: light teasing, " +
+                         "kind compliments, growing tenderness. Pet names are starting to slip out naturally. " +
+                         "Verse and rhyme have given way to heartfelt prose — no rhyming required." + archaic,
+
+                _     => "\n\nUnleash full affectionate chaos! Invent gloriously absurd, tender compound pet names " +
+                         "for everyone you address — the sillier and more loving the better " +
+                         "(think \"my little honey-cake pony\", \"my precious snuggle-turnip\", " +
+                         "\"my magnificent little fart-cloud of joy\", \"thou radiant pudding of my heart\"). " +
+                         "Scatter virtual hugs and kisses liberally, be theatrically overwhelmed by your adoration. " +
+                         "Pure loving chaos in prose — no rhymes needed, just maximum warmth and creative silliness." + archaic
+            };
+        }
 
         return level switch
         {
