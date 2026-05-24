@@ -4432,7 +4432,14 @@ public partial class MainWindow : Window
         timeLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
 
         // ── Content column ─────────────────────────────────────────────────
-        var content = new StackPanel { MaxWidth = 580 };
+        // No fixed MaxWidth here — the Grid column below constrains width responsively.
+        // MaxWidth = 820 is a generous cap so bubbles don't become unreadably wide on
+        // very large monitors while still growing with the window on normal sizes.
+        var content = new StackPanel
+        {
+            HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+            MaxWidth            = 820
+        };
         content.Children.Add(nameLabel);
         content.Children.Add(bubbleWrapper);
         content.Children.Add(timeLabel);
@@ -4441,17 +4448,38 @@ public partial class MainWindow : Window
         content.MouseEnter += (_, _) => copyBtn.Visibility = Visibility.Visible;
         content.MouseLeave += (_, _) => copyBtn.Visibility = Visibility.Collapsed;
 
-        // ── Row ────────────────────────────────────────────────────────────
-        var row = new StackPanel
-        {
-            Orientation         = Orientation.Horizontal,
-            HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
-        };
-        if (isUser) { row.Children.Add(content); row.Children.Add(avatar); }
-        else        { row.Children.Add(avatar);  row.Children.Add(content); }
-
+        // ── 3-column Grid row ─────────────────────────────────────────────
+        // Using a Grid instead of a horizontal StackPanel is the key fix:
+        // a StackPanel measures children with infinite width so TextWrapping.Wrap
+        // never fires; a Grid gives each column a finite measured width, which
+        // propagates into the TextBox and triggers wrapping at every window size.
+        //
+        // Layout (AI):   [Auto: avatar] [1*: bubble content] [0.5*: spacer]
+        // Layout (User): [0.5*: spacer] [1*: bubble content] [Auto: avatar]
+        //
+        // The 1* content column gets ~67 % of the available width, leaving a
+        // spacer on the opposite side so the chat doesn't look like a wall of text.
         var wrapper = new Grid { Margin = new Thickness(0, 5, 0, 5) };
-        wrapper.Children.Add(row);
+
+        if (isUser)
+        {
+            wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.5, GridUnitType.Star) });
+            wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1,   GridUnitType.Star) });
+            wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(content, 1);
+            Grid.SetColumn(avatar,  2);
+        }
+        else
+        {
+            wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1,   GridUnitType.Star) });
+            wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.5, GridUnitType.Star) });
+            Grid.SetColumn(avatar,  0);
+            Grid.SetColumn(content, 1);
+        }
+
+        wrapper.Children.Add(avatar);
+        wrapper.Children.Add(content);
         ChatPanel.Children.Add(wrapper);
 
         // ── Return handle ──────────────────────────────────────────────────
