@@ -3083,6 +3083,19 @@ public partial class MainWindow : Window
 
     // ── Orchestration mode runners ─────────────────────────────────────────
 
+    /// <summary>
+    /// System hint injected into every participant's context during follow-up rounds.
+    /// Instructs them to respond only if they have something genuinely new to contribute,
+    /// and to output exactly "PASS" otherwise so the round can be silently skipped.
+    /// </summary>
+    private const string FollowUpRoundHint =
+        "The previous participants have already responded above. " +
+        "Only continue this conversation if you genuinely have something new to contribute: " +
+        "a different perspective, a meaningful correction, a direct response to something just " +
+        "said, or important information that has not been covered yet. " +
+        "If you have nothing meaningful to add right now, output exactly the word PASS " +
+        "and nothing else.";
+
     private async Task RunAllRespondModeAsync(
         List<OllamaParticipantUI>   activeOllamas,
         List<CloudAIParticipantUI>  activeCloudAIs,
@@ -3090,21 +3103,52 @@ public partial class MainWindow : Window
     {
         for (int round = 0; round < maxRounds && !ct.IsCancellationRequested; round++)
         {
-            if (round > 0)
+            bool isFollowUp = round > 0;
+
+            if (isFollowUp)
             {
                 if (_sharedHistory.Count == 0 || _sharedHistory.Last().Role != "assistant")
                     break;
+
+                // Remember position so we can remove the marker if nobody responds
+                int markerIndex = ChatPanel.Children.Count;
                 AddSystemMessage($"— Round {round + 1} —");
+
+                string? hint = FollowUpRoundHint;
+                int responded = 0;
+
+                foreach (var ui in activeOllamas)
+                {
+                    if (ct.IsCancellationRequested) break;
+                    if (await RunOllamaStreamAsync(ui, ct, hint)) responded++;
+                }
+                foreach (var ui in activeCloudAIs)
+                {
+                    if (ct.IsCancellationRequested) break;
+                    if (await RunCloudAIStreamAsync(ui, ct, hint)) responded++;
+                }
+
+                // Nobody had anything new to say — remove the orphaned round marker and stop
+                if (responded == 0)
+                {
+                    if (markerIndex < ChatPanel.Children.Count)
+                        ChatPanel.Children.RemoveAt(markerIndex);
+                    break;
+                }
             }
-            foreach (var ui in activeOllamas)
+            else
             {
-                if (ct.IsCancellationRequested) break;
-                await RunOllamaStreamAsync(ui, ct);
-            }
-            foreach (var ui in activeCloudAIs)
-            {
-                if (ct.IsCancellationRequested) break;
-                await RunCloudAIStreamAsync(ui, ct);
+                // Round 0 — first response, always fire everyone unconditionally
+                foreach (var ui in activeOllamas)
+                {
+                    if (ct.IsCancellationRequested) break;
+                    await RunOllamaStreamAsync(ui, ct);
+                }
+                foreach (var ui in activeCloudAIs)
+                {
+                    if (ct.IsCancellationRequested) break;
+                    await RunCloudAIStreamAsync(ui, ct);
+                }
             }
         }
     }
@@ -3252,8 +3296,16 @@ public partial class MainWindow : Window
         !string.IsNullOrWhiteSpace(name) &&
         Regex.IsMatch(response, $@"@{Regex.Escape(name)}\b", RegexOptions.IgnoreCase);
 
-    private async Task RunOllamaStreamAsync(OllamaParticipantUI ui, CancellationToken ct,
-                                             string? systemHint = null)
+    /// <summary>
+    /// Returns true when the response is just "PASS" (possibly with trailing punctuation /
+    /// whitespace), meaning the AI decided it has nothing new to add in this follow-up round.
+    /// </summary>
+    private static bool IsPassResponse(string text) =>
+        text.Trim().TrimEnd('.', '!', '…').Trim()
+            .Equals("PASS", StringComparison.OrdinalIgnoreCase);
+
+    private async Task<bool> RunOllamaStreamAsync(OllamaParticipantUI ui, CancellationToken ct,
+                                                   string? systemHint = null)
     {
         var modelName = ui.Data.Service.CurrentModel;
         var display   = string.IsNullOrEmpty(ui.Data.CustomName)
@@ -3293,8 +3345,16 @@ public partial class MainWindow : Window
                 ? ProcessAIFileOperationTags(sb.ToString(), display, _currentProjectFolder)
                 : sb.ToString();
             if (ollamaFinalText != sb.ToString()) bubble.Content.Text = ollamaFinalText;
-            _sharedHistory.Add(new CloudAIMessage("assistant", ollamaFinalText, avatarLabel));
 
+            // If the model decided it has nothing new to add, remove its bubble silently
+            if (IsPassResponse(ollamaFinalText))
+            {
+                if (ChatPanel.Children.Count > 0)
+                    ChatPanel.Children.RemoveAt(ChatPanel.Children.Count - 1);
+                return false;
+            }
+
+            _sharedHistory.Add(new CloudAIMessage("assistant", ollamaFinalText, avatarLabel));
             AppendToProjectLog(new ChatLogEntry
             {
                 Timestamp   = DateTime.Now,
@@ -3308,6 +3368,7 @@ public partial class MainWindow : Window
                 IsUser      = false,
                 Message     = ollamaFinalText
             });
+            return true;
         }
         catch (OperationCanceledException)
         {
@@ -3330,10 +3391,11 @@ public partial class MainWindow : Window
         {
             svc.ThinkingUpdated -= OnThinkingUpdate;
         }
+        return true; // error path still counts as "responded" (error bubble is shown)
     }
 
-    private async Task RunCloudAIStreamAsync(CloudAIParticipantUI ui, CancellationToken ct,
-                                              string? systemHint = null)
+    private async Task<bool> RunCloudAIStreamAsync(CloudAIParticipantUI ui, CancellationToken ct,
+                                                    string? systemHint = null)
     {
         var model       = ui.Data.Service.CurrentModel;
         var display     = string.IsNullOrEmpty(ui.Data.CustomName)
@@ -3367,8 +3429,16 @@ public partial class MainWindow : Window
                 ? ProcessAIFileOperationTags(sb.ToString(), display, _currentProjectFolder)
                 : sb.ToString();
             if (cloudFinalText != sb.ToString()) bubble.Content.Text = cloudFinalText;
-            _sharedHistory.Add(new CloudAIMessage("assistant", cloudFinalText, avatarLabel));
 
+            // If the model decided it has nothing new to add, remove its bubble silently
+            if (IsPassResponse(cloudFinalText))
+            {
+                if (ChatPanel.Children.Count > 0)
+                    ChatPanel.Children.RemoveAt(ChatPanel.Children.Count - 1);
+                return false;
+            }
+
+            _sharedHistory.Add(new CloudAIMessage("assistant", cloudFinalText, avatarLabel));
             AppendToProjectLog(new ChatLogEntry
             {
                 Timestamp   = DateTime.Now,
@@ -3382,6 +3452,7 @@ public partial class MainWindow : Window
                 IsUser      = false,
                 Message     = cloudFinalText
             });
+            return true;
         }
         catch (OperationCanceledException)
         {
@@ -3400,6 +3471,7 @@ public partial class MainWindow : Window
             if (firstToken) bubble.StopThinking();
             bubble.Content.Text = $"Error: {ex.Message}";
         }
+        return true; // error path still counts as "responded" (error bubble is shown)
     }
 
     // ── Per-participant history builders ───────────────────────────────────
