@@ -390,6 +390,26 @@
                                VerticalAlignment="Center"/>
                     <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center"
                                 Orientation="Horizontal">
+                        <Button x:Name="WorldButton"
+                                Content="🌍 Welt"
+                                Visibility="Collapsed"
+                                Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource InputBrush}"
+                                Foreground="{DynamicResource TextBrush}"
+                                FontSize="12" Padding="10,5"
+                                Margin="0,0,6,0"
+                                Click="WorldButton_Click"
+                                ToolTip="Charaktere, Fraktionen, Orte und Weltbeschreibung (coming soon)"/>
+                        <Button x:Name="RoadmapButton"
+                                Content="📊 Roadmap"
+                                Visibility="Collapsed"
+                                Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource InputBrush}"
+                                Foreground="{DynamicResource TextBrush}"
+                                FontSize="12" Padding="10,5"
+                                Margin="0,0,6,0"
+                                Click="RoadmapButton_Click"
+                                ToolTip="Projekt-Roadmap anzeigen (coming soon)"/>
                         <Button x:Name="CloseProjectButton"
                                 Content="✕ Close Project"
                                 Visibility="Collapsed"

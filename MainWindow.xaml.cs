@@ -543,6 +543,8 @@ public partial class MainWindow : Window
         ChatHeaderTitle.Text              = meta.ProjectName;
         ProjectSettingsButton.Visibility  = Visibility.Visible;
         CloseProjectButton   .Visibility  = Visibility.Visible;
+        RoadmapButton        .Visibility  = Visibility.Visible;
+        WorldButton          .Visibility  = Visibility.Visible;  // shown for all types until type-system is live
 
         // Load chat history
         var log = ProjectService.LoadChatLog(projFolder);
@@ -567,6 +569,48 @@ public partial class MainWindow : Window
         ChatHeaderTitle.Text             = "Chat";
         ProjectSettingsButton.Visibility = Visibility.Collapsed;
         CloseProjectButton   .Visibility = Visibility.Collapsed;
+        RoadmapButton        .Visibility = Visibility.Collapsed;
+        WorldButton          .Visibility = Visibility.Collapsed;
+    }
+
+    private void RoadmapButton_Click(object sender, RoutedEventArgs e)
+    {
+        // TODO: Roadmap-System (Phase 2)
+        // – roadmap.xml im Projektordner lesen/anlegen
+        // – HTML-Ansicht mit Fortschrittsbalken, "Du bist hier"-Marker,
+        //   Status-Icons (✅ 🔄 ⭕ 🚫 ⏭️) und klappbaren Abschnitten generieren
+        // – Im Standard-Browser öffnen
+        MessageBox.Show(
+            "Die Roadmap-Funktion wird in einer kommenden Version implementiert.\n\n" +
+            "Geplant:\n" +
+            "  • roadmap.xml — frei editierbare Projektstruktur\n" +
+            "  • HTML-Ansicht mit Fortschrittsbalken und Status-Icons\n" +
+            "  • KI-Zugriff: Status lesen und aktualisieren\n" +
+            "  • Typen: Kapitel/Szenen (Roman, Theater), Milestones/Tasks (Software, Geschäft)",
+            "📊 Roadmap — Coming Soon",
+            MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void WorldButton_Click(object sender, RoutedEventArgs e)
+    {
+        // TODO: Weltenbau-System (Phase 3)
+        // – Charaktere (Eigenschaften, Hintergrund, Beziehungen, Fraktion, Rolle in der Handlung)
+        // – Fraktionen (Beschreibung, Mitglieder, Ziele)
+        // – Orte (Beschreibung, Karte-Notizen)
+        // – Weltbeschreibung (freier Text / Regeln / Geographie)
+        // – Alles als JSON pro Element gespeichert, editierbar per Dialog
+        // – KI bekommt relevante Welt-Elemente in den System-Prompt injiziert
+        // – Verfügbar für: Roman, Theaterstück, Spiel, Sachbuch
+        MessageBox.Show(
+            "Der Weltenbau-Bereich wird in einer kommenden Version implementiert.\n\n" +
+            "Geplant:\n" +
+            "  • Charaktere mit Eigenschaften, Hintergrund und Beziehungen\n" +
+            "  • Fraktionen mit Mitgliedern und Zielen\n" +
+            "  • Orte mit Beschreibungen und Karten-Notizen\n" +
+            "  • Weltbeschreibung (Regeln, Geographie, Geschichte)\n" +
+            "  • KI-Kontext: relevante Elemente werden automatisch injiziert",
+            "🌍 Weltenbau — Coming Soon",
+            MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void CloseProjectButton_Click(object sender, RoutedEventArgs e)
