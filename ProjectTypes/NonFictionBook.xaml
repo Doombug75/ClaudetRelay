@@ -1,0 +1,14 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:svc="clr-namespace:ClaudetRelay.Services;assembly=ClaudetRelay">
+    <svc:ProjectTypeDefinition x:Key="ProjectType"
+        Name="Non-Fiction Book"
+        Icon="📚"
+        Description="A non-fiction work such as a guide, textbook or essay collection. Organise content into parts and chapters and track your research notes."
+        StructureHierarchy="Part|Chapter"
+        StructureIcons="📚|📄"
+        HasRoadmap="True"
+        HasWorldBuilding="False"
+        HasPlotNotes="True"
+        SystemPromptHint="This is a non-fiction book project. The work is organised into parts and chapters. Accuracy, clarity and well-sourced claims are a priority."/>
+</ResourceDictionary>

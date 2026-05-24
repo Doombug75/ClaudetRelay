@@ -1,0 +1,15 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:svc="clr-namespace:ClaudetRelay.Services;assembly=ClaudetRelay">
+    <svc:ProjectTypeDefinition x:Key="ProjectType"
+        Name="Business Project"
+        Icon="💼"
+        Description="A business plan, marketing campaign, product launch or organisational project. Track phases, tasks, assignees and deadlines."
+        StructureHierarchy="Phase|Task"
+        StructureIcons="📋|✅"
+        HasRoadmap="True"
+        HasWorldBuilding="False"
+        HasAssignees="True"
+        HasDeadlines="True"
+        SystemPromptHint="This is a business project. Work is organised into phases and tasks with assignees and deadlines. Clarity, actionability and measurable outcomes are important."/>
+</ResourceDictionary>

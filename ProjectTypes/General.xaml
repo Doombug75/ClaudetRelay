@@ -1,0 +1,11 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:svc="clr-namespace:ClaudetRelay.Services;assembly=ClaudetRelay">
+    <svc:ProjectTypeDefinition x:Key="ProjectType"
+        Name="General"
+        Icon="📁"
+        Description="A general-purpose project for any kind of collaborative work or conversation."
+        HasRoadmap="True"
+        HasWorldBuilding="False"
+        SystemPromptHint=""/>
+</ResourceDictionary>

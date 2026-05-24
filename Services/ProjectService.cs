@@ -16,10 +16,16 @@ public class ProjectParticipant
 
 public class ProjectMeta
 {
-    public string   ProjectName { get; set; } = "Untitled";
-    public DateTime CreatedAt   { get; set; } = DateTime.UtcNow;
-    public DateTime LastOpened  { get; set; } = DateTime.UtcNow;
+    public string   ProjectName    { get; set; } = "Untitled";
+    public DateTime CreatedAt      { get; set; } = DateTime.UtcNow;
+    public DateTime LastOpened     { get; set; } = DateTime.UtcNow;
     public List<ProjectParticipant> Participants { get; set; } = [];
+
+    /// <summary>
+    /// The project type key (matches ProjectTypeDefinition.Name, e.g. "Novel", "Software Project").
+    /// Empty / null means "General".
+    /// </summary>
+    public string ProjectTypeName { get; set; } = "General";
 }
 
 // ── Project settings (roles, orchestration) ────────────────────────────────
@@ -346,8 +352,14 @@ public static class ProjectService
     /// <summary>Returns the next available chatlog archive index (1-based).</summary>
     // ── Create / Delete ────────────────────────────────────────────────────
 
-    /// <summary>Creates a new project subfolder and writes project.json. Returns the folder path.</summary>
-    public static string CreateProject(string parentFolder, string name)
+    /// <summary>
+    /// Creates a new project subfolder and writes project.json. Returns the folder path.
+    /// <paramref name="typeName"/> is stored in the meta and shown in the UI.
+    /// <paramref name="worldFolders"/> are created inside PROJECTPLAN/ (e.g. Characters, Factions).
+    /// </summary>
+    public static string CreateProject(string parentFolder, string name,
+                                       string typeName      = "General",
+                                       string[]? worldFolders = null)
     {
         Directory.CreateDirectory(parentFolder);
         var safeName = MakeSafeName(name);
@@ -360,15 +372,28 @@ public static class ProjectService
 
         // Standard project subfolders
         Directory.CreateDirectory(Path.Combine(folder, "INPUT"));
-        Directory.CreateDirectory(Path.Combine(folder, "PROJECTPLAN"));
+        var planFolder = Path.Combine(folder, "PROJECTPLAN");
+        Directory.CreateDirectory(planFolder);
         Directory.CreateDirectory(Path.Combine(folder, "OUTPUT"));
         Directory.CreateDirectory(Path.Combine(folder, "AI-Characters"));
 
+        // Type-specific world-building subfolders inside PROJECTPLAN/
+        if (worldFolders is { Length: > 0 })
+        {
+            foreach (var wf in worldFolders)
+            {
+                var safe = new string(wf.Where(c => !Path.GetInvalidFileNameChars().Contains(c)).ToArray()).Trim();
+                if (!string.IsNullOrEmpty(safe))
+                    Directory.CreateDirectory(Path.Combine(planFolder, safe));
+            }
+        }
+
         SaveMeta(folder, new ProjectMeta
         {
-            ProjectName = name,
-            CreatedAt   = DateTime.UtcNow,
-            LastOpened  = DateTime.UtcNow
+            ProjectName    = name,
+            ProjectTypeName = typeName,
+            CreatedAt      = DateTime.UtcNow,
+            LastOpened     = DateTime.UtcNow
         });
         return folder;
     }

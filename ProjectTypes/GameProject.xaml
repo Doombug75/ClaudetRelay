@@ -1,0 +1,17 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:svc="clr-namespace:ClaudetRelay.Services;assembly=ClaudetRelay">
+    <svc:ProjectTypeDefinition x:Key="ProjectType"
+        Name="Game Project"
+        Icon="🎮"
+        Description="A video game, board game or tabletop RPG. Design your world, characters and factions, plan levels or modules, and track your design tasks."
+        StructureHierarchy="Module|Level"
+        StructureIcons="🗺️|🏟️"
+        WorldFolders="Characters|Factions|Locations|Lore"
+        HasRoadmap="True"
+        HasWorldBuilding="True"
+        HasAssignees="True"
+        HasDeadlines="True"
+        HasPlotNotes="True"
+        SystemPromptHint="This is a game design project. The world includes characters, factions, locations and lore. Design decisions should consider gameplay, balance and player experience."/>
+</ResourceDictionary>

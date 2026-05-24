@@ -1,0 +1,15 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:svc="clr-namespace:ClaudetRelay.Services;assembly=ClaudetRelay">
+    <svc:ProjectTypeDefinition x:Key="ProjectType"
+        Name="Novel"
+        Icon="📖"
+        Description="A work of long-form fiction. Organise your story into chapters and scenes, build a cast of characters, factions and locations, and track your plot notes."
+        StructureHierarchy="Chapter|Scene"
+        StructureIcons="📖|🎬"
+        WorldFolders="Characters|Factions|Locations"
+        HasRoadmap="True"
+        HasWorldBuilding="True"
+        HasPlotNotes="True"
+        SystemPromptHint="This is a novel writing project. The workspace is organised into chapters and scenes. Characters, factions and locations are defined in the world-building section."/>
+</ResourceDictionary>

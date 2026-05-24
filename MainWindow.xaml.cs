@@ -131,9 +131,13 @@ public partial class MainWindow : Window
     private ProjectSettings?                     _projectSettings;
 
     // ── Project state ──────────────────────────────────────────────────────
-    private string?       _currentProjectFolder;
-    private ProjectMeta?  _currentProject;
-    private string?       _selectedProjectFolder; // selected in Projects list
+    private string?                    _currentProjectFolder;
+    private ProjectMeta?               _currentProject;
+    private ProjectTypeDefinition?     _currentProjectType;
+    private string?                    _selectedProjectFolder; // selected in Projects list
+
+    // ── Project types (loaded from ProjectTypes/*.xaml) ────────────────────
+    private List<ProjectTypeDefinition> _projectTypes = [];
 
     // ──────────────────────────────────────────────────────────────────────
 
@@ -143,6 +147,7 @@ public partial class MainWindow : Window
         LoadThemesIntoComboBox();
         Loaded += async (_, _) =>
         {
+            LoadProjectTypes();
             InitializeServices();
             AddSystemMessage("Chat started  ·  configure participants in ⚙ Settings.");
             InputTextBox.Focus();
@@ -311,14 +316,34 @@ public partial class MainWindow : Window
 
     private Border BuildProjectCard(string projFolder, ProjectMeta meta)
     {
+        // Resolve the project type so we can show its icon
+        var ptd = ResolveProjectType(meta.ProjectTypeName);
+
+        // Title row: type icon + project name
+        var typeIconTb = new TextBlock
+        {
+            Text       = ptd.Icon,
+            FontSize   = 14,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin     = new Thickness(0, 0, 6, 0)
+        };
+
         var nameLabel = new TextBlock
         {
             Text       = meta.ProjectName,
             FontSize   = 14, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
-            Margin     = new Thickness(0, 0, 0, 4)
+            VerticalAlignment = VerticalAlignment.Center
         };
         nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+
+        var titleRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin      = new Thickness(0, 0, 0, 4)
+        };
+        titleRow.Children.Add(typeIconTb);
+        titleRow.Children.Add(nameLabel);
 
         var dateLabel = new TextBlock
         {
@@ -339,7 +364,7 @@ public partial class MainWindow : Window
                 .Select(p => p.DisplayName));
 
         var infoStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        infoStack.Children.Add(nameLabel);
+        infoStack.Children.Add(titleRow);
         infoStack.Children.Add(dateLabel);
         if (!string.IsNullOrEmpty(participantsLabel.Text))
             infoStack.Children.Add(participantsLabel);
@@ -474,9 +499,15 @@ public partial class MainWindow : Window
         var name = ShowInputDialog("New Project", "Project name:", "My Project");
         if (string.IsNullOrWhiteSpace(name)) return;
 
+        // Ask user to pick a project type
+        var chosenType = ShowProjectTypePicker();
+        if (chosenType is null) return; // user cancelled
+
         var settings = SettingsService.Load();
         var folder   = ProjectService.ResolveFolder(settings.ProjectsFolder);
-        var projFolder = ProjectService.CreateProject(folder, name);
+        var projFolder = ProjectService.CreateProject(folder, name,
+                                                       chosenType.Name,
+                                                       chosenType.GetWorldFolderList());
 
         // Update meta with current participants
         var meta = ProjectService.LoadMeta(projFolder)!;
@@ -484,6 +515,204 @@ public partial class MainWindow : Window
         ProjectService.SaveMeta(projFolder, meta);
 
         RefreshProjectList();
+    }
+
+    /// <summary>
+    /// Shows a modal dialog listing all loaded project types.
+    /// Returns the chosen type, or null if the user cancelled.
+    /// </summary>
+    private ProjectTypeDefinition? ShowProjectTypePicker()
+    {
+        ProjectTypeDefinition? result = null;
+
+        // ── Dialog window ─────────────────────────────────────────────────
+        var dlg = new Window
+        {
+            Title                 = "Choose Project Type",
+            Width                 = 520,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            ResizeMode            = ResizeMode.NoResize,
+            ShowInTaskbar         = false
+        };
+        dlg.SetResourceReference(Window.BackgroundProperty, "BackgroundBrush");
+
+        // ── Header ────────────────────────────────────────────────────────
+        var header = new TextBlock
+        {
+            Text         = "What kind of project is this?",
+            FontSize     = 15,
+            FontWeight   = FontWeights.SemiBold,
+            FontFamily   = new FontFamily("Segoe UI"),
+            Margin       = new Thickness(20, 20, 20, 4)
+        };
+        header.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+
+        var subtitle = new TextBlock
+        {
+            Text         = "Choose the type that best fits your project. You can change it later.",
+            FontSize     = 12,
+            FontFamily   = new FontFamily("Segoe UI"),
+            Margin       = new Thickness(20, 0, 20, 14),
+            TextWrapping = TextWrapping.Wrap
+        };
+        subtitle.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        // ── Type cards grid ───────────────────────────────────────────────
+        var typePanel = new WrapPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin      = new Thickness(16, 0, 16, 0)
+        };
+
+        Border? selectedCard = null;
+        ProjectTypeDefinition? selectedType = null;
+
+        Button? okBtn = null; // forward reference
+
+        foreach (var ptd in _projectTypes)
+        {
+            var capturedPtd = ptd;
+
+            var iconTb = new TextBlock
+            {
+                Text              = ptd.Icon,
+                FontSize          = 24,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin            = new Thickness(0, 0, 0, 4)
+            };
+
+            var nameTb = new TextBlock
+            {
+                Text              = ptd.Name,
+                FontSize          = 12,
+                FontWeight        = FontWeights.SemiBold,
+                FontFamily        = new FontFamily("Segoe UI"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextWrapping      = TextWrapping.Wrap,
+                TextAlignment     = TextAlignment.Center
+            };
+            nameTb.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+
+            var descTb = new TextBlock
+            {
+                Text              = ptd.Description,
+                FontSize          = 10,
+                FontFamily        = new FontFamily("Segoe UI"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextWrapping      = TextWrapping.Wrap,
+                TextAlignment     = TextAlignment.Center,
+                Margin            = new Thickness(0, 4, 0, 0)
+            };
+            descTb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+            var cardContent = new StackPanel { Width = 130 };
+            cardContent.Children.Add(iconTb);
+            cardContent.Children.Add(nameTb);
+            cardContent.Children.Add(descTb);
+
+            var typeCard = new Border
+            {
+                CornerRadius = new CornerRadius(10),
+                Padding      = new Thickness(10, 12, 10, 12),
+                Margin       = new Thickness(4, 4, 4, 4),
+                Cursor       = Cursors.Hand,
+                Child        = cardContent,
+                Width        = 150,
+                BorderThickness = new Thickness(2),
+                BorderBrush  = Brushes.Transparent
+            };
+            typeCard.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+
+            typeCard.MouseEnter += (_, _) =>
+            {
+                if (typeCard != selectedCard)
+                    typeCard.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
+            };
+            typeCard.MouseLeave += (_, _) =>
+            {
+                if (typeCard != selectedCard)
+                    typeCard.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+            };
+            typeCard.MouseLeftButtonDown += (_, _) =>
+            {
+                // Deselect previous
+                if (selectedCard is not null)
+                {
+                    selectedCard.BorderBrush = Brushes.Transparent;
+                    selectedCard.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+                }
+                // Select this
+                selectedCard = typeCard;
+                selectedType = capturedPtd;
+                typeCard.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
+                typeCard.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+                if (okBtn is not null) okBtn.IsEnabled = true;
+            };
+
+            typePanel.Children.Add(typeCard);
+        }
+
+        // Pre-select General
+        var generalCard = typePanel.Children.OfType<Border>().FirstOrDefault();
+        if (generalCard is not null)
+        {
+            selectedCard = generalCard;
+            selectedType = _projectTypes.FirstOrDefault();
+            generalCard.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
+            generalCard.SetResourceReference(Border.BorderBrushProperty, "AccentBrush");
+        }
+
+        // ── Buttons ───────────────────────────────────────────────────────
+        okBtn = new Button
+        {
+            Content    = "Create Project",
+            Width      = 130,
+            Height     = 32,
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize   = 13,
+            Margin     = new Thickness(0, 0, 8, 0),
+            IsEnabled  = true,
+            Style      = (Style)FindResource("ModernButton")
+        };
+        okBtn.SetResourceReference(Button.BackgroundProperty, "AccentBrush");
+        okBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+
+        var cancelBtn = new Button
+        {
+            Content    = "Cancel",
+            Width      = 80,
+            Height     = 32,
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize   = 13,
+            Style      = (Style)FindResource("ModernButton")
+        };
+        cancelBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+        cancelBtn.SetResourceReference(Button.ForegroundProperty, "SubtextBrush");
+
+        okBtn    .Click += (_, _) => { result = selectedType; dlg.DialogResult = true; };
+        cancelBtn.Click += (_, _) => dlg.DialogResult = false;
+
+        var btnRow = new StackPanel
+        {
+            Orientation         = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin              = new Thickness(20, 14, 20, 20)
+        };
+        btnRow.Children.Add(okBtn);
+        btnRow.Children.Add(cancelBtn);
+
+        // ── Layout ────────────────────────────────────────────────────────
+        var root = new StackPanel();
+        root.Children.Add(header);
+        root.Children.Add(subtitle);
+        root.Children.Add(typePanel);
+        root.Children.Add(btnRow);
+        dlg.Content = root;
+
+        dlg.ShowDialog();
+        return result;
     }
 
     private void OpenProject_Click(object sender, RoutedEventArgs e)
@@ -534,6 +763,7 @@ public partial class MainWindow : Window
         // Store project state
         _currentProjectFolder = projFolder;
         _currentProject       = meta;
+        _currentProjectType   = ResolveProjectType(meta.ProjectTypeName);
         var loadedPs          = ProjectService.LoadProjectSettings(projFolder);
         _projectSettings      = loadedPs;
         _projectLanguage      = loadedPs.Language;
@@ -543,8 +773,10 @@ public partial class MainWindow : Window
         ChatHeaderTitle.Text              = meta.ProjectName;
         ProjectSettingsButton.Visibility  = Visibility.Visible;
         CloseProjectButton   .Visibility  = Visibility.Visible;
-        RoadmapButton        .Visibility  = Visibility.Visible;
-        WorldButton          .Visibility  = Visibility.Visible;  // shown for all types until type-system is live
+        RoadmapButton        .Visibility  = _currentProjectType.HasRoadmap
+                                            ? Visibility.Visible : Visibility.Collapsed;
+        WorldButton          .Visibility  = _currentProjectType.HasWorldBuilding
+                                            ? Visibility.Visible : Visibility.Collapsed;
 
         // Load chat history
         var log = ProjectService.LoadChatLog(projFolder);
@@ -563,6 +795,7 @@ public partial class MainWindow : Window
     {
         _currentProjectFolder            = null;
         _currentProject                  = null;
+        _currentProjectType              = null;
         _projectSettings                 = null;
         _projectLanguage                 = "";
         _maxDialogDepth                  = 1;
@@ -575,41 +808,39 @@ public partial class MainWindow : Window
 
     private void RoadmapButton_Click(object sender, RoutedEventArgs e)
     {
-        // TODO: Roadmap-System (Phase 2)
-        // – roadmap.xml im Projektordner lesen/anlegen
-        // – HTML-Ansicht mit Fortschrittsbalken, "Du bist hier"-Marker,
-        //   Status-Icons (✅ 🔄 ⭕ 🚫 ⏭️) und klappbaren Abschnitten generieren
-        // – Im Standard-Browser öffnen
+        // TODO: Roadmap system (Phase 2)
+        var typeName = _currentProjectType?.Name ?? "this project";
+        var levels   = _currentProjectType?.GetStructureLevels() is { Length: > 0 } lvls
+                       ? string.Join(" → ", lvls)
+                       : "Milestone → Task";
+
         MessageBox.Show(
-            "Die Roadmap-Funktion wird in einer kommenden Version implementiert.\n\n" +
-            "Geplant:\n" +
-            "  • roadmap.xml — frei editierbare Projektstruktur\n" +
-            "  • HTML-Ansicht mit Fortschrittsbalken und Status-Icons\n" +
-            "  • KI-Zugriff: Status lesen und aktualisieren\n" +
-            "  • Typen: Kapitel/Szenen (Roman, Theater), Milestones/Tasks (Software, Geschäft)",
+            $"The Roadmap feature will be implemented in an upcoming version.\n\n" +
+            $"Planned for {typeName}:\n" +
+            $"  • roadmap.xml — editable project structure ({levels})\n" +
+            $"  • HTML view with progress bars and status icons\n" +
+            $"  • Status icons: ✅ Done  🔄 In Progress  ⭕ Planned  🚫 Blocked  ⏭️ Skipped\n" +
+            $"  • AI access: read status and update it via file tags",
             "📊 Roadmap — Coming Soon",
             MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void WorldButton_Click(object sender, RoutedEventArgs e)
     {
-        // TODO: Weltenbau-System (Phase 3)
-        // – Charaktere (Eigenschaften, Hintergrund, Beziehungen, Fraktion, Rolle in der Handlung)
-        // – Fraktionen (Beschreibung, Mitglieder, Ziele)
-        // – Orte (Beschreibung, Karte-Notizen)
-        // – Weltbeschreibung (freier Text / Regeln / Geographie)
-        // – Alles als JSON pro Element gespeichert, editierbar per Dialog
-        // – KI bekommt relevante Welt-Elemente in den System-Prompt injiziert
-        // – Verfügbar für: Roman, Theaterstück, Spiel, Sachbuch
+        // TODO: World-building system (Phase 3)
+        var typeName = _currentProjectType?.Name ?? "this project";
+        var folders  = _currentProjectType?.GetWorldFolderList() is { Length: > 0 } wf
+                       ? string.Join(", ", wf)
+                       : "Characters, Locations";
+
         MessageBox.Show(
-            "Der Weltenbau-Bereich wird in einer kommenden Version implementiert.\n\n" +
-            "Geplant:\n" +
-            "  • Charaktere mit Eigenschaften, Hintergrund und Beziehungen\n" +
-            "  • Fraktionen mit Mitgliedern und Zielen\n" +
-            "  • Orte mit Beschreibungen und Karten-Notizen\n" +
-            "  • Weltbeschreibung (Regeln, Geographie, Geschichte)\n" +
-            "  • KI-Kontext: relevante Elemente werden automatisch injiziert",
-            "🌍 Weltenbau — Coming Soon",
+            $"The World-Building section will be implemented in an upcoming version.\n\n" +
+            $"Planned for {typeName}:\n" +
+            $"  • Sections: {folders}\n" +
+            $"  • Each element stored as a JSON file inside PROJECTPLAN/\n" +
+            $"  • Property sheets editable via a dedicated dialog\n" +
+            $"  • AI context: relevant elements injected into the system prompt automatically",
+            "🌍 World Building — Coming Soon",
             MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
@@ -3256,6 +3487,48 @@ public partial class MainWindow : Window
         if (ThemeComboBox.SelectedItem is not ComboBoxItem item) return;
         if (item.Tag?.ToString() is string path)
             ApplyTheme(path);
+    }
+
+    // ── Project types ──────────────────────────────────────────────────────
+
+    private void LoadProjectTypes()
+    {
+        _projectTypes.Clear();
+        var typesDir = SysIO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ProjectTypes");
+        if (SysIO.Directory.Exists(typesDir))
+        {
+            foreach (var file in SysIO.Directory.GetFiles(typesDir, "*.xaml")
+                                                .OrderBy(SysIO.Path.GetFileNameWithoutExtension,
+                                                         StringComparer.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var dict = new ResourceDictionary { Source = new Uri(file) };
+                    if (dict["ProjectType"] is ProjectTypeDefinition ptd)
+                        _projectTypes.Add(ptd);
+                }
+                catch { /* skip malformed XAML files */ }
+            }
+        }
+
+        // Always ensure at least a General fallback
+        if (!_projectTypes.Any(t => t.Name.Equals("General", StringComparison.OrdinalIgnoreCase)))
+            _projectTypes.Insert(0, new ProjectTypeDefinition());
+    }
+
+    /// <summary>Finds the ProjectTypeDefinition for the given type name (case-insensitive).
+    /// Falls back to the General definition if not found.</summary>
+    private ProjectTypeDefinition ResolveProjectType(string? typeName)
+    {
+        if (!string.IsNullOrWhiteSpace(typeName))
+        {
+            var match = _projectTypes.FirstOrDefault(t =>
+                t.Name.Equals(typeName, StringComparison.OrdinalIgnoreCase));
+            if (match is not null) return match;
+        }
+        return _projectTypes.FirstOrDefault(t =>
+                   t.Name.Equals("General", StringComparison.OrdinalIgnoreCase))
+               ?? new ProjectTypeDefinition();
     }
 
     private void LoadThemesIntoComboBox()

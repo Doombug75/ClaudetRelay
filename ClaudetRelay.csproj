@@ -29,4 +29,12 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- ProjectTypes loaded at runtime like Themes -->
+    <Page Remove="ProjectTypes\*.xaml" />
+    <Content Include="ProjectTypes\*.xaml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

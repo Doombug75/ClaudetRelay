@@ -1,0 +1,15 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:svc="clr-namespace:ClaudetRelay.Services;assembly=ClaudetRelay">
+    <svc:ProjectTypeDefinition x:Key="ProjectType"
+        Name="Software Project"
+        Icon="💻"
+        Description="A software development project. Plan features and milestones, assign tasks and track deadlines across your team."
+        StructureHierarchy="Milestone|Task"
+        StructureIcons="🏁|✅"
+        HasRoadmap="True"
+        HasWorldBuilding="False"
+        HasAssignees="True"
+        HasDeadlines="True"
+        SystemPromptHint="This is a software development project. Work is organised into milestones and tasks. Technical precision, code quality and clear specifications are important."/>
+</ResourceDictionary>
