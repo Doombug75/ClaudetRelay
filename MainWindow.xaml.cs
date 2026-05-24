@@ -496,15 +496,28 @@ public partial class MainWindow : Window
 
     private void NewProject_Click(object sender, RoutedEventArgs e)
     {
-        var name = ShowInputDialog("New Project", "Project name:", "My Project");
-        if (string.IsNullOrWhiteSpace(name)) return;
+        var settings = SettingsService.Load();
+        var folder   = ProjectService.ResolveFolder(settings.ProjectsFolder);
+
+        // Ask for a name; re-prompt if the name is already taken
+        string? name = null;
+        while (true)
+        {
+            name = ShowInputDialog("New Project", "Project name:", name ?? "My Project");
+            if (string.IsNullOrWhiteSpace(name)) return; // user cancelled
+
+            if (!ProjectService.ProjectNameExists(folder, name)) break;
+
+            MessageBox.Show(
+                $"A project named \"{name}\" already exists.\n\nPlease choose a different name.",
+                "Name already taken",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
 
         // Ask user to pick a project type
         var chosenType = ShowProjectTypePicker();
         if (chosenType is null) return; // user cancelled
 
-        var settings = SettingsService.Load();
-        var folder   = ProjectService.ResolveFolder(settings.ProjectsFolder);
         var projFolder = ProjectService.CreateProject(folder, name,
                                                        chosenType.Name,
                                                        chosenType.GetWorldFolderList());

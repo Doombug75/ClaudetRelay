@@ -499,4 +499,12 @@ public static class ProjectService
         var safe    = new string(name.Where(c => !invalid.Contains(c)).ToArray()).Trim();
         return string.IsNullOrEmpty(safe) ? "Project" : safe;
     }
+
+    /// <summary>
+    /// Returns true if a project folder derived from <paramref name="name"/> already exists
+    /// inside <paramref name="parentFolder"/>. Uses the same name-sanitisation as
+    /// <see cref="CreateProject"/> so the check is always consistent.
+    /// </summary>
+    public static bool ProjectNameExists(string parentFolder, string name) =>
+        Directory.Exists(Path.Combine(parentFolder, MakeSafeName(name)));
 }
