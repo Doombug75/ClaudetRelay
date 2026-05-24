@@ -347,7 +347,7 @@ public partial class MainWindow : Window
 
         var dateLabel = new TextBlock
         {
-            Text     = $"Last opened: {meta.LastOpened.ToLocalTime():yyyy-MM-dd HH:mm}",
+            Text     = $"{ptd.Name}  ·  Last opened: {meta.LastOpened.ToLocalTime():yyyy-MM-dd HH:mm}",
             FontSize = 11, FontFamily = new FontFamily("Segoe UI")
         };
         dateLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
