@@ -134,6 +134,7 @@ public partial class MainWindow : Window
     private string?                    _currentProjectFolder;
     private ProjectMeta?               _currentProject;
     private ProjectTypeDefinition?     _currentProjectType;
+    private Roadmap?                   _currentRoadmap;
     private string?                    _selectedProjectFolder; // selected in Projects list
 
     // ── Project types (loaded from ProjectTypes/*.xaml) ────────────────────
@@ -258,6 +259,8 @@ public partial class MainWindow : Window
 
     private void ActivateTab(bool chat)
     {
+        if (!chat) ShowRoadmapPanel(false);   // roadmap lives inside chat tab only
+
         // Chat-only elements
         ChatHeader    .Visibility = chat ? Visibility.Visible   : Visibility.Collapsed;
         ChatHeaderSep .Visibility = chat ? Visibility.Visible   : Visibility.Collapsed;
@@ -789,6 +792,7 @@ public partial class MainWindow : Window
         _currentProjectFolder = projFolder;
         _currentProject       = meta;
         _currentProjectType   = ResolveProjectType(meta.ProjectTypeName);
+        _currentRoadmap       = RoadmapService.Load(projFolder);
         var loadedPs          = ProjectService.LoadProjectSettings(projFolder);
         _projectSettings      = loadedPs;
         _projectLanguage      = loadedPs.Language;
@@ -818,9 +822,11 @@ public partial class MainWindow : Window
 
     private void CloseCurrentProject()
     {
+        ShowRoadmapPanel(false);
         _currentProjectFolder            = null;
         _currentProject                  = null;
         _currentProjectType              = null;
+        _currentRoadmap                  = null;
         _projectSettings                 = null;
         _projectLanguage                 = "";
         _maxDialogDepth                  = 1;
@@ -832,22 +838,1002 @@ public partial class MainWindow : Window
     }
 
     private void RoadmapButton_Click(object sender, RoutedEventArgs e)
-    {
-        // TODO: Roadmap system (Phase 2)
-        var typeName = _currentProjectType?.Name ?? "this project";
-        var levels   = _currentProjectType?.GetStructureLevels() is { Length: > 0 } lvls
-                       ? string.Join(" → ", lvls)
-                       : "Milestone → Task";
+        => ShowRoadmapPanel(RoadmapContent.Visibility != Visibility.Visible);
 
-        MessageBox.Show(
-            $"The Roadmap feature will be implemented in an upcoming version.\n\n" +
-            $"Planned for {typeName}:\n" +
-            $"  • roadmap.xml — editable project structure ({levels})\n" +
-            $"  • HTML view with progress bars and status icons\n" +
-            $"  • Status icons: ✅ Done  🔄 In Progress  ⭕ Planned  🚫 Blocked  ⏭️ Skipped\n" +
-            $"  • AI access: read status and update it via file tags",
-            "📊 Roadmap — Coming Soon",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+    // ── Roadmap panel show/hide ────────────────────────────────────────────
+
+    private void ShowRoadmapPanel(bool show)
+    {
+        if (show && _currentRoadmap is not null)
+        {
+            BuildRoadmapContent();
+            RoadmapContent   .Visibility = Visibility.Visible;
+            ChatScrollViewer .Visibility = Visibility.Collapsed;
+            InputArea        .Visibility = Visibility.Collapsed;
+            RoadmapButton.FontWeight     = FontWeights.SemiBold;
+        }
+        else
+        {
+            RoadmapContent   .Visibility = Visibility.Collapsed;
+            ChatScrollViewer .Visibility = Visibility.Visible;
+            InputArea        .Visibility = Visibility.Visible;
+            RoadmapButton.FontWeight     = FontWeights.Normal;
+        }
+    }
+
+    // ── Roadmap UI builder ────────────────────────────────────────────────
+
+    private void BuildRoadmapContent()
+    {
+        RoadmapContent.Children.Clear();
+        if (_currentRoadmap is null) return;
+
+        // ── Theme brushes (must come from MainWindow, not SetResourceReference) ──
+        var bgBrush      = (Brush)FindResource("BackgroundBrush");
+        var sidebarBrush = (Brush)FindResource("SidebarBrush");
+        var textBrush    = (Brush)FindResource("TextBrush");
+        var subtextBrush = (Brush)FindResource("SubtextBrush");
+        var inputBrush   = (Brush)FindResource("InputBrush");
+        var surfaceBrush = (Brush)FindResource("SurfaceBrush");
+        var accentBrush  = (Brush)FindResource("AccentBrush");
+        var claudeBrush  = (Brush)FindResource("ClaudeBrush");
+        var ollamaBrush  = (Brush)FindResource("OllamaBrush");
+        var btnStyle     = (Style)FindResource("ModernButton");
+
+        // ── Root DockPanel ────────────────────────────────────────────────
+        var dock = new DockPanel { LastChildFill = true };
+
+        // ── Toolbar ───────────────────────────────────────────────────────
+        var toolbar = new Border
+        {
+            Background = sidebarBrush,
+            Padding    = new Thickness(16, 10, 16, 10)
+        };
+        DockPanel.SetDock(toolbar, Dock.Top);
+
+        var tbGrid = new Grid();
+        tbGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        tbGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var tbTitle = new TextBlock
+        {
+            Text              = "📊 Roadmap",
+            FontSize          = 15,
+            FontWeight        = FontWeights.SemiBold,
+            FontFamily        = new FontFamily("Segoe UI"),
+            Foreground        = textBrush,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(tbTitle, 0);
+
+        var addMsBtn = new Button
+        {
+            Content    = "+ Milestone",
+            Style      = btnStyle,
+            Background = inputBrush,
+            Foreground = claudeBrush,
+            FontSize   = 12,
+            Padding    = new Thickness(10, 5, 10, 5)
+        };
+        addMsBtn.Click += (_, _) =>
+        {
+            var r = ShowMilestoneDialog();
+            if (r is null) return;
+            _currentRoadmap!.Milestones.Add(new RoadmapMilestone
+                { Title = r.Value.title, Description = r.Value.desc, CreatedBy = "User" });
+            SaveRoadmap();
+            BuildRoadmapContent();
+        };
+
+        var tbBtns = new StackPanel { Orientation = Orientation.Horizontal };
+        tbBtns.Children.Add(addMsBtn);
+        Grid.SetColumn(tbBtns, 1);
+
+        tbGrid.Children.Add(tbTitle);
+        tbGrid.Children.Add(tbBtns);
+        toolbar.Child = tbGrid;
+
+        var tbSep = new Rectangle { Height = 1, Fill = inputBrush };
+        DockPanel.SetDock(tbSep, Dock.Top);
+
+        dock.Children.Add(toolbar);
+        dock.Children.Add(tbSep);
+
+        // ── Empty state ───────────────────────────────────────────────────
+        if (_currentRoadmap.Milestones.Count == 0)
+        {
+            var empty = new StackPanel
+            {
+                VerticalAlignment   = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin              = new Thickness(40)
+            };
+            empty.Children.Add(new TextBlock
+            {
+                Text                = "📊",
+                FontSize            = 48,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin              = new Thickness(0, 0, 0, 12)
+            });
+            empty.Children.Add(new TextBlock
+            {
+                Text                = "No roadmap items yet.\nClick  \"+ Milestone\"  to add the first milestone.",
+                FontSize            = 14,
+                FontFamily          = new FontFamily("Segoe UI"),
+                Foreground          = subtextBrush,
+                TextAlignment       = TextAlignment.Center,
+                TextWrapping        = TextWrapping.Wrap,
+                HorizontalAlignment = HorizontalAlignment.Center
+            });
+            dock.Children.Add(empty);
+            RoadmapContent.Children.Add(dock);
+            return;
+        }
+
+        // ── Scrollable milestone list ─────────────────────────────────────
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Padding                       = new Thickness(20, 16, 20, 16)
+        };
+
+        var list = new StackPanel();
+
+        foreach (var ms in _currentRoadmap.Milestones)
+        {
+            var capturedMs = ms;
+
+            // ── Milestone header ──────────────────────────────────────────
+            var msHeaderGrid = new Grid { Margin = new Thickness(0) };
+            msHeaderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            msHeaderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            msHeaderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            msHeaderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var msIcon = new TextBlock
+            {
+                Text              = RoadmapService.StatusIcon(ms.Status),
+                FontSize          = 16,
+                Margin            = new Thickness(0, 0, 8, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var msTitle = new TextBlock
+            {
+                Text              = ms.Title,
+                FontSize          = 14,
+                FontWeight        = FontWeights.SemiBold,
+                FontFamily        = new FontFamily("Segoe UI"),
+                Foreground        = textBrush,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming      = TextTrimming.CharacterEllipsis
+            };
+
+            var msPct = new TextBlock
+            {
+                Text              = $"{ms.Progress}%",
+                FontSize          = 12,
+                FontFamily        = new FontFamily("Segoe UI"),
+                Foreground        = subtextBrush,
+                VerticalAlignment = VerticalAlignment.Center,
+                MinWidth          = 38,
+                TextAlignment     = TextAlignment.Right,
+                Margin            = new Thickness(8, 0, 12, 0)
+            };
+
+            var msBtns = new StackPanel { Orientation = Orientation.Horizontal };
+
+            var addItemBtn = new Button
+            {
+                Content    = "+ Item",
+                Style      = btnStyle,
+                Background = Brushes.Transparent,
+                Foreground = claudeBrush,
+                FontSize   = 11,
+                Padding    = new Thickness(8, 4, 8, 4),
+                Margin     = new Thickness(0, 0, 4, 0)
+            };
+            addItemBtn.Click += (_, _) =>
+            {
+                var r = ShowItemDialog();
+                if (r is null) return;
+                capturedMs.Items.Add(new RoadmapItem
+                {
+                    Title       = r.Value.title,
+                    Description = r.Value.desc,
+                    Progress    = r.Value.progress,
+                    Status      = r.Value.progress >= 100 ? ItemStatus.Done
+                                : r.Value.progress > 0    ? ItemStatus.InProgress
+                                : ItemStatus.Todo,
+                    CreatedBy   = "User"
+                });
+                UpdateMilestoneStatus(capturedMs);
+                SaveRoadmap();
+                BuildRoadmapContent();
+            };
+
+            var editMsBtn = new Button
+            {
+                Content    = "✏",
+                Style      = btnStyle,
+                Background = Brushes.Transparent,
+                Foreground = subtextBrush,
+                FontSize   = 13,
+                Padding    = new Thickness(6, 4, 6, 4),
+                Margin     = new Thickness(0, 0, 4, 0),
+                ToolTip    = "Edit milestone"
+            };
+            editMsBtn.Click += (_, _) =>
+            {
+                var r = ShowMilestoneDialog(capturedMs.Title, capturedMs.Description);
+                if (r is null) return;
+                capturedMs.Title       = r.Value.title;
+                capturedMs.Description = r.Value.desc;
+                SaveRoadmap();
+                BuildRoadmapContent();
+            };
+
+            var delMsBtn = new Button
+            {
+                Content    = "🗑",
+                Style      = btnStyle,
+                Background = Brushes.Transparent,
+                Foreground = subtextBrush,
+                FontSize   = 13,
+                Padding    = new Thickness(6, 4, 6, 4),
+                ToolTip    = "Delete milestone"
+            };
+            delMsBtn.Click += (_, _) =>
+            {
+                if (MessageBox.Show(
+                    $"Delete milestone \"{capturedMs.Title}\" and all its items?",
+                    "Delete Milestone", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+                    != MessageBoxResult.Yes) return;
+                _currentRoadmap!.Milestones.Remove(capturedMs);
+                SaveRoadmap();
+                BuildRoadmapContent();
+            };
+
+            msBtns.Children.Add(addItemBtn);
+            msBtns.Children.Add(editMsBtn);
+            msBtns.Children.Add(delMsBtn);
+
+            Grid.SetColumn(msIcon,  0);
+            Grid.SetColumn(msTitle, 1);
+            Grid.SetColumn(msPct,   2);
+            Grid.SetColumn(msBtns,  3);
+            msHeaderGrid.Children.Add(msIcon);
+            msHeaderGrid.Children.Add(msTitle);
+            msHeaderGrid.Children.Add(msPct);
+            msHeaderGrid.Children.Add(msBtns);
+
+            var msHeaderBorder = new Border
+            {
+                Background = surfaceBrush,
+                Padding    = new Thickness(14, 10, 10, 10),
+                Child      = msHeaderGrid
+            };
+
+            // ── Milestone progress bar ────────────────────────────────────
+            var msPbFill = ms.Status == ItemStatus.Done ? ollamaBrush : accentBrush;
+            var msPb     = MakeProgressBar(ms.Progress, msPbFill, bgBrush, 4);
+
+            // ── Item rows ─────────────────────────────────────────────────
+            var itemsStack = new StackPanel { Background = inputBrush };
+            itemsStack.Children.Add(msPb);
+
+            if (ms.Items.Count == 0)
+            {
+                itemsStack.Children.Add(new TextBlock
+                {
+                    Text       = "No items yet — click  \"+ Item\"  to add the first task.",
+                    FontSize   = 12,
+                    FontFamily = new FontFamily("Segoe UI"),
+                    Foreground = subtextBrush,
+                    Margin     = new Thickness(14, 8, 14, 8)
+                });
+            }
+            else
+            {
+                for (int idx = 0; idx < ms.Items.Count; idx++)
+                {
+                    var item = ms.Items[idx];
+                    itemsStack.Children.Add(
+                        BuildItemRow(capturedMs, item,
+                            textBrush, subtextBrush, inputBrush,
+                            bgBrush, accentBrush, ollamaBrush, btnStyle));
+
+                    if (idx < ms.Items.Count - 1)
+                        itemsStack.Children.Add(new Rectangle
+                        {
+                            Height = 1,
+                            Fill   = bgBrush,
+                            Margin = new Thickness(14, 0, 14, 0)
+                        });
+                }
+            }
+
+            // ── Combine header + items in a rounded card ──────────────────
+            var inner = new StackPanel();
+            inner.Children.Add(msHeaderBorder);
+            inner.Children.Add(itemsStack);
+
+            var card = new Border
+            {
+                CornerRadius    = new CornerRadius(10),
+                BorderThickness = new Thickness(1),
+                BorderBrush     = surfaceBrush,
+                Margin          = new Thickness(0, 0, 0, 14),
+                Child           = inner,
+                ClipToBounds    = true
+            };
+
+            list.Children.Add(card);
+        }
+
+        scroll.Content = list;
+        dock.Children.Add(scroll);
+        RoadmapContent.Children.Add(dock);
+    }
+
+    private static Grid MakeProgressBar(int progress, Brush fill, Brush bg, double height = 6)
+    {
+        progress = Math.Clamp(progress, 0, 100);
+        var g = new Grid { Height = height };
+        g.ColumnDefinitions.Add(new ColumnDefinition
+            { Width = new GridLength(progress, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition
+            { Width = new GridLength(100 - progress, GridUnitType.Star) });
+        var fillRect = new Rectangle { Fill = fill };
+        var bgRect   = new Rectangle { Fill = bg };
+        Grid.SetColumn(fillRect, 0);
+        Grid.SetColumn(bgRect,   1);
+        g.Children.Add(fillRect);
+        g.Children.Add(bgRect);
+        return g;
+    }
+
+    private UIElement BuildItemRow(
+        RoadmapMilestone ms,   RoadmapItem item,
+        Brush textBrush,       Brush subtextBrush,
+        Brush inputBrush,      Brush bgBrush,
+        Brush accentBrush,     Brush ollamaBrush,
+        Style btnStyle)
+    {
+        var capturedMs   = ms;
+        var capturedItem = item;
+
+        var rowGrid = new Grid();
+        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                     // icon
+        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                     // id chip
+        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // title
+        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100, GridUnitType.Pixel) }); // bar
+        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36, GridUnitType.Pixel) });  // pct
+        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                     // buttons
+
+        var iconTb = new TextBlock
+        {
+            Text              = RoadmapService.StatusIcon(item.Status),
+            FontSize          = 13,
+            Margin            = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var idBorder = new Border
+        {
+            Background        = bgBrush,
+            CornerRadius      = new CornerRadius(4),
+            Padding           = new Thickness(4, 1, 4, 1),
+            Margin            = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child             = new TextBlock
+            {
+                Text       = item.Id,
+                FontSize   = 9,
+                FontFamily = new FontFamily("Consolas"),
+                Foreground = subtextBrush
+            }
+        };
+
+        var titleTb = new TextBlock
+        {
+            Text             = item.Title,
+            FontSize         = 13,
+            FontFamily       = new FontFamily("Segoe UI"),
+            Foreground       = item.Status == ItemStatus.Done ? subtextBrush : textBrush,
+            TextDecorations  = item.Status == ItemStatus.Done ? TextDecorations.Strikethrough : null,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming     = TextTrimming.CharacterEllipsis,
+            Margin           = new Thickness(0, 0, 8, 0)
+        };
+
+        var pbFill = item.Status == ItemStatus.Done ? ollamaBrush : accentBrush;
+        var pb     = MakeProgressBar(item.Progress, pbFill, bgBrush, 5);
+        pb.VerticalAlignment = VerticalAlignment.Center;
+        pb.Margin            = new Thickness(0, 0, 6, 0);
+
+        var pctTb = new TextBlock
+        {
+            Text              = $"{item.Progress}%",
+            FontSize          = 10,
+            FontFamily        = new FontFamily("Segoe UI"),
+            Foreground        = subtextBrush,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextAlignment     = TextAlignment.Right,
+            Margin            = new Thickness(0, 0, 8, 0)
+        };
+
+        var btns = new StackPanel
+        {
+            Orientation       = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var setPctBtn = new Button
+        {
+            Content    = "Set%",
+            Style      = btnStyle,
+            Background = Brushes.Transparent,
+            Foreground = subtextBrush,
+            FontSize   = 10,
+            Padding    = new Thickness(6, 3, 6, 3),
+            Margin     = new Thickness(0, 0, 2, 0),
+            ToolTip    = "Set progress"
+        };
+        setPctBtn.Click += (_, _) =>
+        {
+            var v = ShowProgressSliderDialog(capturedItem.Progress);
+            if (v is null) return;
+            capturedItem.Progress = v.Value;
+            capturedItem.Status   = v.Value >= 100 ? ItemStatus.Done
+                                  : v.Value > 0    ? ItemStatus.InProgress
+                                  : ItemStatus.Todo;
+            UpdateMilestoneStatus(capturedMs);
+            SaveRoadmap();
+            BuildRoadmapContent();
+        };
+
+        var editBtn = new Button
+        {
+            Content    = "✏",
+            Style      = btnStyle,
+            Background = Brushes.Transparent,
+            Foreground = subtextBrush,
+            FontSize   = 12,
+            Padding    = new Thickness(6, 3, 6, 3),
+            Margin     = new Thickness(0, 0, 2, 0),
+            ToolTip    = "Edit item"
+        };
+        editBtn.Click += (_, _) =>
+        {
+            var r = ShowItemDialog(capturedItem.Title, capturedItem.Description, capturedItem.Progress);
+            if (r is null) return;
+            capturedItem.Title       = r.Value.title;
+            capturedItem.Description = r.Value.desc;
+            capturedItem.Progress    = r.Value.progress;
+            capturedItem.Status      = r.Value.progress >= 100 ? ItemStatus.Done
+                                     : r.Value.progress > 0    ? ItemStatus.InProgress
+                                     : ItemStatus.Todo;
+            UpdateMilestoneStatus(capturedMs);
+            SaveRoadmap();
+            BuildRoadmapContent();
+        };
+
+        btns.Children.Add(setPctBtn);
+        btns.Children.Add(editBtn);
+
+        if (item.Status != ItemStatus.Done)
+        {
+            var doneBtn = new Button
+            {
+                Content    = "✓",
+                Style      = btnStyle,
+                Background = Brushes.Transparent,
+                Foreground = ollamaBrush,
+                FontSize   = 13,
+                Padding    = new Thickness(6, 3, 6, 3),
+                Margin     = new Thickness(0, 0, 2, 0),
+                ToolTip    = "Mark as done"
+            };
+            doneBtn.Click += (_, _) =>
+            {
+                capturedItem.Progress    = 100;
+                capturedItem.Status      = ItemStatus.Done;
+                capturedItem.CompletedBy = "User";
+                capturedItem.CompletedAt = DateTime.UtcNow;
+                UpdateMilestoneStatus(capturedMs);
+                SaveRoadmap();
+                BuildRoadmapContent();
+            };
+            btns.Children.Add(doneBtn);
+        }
+
+        var delBtn = new Button
+        {
+            Content    = "🗑",
+            Style      = btnStyle,
+            Background = Brushes.Transparent,
+            Foreground = subtextBrush,
+            FontSize   = 12,
+            Padding    = new Thickness(6, 3, 6, 3),
+            ToolTip    = "Delete item"
+        };
+        delBtn.Click += (_, _) =>
+        {
+            capturedMs.Items.Remove(capturedItem);
+            UpdateMilestoneStatus(capturedMs);
+            SaveRoadmap();
+            BuildRoadmapContent();
+        };
+        btns.Children.Add(delBtn);
+
+        Grid.SetColumn(iconTb,  0);
+        Grid.SetColumn(idBorder, 1);
+        Grid.SetColumn(titleTb, 2);
+        Grid.SetColumn(pb,      3);
+        Grid.SetColumn(pctTb,   4);
+        Grid.SetColumn(btns,    5);
+        rowGrid.Children.Add(iconTb);
+        rowGrid.Children.Add(idBorder);
+        rowGrid.Children.Add(titleTb);
+        rowGrid.Children.Add(pb);
+        rowGrid.Children.Add(pctTb);
+        rowGrid.Children.Add(btns);
+
+        return new Border { Padding = new Thickness(14, 8, 10, 8), Child = rowGrid };
+    }
+
+    // ── Roadmap dialogs ───────────────────────────────────────────────────
+
+    private (string title, string desc)? ShowMilestoneDialog(
+        string title = "", string desc = "")
+    {
+        var isEdit    = !string.IsNullOrEmpty(title);
+        var bgBrush   = (Brush)FindResource("SidebarBrush");
+        var textBrush = (Brush)FindResource("TextBrush");
+        var inputBrush= (Brush)FindResource("InputBrush");
+        var claudeBrush=(Brush)FindResource("ClaudeBrush");
+        var btnStyle  = (Style)FindResource("ModernButton");
+
+        (string, string)? result = null;
+
+        var dlg = new Window
+        {
+            Title                 = isEdit ? "Edit Milestone" : "Add Milestone",
+            Width                 = 420,
+            Height                = 210,
+            Owner                 = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode            = ResizeMode.NoResize,
+            ShowInTaskbar         = false,
+            Background            = bgBrush
+        };
+
+        var titleBox = new TextBox
+        {
+            Text                     = title,
+            FontSize                 = 13,
+            FontFamily               = new FontFamily("Segoe UI"),
+            Margin                   = new Thickness(16, 0, 16, 8),
+            Height                   = 36,
+            Padding                  = new Thickness(10, 0, 0, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            BorderThickness          = new Thickness(0),
+            Background               = inputBrush,
+            Foreground               = textBrush,
+            CaretBrush               = textBrush
+        };
+
+        var descBox = new TextBox
+        {
+            Text                     = desc,
+            FontSize                 = 12,
+            FontFamily               = new FontFamily("Segoe UI"),
+            Margin                   = new Thickness(16, 0, 16, 12),
+            Height                   = 32,
+            Padding                  = new Thickness(10, 0, 0, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            BorderThickness          = new Thickness(0),
+            Background               = inputBrush,
+            Foreground               = textBrush,
+            CaretBrush               = textBrush
+        };
+
+        var okBtn = new Button
+        {
+            Content    = isEdit ? "Save" : "Add",
+            IsDefault  = true,
+            Height     = 34,
+            Margin     = new Thickness(16, 0, 8, 16),
+            Style      = btnStyle,
+            Background = claudeBrush,
+            Foreground = (Brush)FindResource("SidebarBrush")
+        };
+        okBtn.Click += (_, _) =>
+        {
+            if (string.IsNullOrWhiteSpace(titleBox.Text)) return;
+            result = (titleBox.Text.Trim(), descBox.Text.Trim());
+            dlg.Close();
+        };
+
+        var cancelBtn = new Button
+        {
+            Content    = "Cancel",
+            IsCancel   = true,
+            Height     = 34,
+            Margin     = new Thickness(0, 0, 16, 16),
+            Style      = btnStyle,
+            Background = inputBrush,
+            Foreground = textBrush
+        };
+        cancelBtn.Click += (_, _) => dlg.Close();
+
+        var btnRow = new StackPanel
+        {
+            Orientation         = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        btnRow.Children.Add(okBtn);
+        btnRow.Children.Add(cancelBtn);
+
+        MakeDialogLabel("Title", textBrush, out var titleLbl);
+        MakeDialogLabel("Description (optional)", textBrush, out var descLbl);
+
+        var panel = new StackPanel();
+        panel.Children.Add(titleLbl);
+        panel.Children.Add(titleBox);
+        panel.Children.Add(descLbl);
+        panel.Children.Add(descBox);
+        panel.Children.Add(btnRow);
+        dlg.Content = panel;
+
+        dlg.Loaded += (_, _) => { titleBox.Focus(); titleBox.SelectAll(); };
+        dlg.ShowDialog();
+        return result;
+    }
+
+    private (string title, string desc, int progress)? ShowItemDialog(
+        string title = "", string desc = "", int progress = 0)
+    {
+        var isEdit     = !string.IsNullOrEmpty(title);
+        var bgBrush    = (Brush)FindResource("SidebarBrush");
+        var textBrush  = (Brush)FindResource("TextBrush");
+        var subtextBrush=(Brush)FindResource("SubtextBrush");
+        var inputBrush = (Brush)FindResource("InputBrush");
+        var claudeBrush= (Brush)FindResource("ClaudeBrush");
+        var accentBrush= (Brush)FindResource("AccentBrush");
+        var btnStyle   = (Style)FindResource("ModernButton");
+
+        (string, string, int)? result = null;
+
+        var dlg = new Window
+        {
+            Title                 = isEdit ? "Edit Item" : "Add Item",
+            Width                 = 420,
+            Height                = 280,
+            Owner                 = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode            = ResizeMode.NoResize,
+            ShowInTaskbar         = false,
+            Background            = bgBrush
+        };
+
+        var titleBox = new TextBox
+        {
+            Text                     = title,
+            FontSize                 = 13,
+            FontFamily               = new FontFamily("Segoe UI"),
+            Margin                   = new Thickness(16, 0, 16, 8),
+            Height                   = 36,
+            Padding                  = new Thickness(10, 0, 0, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            BorderThickness          = new Thickness(0),
+            Background               = inputBrush,
+            Foreground               = textBrush,
+            CaretBrush               = textBrush
+        };
+
+        var descBox = new TextBox
+        {
+            Text                     = desc,
+            FontSize                 = 12,
+            FontFamily               = new FontFamily("Segoe UI"),
+            Margin                   = new Thickness(16, 0, 16, 10),
+            Height                   = 32,
+            Padding                  = new Thickness(10, 0, 0, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            BorderThickness          = new Thickness(0),
+            Background               = inputBrush,
+            Foreground               = textBrush,
+            CaretBrush               = textBrush
+        };
+
+        var pctLabel = new TextBlock
+        {
+            Text       = $"Initial progress: {progress}%",
+            FontSize   = 12,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = subtextBrush,
+            Margin     = new Thickness(16, 0, 16, 2)
+        };
+
+        var slider = new Slider
+        {
+            Minimum             = 0,
+            Maximum             = 100,
+            Value               = progress,
+            TickFrequency       = 10,
+            IsSnapToTickEnabled = false,
+            Margin              = new Thickness(16, 0, 16, 12)
+        };
+        slider.ValueChanged += (_, e) =>
+            pctLabel.Text = $"Initial progress: {(int)e.NewValue}%";
+
+        var okBtn = new Button
+        {
+            Content    = isEdit ? "Save" : "Add",
+            IsDefault  = true,
+            Height     = 34,
+            Margin     = new Thickness(16, 0, 8, 16),
+            Style      = btnStyle,
+            Background = claudeBrush,
+            Foreground = (Brush)FindResource("SidebarBrush")
+        };
+        okBtn.Click += (_, _) =>
+        {
+            if (string.IsNullOrWhiteSpace(titleBox.Text)) return;
+            result = (titleBox.Text.Trim(), descBox.Text.Trim(), (int)slider.Value);
+            dlg.Close();
+        };
+
+        var cancelBtn = new Button
+        {
+            Content    = "Cancel",
+            IsCancel   = true,
+            Height     = 34,
+            Margin     = new Thickness(0, 0, 16, 16),
+            Style      = btnStyle,
+            Background = inputBrush,
+            Foreground = textBrush
+        };
+        cancelBtn.Click += (_, _) => dlg.Close();
+
+        var btnRow = new StackPanel
+        {
+            Orientation         = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        btnRow.Children.Add(okBtn);
+        btnRow.Children.Add(cancelBtn);
+
+        MakeDialogLabel("Title", textBrush, out var titleLbl);
+        MakeDialogLabel("Description (optional)", textBrush, out var descLbl);
+
+        var panel = new StackPanel();
+        panel.Children.Add(titleLbl);
+        panel.Children.Add(titleBox);
+        panel.Children.Add(descLbl);
+        panel.Children.Add(descBox);
+        panel.Children.Add(pctLabel);
+        panel.Children.Add(slider);
+        panel.Children.Add(btnRow);
+        dlg.Content = panel;
+
+        dlg.Loaded += (_, _) => { titleBox.Focus(); titleBox.SelectAll(); };
+        dlg.ShowDialog();
+        return result;
+    }
+
+    private int? ShowProgressSliderDialog(int currentValue)
+    {
+        var bgBrush    = (Brush)FindResource("SidebarBrush");
+        var textBrush  = (Brush)FindResource("TextBrush");
+        var subtextBrush=(Brush)FindResource("SubtextBrush");
+        var inputBrush = (Brush)FindResource("InputBrush");
+        var accentBrush= (Brush)FindResource("AccentBrush");
+        var btnStyle   = (Style)FindResource("ModernButton");
+
+        int? result = null;
+
+        var dlg = new Window
+        {
+            Title                 = "Set Progress",
+            Width                 = 360,
+            Height                = 195,
+            Owner                 = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode            = ResizeMode.NoResize,
+            ShowInTaskbar         = false,
+            Background            = bgBrush
+        };
+
+        var pctTb = new TextBlock
+        {
+            Text                = $"{currentValue}%",
+            FontSize            = 24,
+            FontWeight          = FontWeights.SemiBold,
+            FontFamily          = new FontFamily("Segoe UI"),
+            Foreground          = accentBrush,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin              = new Thickness(16, 16, 16, 4)
+        };
+
+        var slider = new Slider
+        {
+            Minimum             = 0,
+            Maximum             = 100,
+            Value               = currentValue,
+            TickFrequency       = 10,
+            IsSnapToTickEnabled = false,
+            Margin              = new Thickness(16, 0, 16, 16)
+        };
+        slider.ValueChanged += (_, e) => pctTb.Text = $"{(int)e.NewValue}%";
+
+        var okBtn = new Button
+        {
+            Content    = "Set",
+            IsDefault  = true,
+            Height     = 34,
+            Margin     = new Thickness(16, 0, 8, 16),
+            Style      = btnStyle,
+            Background = accentBrush,
+            Foreground = bgBrush
+        };
+        okBtn.Click += (_, _) => { result = (int)slider.Value; dlg.Close(); };
+
+        var cancelBtn = new Button
+        {
+            Content    = "Cancel",
+            IsCancel   = true,
+            Height     = 34,
+            Margin     = new Thickness(0, 0, 16, 16),
+            Style      = btnStyle,
+            Background = inputBrush,
+            Foreground = textBrush
+        };
+        cancelBtn.Click += (_, _) => dlg.Close();
+
+        var btnRow = new StackPanel
+        {
+            Orientation         = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        btnRow.Children.Add(okBtn);
+        btnRow.Children.Add(cancelBtn);
+
+        var panel = new StackPanel();
+        panel.Children.Add(pctTb);
+        panel.Children.Add(slider);
+        panel.Children.Add(btnRow);
+        dlg.Content = panel;
+
+        dlg.Loaded += (_, _) => slider.Focus();
+        dlg.ShowDialog();
+        return result;
+    }
+
+    private static void MakeDialogLabel(string text, Brush fg, out TextBlock lbl)
+    {
+        lbl = new TextBlock
+        {
+            Text       = text,
+            FontSize   = 12,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = fg,
+            Margin     = new Thickness(16, 12, 16, 4)
+        };
+    }
+
+    // ── Roadmap helpers ───────────────────────────────────────────────────
+
+    private void SaveRoadmap()
+    {
+        if (_currentRoadmap is not null && _currentProjectFolder is not null)
+            RoadmapService.Save(_currentProjectFolder, _currentRoadmap);
+    }
+
+    private static void UpdateMilestoneStatus(RoadmapMilestone ms)
+    {
+        if (ms.Items.Count == 0) { ms.Status = ItemStatus.Todo; return; }
+        if (ms.Items.All(i => i.Status == ItemStatus.Done))
+        {
+            ms.Status      = ItemStatus.Done;
+            ms.CompletedAt ??= DateTime.UtcNow;
+        }
+        else if (ms.Items.Any(i => i.Status != ItemStatus.Todo))
+        {
+            ms.Status      = ItemStatus.InProgress;
+            ms.CompletedAt = null;
+        }
+        else
+        {
+            ms.Status      = ItemStatus.Todo;
+            ms.CompletedAt = null;
+        }
+    }
+
+    /// <summary>
+    /// Scans an AI response for [ROADMAP:update:id:N] and (coordinator only)
+    /// [ROADMAP:complete:id] tags, applies them to the current roadmap,
+    /// saves, and returns the text with all tags stripped.
+    /// </summary>
+    private string ApplyRoadmapCommands(string text, string sender, bool isCoordinator)
+    {
+        if (_currentRoadmap is null) return text;
+
+        bool changed = false;
+
+        // [ROADMAP:update:xxxxxxxx:N]
+        text = RoadmapUpdateRx.Replace(text, m =>
+        {
+            var id       = m.Groups[1].Value.ToLowerInvariant();
+            var progress = Math.Clamp(int.Parse(m.Groups[2].Value), 0, 100);
+            var item     = _currentRoadmap.Milestones
+                               .SelectMany(ms => ms.Items)
+                               .FirstOrDefault(i => i.Id == id);
+            if (item is not null)
+            {
+                item.Progress = progress;
+                item.Status   = progress >= 100 ? ItemStatus.Done
+                              : progress > 0    ? ItemStatus.InProgress
+                              : ItemStatus.Todo;
+                var parent = _currentRoadmap.Milestones.First(ms => ms.Items.Contains(item));
+                UpdateMilestoneStatus(parent);
+                changed = true;
+            }
+            return "";
+        });
+
+        // [ROADMAP:complete:xxxxxxxx]  — coordinator only
+        if (isCoordinator)
+        {
+            text = RoadmapCompleteRx.Replace(text, m =>
+            {
+                var id   = m.Groups[1].Value.ToLowerInvariant();
+                var item = _currentRoadmap.Milestones
+                               .SelectMany(ms => ms.Items)
+                               .FirstOrDefault(i => i.Id == id);
+                if (item is not null)
+                {
+                    item.Progress    = 100;
+                    item.Status      = ItemStatus.Done;
+                    item.CompletedBy = sender;
+                    item.CompletedAt = DateTime.UtcNow;
+                    var parent = _currentRoadmap.Milestones.First(ms => ms.Items.Contains(item));
+                    UpdateMilestoneStatus(parent);
+                    changed = true;
+                }
+                return "";
+            });
+        }
+
+        if (changed)
+        {
+            SaveRoadmap();
+            if (RoadmapContent.Visibility == Visibility.Visible)
+                BuildRoadmapContent();
+        }
+
+        return text.Trim();
+    }
+
+    private static readonly Regex RoadmapUpdateRx =
+        new(@"\[ROADMAP:update:([0-9a-f]{8}):(\d{1,3})\]",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex RoadmapCompleteRx =
+        new(@"\[ROADMAP:complete:([0-9a-f]{8})\]",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Returns roadmap context text for injection into AI system prompts.
+    /// Empty string if no project is open or the roadmap is empty.
+    /// </summary>
+    private string BuildRoadmapContext(ProjectParticipantRole? role)
+    {
+        if (_currentRoadmap is null || _currentRoadmap.Milestones.Count == 0) return "";
+        return RoadmapService.GetContextText(_currentRoadmap, role?.IsCoordinator == true);
     }
 
     private void WorldButton_Click(object sender, RoutedEventArgs e)
@@ -3344,6 +4330,16 @@ public partial class MainWindow : Window
             var ollamaFinalText = _currentProjectFolder is not null
                 ? ProcessAIFileOperationTags(sb.ToString(), display, _currentProjectFolder)
                 : sb.ToString();
+
+            // ── Roadmap commands ──────────────────────────────────────────
+            if (_currentRoadmap is not null)
+            {
+                var myRole = _projectSettings?.Get("Ollama", modelName);
+                var cleaned = ApplyRoadmapCommands(ollamaFinalText, display, myRole?.IsCoordinator == true);
+                if (cleaned != ollamaFinalText) ollamaFinalText = cleaned;
+            }
+            // ─────────────────────────────────────────────────────────────
+
             if (ollamaFinalText != sb.ToString()) bubble.Content.Text = ollamaFinalText;
 
             // If the model decided it has nothing new to add, remove its bubble silently
@@ -3428,6 +4424,16 @@ public partial class MainWindow : Window
             var cloudFinalText = _currentProjectFolder is not null
                 ? ProcessAIFileOperationTags(sb.ToString(), display, _currentProjectFolder)
                 : sb.ToString();
+
+            // ── Roadmap commands ──────────────────────────────────────────
+            if (_currentRoadmap is not null)
+            {
+                var myRole  = _projectSettings?.Get(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel);
+                var cleaned = ApplyRoadmapCommands(cloudFinalText, display, myRole?.IsCoordinator == true);
+                if (cleaned != cloudFinalText) cloudFinalText = cleaned;
+            }
+            // ─────────────────────────────────────────────────────────────
+
             if (cloudFinalText != sb.ToString()) bubble.Content.Text = cloudFinalText;
 
             // If the model decided it has nothing new to add, remove its bubble silently
@@ -3495,7 +4501,8 @@ public partial class MainWindow : Window
                 BuildLanguageInstruction(_projectLanguage) +
                 BuildInputFilesContext(_currentProjectFolder) +
                 BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage) +
-                BuildFileOperationInstruction(_currentProjectFolder))
+                BuildFileOperationInstruction(_currentProjectFolder) +
+                BuildRoadmapContext(myRole))
         };
 
         foreach (var msg in _sharedHistory)
@@ -3542,7 +4549,8 @@ public partial class MainWindow : Window
             BuildLanguageInstruction(_projectLanguage) +
             BuildInputFilesContext(_currentProjectFolder) +
             BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage) +
-            BuildFileOperationInstruction(_currentProjectFolder);
+            BuildFileOperationInstruction(_currentProjectFolder) +
+            BuildRoadmapContext(myRole);
 
         var history = new List<CloudAIMessage>();
         foreach (var msg in _sharedHistory)

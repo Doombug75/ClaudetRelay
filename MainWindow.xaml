@@ -445,6 +445,9 @@
                 <StackPanel x:Name="ChatPanel"/>
             </ScrollViewer>
 
+            <!-- Roadmap panel (shown when RoadmapButton is active) -->
+            <Grid x:Name="RoadmapContent" Grid.Row="2" Visibility="Collapsed"/>
+
             <!-- Projects panel (hidden in Chat mode) -->
             <Grid x:Name="ProjectsContent" Grid.Row="2" Visibility="Collapsed">
                 <Grid.RowDefinitions>
