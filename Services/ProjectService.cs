@@ -77,6 +77,12 @@ public class ProjectSettings
     public OrchestrationMode            OrchestrationMode { get; set; } = OrchestrationMode.AllRespond;
     public List<ProjectParticipantRole> Roles             { get; set; } = [];
 
+    /// <summary>
+    /// Language all AI participants must use in this project.
+    /// Empty string = follow the conversation language (model default).
+    /// </summary>
+    public string Language { get; set; } = "";
+
     /// <summary>Looks up the role for a participant by provider + model (case-insensitive).</summary>
     public ProjectParticipantRole GetOrCreate(string provider, string model, string displayName)
     {

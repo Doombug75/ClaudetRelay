@@ -126,6 +126,7 @@ public partial class MainWindow : Window
     private string                               _userName              = "You";
     private int                                  _toneLevel             = 50;
     private bool                                 _mockingbirdMode       = false;
+    private string                               _projectLanguage       = "";
 
     // ── Project state ──────────────────────────────────────────────────────
     private string?       _currentProjectFolder;
@@ -476,6 +477,7 @@ public partial class MainWindow : Window
         // Store project state
         _currentProjectFolder = projFolder;
         _currentProject       = meta;
+        _projectLanguage      = ProjectService.LoadProjectSettings(projFolder).Language;
 
         // Update header
         ChatHeaderTitle.Text              = meta.ProjectName;
@@ -498,6 +500,7 @@ public partial class MainWindow : Window
     {
         _currentProjectFolder            = null;
         _currentProject                  = null;
+        _projectLanguage                 = "";
         ChatHeaderTitle.Text             = "Chat";
         ProjectSettingsButton.Visibility = Visibility.Collapsed;
     }
@@ -706,6 +709,48 @@ public partial class MainWindow : Window
         modeStack.Children.Add(radioCoordFirst);
         modeStack.Children.Add(radioCoordSum);
         root.Children.Add(modeStack);
+
+        // ── Language ───────────────────────────────────────────────────────
+        var langLabel = new TextBlock
+        {
+            Text       = "RESPONSE LANGUAGE",
+            FontSize   = 11, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(0, 0, 0, 6),
+            Foreground = (Brush)FindResource("SubtextBrush")
+        };
+
+        var langCombo = new ComboBox
+        {
+            IsEditable            = true,
+            Text                  = ps.Language,
+            FontSize              = 13,
+            FontFamily            = new FontFamily("Segoe UI"),
+            Margin                = new Thickness(0, 0, 0, 6),
+            ToolTip               = "Leave empty to let the model follow the conversation language"
+        };
+        foreach (var lang in new[]
+        {
+            "", "English", "Deutsch", "Français", "Español", "Italiano",
+            "Português", "Nederlands", "Polski", "Русский", "日本語", "中文"
+        })
+        {
+            var item = new ComboBoxItem { Content = lang };
+            langCombo.Items.Add(item);
+            if (lang == ps.Language) langCombo.SelectedItem = item;
+        }
+
+        var langHint = new TextBlock
+        {
+            Text       = "Empty = follow the conversation language",
+            FontSize   = 11, FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(0, 0, 0, 16),
+            Foreground = (Brush)FindResource("SubtextBrush")
+        };
+
+        root.Children.Add(langLabel);
+        root.Children.Add(langCombo);
+        root.Children.Add(langHint);
 
         // ── Separator ──────────────────────────────────────────────────────
         var sep = new Rectangle
@@ -960,12 +1005,20 @@ public partial class MainWindow : Window
                                  : radioCoordSum  .IsChecked == true ? OrchestrationMode.CoordinatorSummarizes
                                  : OrchestrationMode.AllRespond;
 
+            // Collect language
+            ps.Language = langCombo.Text.Trim();
+
             // Collect roles
             ps.Roles.Clear();
             foreach (var (_, _, getRoleSnapshot) in roleRows)
                 ps.Roles.Add(getRoleSnapshot());
 
             ProjectService.SaveProjectSettings(projFolder, ps);
+
+            // Keep live field in sync if this is the currently open project
+            if (_currentProjectFolder == projFolder)
+                _projectLanguage = ps.Language;
+
             win.DialogResult = true;
         };
 
@@ -1992,6 +2045,7 @@ public partial class MainWindow : Window
                 $"Always respond as {myName}. " +
                 $"If asked who you are, say you are {myName} running {myModel}. " +
                 $"Messages from other AI participants are prefixed with their ID in square brackets." +
+                BuildLanguageInstruction(_projectLanguage) +
                 BuildInputFilesContext(_currentProjectFolder) +
                 BuildToneInstruction(_toneLevel, _mockingbirdMode))
         };
@@ -2034,6 +2088,7 @@ public partial class MainWindow : Window
             $"You are {myName} (ID: {myLabel}), running model {myModel}. " +
             $"You are participating in a relay group chat with a human user and other AI models.{othersNote} " +
             $"Always respond as {myName}. If asked who you are, identify yourself as {myName}." +
+            BuildLanguageInstruction(_projectLanguage) +
             BuildInputFilesContext(_currentProjectFolder) +
             BuildToneInstruction(_toneLevel, _mockingbirdMode);
 
@@ -2315,6 +2370,13 @@ public partial class MainWindow : Window
         bubble.Content.Text = text;
         ChatScrollViewer.ScrollToBottom();
     }
+
+    // ── Language instruction ───────────────────────────────────────────────
+
+    private static string BuildLanguageInstruction(string language) =>
+        string.IsNullOrWhiteSpace(language)
+            ? ""
+            : $"\n\nAlways respond in {language}, regardless of the language used in the conversation.";
 
     // ── INPUT file context ─────────────────────────────────────────────────
 
