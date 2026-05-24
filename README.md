@@ -5,13 +5,6 @@ A **multi-agent AI workspace** for Windows — run up to 20 AI participants from
 Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq, OpenRouter, xAI Grok) and local models via Ollama side by side. Each participant gets its own persona, tone, and role. You direct the conversation — or step back and let the agents coordinate among themselves.
 
 ---
-## Screenshots
-![Settings](Assets/Settings.png)
-![Projects](Assets/Projects.png)
-![ThemeEB](Assets/themeEB.png)
-![ThemeNW](Assets/themeNW.png)
-![ThemeNB](Assets/themeNB.png)
-
 
 ## Features
 
@@ -25,6 +18,23 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 - **Rate limiting** — per-provider RPM throttling to stay within API quotas
 - **Secure key storage** — API keys stored exclusively in Windows Credential Manager, never written to disk
 - **Themes** — 60+ themes including Catppuccin, Tokyo Night, Dracula, Gruvbox, and many custom designs
+
+---
+## Screenshots
+
+<div align="center">
+
+### Application
+<img src="Assets/Settings.png" width="45%"/>
+<img src="Assets/projects.png" width="45%"/>
+
+### Themes
+<img src="Assets/themeCN.png" width="45%"/>
+<img src="Assets/themeNW.png" width="45%"/>
+<img src="Assets/themeEB.png" width="45%"/>
+<img src="Assets/themeMB.png" width="45%"/>
+
+</div>
 
 ---
 
