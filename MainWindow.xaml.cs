@@ -2640,6 +2640,10 @@ public partial class MainWindow : Window
             AIRespondButton.IsEnabled = true;
             SendButton.IsEnabled      = true;
         }
+
+        // History compression — after all streams finish, outside the CTS scope
+        if (_currentProjectFolder is not null && !ct.IsCancellationRequested)
+            await MaybeCompressHistoryAsync(CancellationToken.None);
     }
 
     private async Task RunOllamaStreamAsync(OllamaParticipantUI ui, CancellationToken ct)
@@ -2676,7 +2680,11 @@ public partial class MainWindow : Window
                 ChatScrollViewer.ScrollToBottom();
             }
             if (firstToken) bubble.StopThinking(); // empty response
-            _sharedHistory.Add(new CloudAIMessage("assistant", sb.ToString(), avatarLabel));
+            var ollamaFinalText = _currentProjectFolder is not null
+                ? ProcessProjectPlanBlocks(sb.ToString(), display, _currentProjectFolder)
+                : sb.ToString();
+            if (ollamaFinalText != sb.ToString()) bubble.Content.Text = ollamaFinalText;
+            _sharedHistory.Add(new CloudAIMessage("assistant", ollamaFinalText, avatarLabel));
 
             AppendToProjectLog(new ChatLogEntry
             {
@@ -2689,7 +2697,7 @@ public partial class MainWindow : Window
                 AccentKey   = colorKey,
                 BubbleKey   = "OllamaBubbleBrush",
                 IsUser      = false,
-                Message     = sb.ToString()
+                Message     = ollamaFinalText
             });
         }
         catch (OperationCanceledException)
@@ -2743,7 +2751,11 @@ public partial class MainWindow : Window
                 ChatScrollViewer.ScrollToBottom();
             }
             if (firstToken) bubble.StopThinking();
-            _sharedHistory.Add(new CloudAIMessage("assistant", sb.ToString(), avatarLabel));
+            var cloudFinalText = _currentProjectFolder is not null
+                ? ProcessProjectPlanBlocks(sb.ToString(), display, _currentProjectFolder)
+                : sb.ToString();
+            if (cloudFinalText != sb.ToString()) bubble.Content.Text = cloudFinalText;
+            _sharedHistory.Add(new CloudAIMessage("assistant", cloudFinalText, avatarLabel));
 
             AppendToProjectLog(new ChatLogEntry
             {
@@ -2756,7 +2768,7 @@ public partial class MainWindow : Window
                 AccentKey   = colorKey,
                 BubbleKey   = "ClaudeBubbleBrush",
                 IsUser      = false,
-                Message     = sb.ToString()
+                Message     = cloudFinalText
             });
         }
         catch (OperationCanceledException)
@@ -2798,7 +2810,8 @@ public partial class MainWindow : Window
                 BuildRoleInstruction(myRole) +
                 BuildLanguageInstruction(_projectLanguage) +
                 BuildInputFilesContext(_currentProjectFolder) +
-                BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage))
+                BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage) +
+                BuildProjectPlanInstruction(_currentProjectFolder))
         };
 
         foreach (var msg in _sharedHistory)
@@ -2844,7 +2857,8 @@ public partial class MainWindow : Window
             BuildRoleInstruction(myRole) +
             BuildLanguageInstruction(_projectLanguage) +
             BuildInputFilesContext(_currentProjectFolder) +
-            BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage);
+            BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage) +
+            BuildProjectPlanInstruction(_currentProjectFolder);
 
         var history = new List<CloudAIMessage>();
         foreach (var msg in _sharedHistory)
@@ -3245,6 +3259,176 @@ public partial class MainWindow : Window
             < 90  => "\n\nBe friendly and supportive in your responses.",
             _     => "\n\nBe very warm, encouraging, and enthusiastic. Use positive and motivating language."
         };
+    }
+
+    // ── PROJECTPLAN write support ──────────────────────────────────────────
+
+    /// <summary>
+    /// System-prompt snippet telling participants they can write files to PROJECTPLAN.
+    /// Only injected when a project is open.
+    /// </summary>
+    private static string BuildProjectPlanInstruction(string? projectFolder)
+    {
+        if (string.IsNullOrEmpty(projectFolder)) return "";
+        return
+            "\n\nYou can write persistent content to the project's PROJECTPLAN folder " +
+            "by embedding a special block anywhere in your response:\n" +
+            "<projectplan file=\"filename.md\">\n" +
+            "File content goes here.\n" +
+            "</projectplan>\n" +
+            "Use this for project plans, task lists, meeting notes, decisions, or any " +
+            "information that should persist across the conversation. " +
+            "The file is created or overwritten automatically and a confirmation appears in the chat. " +
+            "You may write multiple blocks in one response. " +
+            "The blocks are stripped from the visible reply — only the surrounding prose remains.";
+    }
+
+    /// <summary>
+    /// Parses &lt;projectplan file="…"&gt;…&lt;/projectplan&gt; blocks in <paramref name="response"/>,
+    /// writes each to PROJECTPLAN/, shows a chat notification, and returns the
+    /// response with those blocks replaced by a compact one-liner.
+    /// Returns the original string unchanged when no project is open.
+    /// </summary>
+    private string ProcessProjectPlanBlocks(string response, string senderName, string projFolder)
+    {
+        var regex = new Regex(
+            @"<projectplan\s+file=""([^""]+)"">\s*([\s\S]*?)\s*</projectplan>",
+            RegexOptions.IgnoreCase);
+
+        return regex.Replace(response, m =>
+        {
+            // Sanitise filename
+            var raw      = m.Groups[1].Value.Trim();
+            var fileName = string.Join("_",
+                raw.Split(SysIO.Path.GetInvalidFileNameChars()))
+                .Trim('_', '.');
+            if (string.IsNullOrEmpty(fileName)) fileName = "projectplan.md";
+
+            var content = m.Groups[2].Value;
+            var relPath = SysIO.Path.Combine("PROJECTPLAN", fileName);
+
+            if (ProjectService.SafeWriteFile(projFolder, relPath, content))
+                AddSystemMessage($"📝  {senderName} → PROJECTPLAN/{fileName}");
+            else
+                AddSystemMessage($"⚠  Could not write PROJECTPLAN/{fileName} (path rejected).");
+
+            return $"*(→ PROJECTPLAN/{fileName})*";
+        });
+    }
+
+    // ── History compression ────────────────────────────────────────────────
+
+    private const int HistoryCompressThreshold = 50;  // messages before compression runs
+    private const int HistoryKeepRecent        = 16;  // most-recent messages kept verbatim
+
+    /// <summary>Returns the first active coordinator, preferring Cloud AI over Ollama
+    /// (cloud models usually have larger context windows for summarisation).</summary>
+    private (OllamaParticipantUI? Ollama, CloudAIParticipantUI? Cloud) FindActiveCoordinator()
+    {
+        if (_projectSettings is null) return (null, null);
+
+        // Cloud first
+        foreach (var ui in _cloudAIParticipants)
+        {
+            if (!ui.Data.Enabled || ui.Data.IsOnline != true) continue;
+            var role = _projectSettings.Get(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel);
+            if (role?.IsCoordinator == true && role.IsActive != false)
+                return (null, ui);
+        }
+        // Ollama fallback
+        foreach (var ui in _ollamaParticipants)
+        {
+            if (!ui.Data.Enabled || ui.Data.IsOnline != true) continue;
+            var role = _projectSettings.Get("Ollama", ui.Data.Service.CurrentModel);
+            if (role?.IsCoordinator == true && role.IsActive != false)
+                return (ui, null);
+        }
+        return (null, null);
+    }
+
+    /// <summary>
+    /// Compresses shared history via the coordinator when it exceeds the threshold.
+    /// The coordinator summarises the older messages; the summary replaces them and
+    /// is saved to PROJECTPLAN/history-summary-TIMESTAMP.md.
+    /// No-ops when no project is open, no coordinator is available, or below threshold.
+    /// </summary>
+    private async Task MaybeCompressHistoryAsync(CancellationToken ct)
+    {
+        if (_currentProjectFolder is null) return;
+        if (_sharedHistory.Count <= HistoryCompressThreshold) return;
+
+        var (coordOllama, coordCloud) = FindActiveCoordinator();
+        if (coordOllama is null && coordCloud is null)
+        {
+            // No coordinator — still trim to avoid runaway growth, but don't summarise
+            if (_sharedHistory.Count > HistoryCompressThreshold * 2)
+            {
+                _sharedHistory.RemoveRange(0, _sharedHistory.Count - HistoryKeepRecent);
+                AddSystemMessage("📋  History trimmed (no coordinator available to summarise).");
+            }
+            return;
+        }
+
+        // Build a compression request from the older messages
+        var toCompress = _sharedHistory[..^HistoryKeepRecent];
+        var recent     = _sharedHistory[^HistoryKeepRecent..].ToList();
+
+        var histText = string.Join("\n\n", toCompress.Select(m =>
+            $"[{m.Role.ToUpper()}{(m.Role == "assistant" ? $" – {m.Sender}" : "")}]\n{m.Content}"));
+
+        var prompt =
+            $"The shared conversation history has grown large and needs to be compressed. " +
+            $"Please write a comprehensive but concise summary of the following " +
+            $"{toCompress.Count} messages so they can be replaced with your summary. " +
+            $"Cover: key topics discussed, decisions made, tasks assigned or completed, " +
+            $"open questions, and any important context or facts established.\n\n" +
+            $"--- MESSAGES TO SUMMARISE ---\n{histText}\n--- END ---";
+
+        AddSystemMessage("📋  History reaching limit — coordinator is compressing…");
+
+        try
+        {
+            string summary;
+
+            if (coordCloud is not null)
+            {
+                var tempHistory = new List<CloudAIMessage> { new("user", prompt, "System") };
+                var sb = new StringBuilder();
+                await foreach (var tok in coordCloud.Data.Service.StreamAsync(tempHistory, "", ct))
+                    sb.Append(tok);
+                summary = sb.ToString().Trim();
+            }
+            else // coordOllama
+            {
+                var tempHistory = new List<OllamaChatMessage> { new("user", prompt) };
+                var sb = new StringBuilder();
+                await foreach (var tok in coordOllama!.Data.Service.StreamAsync(tempHistory, ct))
+                    sb.Append(tok);
+                summary = sb.ToString().Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(summary)) return;
+
+            // Replace history: system summary + recent messages
+            _sharedHistory.Clear();
+            _sharedHistory.Add(new CloudAIMessage("system",
+                $"[CONVERSATION SUMMARY — earlier messages compressed]\n\n{summary}", "System"));
+            _sharedHistory.AddRange(recent);
+
+            // Save summary to PROJECTPLAN
+            var stamp    = DateTime.Now.ToString("yyyy-MM-dd_HH-mm");
+            var fileName = $"history-summary-{stamp}.md";
+            var fileBody = $"# Conversation Summary\n*Compressed: {DateTime.Now:yyyy-MM-dd HH:mm}*\n\n{summary}";
+            ProjectService.SafeWriteFile(_currentProjectFolder,
+                SysIO.Path.Combine("PROJECTPLAN", fileName), fileBody);
+
+            AddSystemMessage($"📋  History compressed — summary saved to PROJECTPLAN/{fileName}");
+        }
+        catch (OperationCanceledException) { /* stream cancelled — leave history as-is */ }
+        catch (Exception ex)
+        {
+            AddSystemMessage($"⚠  History compression failed: {ex.Message}");
+        }
     }
 
     /// <summary>Creates a chat bubble. For AI responses the bubble starts with a thinking
