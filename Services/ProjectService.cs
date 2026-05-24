@@ -245,27 +245,21 @@ public static class ProjectService
 
     /// <summary>
     /// Maximum number of entries per chatlog segment file.
-    /// When chatlog.json reaches this count it is rotated to chatlog-N.json
-    /// and a fresh chatlog.json is started.
+    /// When chatlog.json reaches this count it is rotated to
+    /// chatlog-yyyy-MM-dd_HHmmss.json and a fresh chatlog.json is started.
     /// </summary>
     public const int ChatLogMaxEntries = 500;
 
     /// <summary>
     /// Returns all chatlog segment files in chronological order:
-    /// chatlog-1.json, chatlog-2.json, …, chatlog.json (current).
+    /// chatlog-yyyy-MM-dd_HHmmss.json (archived, oldest first), chatlog.json (current).
+    /// ISO-format filenames sort lexicographically = chronologically.
     /// </summary>
     private static IEnumerable<string> GetChatLogFiles(string projectFolder)
     {
-        var prefix   = "chatlog-";
         var archived = Directory.Exists(projectFolder)
             ? Directory.GetFiles(projectFolder, "chatlog-*.json")
-                .Select(f => (Path: f,
-                              Idx : int.TryParse(
-                                        Path.GetFileNameWithoutExtension(f)[prefix.Length..],
-                                        out int n) ? n : -1))
-                .Where(t => t.Idx >= 1)
-                .OrderBy(t => t.Idx)
-                .Select(t => t.Path)
+                .OrderBy(f => Path.GetFileName(f), StringComparer.Ordinal)
             : Enumerable.Empty<string>();
 
         var current = Path.Combine(projectFolder, "chatlog.json");
@@ -323,11 +317,16 @@ public static class ProjectService
             catch { current = []; }
         }
 
-        // Rotate when full
+        // Rotate when full — stamp with the current local time so the filename
+        // is both human-readable and lexicographically chronological.
         if (current.Count >= ChatLogMaxEntries)
         {
-            var nextIdx  = GetNextArchiveIndex(projectFolder);
-            File.Move(currentPath, Path.Combine(projectFolder, $"chatlog-{nextIdx}.json"));
+            var stamp    = DateTime.Now.ToString("yyyy-MM-dd_HHmmss");
+            var archPath = Path.Combine(projectFolder, $"chatlog-{stamp}.json");
+            // Guard against a collision if two rotations happen within the same second
+            if (File.Exists(archPath))
+                archPath = Path.Combine(projectFolder, $"chatlog-{stamp}-1.json");
+            File.Move(currentPath, archPath);
             current = [];
         }
 
@@ -336,18 +335,6 @@ public static class ProjectService
     }
 
     /// <summary>Returns the next available chatlog archive index (1-based).</summary>
-    private static int GetNextArchiveIndex(string projectFolder)
-    {
-        var prefix = "chatlog-";
-        return Directory.GetFiles(projectFolder, "chatlog-*.json")
-            .Select(f => {
-                var stem = Path.GetFileNameWithoutExtension(f);
-                return int.TryParse(stem[prefix.Length..], out int n) ? n : 0;
-            })
-            .DefaultIfEmpty(0)
-            .Max() + 1;
-    }
-
     // ── Create / Delete ────────────────────────────────────────────────────
 
     /// <summary>Creates a new project subfolder and writes project.json. Returns the folder path.</summary>
