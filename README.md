@@ -22,30 +22,19 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 ---
 ## Screenshots
 
-<div align="center">
-
 ### Application
-<img src="Assets/Settings.png" width="45%"/>
-<img src="Assets/projects.png" width="45%"/>
+| Settings | Projects |
+|----------|----------|
+| ![Settings](Assets/Settings.png) | ![Projects](Assets/projects.png) |
 
 ### Themes
-<p>
-<img src="Assets/themeCN.png" width="45%"/>
-<br/><em>Cosmic Noir</em>
-&nbsp;&nbsp;&nbsp;&nbsp;
-<img src="Assets/themeNW.png" width="45%"/>
-<br/><em>Neon Warp</em>
-</p>
+| Cosmic Noir | Neon Warp |
+|-------------|-----------|
+| ![Cosmic Noir](Assets/themeCN.png) | ![Neon Warp](Assets/themeNW.png) |
 
-<p>
-<img src="Assets/themeEB.png" width="45%"/>
-<br/><em>Emergency Breach Terminal</em>
-&nbsp;&nbsp;&nbsp;&nbsp;
-<img src="Assets/themeMB.png" width="45%"/>
-<br/><em>Meadow Bloom</em>
-</p>
-
-</div>
+| Emergency Breach Terminal | Meadow Bloom |
+|---------------------------|--------------|
+| ![Emergency Breach Terminal](Assets/themeEB.png) | ![Meadow Bloom](Assets/themeMB.png) |
 
 ---
 
