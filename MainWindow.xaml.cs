@@ -779,11 +779,11 @@ public partial class MainWindow : Window
             TextAlignment     = TextAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             Margin            = new Thickness(0, 0, 10, 0),
+            Foreground        = (Brush)FindResource("TextBrush"),
+            Background        = (Brush)FindResource("InputBrush"),
+            BorderBrush       = (Brush)FindResource("InputBrush"),
             ToolTip           = "Positive integer. 1 = only respond to user (no AI-to-AI chaining)."
         };
-        depthBox.SetResourceReference(TextBox.ForegroundProperty,   "TextBrush");
-        depthBox.SetResourceReference(TextBox.BackgroundProperty,   "InputBrush");
-        depthBox.SetResourceReference(TextBox.BorderBrushProperty,  "InputBrush");
         // Allow only digits
         depthBox.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsDigit);
 
@@ -987,11 +987,11 @@ public partial class MainWindow : Window
                 Height           = 30,
                 VerticalContentAlignment = VerticalAlignment.Center,
                 Margin           = new Thickness(0, 0, 0, 8),
+                Foreground       = (Brush)FindResource("TextBrush"),
+                Background       = (Brush)FindResource("InputBrush"),
+                BorderBrush      = (Brush)FindResource("InputBrush"),
                 ToolTip          = "The name this participant answers as in this project. Empty = use default name."
             };
-            answerAsBox.SetResourceReference(TextBox.ForegroundProperty,  "TextBrush");
-            answerAsBox.SetResourceReference(TextBox.BackgroundProperty,  "InputBrush");
-            answerAsBox.SetResourceReference(TextBox.BorderBrushProperty, "InputBrush");
 
             // ── Role Instruction ───────────────────────────────────────────
             var roleInstrLabel = new TextBlock
@@ -1011,17 +1011,19 @@ public partial class MainWindow : Window
                 TextWrapping     = TextWrapping.Wrap,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 Margin           = new Thickness(0, 0, 0, 4),
+                Foreground       = (Brush)FindResource("TextBrush"),
+                Background       = (Brush)FindResource("InputBrush"),
+                BorderBrush      = (Brush)FindResource("InputBrush"),
+                CaretBrush       = (Brush)FindResource("TextBrush"),
                 ToolTip          = "Character description injected into the system prompt for this participant."
             };
-            roleInstrBox.SetResourceReference(TextBox.ForegroundProperty,  "TextBrush");
-            roleInstrBox.SetResourceReference(TextBox.BackgroundProperty,  "InputBrush");
-            roleInstrBox.SetResourceReference(TextBox.BorderBrushProperty, "InputBrush");
 
             var resetRoleBtn = new Button
             {
                 Content    = "↩ Reset to model standard",
                 FontSize   = 11, FontFamily = new FontFamily("Segoe UI"),
-                Height     = 26,
+                Height     = 32,
+                Padding    = new Thickness(10, 0, 10, 0),
                 HorizontalAlignment = HorizontalAlignment.Left,
                 Margin     = new Thickness(0, 0, 0, 0),
                 Style      = (Style)FindResource("ModernButton"),
