@@ -36,6 +36,8 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 |---------------------------|--------------|
 | ![Emergency Breach Terminal](Assets/themeEB.png) | ![Meadow Bloom](Assets/themeMB.png) |
 
+There's about 60 themes. Themes are in .xaml format - be very welcome to make your own.
+
 ---
 
 ## Requirements
