@@ -1008,9 +1008,9 @@ public partial class MainWindow : Window
         // Clear CO/R badges — no project is active
         RefreshParticipantBadges();
 
-        // Restore the globally configured participants
+        // Restore the globally configured participants (enabled only — skip empty disabled slots)
         var globalSettings = SettingsService.Load();
-        ReInitializeParticipantsFrom(globalSettings.Participants);
+        ReInitializeParticipantsFrom(globalSettings.Participants.Where(p => p.Enabled).ToList());
     }
 
     private void RoadmapButton_Click(object sender, RoutedEventArgs e)
@@ -4514,12 +4514,12 @@ public partial class MainWindow : Window
 
         var activeOllamas  = _ollamaParticipants
             .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true &&
-                         IsParticipantActiveInProject("Ollama", ui.Data.Service.CurrentModel) &&
+                         IsParticipantActiveInProject(ui) &&
                          !(suppressReasoners && IsReasoner(ui)))
             .ToList();
         var activeCloudAIs = _cloudAIParticipants
             .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true &&
-                         IsParticipantActiveInProject(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel) &&
+                         IsParticipantActiveInProject(ui) &&
                          !(suppressReasoners && IsReasoner(ui)))
             .ToList();
 
@@ -4781,7 +4781,7 @@ public partial class MainWindow : Window
     /// <summary>Effective display name for a participant: AnswerAsName if set, else CustomName/model name.</summary>
     private string GetEffectiveName(OllamaParticipantUI ui)
     {
-        var role = _projectSettings?.Get("Ollama", ui.Data.Service.CurrentModel);
+        var role = GetRoleForParticipant(ui);
         if (!string.IsNullOrWhiteSpace(role?.AnswerAsName)) return role.AnswerAsName;
         return string.IsNullOrEmpty(ui.Data.CustomName)
             ? FormatModelDisplayName(ui.Data.Service.CurrentModel)
@@ -4791,20 +4791,79 @@ public partial class MainWindow : Window
     /// <summary>Effective display name for a participant: AnswerAsName if set, else CustomName/model name.</summary>
     private string GetEffectiveName(CloudAIParticipantUI ui)
     {
-        var role = _projectSettings?.Get(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel);
+        var role = GetRoleForParticipant(ui);
         if (!string.IsNullOrWhiteSpace(role?.AnswerAsName)) return role.AnswerAsName;
         return string.IsNullOrEmpty(ui.Data.CustomName)
             ? FormatModelDisplayName(ui.Data.Service.CurrentModel)
             : ui.Data.CustomName;
     }
 
+    /// <summary>
+    /// Returns the project role for this Ollama participant using positional matching —
+    /// safe when multiple participants share the same model name.
+    /// </summary>
+    private ProjectParticipantRole? GetRoleForParticipant(OllamaParticipantUI ui)
+    {
+        if (_projectSettings is null) return null;
+        int idx = _ollamaParticipants.IndexOf(ui);
+        if (idx < 0) return null;
+        return ResolveRoleAtGroupIndex("Ollama", idx);
+    }
+
+    /// <summary>
+    /// Returns the project role for this Cloud AI participant using positional matching —
+    /// safe when multiple participants share the same model name.
+    /// </summary>
+    private ProjectParticipantRole? GetRoleForParticipant(CloudAIParticipantUI ui)
+    {
+        if (_projectSettings is null) return null;
+        int idx = _cloudAIParticipants.IndexOf(ui);
+        if (idx < 0) return null;
+        return ResolveRoleAtGroupIndex("Cloud", idx);
+    }
+
+    /// <summary>
+    /// Finds the <paramref name="indexInGroup"/>-th Ollama (typeGroup="Ollama") or Cloud AI
+    /// (typeGroup="Cloud") entry in the enabled settings list and returns its project role
+    /// using the same positional-first / key-based-fallback logic as the settings dialog.
+    /// </summary>
+    private ProjectParticipantRole? ResolveRoleAtGroupIndex(string typeGroup, int indexInGroup)
+    {
+        var ps      = _projectSettings!;
+        var enabled = SettingsService.Load().Participants.Where(p => p.Enabled).ToList();
+
+        int groupCount = 0;
+        for (int pi = 0; pi < enabled.Count; pi++)
+        {
+            var p        = enabled[pi];
+            bool matches = typeGroup == "Ollama" ? p.Type == "Ollama" : p.Type != "Ollama";
+            if (!matches) continue;
+
+            if (groupCount == indexInGroup)
+            {
+                // Positional-first (same as ShowProjectSettingsDialog), key-based fallback
+                ProjectParticipantRole? role = null;
+                if (pi < ps.Roles.Count)
+                {
+                    var c = ps.Roles[pi];
+                    if (string.Equals(c.Provider, p.Type,  StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(c.Model,    p.Model, StringComparison.OrdinalIgnoreCase))
+                        role = c;
+                }
+                return role ?? ps.Get(p.Type, p.Model);
+            }
+            groupCount++;
+        }
+        return null;
+    }
+
     /// <summary>Returns true when the participant is flagged as a Reasoner in the current project settings.</summary>
     private bool IsReasoner(OllamaParticipantUI ui) =>
-        _projectSettings?.Get("Ollama", ui.Data.Service.CurrentModel)?.IsReasoner == true;
+        GetRoleForParticipant(ui)?.IsReasoner == true;
 
     /// <summary>Returns true when the participant is flagged as a Reasoner in the current project settings.</summary>
     private bool IsReasoner(CloudAIParticipantUI ui) =>
-        _projectSettings?.Get(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel)?.IsReasoner == true;
+        GetRoleForParticipant(ui)?.IsReasoner == true;
 
     /// <summary>
     /// Updates the CO / R badge overlays on every sidebar participant card to reflect
@@ -4815,13 +4874,13 @@ public partial class MainWindow : Window
     {
         foreach (var ui in _ollamaParticipants)
         {
-            var role = _projectSettings?.Get("Ollama", ui.Data.Service.CurrentModel);
+            var role = GetRoleForParticipant(ui);
             ui.CoBadge.Visibility = role?.IsCoordinator == true ? Visibility.Visible : Visibility.Collapsed;
             ui.RBadge .Visibility = role?.IsReasoner    == true ? Visibility.Visible : Visibility.Collapsed;
         }
         foreach (var ui in _cloudAIParticipants)
         {
-            var role = _projectSettings?.Get(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel);
+            var role = GetRoleForParticipant(ui);
             ui.CoBadge.Visibility = role?.IsCoordinator == true ? Visibility.Visible : Visibility.Collapsed;
             ui.RBadge .Visibility = role?.IsReasoner    == true ? Visibility.Visible : Visibility.Collapsed;
         }
@@ -4905,7 +4964,7 @@ public partial class MainWindow : Window
             // ── Roadmap commands ──────────────────────────────────────────
             if (_currentRoadmap is not null)
             {
-                var myRole = _projectSettings?.Get("Ollama", modelName);
+                var myRole = GetRoleForParticipant(ui);
                 var cleaned = ApplyRoadmapCommands(ollamaFinalText, display, myRole?.IsCoordinator == true);
                 if (cleaned != ollamaFinalText) ollamaFinalText = cleaned;
             }
@@ -5012,7 +5071,7 @@ public partial class MainWindow : Window
             // ── Roadmap commands ──────────────────────────────────────────
             if (_currentRoadmap is not null)
             {
-                var myRole  = _projectSettings?.Get(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel);
+                var myRole  = GetRoleForParticipant(ui);
                 var cleaned = ApplyRoadmapCommands(cloudFinalText, display, myRole?.IsCoordinator == true);
                 if (cleaned != cloudFinalText) cloudFinalText = cleaned;
             }
@@ -5074,7 +5133,7 @@ public partial class MainWindow : Window
         var myLabel = forUi.Data.AvatarLabel;
         var myName  = forUi.Data.DisplayName;
         var myModel = forUi.Data.Service.CurrentModel;
-        var myRole  = _projectSettings?.Get("Ollama", myModel);
+        var myRole  = GetRoleForParticipant(forUi);
 
         var result = new List<OllamaChatMessage>
         {
@@ -5123,7 +5182,7 @@ public partial class MainWindow : Window
         var myName     = forUi.Data.DisplayName;
         var myModel    = forUi.Data.Service.CurrentModel;
         var myProvider = forUi.Data.Service.ProviderName;
-        var myRole     = _projectSettings?.Get(myProvider, myModel);
+        var myRole     = GetRoleForParticipant(forUi);
 
         var otherOllamas = _ollamaParticipants
             .Where(ui => ui.Data.Enabled)
@@ -5483,8 +5542,11 @@ public partial class MainWindow : Window
 
     // ── Role / character instruction ──────────────────────────────────────
 
-    private bool IsParticipantActiveInProject(string provider, string model) =>
-        _projectSettings?.Get(provider, model)?.IsActive ?? true;
+    private bool IsParticipantActiveInProject(OllamaParticipantUI   ui) =>
+        GetRoleForParticipant(ui)?.IsActive ?? true;
+
+    private bool IsParticipantActiveInProject(CloudAIParticipantUI ui) =>
+        GetRoleForParticipant(ui)?.IsActive ?? true;
 
     private static string BuildRoleInstruction(ProjectParticipantRole? role)
     {
