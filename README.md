@@ -105,17 +105,8 @@ To add your own project type, copy one of the existing `.xaml` files in `Project
 
 ---
 
-## Known Bugs
-
-| # | Description |
-|---|-------------|
-| 1 | **Reasoner role not respected in Coordinator-First mode** — Participants marked as Reasoners still respond to every user message instead of only responding when the Coordinator explicitly delegates a task to them by name. Architectural fixes have been partially applied (history filtering, coordinator system-prompt constraints) but the behaviour is not yet fully reliable. |
-
----
-
 ## Planned for Next Release
 
-- **Fix Reasoner orchestration** — Reasoners must be fully silent until the Coordinator tags them. Requires a reliable end-to-end solution: the user message must never reach a Reasoner's context, and the delegation detection / call chain must be validated across all provider paths (Ollama + Cloud AI).
 - **Theme Editor** — interactive visual editor for creating and previewing themes without editing XAML manually
 - **Project Type Editor** — visual editor for defining custom project types and system prompts
 - **Roadmap → HTML export** — render the roadmap as a shareable HTML page
