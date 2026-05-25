@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using SysIO = System.IO;
 using System.Text;
@@ -8,6 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -135,8 +137,12 @@ public partial class MainWindow : Window
     private string                               _userName              = "You";
     private int                                  _toneLevel             = 50;
     private bool                                 _mockingbirdMode       = false;
+    private double                               _chatBubbleWidthPct    = 78.0;
     private string                               _projectLanguage       = "";
     private int                                  _maxDialogDepth        = 1;
+    private bool                                 _aiDialogueEnabled     = false;
+    private int                                  _aiDialogueMaxTurns    = 10;
+    private int                                  _globalResponseLength  = 50;
     private ProjectSettings?                     _projectSettings;
 
     // ── Project state ──────────────────────────────────────────────────────
@@ -157,13 +163,23 @@ public partial class MainWindow : Window
         LoadThemesIntoComboBox();
         Loaded += async (_, _) =>
         {
+            ApplyTitleBarTheme();                    // colour the OS title bar to match the theme
+            StartClaudetteBlinkAnimation();          // draw attention to the Claudette button
             LoadProjectTypes();
             InitializeServices();
-            AddSystemMessage("Chat started  ·  configure participants in ⚙ Settings.");
+            var s = SettingsService.Load();
+            _chatBubbleWidthPct = s.ChatBubbleWidthPercent;
+            ApplyChatFont(s);                        // seed font resources before first bubble
+            UpdateChatBubbleMaxWidth();              // seed bubble-width resource
+            AddSystemMessage("Chat started  ·  configure participants in ⚙ Participant Config.");
             InputTextBox.Focus();
             await CheckAllStatusAsync();
             StartStatusTimer();
         };
+        // Recalculate bubble MaxWidth whenever the chat area resizes (e.g. window drag).
+        // ChatPanel.SizeChanged is more reliable than ChatScrollViewer.ViewportWidth,
+        // which misbehaves with HorizontalScrollBarVisibility=Disabled.
+        ChatPanel.SizeChanged += (_, _) => UpdateChatBubbleMaxWidth();
     }
 
     // ── Initialization ─────────────────────────────────────────────────────
@@ -200,13 +216,19 @@ public partial class MainWindow : Window
         if (!anyAdded)
         {
             AddOllamaParticipant(settings.OllamaModel);
-            AddSystemMessage("ℹ  No participants configured — open ⚙ Settings to set them up.");
+            AddSystemMessage("ℹ  No participants configured — open 👤 Participant Config to set them up.");
         }
 
         // User display name & tone
         _userName        = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
         _toneLevel       = settings.ToneLevel;
         _mockingbirdMode = settings.MockingbirdMode;
+
+        // AI dialogue toggle + depth
+        _aiDialogueEnabled    = settings.AiDialogueEnabled;
+        _aiDialogueMaxTurns   = Math.Clamp(settings.AiDialogueMaxTurns, 3, 100);
+        _globalResponseLength = Math.Clamp(settings.GlobalResponseLength, 0, 100);
+        UpdateAiDialogueButton();
 
         // Rate limiters
         ApplyThrottleSettings(settings);
@@ -252,9 +274,13 @@ public partial class MainWindow : Window
 
         // Re-add from settings
         var settings = SettingsService.Load();
-        _userName        = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
-        _toneLevel       = settings.ToneLevel;
-        _mockingbirdMode = settings.MockingbirdMode;
+        _userName             = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
+        _toneLevel            = settings.ToneLevel;
+        _mockingbirdMode      = settings.MockingbirdMode;
+        _aiDialogueEnabled    = settings.AiDialogueEnabled;
+        _aiDialogueMaxTurns   = Math.Clamp(settings.AiDialogueMaxTurns, 3, 100);
+        _globalResponseLength = Math.Clamp(settings.GlobalResponseLength, 0, 100);
+        UpdateAiDialogueButton();
 
         foreach (var p in settings.Participants.Where(p => p.Enabled))
         {
@@ -265,7 +291,7 @@ public partial class MainWindow : Window
         }
 
         if (_ollamaParticipants.Count == 0 && _cloudAIParticipants.Count == 0)
-            AddSystemMessage("⚠  No participants enabled — configure them in ⚙ Settings.");
+            AddSystemMessage("⚠  No participants enabled — configure them in 👤 Participant Config.");
 
         UpdateAddRemoveButtons();
         UpdateCloudAIAddRemoveButtons();
@@ -405,7 +431,7 @@ public partial class MainWindow : Window
 
     private void ActivateTab(bool chat)
     {
-        if (!chat) ShowRoadmapPanel(false);   // roadmap lives inside chat tab only
+        ShowRoadmapPanel(false);              // always collapse roadmap on any tab switch
 
         // Chat-only elements
         ChatHeader    .Visibility = chat ? Visibility.Visible   : Visibility.Collapsed;
@@ -529,6 +555,29 @@ public partial class MainWindow : Window
         if (!string.IsNullOrEmpty(participantsLabel.Text))
             infoStack.Children.Add(participantsLabel);
 
+        var cardBackupBtn = new Button
+        {
+            Content             = "💾",
+            FontSize            = 15,
+            Width               = 32,
+            Height              = 32,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment   = VerticalAlignment.Center,
+            ToolTip             = "ZIP-Backup dieses Projekts erstellen",
+            Style               = (Style)FindResource("ModernButton"),
+            Background          = (Brush)FindResource("InputBrush"),
+            Foreground          = (Brush)FindResource("SubtextBrush"),
+            Padding             = new Thickness(0),
+            Margin              = new Thickness(0, 0, 4, 0)
+        };
+        var capturedFolderForBackup = projFolder;
+        var capturedNameForBackup   = meta.ProjectName;
+        cardBackupBtn.Click += async (_, e) =>
+        {
+            e.Handled = true;
+            await CreateProjectBackupAsync(capturedFolderForBackup, capturedNameForBackup);
+        };
+
         var settingsBtn = new Button
         {
             Content           = "⚙",
@@ -552,9 +601,12 @@ public partial class MainWindow : Window
         var cardGrid = new Grid();
         cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(infoStack,   0);
-        Grid.SetColumn(settingsBtn, 1);
+        cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(infoStack,     0);
+        Grid.SetColumn(cardBackupBtn, 1);
+        Grid.SetColumn(settingsBtn,   2);
         cardGrid.Children.Add(infoStack);
+        cardGrid.Children.Add(cardBackupBtn);
         cardGrid.Children.Add(settingsBtn);
 
         var card = new Border
@@ -576,8 +628,8 @@ public partial class MainWindow : Window
 
         // ── Right-click context menu ───────────────────────────────────────
         var ctxMenu    = new ContextMenu();
-        var exportHtml = new MenuItem { Header = "📄  Export as HTML…" };
-        var exportMd   = new MenuItem { Header = "📝  Export as Markdown…" };
+        var exportHtml = new MenuItem { Header = "📄  Export Chat History as HTML…" };
+        var exportMd   = new MenuItem { Header = "📝  Export Chat History as Markdown…" };
         var browseItem = new MenuItem { Header = "📁  Browse project files…" };
 
         var capturedFolder = projFolder;
@@ -623,8 +675,12 @@ public partial class MainWindow : Window
         };
         if (dlg.ShowDialog() != true) return;
 
+        var fontSettings = SettingsService.Load();
         var content = isHtml
-            ? ExportService.GenerateHtml(meta.ProjectName, entries)
+            ? ExportService.GenerateHtml(meta.ProjectName, entries,
+                                         fontSettings.ChatFontFamily,
+                                         fontSettings.ChatFontSize,
+                                         fontSettings.ChatBubbleWidthPercent)
             : ExportService.GenerateMarkdown(meta.ProjectName, entries);
 
         SysIO.File.WriteAllText(dlg.FileName, content, System.Text.Encoding.UTF8);
@@ -659,12 +715,14 @@ public partial class MainWindow : Window
         var settings = SettingsService.Load();
         var folder   = ProjectService.ResolveFolder(settings.ProjectsFolder);
 
-        // Ask for a name; re-prompt if the name is already taken
-        string? name = null;
+        // Ask for name + description; re-prompt if the name is already taken
+        string? name        = null;
+        string  description = "";
         while (true)
         {
-            name = ShowInputDialog("New Project", "Project name:", name ?? "My Project");
-            if (string.IsNullOrWhiteSpace(name)) return; // user cancelled
+            var result = ShowNewProjectDialog(name ?? "My Project", description);
+            if (result is null) return; // user cancelled
+            (name, description) = result.Value;
 
             if (!ProjectService.ProjectNameExists(folder, name)) break;
 
@@ -682,9 +740,10 @@ public partial class MainWindow : Window
                                                        chosenType.Name,
                                                        chosenType.GetWorldFolderList());
 
-        // Update meta with current participants
+        // Update meta with current participants and description
         var meta = ProjectService.LoadMeta(projFolder)!;
         meta.Participants = BuildCurrentParticipantSnapshot();
+        meta.Description  = description;
         ProjectService.SaveMeta(projFolder, meta);
 
         RefreshProjectList();
@@ -722,6 +781,7 @@ public partial class MainWindow : Window
             ShowInTaskbar         = false,
             Background            = bgBrush
         };
+        ApplyThemeToDialog(dlg);
 
         // ── Header ────────────────────────────────────────────────────────
         var header = new TextBlock
@@ -970,6 +1030,7 @@ public partial class MainWindow : Window
         ChatHeaderTitle.Text              = meta.ProjectName;
         ProjectSettingsButton.Visibility  = Visibility.Visible;
         CloseProjectButton   .Visibility  = Visibility.Visible;
+        BackupButton         .Visibility  = Visibility.Visible;
         RoadmapButton        .Visibility  = _currentProjectType.HasRoadmap
                                             ? Visibility.Visible : Visibility.Collapsed;
         WorldButton          .Visibility  = _currentProjectType.HasWorldBuilding
@@ -986,6 +1047,14 @@ public partial class MainWindow : Window
             AddSystemMessage($"Project \"{meta.ProjectName}\" — {log.Count} messages loaded.");
 
         ChatScrollViewer.ScrollToBottom();
+
+        // CoordinatorAuto: trigger the team initialization discussion on first open.
+        if (loadedPs.OrchestrationMode == OrchestrationMode.CoordinatorAuto &&
+            string.IsNullOrWhiteSpace(loadedPs.TeamPlan))
+        {
+            Dispatcher.InvokeAsync(async () => await TriggerTeamInitializationAsync(),
+                                   System.Windows.Threading.DispatcherPriority.Background);
+        }
     }
 
     private void CloseCurrentProject()
@@ -1002,6 +1071,7 @@ public partial class MainWindow : Window
         ChatHeaderTitle.Text             = "Chat";
         ProjectSettingsButton.Visibility = Visibility.Collapsed;
         CloseProjectButton   .Visibility = Visibility.Collapsed;
+        BackupButton         .Visibility = Visibility.Collapsed;
         RoadmapButton        .Visibility = Visibility.Collapsed;
         WorldButton          .Visibility = Visibility.Collapsed;
 
@@ -1739,6 +1809,7 @@ public partial class MainWindow : Window
             ShowInTaskbar         = false,
             Background            = bgBrush
         };
+        ApplyThemeToDialog(dlg);
 
         // Title input
         var titleBox = new TextBox
@@ -1877,6 +1948,7 @@ public partial class MainWindow : Window
             ShowInTaskbar         = false,
             Background            = bgBrush
         };
+        ApplyThemeToDialog(dlg);
 
         // Title input
         var titleBox = new TextBox
@@ -2038,6 +2110,7 @@ public partial class MainWindow : Window
             ShowInTaskbar         = false,
             Background            = bgBrush
         };
+        ApplyThemeToDialog(dlg);
 
         var pctTb = new TextBlock
         {
@@ -2246,9 +2319,22 @@ public partial class MainWindow : Window
             MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
-    private void CloseProjectButton_Click(object sender, RoutedEventArgs e)
+    private async void CloseProjectButton_Click(object sender, RoutedEventArgs e)
     {
         if (_currentProjectFolder is null || _currentProject is null) return;
+
+        // Ask Claudette whether to make a backup — only when a backup folder is configured
+        var settings         = SettingsService.Load();
+        var backupFolderSet  = !string.IsNullOrWhiteSpace(settings.BackupFolder);
+        if (backupFolderSet)
+        {
+            var choice = ShowClaudetteBackupDialog(_currentProject.ProjectName);
+            if (choice == BackupChoice.Cancel)
+                return;                            // user changed their mind
+
+            if (choice == BackupChoice.BackupAndClose)
+                await CreateProjectBackupAsync(_currentProjectFolder!, _currentProject!.ProjectName);  // failure shows error but does not block closing
+        }
 
         // Persist last-opened timestamp before closing
         _currentProject.LastOpened = DateTime.UtcNow;
@@ -2264,6 +2350,310 @@ public partial class MainWindow : Window
         AddSystemMessage("Project closed. Start a new chat or open a project from the Projects tab.");
     }
 
+    // ── Backup ────────────────────────────────────────────────────────────────
+
+    private enum BackupChoice { BackupAndClose, CloseOnly, Cancel }
+
+    /// <summary>
+    /// Shows Claudette's backup-prompt dialog. Returns the user's choice.
+    /// </summary>
+    private BackupChoice ShowClaudetteBackupDialog(string projectName)
+    {
+        var bgBrush  = (Brush)FindResource("BackgroundBrush");
+        var result   = BackupChoice.Cancel;
+
+        var dlg = new Window
+        {
+            Title                 = "Projekt schließen",
+            Width                 = 460,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            ResizeMode            = ResizeMode.NoResize,
+            Background            = bgBrush
+        };
+        ApplyThemeToDialog(dlg);
+
+        var panel = new StackPanel { Margin = new Thickness(24, 20, 24, 24) };
+
+        // ── Header row: Claudette image + title ────────────────────────────
+        var headerGrid = new Grid { Margin = new Thickness(0, 0, 0, 16) };
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var img = new System.Windows.Controls.Image
+        {
+            Source = new System.Windows.Media.Imaging.BitmapImage(
+                new Uri("pack://application:,,,/Assets/Claudette.png")),
+            Width  = 48,
+            Height = 48,
+            Margin = new Thickness(0, 0, 14, 0),
+            VerticalAlignment = VerticalAlignment.Top
+        };
+        RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+        Grid.SetColumn(img, 0);
+
+        var textCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var titleTb = new TextBlock
+        {
+            Text         = "Backup erstellen? 🐙",
+            FontSize     = 15,
+            FontWeight   = FontWeights.SemiBold,
+            FontFamily   = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 6)
+        };
+        titleTb.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+
+        var msgTb = new TextBlock
+        {
+            Text         = $"Du schließt das Projekt \"{projectName}\". " +
+                           "Soll ich vorher ein Backup erstellen? 🐙\n\n" +
+                           "Kleiner Tipp: Halte den Projektordner schlank und lösche " +
+                           "ab und zu alte Backups — " +
+                           "ein voller Backup-Ordner ist wie ein zu enges Tentakel-Netz! 🐙💦",
+            FontSize     = 13,
+            FontFamily   = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.Wrap
+        };
+        msgTb.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        textCol.Children.Add(titleTb);
+        textCol.Children.Add(msgTb);
+        Grid.SetColumn(textCol, 1);
+
+        headerGrid.Children.Add(img);
+        headerGrid.Children.Add(textCol);
+        panel.Children.Add(headerGrid);
+
+        // ── Button row ─────────────────────────────────────────────────────
+        var btnRow = new StackPanel
+        {
+            Orientation         = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin              = new Thickness(0, 8, 0, 0)
+        };
+
+        var backupBtn = new Button
+        {
+            Content = "💾 Backup + Schließen",
+            Height  = 36,
+            Padding = new Thickness(16, 0, 16, 0),
+            Margin  = new Thickness(0, 0, 8, 0),
+            Style   = (Style)FindResource("ModernButton")
+        };
+        backupBtn.SetResourceReference(Button.BackgroundProperty, "ClaudeBrush");
+        backupBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+
+        var closeBtn = new Button
+        {
+            Content = "Schließen",
+            Height  = 36,
+            Padding = new Thickness(16, 0, 16, 0),
+            Margin  = new Thickness(0, 0, 8, 0),
+            Style   = (Style)FindResource("ModernButton")
+        };
+        closeBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+        closeBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+
+        var cancelBtn = new Button
+        {
+            Content = "Abbrechen",
+            Height  = 36,
+            Padding = new Thickness(16, 0, 16, 0),
+            Style   = (Style)FindResource("ModernButton")
+        };
+        cancelBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+        cancelBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+
+        btnRow.Children.Add(backupBtn);
+        btnRow.Children.Add(closeBtn);
+        btnRow.Children.Add(cancelBtn);
+        panel.Children.Add(btnRow);
+
+        backupBtn.Click += (_, _) => { result = BackupChoice.BackupAndClose; dlg.Close(); };
+        closeBtn .Click += (_, _) => { result = BackupChoice.CloseOnly;      dlg.Close(); };
+        cancelBtn.Click += (_, _) => { result = BackupChoice.Cancel;         dlg.Close(); };
+
+        dlg.Content = panel;
+        dlg.ShowDialog();
+        return result;
+    }
+
+    /// <summary>
+    /// Creates a ZIP backup of <paramref name="projFolder"/> into the configured backup folder.
+    /// Shows a progress window while working.
+    /// Returns true on success; shows an error dialog and returns false on failure.
+    /// </summary>
+    private async Task<bool> CreateProjectBackupAsync(string projFolder, string projectName)
+    {
+        var settings = SettingsService.Load();
+        if (string.IsNullOrWhiteSpace(settings.BackupFolder))
+        {
+            MessageBox.Show(
+                "Bitte zuerst einen Backup-Ordner unter ☰ → Folders Setup einrichten.",
+                "Kein Backup-Ordner", MessageBoxButton.OK, MessageBoxImage.Information);
+            return false;
+        }
+
+        var backupFolder = settings.BackupFolder;
+        try
+        {
+            // CreateDirectory is a no-op if the directory already exists
+            SysIO.Directory.CreateDirectory(backupFolder);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Backup-Ordner konnte nicht erstellt werden:\n{ex.Message}",
+                "Backup-Fehler", MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
+        }
+
+        var invalidChars        = SysIO.Path.GetInvalidFileNameChars();
+        var safeName            = new string(projectName
+            .Select(c => invalidChars.Contains(c) ? '_' : c).ToArray());
+        var projectBackupFolder = SysIO.Path.Combine(backupFolder, safeName);
+        var timestamp           = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+        var zipName             = $"{safeName}_{timestamp}.zip";
+        var zipPath             = SysIO.Path.Combine(projectBackupFolder, zipName);
+
+        // ── Progress window ────────────────────────────────────────────────
+        var bgBrush     = (Brush)FindResource("BackgroundBrush");
+        var progressWin = new Window
+        {
+            Title                 = "Backup wird erstellt…",
+            Width                 = 420,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            ResizeMode            = ResizeMode.NoResize,
+            Background            = bgBrush
+        };
+        ApplyThemeToDialog(progressWin);
+
+        var progressPanel = new StackPanel { Margin = new Thickness(24, 20, 24, 24) };
+
+        var progressTitle = new TextBlock
+        {
+            Text       = $"💾  {projectName}",
+            FontSize   = 13,
+            FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(0, 0, 0, 12)
+        };
+        progressTitle.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+
+        var progressBar = new ProgressBar
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Value   = 0,
+            Height  = 12,
+            Margin  = new Thickness(0, 0, 0, 8)
+        };
+
+        var pctLabel = new TextBlock
+        {
+            Text       = "0 %",
+            FontSize   = 11,
+            FontFamily = new FontFamily("Segoe UI"),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin     = new Thickness(0, 0, 0, 6)
+        };
+        pctLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        var fileLabel = new TextBlock
+        {
+            Text         = "Dateien werden eingelesen…",
+            FontSize     = 11,
+            FontFamily   = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.NoWrap,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        fileLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        progressPanel.Children.Add(progressTitle);
+        progressPanel.Children.Add(progressBar);
+        progressPanel.Children.Add(pctLabel);
+        progressPanel.Children.Add(fileLabel);
+        progressWin.Content = progressPanel;
+        progressWin.Show();
+
+        // ── Progress callback (marshals to UI thread automatically) ────────
+        var progress = new Progress<(int pct, string fileName)>(update =>
+        {
+            progressBar.Value = update.pct;
+            pctLabel.Text     = $"{update.pct} %";
+            fileLabel.Text    = update.fileName;
+        });
+
+        // ── Zip file by file ───────────────────────────────────────────────
+        try
+        {
+            SysIO.Directory.CreateDirectory(projectBackupFolder);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Projektunterordner konnte nicht erstellt werden:\n{ex.Message}",
+                "Backup-Fehler", MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
+        }
+
+        try
+        {
+            await Task.Run(() =>
+            {
+                var files = SysIO.Directory.GetFiles(projFolder, "*",
+                    SysIO.SearchOption.AllDirectories);
+                var total        = Math.Max(1, files.Length);
+                int lastReported = -1;
+
+                using var archive = System.IO.Compression.ZipFile.Open(
+                    zipPath, System.IO.Compression.ZipArchiveMode.Create);
+
+                for (int i = 0; i < files.Length; i++)
+                {
+                    var relativePath = SysIO.Path.GetRelativePath(projFolder, files[i]);
+                    var entry = archive.CreateEntry(relativePath,
+                        System.IO.Compression.CompressionLevel.Optimal);
+                    using var entryStream = entry.Open();
+                    using var fileStream  = SysIO.File.OpenRead(files[i]);
+                    fileStream.CopyTo(entryStream);
+
+                    int pct = (int)((double)(i + 1) / total * 100);
+                    if (pct != lastReported)
+                    {
+                        lastReported = pct;
+                        ((IProgress<(int, string)>)progress)
+                            .Report((pct, SysIO.Path.GetFileName(files[i])));
+                    }
+                }
+            });
+
+            progressWin.Close();
+            AddSystemMessage($"✅ Backup erstellt: {zipPath}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            progressWin.Close();
+            // Delete the incomplete ZIP so it doesn't leave a corrupt file behind
+            try { if (SysIO.File.Exists(zipPath)) SysIO.File.Delete(zipPath); } catch { }
+
+            MessageBox.Show(
+                $"Backup fehlgeschlagen:\n{ex.Message}\n\n" +
+                "Die Projektdaten liegen weiterhin sicher im Projektordner.\n" +
+                "Bitte nach Fehlerbehebung das Backup manuell über den 💾-Button erstellen.",
+                "Backup-Fehler", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+    }
+
+    private async void BackupButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentProjectFolder is null || _currentProject is null) return;
+        await CreateProjectBackupAsync(_currentProjectFolder, _currentProject.ProjectName);
+    }
+
     private void RenderChatLogEntry(ChatLogEntry entry)
     {
         if (entry.SenderType == "System")
@@ -2275,7 +2665,7 @@ public partial class MainWindow : Window
         if (entry.IsUser)
             _sharedHistory.Add(new CloudAIMessage("user", entry.Message, "User"));
         else if (entry.SenderType == "AI")
-            _sharedHistory.Add(new CloudAIMessage("assistant", entry.Message, entry.AvatarLabel));
+            _sharedHistory.Add(new CloudAIMessage("assistant", entry.Message, entry.DisplayName));
 
         var bubble = AddStreamingBubble(entry.DisplayName, entry.AvatarLabel,
                                          entry.AccentKey, entry.BubbleKey, entry.IsUser);
@@ -2314,6 +2704,231 @@ public partial class MainWindow : Window
         catch { /* non-fatal */ }
     }
 
+    /// <summary>
+    /// Appends <paramref name="entry"/> to the rolling general-chat log.
+    /// Only active outside of projects. Triggers background AI summarisation
+    /// when a segment rotation occurs (every 500 entries).
+    /// </summary>
+    private void AppendToGeneralLog(ChatLogEntry entry)
+    {
+        if (_currentProjectFolder is not null) return;
+        try
+        {
+            GeneralChatLogService.AppendEntry(entry, out var displaced);
+            if (displaced is { Count: > 0 })
+                _ = SummarizeAndCompressGeneralLogAsync(displaced);
+        }
+        catch { /* non-fatal */ }
+    }
+
+    // ── General-chat log summarisation ────────────────────────────────────
+
+    private const string GeneralSummarizeSystem =
+        "You are a chat log summarizer. Summarize the provided segment of a general chat " +
+        "session concisely, preserving all key topics, decisions, and important information " +
+        "that was discussed. Write two to three short paragraphs. " +
+        "Output only the summary — no preamble, no metadata, no heading.";
+
+    private const string GeneralCompressSystem =
+        "You are a summary compressor. The following is a running log of past chat-session summaries. " +
+        "Condense it into a single compact summary that preserves all key topics, themes, decisions, " +
+        "and important information. Output only the condensed text — no headers, no preamble.";
+
+    /// <summary>Max characters in summary.md before compression is triggered.</summary>
+    private const int SummaryCompressThreshold = 3_000;
+
+    /// <summary>
+    /// Runs in the background after a segment rotation.
+    /// Picks the best available AI (Ollama with Gemma first, then other Ollama, then Cloud),
+    /// silently summarises <paramref name="displaced"/> entries, appends to summary.md,
+    /// then compresses summary.md if it has grown too large.
+    /// </summary>
+    private async Task SummarizeAndCompressGeneralLogAsync(List<ChatLogEntry> displaced)
+    {
+        try
+        {
+            // Build a readable text version of the displaced segment
+            var sb = new StringBuilder();
+            foreach (var e in displaced)
+            {
+                if (e.SenderType == "System") continue;
+                sb.AppendLine($"[{e.Timestamp:HH:mm}] {e.DisplayName}: {e.Message}");
+                sb.AppendLine();
+            }
+            var chatText = sb.ToString().Trim();
+            if (string.IsNullOrWhiteSpace(chatText)) return;
+
+            var summaryPrompt = $"Summarize this chat log segment:\n\n{chatText}";
+
+            // ── Pick summarizing service ──────────────────────────────────
+            var ollamaUi = PickSummarizingOllama();
+            var cloudUi  = ollamaUi is null
+                ? _cloudAIParticipants.FirstOrDefault(ui => ui.Data.Enabled)
+                : null;
+            if (ollamaUi is null && cloudUi is null) return;
+
+            string summary;
+            if (ollamaUi is not null)
+            {
+                // Prepend system instruction to the user turn (Ollama has no separate system arg here)
+                var hist = new List<OllamaChatMessage>
+                {
+                    new("system", GeneralSummarizeSystem),
+                    new("user",   summaryPrompt)
+                };
+                var result = new StringBuilder();
+                await foreach (var tok in ollamaUi.Data.Service.StreamAsync(hist, CancellationToken.None))
+                    result.Append(tok);
+                summary = result.ToString().Trim();
+            }
+            else
+            {
+                var hist = new List<CloudAIMessage> { new("user", summaryPrompt, "System") };
+                var result = new StringBuilder();
+                await foreach (var tok in cloudUi!.Data.Service.StreamAsync(hist, GeneralSummarizeSystem, CancellationToken.None))
+                    result.Append(tok);
+                summary = result.ToString().Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(summary)) return;
+
+            var section = $"## {DateTime.Now:yyyy-MM-dd HH:mm}\n{summary}";
+            GeneralChatLogService.AppendToSummary(section);
+
+            // ── Compress summary.md if it has grown too large ─────────────
+            var fullSummary = GeneralChatLogService.ReadSummary() ?? "";
+            if (fullSummary.Length > SummaryCompressThreshold)
+                await CompressGeneralSummaryAsync(fullSummary, ollamaUi, cloudUi);
+        }
+        catch { /* non-fatal — summarisation is best-effort */ }
+    }
+
+    /// <summary>
+    /// Replaces summary.md with a compressed version produced by an AI.
+    /// </summary>
+    private async Task CompressGeneralSummaryAsync(string currentSummary,
+        OllamaParticipantUI? ollamaUi, CloudAIParticipantUI? cloudUi)
+    {
+        try
+        {
+            var compressPrompt = $"Condense this running summary:\n\n{currentSummary}";
+
+            string compressed;
+            if (ollamaUi is not null)
+            {
+                var hist = new List<OllamaChatMessage>
+                {
+                    new("system", GeneralCompressSystem),
+                    new("user",   compressPrompt)
+                };
+                var result = new StringBuilder();
+                await foreach (var tok in ollamaUi.Data.Service.StreamAsync(hist, CancellationToken.None))
+                    result.Append(tok);
+                compressed = result.ToString().Trim();
+            }
+            else if (cloudUi is not null)
+            {
+                var hist = new List<CloudAIMessage> { new("user", compressPrompt, "System") };
+                var result = new StringBuilder();
+                await foreach (var tok in cloudUi.Data.Service.StreamAsync(hist, GeneralCompressSystem, CancellationToken.None))
+                    result.Append(tok);
+                compressed = result.ToString().Trim();
+            }
+            else return;
+
+            if (!string.IsNullOrWhiteSpace(compressed))
+                GeneralChatLogService.ReplaceSummary(
+                    $"*[Compressed {DateTime.Now:yyyy-MM-dd HH:mm}]*\n\n{compressed}");
+        }
+        catch { /* non-fatal */ }
+    }
+
+    /// <summary>
+    /// Picks the best available Ollama participant for background summarisation:
+    /// Gemma models first (faster), then any other enabled Ollama.
+    /// Returns null if no Ollama is enabled.
+    /// </summary>
+    private OllamaParticipantUI? PickSummarizingOllama()
+        => _ollamaParticipants
+            .Where(ui => ui.Data.Enabled)
+            .OrderByDescending(ui =>
+                ui.Data.Service.CurrentModel.Contains("gemma", StringComparison.OrdinalIgnoreCase) ? 2 :
+                ui.Data.Service.CurrentModel.Contains("qwen",  StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+            .FirstOrDefault();
+
+    // ── Chat export ────────────────────────────────────────────────────────
+
+    private void ExportChatButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentProjectFolder is not null && _currentProject is not null)
+        {
+            // Project is open — use the project exporter
+            var menu = new ContextMenu { PlacementTarget = ExportChatButton,
+                                         Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+            var htmlItem = new MenuItem { Header = "📄  Export as HTML…" };
+            var mdItem   = new MenuItem { Header = "📝  Export as Markdown…" };
+            var capturedFolder = _currentProjectFolder;
+            var capturedMeta   = _currentProject;
+            htmlItem.Click += (_, _) => ExportProject(capturedFolder, capturedMeta, "html");
+            mdItem.Click   += (_, _) => ExportProject(capturedFolder, capturedMeta, "md");
+            menu.Items.Add(htmlItem);
+            menu.Items.Add(mdItem);
+            menu.IsOpen = true;
+            return;
+        }
+
+        // General chat — export the rolling log
+        var entries = GeneralChatLogService.LoadRecentLog();
+        if (entries.Count == 0)
+        {
+            MessageBox.Show("No general chat history to export yet.",
+                            "Nothing to export", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var menu2 = new ContextMenu { PlacementTarget = ExportChatButton,
+                                      Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        var html2 = new MenuItem { Header = "📄  Export as HTML…" };
+        var md2   = new MenuItem { Header = "📝  Export as Markdown…" };
+        html2.Click += (_, _) => ExportGeneralChat(entries, "html");
+        md2.Click   += (_, _) => ExportGeneralChat(entries, "md");
+        menu2.Items.Add(html2);
+        menu2.Items.Add(md2);
+        menu2.IsOpen = true;
+    }
+
+    private void ExportGeneralChat(List<ChatLogEntry> entries, string format)
+    {
+        var isHtml   = format == "html";
+        var dateName = DateTime.Now.ToString("yyyy-MM-dd");
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title      = "Export General Chat",
+            FileName   = $"ClaudetRelay-Chat-{dateName}",
+            Filter     = isHtml
+                ? "HTML file (*.html)|*.html"
+                : "Markdown file (*.md)|*.md|Text file (*.txt)|*.txt",
+            DefaultExt = format
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        var fs = SettingsService.Load();
+        var content = isHtml
+            ? ExportService.GenerateHtml("General Chat", entries,
+                                          fs.ChatFontFamily, fs.ChatFontSize,
+                                          fs.ChatBubbleWidthPercent)
+            : ExportService.GenerateMarkdown("General Chat", entries);
+
+        SysIO.File.WriteAllText(dlg.FileName, content, System.Text.Encoding.UTF8);
+
+        var result = MessageBox.Show(
+            $"Exported {entries.Count} messages to\n{dlg.FileName}\n\nOpen the file now?",
+            "Export complete", MessageBoxButton.YesNo, MessageBoxImage.Information);
+        if (result == MessageBoxResult.Yes)
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true });
+    }
+
     // ── Simple input dialog ────────────────────────────────────────────────
 
     private string? ShowInputDialog(string title, string prompt, string defaultValue = "")
@@ -2331,6 +2946,7 @@ public partial class MainWindow : Window
             ShowInTaskbar         = false,
             Background            = (Brush)FindResource("SidebarBrush")
         };
+        ApplyThemeToDialog(win);
 
         var lbl = new TextBlock
         {
@@ -2400,23 +3016,731 @@ public partial class MainWindow : Window
         return result;
     }
 
-    // ── About / Version ────────────────────────────────────────────────────
+    // ── New-project dialog (name + description) ────────────────────────────
 
-    private void AboutButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Shows a dialog that collects both the project name and an optional freeform
+    /// description. Returns (Name, Description) on confirm, or null if cancelled.
+    /// </summary>
+    private (string Name, string Description)? ShowNewProjectDialog(
+        string defaultName = "My Project", string defaultDescription = "")
+    {
+        var win = new Window
+        {
+            Title                 = "New Project",
+            Width                 = 460,
+            SizeToContent         = SizeToContent.Height,
+            Owner                 = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode            = ResizeMode.NoResize,
+            ShowInTaskbar         = false,
+            Background            = (Brush)FindResource("SidebarBrush")
+        };
+        ApplyThemeToDialog(win);
+
+        Border MakeInputBorder(UIElement child) => new Border
+        {
+            Background    = (Brush)FindResource("InputBrush"),
+            CornerRadius  = new CornerRadius(8),
+            Padding       = new Thickness(0),
+            Margin        = new Thickness(0, 0, 0, 6),
+            Child         = child
+        };
+
+        TextBlock MakeLabel(string text) => new TextBlock
+        {
+            Text       = text,
+            FontSize   = 11, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("SubtextBrush"),
+            Margin     = new Thickness(0, 0, 0, 5)
+        };
+
+        TextBlock MakeHint(string text) => new TextBlock
+        {
+            Text         = text,
+            FontSize     = 11, FontFamily = new FontFamily("Segoe UI"),
+            Foreground   = (Brush)FindResource("SubtextBrush"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 16)
+        };
+
+        // ── Name field ─────────────────────────────────────────────────────
+        var nameBox = new TextBox
+        {
+            Text                     = defaultName,
+            FontSize                 = 13, FontFamily = new FontFamily("Segoe UI"),
+            Height                   = 36,
+            BorderThickness          = new Thickness(0),
+            Padding                  = new Thickness(10, 0, 0, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Background               = (Brush)FindResource("InputBrush"),
+            Foreground               = (Brush)FindResource("TextBrush"),
+            CaretBrush               = (Brush)FindResource("TextBrush"),
+            SelectionBrush           = (Brush)FindResource("ClaudeBrush")
+        };
+
+        // ── Description field ──────────────────────────────────────────────
+        var descBox = new TextBox
+        {
+            Text            = defaultDescription,
+            FontSize        = 13, FontFamily = new FontFamily("Segoe UI"),
+            Height          = 90,
+            MinHeight       = 90,
+            BorderThickness = new Thickness(0),
+            Padding         = new Thickness(10, 8, 10, 8),
+            TextWrapping    = TextWrapping.Wrap,
+            AcceptsReturn   = true,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Background      = (Brush)FindResource("InputBrush"),
+            Foreground      = (Brush)FindResource("TextBrush"),
+            CaretBrush      = (Brush)FindResource("TextBrush"),
+            SelectionBrush  = (Brush)FindResource("ClaudeBrush"),
+            ToolTip         = "Describe what this project is about. The AI participants will read this."
+        };
+
+        // ── Buttons ────────────────────────────────────────────────────────
+        var okBtn = new Button
+        {
+            Content    = "Create",
+            IsDefault  = true,
+            Height     = 34, Margin = new Thickness(0, 0, 8, 0),
+            Style      = (Style)FindResource("ModernButton"),
+            Background = (Brush)FindResource("ClaudeBrush"),
+            Foreground = (Brush)FindResource("SidebarBrush")
+        };
+        var cancelBtn = new Button
+        {
+            Content    = "Cancel",
+            IsCancel   = true,
+            Height     = 34,
+            Style      = (Style)FindResource("ModernButton"),
+            Background = (Brush)FindResource("InputBrush"),
+            Foreground = (Brush)FindResource("TextBrush")
+        };
+        var btnRow = new StackPanel
+        {
+            Orientation         = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin              = new Thickness(0, 8, 0, 0)
+        };
+        btnRow.Children.Add(okBtn);
+        btnRow.Children.Add(cancelBtn);
+
+        // ── Layout ─────────────────────────────────────────────────────────
+        var root = new StackPanel { Margin = new Thickness(20, 16, 20, 16) };
+        root.Children.Add(MakeLabel("PROJECT NAME"));
+        root.Children.Add(MakeInputBorder(nameBox));
+        root.Children.Add(MakeLabel("DESCRIPTION  (optional — shown to AI participants)"));
+        root.Children.Add(MakeInputBorder(descBox));
+        root.Children.Add(MakeHint(
+            "Tell the AI what this project is about. " +
+            "Example: \"A dark fantasy novel about a dragon who falls in love with a wizard.\" " +
+            "You can leave this blank and add it later in Project Settings."));
+        root.Children.Add(btnRow);
+        win.Content = root;
+
+        (string Name, string Description)? dialogResult = null;
+        okBtn.Click += (_, _) =>
+        {
+            var n = nameBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(n)) { nameBox.Focus(); return; }
+            dialogResult = (n, descBox.Text.Trim());
+            win.DialogResult = true;
+        };
+        win.Loaded += (_, _) => { nameBox.Focus(); nameBox.SelectAll(); };
+        win.ShowDialog();
+        return dialogResult;
+    }
+
+    // ── Options menu (⋮) ──────────────────────────────────────────────────
+
+    private void OptionsMenuButton_Click(object sender, RoutedEventArgs e)
     {
         var menu = new ContextMenu();
 
-        var infoItem    = new MenuItem { Header = "ℹ  Info" };
-        var versionItem = new MenuItem { Header = "📋  Version" };
-        infoItem   .Click += (_, _) => ShowAboutInfoDialog();
-        versionItem.Click += (_, _) => ShowAboutVersionDialog();
+        var foldersItem   = new MenuItem { Header = "📁  Folders Setup" };
+        var providersItem = new MenuItem { Header = "🔑  Providers Setup" };
+        var infoItem      = new MenuItem { Header = "ℹ  Info" };
+        var versionItem   = new MenuItem { Header = "📋  Version" };
 
+        foldersItem  .Click += (_, _) => ShowFoldersSetupDialog();
+        providersItem.Click += (_, _) => OpenProvidersSetup();
+        infoItem     .Click += (_, _) => ShowAboutInfoDialog();
+        versionItem  .Click += (_, _) => ShowAboutVersionDialog();
+
+        menu.Items.Add(foldersItem);
+        menu.Items.Add(providersItem);
+        menu.Items.Add(new Separator());
         menu.Items.Add(infoItem);
         menu.Items.Add(versionItem);
+
         menu.PlacementTarget = (Button)sender;
-        menu.Placement       = System.Windows.Controls.Primitives.PlacementMode.Top;
+        menu.Placement       = System.Windows.Controls.Primitives.PlacementMode.Bottom;
         menu.IsOpen          = true;
     }
+
+    private void OpenProvidersSetup()
+    {
+        var win = new SettingsWindow(_currentThemePath, providerModeOnly: true) { Owner = this };
+        win.SourceInitialized += (_, _) => ApplyTitleBarTheme(win);
+        if (win.ShowDialog() == true)
+        {
+            var updated = SettingsService.Load();
+            ApplyThrottleSettings(updated);
+        }
+    }
+
+    private void ShowFoldersSetupDialog()
+    {
+        var settings      = SettingsService.Load();
+        var defaultFolder = Services.ProjectService.GetDefaultProjectsFolder();
+
+        var win = new Window
+        {
+            Title                 = "Folders Setup",
+            Width                 = 480,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            ResizeMode            = ResizeMode.NoResize
+        };
+        ApplyThemeToDialog(win);
+        win.SetResourceReference(Window.BackgroundProperty, "BackgroundBrush");
+
+        var panel = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
+
+        // ── Heading ────────────────────────────────────────────────────────
+        var heading = new TextBlock
+        {
+            Text       = "PROJECTS FOLDER",
+            FontSize   = 11,
+            FontWeight = FontWeights.Bold,
+            Margin     = new Thickness(0, 0, 0, 6)
+        };
+        heading.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        // ── Folder input ───────────────────────────────────────────────────
+        var folderTb = new TextBox
+        {
+            Text            = string.IsNullOrWhiteSpace(settings.ProjectsFolder)
+                                  ? "" : settings.ProjectsFolder,
+            FontSize        = 13,
+            FontFamily      = new FontFamily("Segoe UI"),
+            BorderThickness = new Thickness(0),
+            Background      = Brushes.Transparent,
+            Padding         = new Thickness(0, 2, 0, 2)
+        };
+        folderTb.SetResourceReference(TextBox.ForegroundProperty,  "TextBrush");
+        folderTb.SetResourceReference(TextBox.CaretBrushProperty,  "TextBrush");
+        var folderBorder = new Border
+        {
+            CornerRadius = new CornerRadius(8), Height = 34,
+            Padding      = new Thickness(10, 0, 10, 0),
+            Child        = folderTb
+        };
+        folderBorder.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+
+        var browseBtn = new Button
+        {
+            Content = "📁  Browse",
+            Padding = new Thickness(12, 8, 12, 8),
+            Margin  = new Thickness(6, 0, 0, 0),
+            ToolTip = "Choose folder"
+        };
+        browseBtn.Style = (Style)FindResource("ModernButton");
+        browseBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+        browseBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        browseBtn.Click += (_, _) =>
+        {
+            var dlg = new Microsoft.Win32.OpenFolderDialog
+            {
+                Title            = "Select Projects Folder",
+                InitialDirectory = string.IsNullOrWhiteSpace(folderTb.Text) ? defaultFolder : folderTb.Text
+            };
+            if (dlg.ShowDialog(win) == true)
+                folderTb.Text = dlg.FolderName;
+        };
+
+        var defaultBtn = new Button
+        {
+            Content = "↩  Default",
+            Padding = new Thickness(12, 8, 12, 8),
+            Margin  = new Thickness(6, 0, 0, 0),
+            ToolTip = defaultFolder
+        };
+        defaultBtn.Style = (Style)FindResource("ModernButton");
+        defaultBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+        defaultBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        defaultBtn.Click += (_, _) => folderTb.Text = "";
+
+        var folderRow = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        folderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        folderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        folderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(folderBorder, 0);
+        Grid.SetColumn(browseBtn,    1);
+        Grid.SetColumn(defaultBtn,   2);
+        folderRow.Children.Add(folderBorder);
+        folderRow.Children.Add(browseBtn);
+        folderRow.Children.Add(defaultBtn);
+
+        var hint = new TextBlock
+        {
+            Text         = $"Default: {defaultFolder}",
+            FontSize     = 11,
+            FontFamily   = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 20)
+        };
+        hint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        // ── Separator ──────────────────────────────────────────────────────
+        var sep = new Rectangle
+        {
+            Height  = 1,
+            Margin  = new Thickness(0, 0, 0, 16)
+        };
+        sep.SetResourceReference(Shape.FillProperty, "InputBrush");
+
+        // ── BACKUP FOLDER ──────────────────────────────────────────────────
+        var backupHeading = new TextBlock
+        {
+            Text       = "BACKUP FOLDER",
+            FontSize   = 11,
+            FontWeight = FontWeights.Bold,
+            Margin     = new Thickness(0, 0, 0, 6)
+        };
+        backupHeading.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        var backupTb = new TextBox
+        {
+            Text            = settings.BackupFolder,
+            FontSize        = 13,
+            FontFamily      = new FontFamily("Segoe UI"),
+            BorderThickness = new Thickness(0),
+            Background      = Brushes.Transparent,
+            Padding         = new Thickness(0, 2, 0, 2)
+        };
+        backupTb.SetResourceReference(TextBox.ForegroundProperty,  "TextBrush");
+        backupTb.SetResourceReference(TextBox.CaretBrushProperty,  "TextBrush");
+        var backupBorder = new Border
+        {
+            CornerRadius = new CornerRadius(8), Height = 34,
+            Padding      = new Thickness(10, 0, 10, 0),
+            Child        = backupTb
+        };
+        backupBorder.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+
+        var backupBrowseBtn = new Button
+        {
+            Content = "📁  Browse",
+            Padding = new Thickness(12, 8, 12, 8),
+            Margin  = new Thickness(6, 0, 0, 0),
+            ToolTip = "Choose backup folder"
+        };
+        backupBrowseBtn.Style = (Style)FindResource("ModernButton");
+        backupBrowseBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+        backupBrowseBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        backupBrowseBtn.Click += (_, _) =>
+        {
+            var dlg = new Microsoft.Win32.OpenFolderDialog
+            {
+                Title            = "Select Backup Folder",
+                InitialDirectory = string.IsNullOrWhiteSpace(backupTb.Text) ? defaultFolder : backupTb.Text
+            };
+            if (dlg.ShowDialog(win) == true)
+                backupTb.Text = dlg.FolderName;
+        };
+
+        var backupClearBtn = new Button
+        {
+            Content = "✕  Clear",
+            Padding = new Thickness(12, 8, 12, 8),
+            Margin  = new Thickness(6, 0, 0, 0),
+            ToolTip = "Disable backups (no backup prompt on project close)"
+        };
+        backupClearBtn.Style = (Style)FindResource("ModernButton");
+        backupClearBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+        backupClearBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        backupClearBtn.Click += (_, _) => backupTb.Text = "";
+
+        var backupRow = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        backupRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        backupRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        backupRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(backupBorder,    0);
+        Grid.SetColumn(backupBrowseBtn, 1);
+        Grid.SetColumn(backupClearBtn,  2);
+        backupRow.Children.Add(backupBorder);
+        backupRow.Children.Add(backupBrowseBtn);
+        backupRow.Children.Add(backupClearBtn);
+
+        var backupHint = new TextBlock
+        {
+            Text         = "ZIPs of the project folder are saved here. " +
+                           "Leave empty to disable backup prompts. " +
+                           "The folder is created automatically if it does not exist.",
+            FontSize     = 11,
+            FontFamily   = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 20)
+        };
+        backupHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        // ── Save ───────────────────────────────────────────────────────────
+        var saveBtn = new Button
+        {
+            Content             = "Save",
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Padding             = new Thickness(20, 8, 20, 8)
+        };
+        saveBtn.Style = (Style)FindResource("ModernButton");
+        saveBtn.SetResourceReference(Button.BackgroundProperty, "ClaudeBrush");
+        saveBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+        saveBtn.Click += (_, _) =>
+        {
+            var s = SettingsService.Load();
+            s.ProjectsFolder = folderTb.Text.Trim();
+            s.BackupFolder   = backupTb.Text.Trim();
+            SettingsService.Save(s);
+            win.Close();
+        };
+
+        panel.Children.Add(heading);
+        panel.Children.Add(folderRow);
+        panel.Children.Add(hint);
+        panel.Children.Add(sep);
+        panel.Children.Add(backupHeading);
+        panel.Children.Add(backupRow);
+        panel.Children.Add(backupHint);
+        panel.Children.Add(saveBtn);
+
+        win.Content = panel;
+        win.ShowDialog();
+    }
+
+    // ── Chat font (Aa) ─────────────────────────────────────────────────────
+
+    /// <summary>Seeds / updates the ChatFontFamily and ChatFontSize dynamic resources.</summary>
+    private void ApplyChatFont(AppSettings settings)
+    {
+        Resources["ChatFontFamily"] = new FontFamily(settings.ChatFontFamily);
+        Resources["ChatFontSize"]   = settings.ChatFontSize;
+    }
+
+    /// <summary>
+    /// Recalculates and publishes ChatBubbleMaxWidth as a dynamic resource.
+    /// Called on startup, on window resize, and when the user changes the percentage.
+    /// </summary>
+    private void UpdateChatBubbleMaxWidth()
+    {
+        // ChatPanel.ActualWidth is the rendered width of the StackPanel inside the ScrollViewer.
+        // It already accounts for the ScrollViewer's Padding — no further subtraction needed.
+        // (Using ViewportWidth was unreliable because with HorizontalScrollBarVisibility=Disabled
+        //  WPF sets ViewportWidth = ExtentWidth which can be 0 on an empty panel.)
+        const double avatarWidth = 44.0;  // avatar border 34 px + margin 10 px
+        var panelWidth = ChatPanel.ActualWidth;
+        var available  = panelWidth > 10 ? panelWidth : 840.0;  // fallback before first layout pass
+        Resources["ChatBubbleMaxWidth"] = Math.Max(50.0, (available - avatarWidth) * (_chatBubbleWidthPct / 100.0));
+    }
+
+    // ── AI Dialogue toggle ─────────────────────────────────────────────────
+
+    private void AiDialogueButton_Click(object sender, RoutedEventArgs e)
+    {
+        _aiDialogueEnabled = !_aiDialogueEnabled;
+        UpdateAiDialogueButton();
+        var settings = SettingsService.Load();
+        settings.AiDialogueEnabled = _aiDialogueEnabled;
+        SettingsService.Save(settings);
+        AddSystemMessage(_aiDialogueEnabled
+            ? "💬  Multi-round dialogue enabled — AIs will reply to each other after the first response."
+            : "💬  Multi-round dialogue disabled — each AI responds once per message.");
+    }
+
+    /// <summary>Refreshes the 💬 button's visual state to match _aiDialogueEnabled.</summary>
+    private void UpdateAiDialogueButton()
+    {
+        if (_aiDialogueEnabled)
+        {
+            AiDialogueButton.SetResourceReference(Button.BackgroundProperty, "AccentBrush");
+            AiDialogueButton.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+        }
+        else
+        {
+            AiDialogueButton.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+            AiDialogueButton.SetResourceReference(Button.ForegroundProperty, "SubtextBrush");
+        }
+    }
+
+    // ── Chat font ──────────────────────────────────────────────────────────
+
+    private void ChatFontButton_Click(object sender, RoutedEventArgs e)
+    {
+        var settings = SettingsService.Load();
+        var allFonts = Fonts.SystemFontFamilies
+                            .Select(f => f.Source)
+                            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+
+        // ── Window ────────────────────────────────────────────────────────
+        var win = new Window
+        {
+            Title                 = "Chat Appearance",
+            Width                 = 420,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            ResizeMode            = ResizeMode.NoResize
+        };
+        ApplyThemeToDialog(win);
+        win.SetResourceReference(Window.BackgroundProperty, "BackgroundBrush");
+
+        var panel = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
+
+        // ── Helper: bordered TextBox for numeric input ─────────────────────
+        TextBox MakeNumBox(string initial, double width = 58)
+        {
+            var tb = new TextBox
+            {
+                Text            = initial,
+                Width           = width,
+                FontSize        = 13,
+                FontFamily      = new FontFamily("Segoe UI"),
+                TextAlignment   = TextAlignment.Center,
+                BorderThickness = new Thickness(0),
+                Background      = Brushes.Transparent,
+                Padding         = new Thickness(4, 2, 4, 2),
+                VerticalContentAlignment = VerticalAlignment.Center
+            };
+            tb.SetResourceReference(TextBox.ForegroundProperty,  "TextBrush");
+            tb.SetResourceReference(TextBox.CaretBrushProperty,  "TextBrush");
+            return tb;
+        }
+        Border WrapNumBox(TextBox tb)
+        {
+            var b = new Border
+            {
+                CornerRadius = new CornerRadius(6),
+                Margin       = new Thickness(8, 0, 0, 0),
+                Padding      = new Thickness(2, 0, 2, 0),
+                Height       = 28,
+                Child        = tb
+            };
+            b.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+            return b;
+        }
+        TextBlock MakeSectionLabel(string text)
+        {
+            var lbl = new TextBlock
+            {
+                Text       = text,
+                FontSize   = 12,
+                FontWeight = FontWeights.SemiBold,
+                Margin     = new Thickness(0, 0, 0, 6)
+            };
+            lbl.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+            return lbl;
+        }
+
+        // ── Font Family ───────────────────────────────────────────────────
+        panel.Children.Add(MakeSectionLabel("Font Family"));
+
+        var searchBox = new TextBox
+        {
+            Text            = "",
+            FontSize        = 13,
+            FontFamily      = new FontFamily("Segoe UI"),
+            BorderThickness = new Thickness(0),
+            Background      = Brushes.Transparent,
+            Padding         = new Thickness(0, 2, 0, 2)
+        };
+        searchBox.SetResourceReference(TextBox.ForegroundProperty, "TextBrush");
+        searchBox.SetResourceReference(TextBox.CaretBrushProperty, "TextBrush");
+        var searchBorder = new Border
+        {
+            CornerRadius = new CornerRadius(8), Height = 34,
+            Margin       = new Thickness(0, 0, 0, 6),
+            Padding      = new Thickness(10, 0, 10, 0),
+            Child        = searchBox
+        };
+        searchBorder.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+        panel.Children.Add(searchBorder);
+
+        var fontList = new ListBox
+        {
+            Height          = 150,
+            BorderThickness = new Thickness(0),
+            Margin          = new Thickness(0, 0, 0, 18)
+        };
+        fontList.SetResourceReference(ListBox.BackgroundProperty, "InputBrush");
+        fontList.SetResourceReference(ListBox.ForegroundProperty, "TextBrush");
+        panel.Children.Add(fontList);
+
+        void RefreshFontList(string filter)
+        {
+            fontList.Items.Clear();
+            foreach (var f in allFonts.Where(f => f.Contains(filter, StringComparison.OrdinalIgnoreCase)))
+                fontList.Items.Add(f);
+            var current = settings.ChatFontFamily ?? "Segoe UI";
+            fontList.SelectedItem = fontList.Items.Cast<string>()
+                .FirstOrDefault(f => f.Equals(current, StringComparison.OrdinalIgnoreCase))
+                ?? fontList.Items.Cast<string>().FirstOrDefault();
+            fontList.ScrollIntoView(fontList.SelectedItem);
+        }
+        RefreshFontList("");
+        searchBox.TextChanged += (_, _) => RefreshFontList(searchBox.Text);
+
+        // ── Font Size ─────────────────────────────────────────────────────
+        panel.Children.Add(MakeSectionLabel("Font Size  (pt)"));
+
+        var sizeTb     = MakeNumBox($"{settings.ChatFontSize:0.#}");
+        var sizeTbWrap = WrapNumBox(sizeTb);
+        var sizeSlider = new Slider
+        {
+            Minimum             = 9,
+            Maximum             = 128,
+            Value               = settings.ChatFontSize,
+            TickFrequency       = 1,
+            IsSnapToTickEnabled = false,
+            VerticalAlignment   = VerticalAlignment.Center
+        };
+        var sizeRow = new Grid { Margin = new Thickness(0, 0, 0, 18) };
+        sizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        sizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(sizeSlider, 0);
+        Grid.SetColumn(sizeTbWrap, 1);
+        sizeRow.Children.Add(sizeSlider);
+        sizeRow.Children.Add(sizeTbWrap);
+        panel.Children.Add(sizeRow);
+
+        // ── Bubble Width ──────────────────────────────────────────────────
+        panel.Children.Add(MakeSectionLabel("Bubble Width  (% of chat area)"));
+
+        var widthTb     = MakeNumBox($"{_chatBubbleWidthPct:0}");
+        var widthTbWrap = WrapNumBox(widthTb);
+        var widthSlider = new Slider
+        {
+            Minimum             = 30,
+            Maximum             = 100,
+            Value               = _chatBubbleWidthPct,
+            TickFrequency       = 1,
+            IsSnapToTickEnabled = true,
+            VerticalAlignment   = VerticalAlignment.Center
+        };
+        var widthRow = new Grid { Margin = new Thickness(0, 0, 0, 18) };
+        widthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        widthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(widthSlider, 0);
+        Grid.SetColumn(widthTbWrap, 1);
+        widthRow.Children.Add(widthSlider);
+        widthRow.Children.Add(widthTbWrap);
+        panel.Children.Add(widthRow);
+
+        // ── Preview ───────────────────────────────────────────────────────
+        panel.Children.Add(MakeSectionLabel("Preview"));
+        var previewTb = new TextBlock
+        {
+            Text         = "The quick brown fox jumps over the lazy dog.\n0123456789  !@#$%",
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 20),
+            FontFamily   = new FontFamily(settings.ChatFontFamily),
+            FontSize     = settings.ChatFontSize
+        };
+        previewTb.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        panel.Children.Add(previewTb);
+
+        // ── Live wiring ───────────────────────────────────────────────────
+        bool _updating = false;
+
+        void ApplyFont()
+        {
+            var family = fontList.SelectedItem as string ?? settings.ChatFontFamily;
+            var size   = Math.Clamp(sizeSlider.Value, 9, 128);
+            previewTb.FontFamily        = new FontFamily(family);
+            previewTb.FontSize          = size;
+            Resources["ChatFontFamily"] = new FontFamily(family);
+            Resources["ChatFontSize"]   = size;
+        }
+
+        void ApplyWidth()
+        {
+            var pct = Math.Clamp(widthSlider.Value, 30, 100);
+            _chatBubbleWidthPct = pct;
+            UpdateChatBubbleMaxWidth();
+        }
+
+        // Slider → TextBox
+        sizeSlider.ValueChanged += (_, _) =>
+        {
+            if (_updating) return;
+            _updating = true;
+            sizeTb.Text = $"{sizeSlider.Value:0.#}";
+            _updating = false;
+            ApplyFont();
+        };
+        widthSlider.ValueChanged += (_, _) =>
+        {
+            if (_updating) return;
+            _updating = true;
+            widthTb.Text = $"{widthSlider.Value:0}";
+            _updating = false;
+            ApplyWidth();
+        };
+
+        // TextBox → Slider
+        sizeTb.TextChanged += (_, _) =>
+        {
+            if (_updating) return;
+            if (double.TryParse(sizeTb.Text, out var v) && v is >= 9 and <= 128)
+            {
+                _updating = true;
+                sizeSlider.Value = v;
+                _updating = false;
+                ApplyFont();
+            }
+        };
+        widthTb.TextChanged += (_, _) =>
+        {
+            if (_updating) return;
+            if (double.TryParse(widthTb.Text, out var v) && v is >= 30 and <= 100)
+            {
+                _updating = true;
+                widthSlider.Value = v;
+                _updating = false;
+                ApplyWidth();
+            }
+        };
+
+        fontList.SelectionChanged += (_, _) => ApplyFont();
+
+        // ── Close ─────────────────────────────────────────────────────────
+        var closeBtn = new Button
+        {
+            Content             = "Close",
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Padding             = new Thickness(20, 8, 20, 8)
+        };
+        closeBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+        closeBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        closeBtn.Style = (Style)FindResource("ModernButton");
+        closeBtn.Click += (_, _) =>
+        {
+            var s = SettingsService.Load();
+            s.ChatFontFamily         = fontList.SelectedItem as string ?? s.ChatFontFamily;
+            s.ChatFontSize           = sizeSlider.Value;
+            s.ChatBubbleWidthPercent = widthSlider.Value;
+            SettingsService.Save(s);
+            win.Close();
+        };
+        panel.Children.Add(closeBtn);
+
+        win.Content = panel;
+        win.ShowDialog();
+    }
+
+    // ── About / Version ────────────────────────────────────────────────────
 
     private void ShowAboutInfoDialog()
     {
@@ -2430,6 +3754,7 @@ public partial class MainWindow : Window
             Background            = (Brush)FindResource("BackgroundBrush"),
             ResizeMode            = ResizeMode.NoResize
         };
+        ApplyThemeToDialog(win);
 
         var panel = new StackPanel { Margin = new Thickness(28, 24, 28, 24) };
 
@@ -2482,7 +3807,9 @@ public partial class MainWindow : Window
         var asm     = System.Reflection.Assembly.GetExecutingAssembly();
         var ver     = asm.GetName().Version;
         var verStr  = ver is not null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "dev";
-        var built   = SysIO.File.GetLastWriteTime(asm.Location);
+        // asm.Location is always empty in single-file publish — use the EXE instead
+        var exePath = Environment.ProcessPath ?? AppDomain.CurrentDomain.BaseDirectory;
+        var built   = SysIO.File.GetLastWriteTime(exePath);
 
         var win = new Window
         {
@@ -2494,6 +3821,7 @@ public partial class MainWindow : Window
             Background            = (Brush)FindResource("BackgroundBrush"),
             ResizeMode            = ResizeMode.NoResize
         };
+        ApplyThemeToDialog(win);
 
         var panel = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
 
@@ -2545,7 +3873,8 @@ public partial class MainWindow : Window
 
     private void ShowProjectSettingsDialog(string projFolder, string projectName)
     {
-        var ps = ProjectService.LoadProjectSettings(projFolder);
+        var ps   = ProjectService.LoadProjectSettings(projFolder);
+        var meta = ProjectService.LoadMeta(projFolder) ?? new ProjectMeta { ProjectName = projectName };
 
         // ── Normalize potentially corrupted role data ──────────────────────
         // The old aliasing bug (before the deep-copy fix) could save every
@@ -2582,8 +3911,56 @@ public partial class MainWindow : Window
             ShowInTaskbar         = false,
             Background            = (Brush)FindResource("SidebarBrush")
         };
+        ApplyThemeToDialog(win);
 
         var root = new StackPanel { Margin = new Thickness(20, 16, 20, 4) };
+
+        // ── Project Description ────────────────────────────────────────────
+        var descLabel = new TextBlock
+        {
+            Text       = "PROJECT DESCRIPTION",
+            FontSize   = 11, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(0, 0, 0, 6),
+            Foreground = (Brush)FindResource("SubtextBrush")
+        };
+
+        var descBox = new TextBox
+        {
+            Text            = meta.Description,
+            FontSize        = 13, FontFamily = new FontFamily("Segoe UI"),
+            MinHeight       = 72,
+            BorderThickness = new Thickness(0),
+            Padding         = new Thickness(10, 8, 10, 8),
+            TextWrapping    = TextWrapping.Wrap,
+            AcceptsReturn   = true,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Background      = (Brush)FindResource("InputBrush"),
+            Foreground      = (Brush)FindResource("TextBrush"),
+            CaretBrush      = (Brush)FindResource("TextBrush"),
+            SelectionBrush  = (Brush)FindResource("ClaudeBrush")
+        };
+
+        var descHint = new TextBlock
+        {
+            Text         = "Shown to all AI participants as project context. " +
+                           "Example: \"A dark fantasy novel about a dragon who falls in love with a wizard.\"",
+            FontSize     = 11, FontFamily = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 4, 0, 16),
+            Foreground   = (Brush)FindResource("SubtextBrush")
+        };
+
+        var descSep = new Rectangle
+        {
+            Height = 1, Margin = new Thickness(0, 0, 0, 16),
+            Fill   = (Brush)FindResource("InputBrush")
+        };
+
+        root.Children.Add(descLabel);
+        root.Children.Add(descBox);
+        root.Children.Add(descHint);
+        root.Children.Add(descSep);
 
         // ── Orchestration Mode ─────────────────────────────────────────────
         var modeLabel = new TextBlock
@@ -2621,11 +3998,56 @@ public partial class MainWindow : Window
             "as context and writes a final synthesising summary.",
             OrchestrationMode.CoordinatorSummarizes);
 
+        var radioCoordAuto = MakeRadio("Coordinator Auto  (team initialization)",
+            "On first open the team holds a visible discussion to agree on task assignments.\n" +
+            "The agreed plan is saved and injected into every subsequent system prompt.\n" +
+            "After initialization, behaviour is identical to Coordinator-first.",
+            OrchestrationMode.CoordinatorAuto);
+
+        var radioCoordOnly = MakeRadio("Coordinator Only  (hidden AI-to-AI)",
+            "The user communicates only with the Coordinator.\n" +
+            "All AI-to-AI work (Coordinator deliberation + Reasoner responses) is hidden.\n" +
+            "Small status indicators show which participant is active.\n" +
+            "Only the Coordinator's final synthesis is shown to the user.",
+            OrchestrationMode.CoordinatorOnly);
+
+        // Reset-team-plan link — only meaningful in CoordinatorAuto when a plan exists
+        var resetPlanTb = new TextBlock
+        {
+            FontFamily  = new FontFamily("Segoe UI"),
+            FontSize    = 11,
+            Margin      = new Thickness(20, 2, 0, 4),
+            Visibility  = (ps.OrchestrationMode == OrchestrationMode.CoordinatorAuto &&
+                           !string.IsNullOrWhiteSpace(ps.TeamPlan))
+                          ? Visibility.Visible : Visibility.Collapsed
+        };
+        resetPlanTb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        var resetHyperlink = new Hyperlink();
+        resetHyperlink.Inlines.Add("🔄 Reset team plan (re-runs initialization on next open)");
+        resetHyperlink.Click += (_, _) =>
+        {
+            ps.TeamPlan = "";
+            resetPlanTb.Visibility = Visibility.Collapsed;
+        };
+        resetPlanTb.Inlines.Add(resetHyperlink);
+
+        void RefreshResetLink()
+        {
+            resetPlanTb.Visibility =
+                radioCoordAuto.IsChecked == true && !string.IsNullOrWhiteSpace(ps.TeamPlan)
+                ? Visibility.Visible : Visibility.Collapsed;
+        }
+        foreach (var rb in new[] { radioAll, radioCoordFirst, radioCoordSum, radioCoordAuto, radioCoordOnly })
+            rb.Checked += (_, _) => RefreshResetLink();
+
         var modeStack = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
         modeStack.Children.Add(modeLabel);
         modeStack.Children.Add(radioAll);
         modeStack.Children.Add(radioCoordFirst);
         modeStack.Children.Add(radioCoordSum);
+        modeStack.Children.Add(radioCoordAuto);
+        modeStack.Children.Add(radioCoordOnly);
+        modeStack.Children.Add(resetPlanTb);
         root.Children.Add(modeStack);
 
         // ── Language ───────────────────────────────────────────────────────
@@ -2825,7 +4247,7 @@ public partial class MainWindow : Window
         {
             var noParticipants = new TextBlock
             {
-                Text       = "No participants are currently enabled. Enable participants in ⚙ Settings first.",
+                Text       = "No participants are currently enabled. Enable participants in 👤 Participant Config first.",
                 FontSize   = 12, FontFamily = new FontFamily("Segoe UI"),
                 TextWrapping = TextWrapping.Wrap,
                 Margin     = new Thickness(0, 0, 0, 12),
@@ -3103,6 +4525,8 @@ public partial class MainWindow : Window
             // Collect orchestration mode
             ps.OrchestrationMode = radioCoordFirst.IsChecked == true ? OrchestrationMode.CoordinatorFirst
                                  : radioCoordSum  .IsChecked == true ? OrchestrationMode.CoordinatorSummarizes
+                                 : radioCoordAuto .IsChecked == true ? OrchestrationMode.CoordinatorAuto
+                                 : radioCoordOnly .IsChecked == true ? OrchestrationMode.CoordinatorOnly
                                  : OrchestrationMode.AllRespond;
 
             // Collect language
@@ -3131,12 +4555,17 @@ public partial class MainWindow : Window
 
             ProjectService.SaveProjectSettings(projFolder, ps);
 
+            // Save updated description to project meta
+            meta.Description = descBox.Text.Trim();
+            ProjectService.SaveMeta(projFolder, meta);
+
             // Keep live fields in sync if this is the currently open project
             if (_currentProjectFolder == projFolder)
             {
-                _projectLanguage = ps.Language;
-                _maxDialogDepth  = ps.MaxDialogDepth;
-                _projectSettings = ps;
+                _projectLanguage  = ps.Language;
+                _maxDialogDepth   = ps.MaxDialogDepth;
+                _projectSettings  = ps;
+                _currentProject   = meta;   // description now live for system prompts
                 RefreshParticipantBadges();
             }
 
@@ -3182,6 +4611,7 @@ public partial class MainWindow : Window
             Background            = (Brush)FindResource("BackgroundBrush"),
             ResizeMode            = ResizeMode.NoResize
         };
+        ApplyThemeToDialog(win);
 
         var root = new StackPanel { Margin = new Thickness(24, 20, 24, 8) };
 
@@ -3384,6 +4814,7 @@ public partial class MainWindow : Window
                 Background            = (Brush)FindResource("BackgroundBrush"),
                 ResizeMode            = ResizeMode.NoResize
             };
+            ApplyThemeToDialog(picker);
             var pp = new StackPanel { Margin = new Thickness(20, 16, 20, 16) };
             pp.Children.Add(new TextBlock
             {
@@ -3440,6 +4871,7 @@ public partial class MainWindow : Window
                 Background            = (Brush)FindResource("BackgroundBrush"),
                 ResizeMode            = ResizeMode.NoResize
             };
+            ApplyThemeToDialog(nameWin);
             var np = new StackPanel { Margin = new Thickness(20, 16, 20, 16) };
             np.Children.Add(new TextBlock
             {
@@ -3687,7 +5119,7 @@ public partial class MainWindow : Window
             FontSize   = 13,
             FontWeight = FontWeights.SemiBold
         };
-        nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "CardTextBrush");
 
         var modelLabel = new TextBlock
         {
@@ -3975,7 +5407,7 @@ public partial class MainWindow : Window
         statusDot.SetResourceReference(Ellipse.FillProperty, "SubtextBrush");
 
         var nameLabel = new TextBlock { Text = displayName, FontSize = 13, FontWeight = FontWeights.SemiBold };
-        nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "CardTextBrush");
 
         var modelLabel = new TextBlock { Text = "checking...", FontSize = 10 };
         modelLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
@@ -4332,7 +5764,7 @@ public partial class MainWindow : Window
                         AddCloudAIParticipant(cap.Type, cap.Model, cap.Name);
                         if (_cloudAIParticipants.Count == countBefore)
                         {
-                            AddSystemMessage($"⚠  Could not add {cap.Type} — no API key saved. Open ⚙ Settings.");
+                            AddSystemMessage($"⚠  Could not add {cap.Type} — no API key saved. Open ⋮ → Providers.");
                             return;
                         }
                         var ui = _cloudAIParticipants[^1];
@@ -4351,7 +5783,7 @@ public partial class MainWindow : Window
         {
             menu.Items.Add(new MenuItem
             {
-                Header    = "No participants configured — open ⚙ Settings",
+                Header    = "No participants configured — open 👤 Participant Config",
                 IsEnabled = false
             });
         }
@@ -4483,6 +5915,7 @@ public partial class MainWindow : Window
             Message     = text
         };
         AppendToProjectLog(entry);
+        AppendToGeneralLog(entry);
 
         _sharedHistory.Add(new CloudAIMessage("user", text, "User"));
 
@@ -4507,10 +5940,12 @@ public partial class MainWindow : Window
     {
         var mode = _projectSettings?.OrchestrationMode ?? OrchestrationMode.AllRespond;
 
-        // In CoordinatorFirst mode, reasoners are filtered inside RunCoordinatorFirstModeAsync.
+        // In CoordinatorFirst / Auto / Only modes the mode runner handles reasoner activation.
         // In all other modes, reasoners are completely passive — they only participate when
         // explicitly mentioned by name in the conversation (no auto-triggering).
-        bool suppressReasoners = mode != OrchestrationMode.CoordinatorFirst;
+        bool suppressReasoners = mode is not OrchestrationMode.CoordinatorFirst
+                                      and not OrchestrationMode.CoordinatorAuto
+                                      and not OrchestrationMode.CoordinatorOnly;
 
         var activeOllamas  = _ollamaParticipants
             .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true &&
@@ -4534,18 +5969,28 @@ public partial class MainWindow : Window
         _streamCts = new CancellationTokenSource();
         var ct = _streamCts.Token;
 
-        // Depth > 1 only makes sense when multiple participants can talk to each other
-        var maxRounds = (activeOllamas.Count + activeCloudAIs.Count) > 1 ? _maxDialogDepth : 1;
+        // Multi-round dialogue: toggle is the master switch.
+        // When ON:  use _aiDialogueMaxTurns (global setting, 3–100), but honour a higher
+        //           project MaxDialogDepth if one is explicitly configured.
+        // When OFF: single round regardless of any project setting.
+        bool multiParticipant = (activeOllamas.Count + activeCloudAIs.Count) > 1;
+        var maxRounds = _aiDialogueEnabled && multiParticipant
+            ? Math.Max(_aiDialogueMaxTurns, _maxDialogDepth)
+            : 1;
 
         try
         {
             switch (mode)
             {
                 case OrchestrationMode.CoordinatorFirst:
+                case OrchestrationMode.CoordinatorAuto:   // after team init, behaves like CoordinatorFirst
                     await RunCoordinatorFirstModeAsync(activeOllamas, activeCloudAIs, ct);
                     break;
                 case OrchestrationMode.CoordinatorSummarizes:
                     await RunCoordinatorSummarizesModeAsync(activeOllamas, activeCloudAIs, ct);
+                    break;
+                case OrchestrationMode.CoordinatorOnly:
+                    await RunCoordinatorOnlyModeAsync(activeOllamas, activeCloudAIs, ct);
                     break;
                 default:
                     await RunAllRespondModeAsync(activeOllamas, activeCloudAIs, ct, maxRounds);
@@ -4554,7 +5999,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            _streamCts.Dispose();
+            _streamCts?.Dispose();
             _streamCts = null;
             AIRespondButton.IsEnabled = true;
             SendButton.IsEnabled      = true;
@@ -4568,9 +6013,9 @@ public partial class MainWindow : Window
     // ── Orchestration mode runners ─────────────────────────────────────────
 
     /// <summary>
-    /// System hint injected into every participant's context during follow-up rounds.
-    /// Instructs them to respond only if they have something genuinely new to contribute,
-    /// and to output exactly "PASS" otherwise so the round can be silently skipped.
+    /// Hint used in follow-up rounds when inside a project.
+    /// Instructs participants to contribute only if they have something genuinely new,
+    /// and to output PASS otherwise — keeps structured project dialogue clean.
     /// </summary>
     private const string FollowUpRoundHint =
         "The previous participants have already responded above. " +
@@ -4580,11 +6025,27 @@ public partial class MainWindow : Window
         "If you have nothing meaningful to add right now, output exactly the word PASS " +
         "and nothing else.";
 
+    /// <summary>
+    /// Hint used in follow-up rounds in free-chat (non-project) dialogue mode.
+    /// Encourages natural, conversational back-and-forth without structured round markers.
+    /// </summary>
+    private const string LiveDialogueHint =
+        "You are in a live group conversation. Read what the other participants just wrote " +
+        "and react naturally — agree or push back on a specific point, ask a follow-up question, " +
+        "share a complementary angle, make a joke, or build directly on what someone just said. " +
+        "When you are addressing a specific participant, use their name. " +
+        "Keep your reply conversational and concise — this is a chat, not an essay. " +
+        "If you genuinely have nothing new to add right now, output exactly the word PASS and nothing else.";
+
     private async Task RunAllRespondModeAsync(
         List<OllamaParticipantUI>   activeOllamas,
         List<CloudAIParticipantUI>  activeCloudAIs,
         CancellationToken ct, int maxRounds)
     {
+        // In a project: show "— Round N —" separators so the structure is visible.
+        // In free chat (💬 dialogue mode): no markers — the messages flow as natural conversation.
+        bool freeChat = _currentProjectFolder is null;
+
         for (int round = 0; round < maxRounds && !ct.IsCancellationRequested; round++)
         {
             bool isFollowUp = round > 0;
@@ -4594,11 +6055,13 @@ public partial class MainWindow : Window
                 if (_sharedHistory.Count == 0 || _sharedHistory.Last().Role != "assistant")
                     break;
 
-                // Remember position so we can remove the marker if nobody responds
-                int markerIndex = ChatPanel.Children.Count;
-                AddSystemMessage($"— Round {round + 1} —");
+                // Project mode: add a round separator that can be cleaned up if nobody responds.
+                // Free-chat mode: no separator — the conversation flows without interruption.
+                int markerIndex = freeChat ? -1 : ChatPanel.Children.Count;
+                if (!freeChat) AddSystemMessage($"— Round {round + 1} —");
 
-                string? hint = FollowUpRoundHint;
+                // Choose the right follow-up hint for the context
+                string hint = freeChat ? LiveDialogueHint : FollowUpRoundHint;
                 int responded = 0;
 
                 foreach (var ui in activeOllamas)
@@ -4612,10 +6075,10 @@ public partial class MainWindow : Window
                     if (await RunCloudAIStreamAsync(ui, ct, hint)) responded++;
                 }
 
-                // Nobody had anything new to say — remove the orphaned round marker and stop
+                // Nobody had anything new to say — clean up and stop
                 if (responded == 0)
                 {
-                    if (markerIndex < ChatPanel.Children.Count)
+                    if (!freeChat && markerIndex >= 0 && markerIndex < ChatPanel.Children.Count)
                         ChatPanel.Children.RemoveAt(markerIndex);
                     break;
                 }
@@ -4756,6 +6219,276 @@ public partial class MainWindow : Window
             await RunOllamaStreamAsync(coordOllama!, ct, synthesisHint);
     }
 
+    /// <summary>
+    /// Coordinator-Only mode: the user only sees the Coordinator's final synthesis.
+    /// All intermediate work — Coordinator deliberation and Reasoner responses — is hidden
+    /// from the chat. Small status indicators track which participant is active.
+    /// <para>Flow: (1) Coordinator deliberates hidden → (2) tagged Reasoners work hidden →
+    /// (3) Coordinator synthesizes visible.</para>
+    /// </summary>
+    private async Task RunCoordinatorOnlyModeAsync(
+        List<OllamaParticipantUI>  activeOllamas,
+        List<CloudAIParticipantUI> activeCloudAIs,
+        CancellationToken ct)
+    {
+        var (coordOllama, coordCloud) = FindCoordinatorInLists(activeOllamas, activeCloudAIs);
+        if (coordOllama is null && coordCloud is null)
+        {
+            AddSystemMessage("⚠  Coordinator-Only: no coordinator found — falling back to AllRespond.");
+            await RunAllRespondModeAsync(activeOllamas, activeCloudAIs, ct, 1);
+            return;
+        }
+
+        var coordName   = coordOllama is not null ? GetEffectiveName(coordOllama) : GetEffectiveName(coordCloud!);
+        var coordAvatar = coordOllama?.Data.AvatarLabel ?? coordCloud!.Data.AvatarLabel;
+        var coordColor  = coordOllama?.Data.ColorKey    ?? coordCloud!.Data.ColorKey;
+
+        var reasonerOllamas  = activeOllamas .Where(u => u != coordOllama && IsReasoner(u)).ToList();
+        var reasonerCloudAIs = activeCloudAIs.Where(u => u != coordCloud  && IsReasoner(u)).ToList();
+
+        // ── Step 1: Coordinator deliberates (hidden) ───────────────────
+        // The coordinator analyzes the request and decides whether / what to delegate.
+        var (coordIndicator, updateCoord) = AddActivityIndicator(coordName, coordAvatar, coordColor);
+
+        const string coordDeliberateHint =
+            "COORDINATOR-ONLY MODE — INTERNAL DELIBERATION (this message is hidden from the user).\n" +
+            "Analyze the request. If you can answer it fully yourself, write your analysis concisely.\n" +
+            "If you need Reasoner input, mention the Reasoner(s) by name as you normally would.\n" +
+            "Be concise and technical — no formatting needed here. Do NOT output PASS.";
+
+        if (coordCloud is not null)
+            await RunCloudAIStreamAsync(coordCloud, ct, coordDeliberateHint, hidden: true);
+        else
+            await RunOllamaStreamAsync(coordOllama!, ct, coordDeliberateHint, hidden: true);
+
+        if (ct.IsCancellationRequested) { updateCoord("✗ cancelled"); return; }
+        updateCoord($"✓  [{coordAvatar}] {coordName}  — analysis done");
+
+        // ── Step 2: Run tagged Reasoners (hidden) ──────────────────────
+        var coordFirstResponse = _sharedHistory.LastOrDefault(m => m.Role == "assistant")?.Content ?? "";
+
+        var taggedOllamas = reasonerOllamas
+            .Where(u => IsTaggedInResponse(coordFirstResponse, GetEffectiveName(u)))
+            .ToList();
+        var taggedClouds = reasonerCloudAIs
+            .Where(u => IsTaggedInResponse(coordFirstResponse, GetEffectiveName(u)))
+            .ToList();
+
+        if (taggedOllamas.Count > 0 || taggedClouds.Count > 0)
+        {
+            const string reasonerHiddenHint =
+                "COORDINATOR-ONLY MODE — your response is INTERNAL (not shown to user).\n" +
+                "Deliver exactly what the Coordinator delegated. Be concise and technical. " +
+                "No preamble, no formatting — just the result. Do NOT output PASS.";
+
+            foreach (var ui in taggedOllamas)
+            {
+                if (ct.IsCancellationRequested) break;
+                var (ind, upd) = AddActivityIndicator(
+                    GetEffectiveName(ui), ui.Data.AvatarLabel, ui.Data.ColorKey);
+                await RunOllamaStreamAsync(ui, ct, reasonerHiddenHint,
+                    skipLatestUserMessage: true, hidden: true);
+                upd(null); // "done"
+            }
+            foreach (var ui in taggedClouds)
+            {
+                if (ct.IsCancellationRequested) break;
+                var (ind, upd) = AddActivityIndicator(
+                    GetEffectiveName(ui), ui.Data.AvatarLabel, ui.Data.ColorKey);
+                await RunCloudAIStreamAsync(ui, ct, reasonerHiddenHint,
+                    skipLatestUserMessage: true, hidden: true);
+                upd(null);
+            }
+        }
+
+        if (ct.IsCancellationRequested) return;
+
+        // ── Step 3: Coordinator synthesizes (visible to user) ──────────
+        // All hidden work is now in _sharedHistory; the Coordinator sees it as context.
+        const string synthHint =
+            "Internal analysis complete. Write your final response DIRECTLY to the user now. " +
+            "Synthesize all gathered insights into a clear, natural answer. " +
+            "Do NOT mention 'internal mode', 'hidden deliberation', or the coordination process — " +
+            "respond as if you arrived at the answer through your own reasoning.";
+
+        if (coordCloud is not null)
+            await RunCloudAIStreamAsync(coordCloud, ct, synthHint);
+        else
+            await RunOllamaStreamAsync(coordOllama!, ct, synthHint);
+    }
+
+    /// <summary>
+    /// CoordinatorAuto initialization: runs a visible team discussion so the AI team
+    /// can agree on task assignments. The agreed plan is extracted from a
+    /// <c>&lt;teamplan&gt;…&lt;/teamplan&gt;</c> block and saved to
+    /// <see cref="ProjectSettings.TeamPlan"/>.
+    /// </summary>
+    private async Task TriggerTeamInitializationAsync()
+    {
+        if (_projectSettings is null || _currentProjectFolder is null || _currentProject is null) return;
+        if (_streamCts is not null) return; // another stream already running
+
+        var activeOllamas = _ollamaParticipants
+            .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true && IsParticipantActiveInProject(ui))
+            .ToList();
+        var activeCloudAIs = _cloudAIParticipants
+            .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true && IsParticipantActiveInProject(ui))
+            .ToList();
+
+        if (activeOllamas.Count + activeCloudAIs.Count == 0) return;
+
+        AIRespondButton.IsEnabled = false;
+        SendButton.IsEnabled      = false;
+        _streamCts = new CancellationTokenSource();
+        var ct = _streamCts.Token;
+
+        try
+        {
+            AddSystemMessage("— Team Initialization —");
+
+            var projectType = _currentProjectType is null ? "general"
+                : $"{_currentProjectType.Icon} {_currentProjectType.Name}";
+            var projectDesc = string.IsNullOrWhiteSpace(_currentProject.Description) ? ""
+                : $"Project description: {_currentProject.Description.Trim()}\n\n";
+
+            var participantList = activeOllamas
+                .Select(u => $"  • {GetEffectiveName(u)}" +
+                             (GetRoleForParticipant(u)?.IsCoordinator == true ? " [Coordinator]" :
+                              IsReasoner(u)                                   ? " [Reasoner]"    : ""))
+                .Concat(activeCloudAIs
+                .Select(u => $"  • {GetEffectiveName(u)}" +
+                             (GetRoleForParticipant(u)?.IsCoordinator == true ? " [Coordinator]" :
+                              IsReasoner(u)                                   ? " [Reasoner]"    : "")))
+                .ToList();
+
+            // Inject the initialization prompt directly into shared history so all AIs see it.
+            // It's not shown as a user chat bubble — it's a system-level setup message.
+            _sharedHistory.Add(new CloudAIMessage("user",
+                $"Team initialization — Project: \"{_currentProject.ProjectName}\" (type: {projectType})\n" +
+                $"{projectDesc}" +
+                $"Active team:\n{string.Join("\n", participantList)}\n\n" +
+                "Coordinator: please introduce the project to the team and propose task assignments — " +
+                "which type of work will each member be responsible for, based on their capabilities? " +
+                "Reasoners: confirm your assigned role or suggest adjustments. " +
+                "Once agreed, the Coordinator must output the final plan exactly like this:\n\n" +
+                "<teamplan>\n" +
+                "- [Name]: [task responsibility]\n" +
+                "- [Name]: [task responsibility]\n" +
+                "</teamplan>"));
+
+            // ── Team init sequence ────────────────────────────────────────
+            // Unlike normal CoordinatorFirst (where reasoners only respond when tagged),
+            // initialization is a discussion round: every participant must reply so
+            // each AI can confirm or adjust its role before the plan is finalised.
+            //
+            // Pass 1 — Coordinator goes first and proposes assignments.
+            // Pass 2 — All other participants confirm/adjust (no tagging required).
+            // Pass 3 — Coordinator reads the responses and writes the final <teamplan>.
+
+            var (coordOllama, coordCloud) = FindCoordinatorInLists(activeOllamas, activeCloudAIs);
+
+            if (coordOllama is null && coordCloud is null)
+            {
+                // No coordinator configured — let everyone respond freely
+                await RunAllRespondModeAsync(activeOllamas, activeCloudAIs, ct, 1);
+            }
+            else
+            {
+                // Pass 1: Coordinator proposes
+                const string coordProposalHint =
+                    "You go first. Introduce the project to the team, propose task assignments " +
+                    "for each member based on their capabilities, and invite them to confirm.";
+
+                if (coordCloud is not null)
+                    await RunCloudAIStreamAsync(coordCloud, ct, coordProposalHint);
+                else
+                    await RunOllamaStreamAsync(coordOllama!, ct, coordProposalHint);
+
+                // Pass 2: Every other participant replies (free + reasoners — no tagging required)
+                if (!ct.IsCancellationRequested)
+                {
+                    const string memberConfirmHint =
+                        "The Coordinator has proposed the team task assignments above. " +
+                        "Confirm your assigned role or briefly suggest any adjustments. " +
+                        "Keep your reply concise.";
+
+                    foreach (var ui in activeOllamas.Where(u => u != coordOllama))
+                    {
+                        if (ct.IsCancellationRequested) break;
+                        await RunOllamaStreamAsync(ui, ct, memberConfirmHint);
+                    }
+                    foreach (var ui in activeCloudAIs.Where(u => u != coordCloud))
+                    {
+                        if (ct.IsCancellationRequested) break;
+                        await RunCloudAIStreamAsync(ui, ct, memberConfirmHint);
+                    }
+                }
+
+                // Pass 3: Coordinator reads all replies and outputs the final <teamplan>
+                if (!ct.IsCancellationRequested)
+                {
+                    const string coordFinaliseHint =
+                        "All team members have now replied. " +
+                        "Write a brief closing summary and output the final agreed plan " +
+                        "wrapped in exactly these tags (no other text between the tags):\n\n" +
+                        "<teamplan>\n" +
+                        "- [Name]: [task responsibility]\n" +
+                        "- [Name]: [task responsibility]\n" +
+                        "</teamplan>";
+
+                    if (coordCloud is not null)
+                        await RunCloudAIStreamAsync(coordCloud, ct, coordFinaliseHint,
+                                                    skipLatestUserMessage: true);
+                    else
+                        await RunOllamaStreamAsync(coordOllama!, ct, coordFinaliseHint,
+                                                   skipLatestUserMessage: true);
+                }
+            }
+
+            if (!ct.IsCancellationRequested)
+            {
+                var teamPlan = ExtractTeamPlan(_sharedHistory);
+                if (!string.IsNullOrWhiteSpace(teamPlan))
+                {
+                    _projectSettings.TeamPlan = teamPlan;
+                    ProjectService.SaveProjectSettings(_currentProjectFolder, _projectSettings);
+                    AddSystemMessage("✓ Team plan saved — use Project Settings to reset it.");
+                }
+                else
+                {
+                    AddSystemMessage(
+                        "⚠  No <teamplan> block found. Ask the Coordinator to provide one, " +
+                        "or reset and re-run initialization from Project Settings.");
+                }
+            }
+        }
+        finally
+        {
+            _streamCts?.Dispose();
+            _streamCts = null;
+            AIRespondButton.IsEnabled = true;
+            SendButton.IsEnabled      = true;
+        }
+    }
+
+    /// <summary>
+    /// Scans <paramref name="history"/> from the end and returns the content of the first
+    /// <c>&lt;teamplan&gt;…&lt;/teamplan&gt;</c> block found (innerText, trimmed).
+    /// Returns <c>null</c> if no such block exists.
+    /// </summary>
+    private static string? ExtractTeamPlan(List<CloudAIMessage> history)
+    {
+        var rx = new Regex(@"<teamplan>(.*?)</teamplan>",
+            RegexOptions.Singleline | RegexOptions.IgnoreCase);
+        for (int i = history.Count - 1; i >= 0; i--)
+        {
+            if (history[i].Role != "assistant") continue;
+            var m = rx.Match(history[i].Content);
+            if (m.Success) return m.Groups[1].Value.Trim();
+        }
+        return null;
+    }
+
     // ── Orchestration helpers ──────────────────────────────────────────────
 
     /// <summary>
@@ -4768,13 +6501,11 @@ public partial class MainWindow : Window
         if (_projectSettings is null) return (null, null);
 
         var cloud = clouds.FirstOrDefault(ui =>
-            _projectSettings.Get(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel)
-                            ?.IsCoordinator == true);
+            GetRoleForParticipant(ui)?.IsCoordinator == true);
         if (cloud is not null) return (null, cloud);
 
         var ollama = ollamas.FirstOrDefault(ui =>
-            _projectSettings.Get("Ollama", ui.Data.Service.CurrentModel)
-                            ?.IsCoordinator == true);
+            GetRoleForParticipant(ui)?.IsCoordinator == true);
         return (ollama, null);
     }
 
@@ -4796,6 +6527,20 @@ public partial class MainWindow : Window
         return string.IsNullOrEmpty(ui.Data.CustomName)
             ? FormatModelDisplayName(ui.Data.Service.CurrentModel)
             : ui.Data.CustomName;
+    }
+
+    /// <summary>
+    /// Returns the display name for a participant identified by their avatar label (e.g. "Gm").
+    /// Used to convert history message prefixes from raw labels into human-readable names.
+    /// Falls back to the raw label if no participant matches (e.g. after a config change).
+    /// </summary>
+    private string GetDisplayNameForLabel(string avatarLabel)
+    {
+        foreach (var ui in _ollamaParticipants)
+            if (ui.Data.AvatarLabel == avatarLabel) return GetEffectiveName(ui);
+        foreach (var ui in _cloudAIParticipants)
+            if (ui.Data.AvatarLabel == avatarLabel) return GetEffectiveName(ui);
+        return avatarLabel;
     }
 
     /// <summary>
@@ -4866,6 +6611,54 @@ public partial class MainWindow : Window
         GetRoleForParticipant(ui)?.IsReasoner == true;
 
     /// <summary>
+    /// Returns true if the participant may write project files (<output>, <projectplan> tags).
+    /// Only Coordinators and Reasoners have write access.
+    /// Falls back to unrestricted access when no gated roles are defined in the project
+    /// (backwards compatibility with projects that predate role assignment).
+    /// </summary>
+    private bool HasWriteAccess(OllamaParticipantUI ui)
+    {
+        if (_projectSettings is null) return true;
+        bool anyGated = _projectSettings.Roles.Any(r => r.IsCoordinator || r.IsReasoner);
+        if (!anyGated) return true;
+        var role = GetRoleForParticipant(ui);
+        return role?.IsCoordinator == true || role?.IsReasoner == true;
+    }
+
+    /// <inheritdoc cref="HasWriteAccess(OllamaParticipantUI)"/>
+    private bool HasWriteAccess(CloudAIParticipantUI ui)
+    {
+        if (_projectSettings is null) return true;
+        bool anyGated = _projectSettings.Roles.Any(r => r.IsCoordinator || r.IsReasoner);
+        if (!anyGated) return true;
+        var role = GetRoleForParticipant(ui);
+        return role?.IsCoordinator == true || role?.IsReasoner == true;
+    }
+
+    /// <summary>
+    /// Returns all enabled Reasoners (across Ollama and Cloud AI) sorted by priority descending.
+    /// Used to inject the Reasoner roster into the Coordinator's system prompt.
+    /// </summary>
+    private List<(string Name, int Priority)> GetAvailableReasoners()
+    {
+        var result = new List<(string Name, int Priority)>();
+        foreach (var u in _ollamaParticipants.Where(u => u.Data.Enabled && IsReasoner(u)))
+            result.Add((GetEffectiveName(u), GetRoleForParticipant(u)?.ReasonerPriority ?? 5));
+        foreach (var u in _cloudAIParticipants.Where(u => u.Data.Enabled && IsReasoner(u)))
+            result.Add((GetEffectiveName(u), GetRoleForParticipant(u)?.ReasonerPriority ?? 5));
+        return result;
+    }
+
+    /// <summary>Returns the effective display name of the active project coordinator, or null if none.</summary>
+    private string? GetCoordinatorName()
+    {
+        var (coordOllama, coordCloud) = FindActiveCoordinator();
+        if (coordCloud  is not null) return GetEffectiveName(coordCloud);
+        if (coordOllama is not null) return GetEffectiveName(coordOllama);
+        return null;
+    }
+
+    /// <summary>
     /// Updates the CO / R badge overlays on every sidebar participant card to reflect
     /// the current <see cref="_projectSettings"/>. Call after loading or saving project
     /// settings, and after closing a project (badges go hidden when settings are null).
@@ -4910,7 +6703,7 @@ public partial class MainWindow : Window
                 "Rate limit hit (429 Too Many Requests). " +
                 "The free tier allows only a few requests per minute — please wait a moment before continuing.",
             System.Net.HttpStatusCode.Unauthorized =>
-                "Unauthorized (401) — the API key was rejected. Check or re-enter the key in ⚙ Settings.",
+                "Unauthorized (401) — the API key was rejected. Check or re-enter the key in ⋮ → Providers.",
             System.Net.HttpStatusCode.Forbidden =>
                 "Forbidden (403) — the API key does not have permission for this model.",
             System.Net.HttpStatusCode.ServiceUnavailable =>
@@ -4921,7 +6714,8 @@ public partial class MainWindow : Window
 
     private async Task<bool> RunOllamaStreamAsync(OllamaParticipantUI ui, CancellationToken ct,
                                                    string? systemHint = null,
-                                                   bool skipLatestUserMessage = false)
+                                                   bool skipLatestUserMessage = false,
+                                                   bool hidden = false)
     {
         var modelName = ui.Data.Service.CurrentModel;
         var display   = string.IsNullOrEmpty(ui.Data.CustomName)
@@ -4930,15 +6724,19 @@ public partial class MainWindow : Window
         var avatarLabel = ui.Data.AvatarLabel;
         var colorKey    = ui.Data.ColorKey;
 
-        var bubble = AddStreamingBubble(display, avatarLabel, colorKey, "OllamaBubbleBrush", false);
+        StreamBubble? bubble = hidden ? null
+            : AddStreamingBubble(display, avatarLabel, colorKey, "OllamaBubbleBrush", false);
         var sb         = new StringBuilder();
         bool firstToken = true;
 
         // Subscribe to live thinking-text updates so the tooltip tracks thinking in real time
         var svc = ui.Data.Service;
         svc.ThinkingUpdated += OnThinkingUpdate;
-        void OnThinkingUpdate(string thought) =>
-            Dispatcher.Invoke(() => bubble.UpdateThinkingTooltip(thought));
+        void OnThinkingUpdate(string thought)
+        {
+            if (!hidden)
+                Dispatcher.Invoke(() => bubble!.UpdateThinkingTooltip(thought));
+        }
 
         try
         {
@@ -4949,16 +6747,20 @@ public partial class MainWindow : Window
             {
                 if (firstToken)
                 {
-                    bubble.StopThinking();   // hides dots + tooltip disappears naturally
+                    if (!hidden) bubble!.StopThinking();   // hides dots + tooltip disappears naturally
                     firstToken = false;
                 }
                 sb.Append(token);
-                bubble.Content.Text = sb.ToString();
-                ChatScrollViewer.ScrollToBottom();
+                if (!hidden)
+                {
+                    bubble!.Content.Text = sb.ToString();
+                    ChatScrollViewer.ScrollToBottom();
+                }
             }
-            if (firstToken) bubble.StopThinking(); // empty response
+            if (firstToken && !hidden) bubble!.StopThinking(); // empty response
             var ollamaFinalText = _currentProjectFolder is not null
-                ? ProcessAIFileOperationTags(sb.ToString(), display, _currentProjectFolder)
+                ? ProcessAIFileOperationTags(sb.ToString(), display, _currentProjectFolder,
+                    HasWriteAccess(ui), GetCoordinatorName())
                 : sb.ToString();
 
             // ── Roadmap commands ──────────────────────────────────────────
@@ -4970,61 +6772,79 @@ public partial class MainWindow : Window
             }
             // ─────────────────────────────────────────────────────────────
 
-            if (ollamaFinalText != sb.ToString()) bubble.Content.Text = ollamaFinalText;
+            if (!hidden && ollamaFinalText != sb.ToString())
+                bubble!.Content.Text = ollamaFinalText;
 
             // If the model decided it has nothing new to add, remove its bubble silently
             if (IsPassResponse(ollamaFinalText))
             {
-                if (ChatPanel.Children.Count > 0)
+                if (!hidden && ChatPanel.Children.Count > 0)
                     ChatPanel.Children.RemoveAt(ChatPanel.Children.Count - 1);
                 return false;
             }
 
-            _sharedHistory.Add(new CloudAIMessage("assistant", ollamaFinalText, avatarLabel));
-            AppendToProjectLog(new ChatLogEntry
+            _sharedHistory.Add(new CloudAIMessage("assistant", ollamaFinalText, GetEffectiveName(ui)));
+            if (!hidden)
             {
-                Timestamp   = DateTime.Now,
-                SenderType  = "AI",
-                Provider    = "Ollama",
-                ModelName   = modelName,
-                DisplayName = display,
-                AvatarLabel = avatarLabel,
-                AccentKey   = colorKey,
-                BubbleKey   = "OllamaBubbleBrush",
-                IsUser      = false,
-                Message     = ollamaFinalText
-            });
+                var ollamaLogEntry = new ChatLogEntry
+                {
+                    Timestamp   = DateTime.Now,
+                    SenderType  = "AI",
+                    Provider    = "Ollama",
+                    ModelName   = modelName,
+                    DisplayName = display,
+                    AvatarLabel = avatarLabel,
+                    AccentKey   = colorKey,
+                    BubbleKey   = "OllamaBubbleBrush",
+                    IsUser      = false,
+                    Message     = ollamaFinalText
+                };
+                AppendToProjectLog(ollamaLogEntry);
+                AppendToGeneralLog(ollamaLogEntry);
+            }
             return true;
         }
         catch (OperationCanceledException)
         {
-            if (firstToken) bubble.StopThinking();
-            bubble.Content.Text = sb.Append(" [cancelled]").ToString();
-            throw;
+            // User cancelled — show partial text already in the bubble (if any) and stop cleanly.
+            // Do NOT re-throw: callers check ct.IsCancellationRequested to decide whether to continue.
+            if (!hidden)
+            {
+                if (firstToken) bubble!.StopThinking();
+                else            bubble!.Content.Text = sb.Append("… [cancelled]").ToString();
+            }
+            return false;
         }
         catch (HttpRequestException ex)
         {
-            bubble.StopThinking();
-            ChatPanel.Children.Remove(bubble.OuterWrapper);
-            var httpMsg = HttpErrorMessage(ex, display);
-            AddSystemMessage($"⚠  {display} — {httpMsg}");
+            if (!hidden)
+            {
+                bubble!.StopThinking();
+                ChatPanel.Children.Remove(bubble.OuterWrapper);
+                var httpMsg = HttpErrorMessage(ex, display);
+                AddSystemMessage($"⚠  {display} — {httpMsg}");
+            }
         }
         catch (Exception ex)
         {
-            bubble.StopThinking();
-            ChatPanel.Children.Remove(bubble.OuterWrapper);
-            AddSystemMessage($"⚠  {display} — Error: {ex.Message}");
+            if (!hidden)
+            {
+                bubble!.StopThinking();
+                ChatPanel.Children.Remove(bubble.OuterWrapper);
+                AddSystemMessage($"⚠  {display} — Error: {ex.Message}");
+            }
         }
         finally
         {
             svc.ThinkingUpdated -= OnThinkingUpdate;
         }
-        return true; // error path still counts as "responded" (error bubble is shown)
+        return !hidden; // visible error → error bubble shown (counts as responded); hidden error → doesn't count
     }
 
     private async Task<bool> RunCloudAIStreamAsync(CloudAIParticipantUI ui, CancellationToken ct,
                                                     string? systemHint = null,
-                                                    bool skipLatestUserMessage = false)
+                                                    bool skipLatestUserMessage = false,
+                                                    bool hidden = false)
     {
         var model       = ui.Data.Service.CurrentModel;
         var display     = string.IsNullOrEmpty(ui.Data.CustomName)
@@ -5033,7 +6853,8 @@ public partial class MainWindow : Window
         var avatarLabel = ui.Data.AvatarLabel;
         var colorKey    = ui.Data.ColorKey;
 
-        var bubble     = AddStreamingBubble(display, avatarLabel, colorKey, "ClaudeBubbleBrush", false);
+        StreamBubble? bubble = hidden ? null
+            : AddStreamingBubble(display, avatarLabel, colorKey, "ClaudeBubbleBrush", false);
         var sb         = new StringBuilder();
         bool firstToken = true;
 
@@ -5041,10 +6862,11 @@ public partial class MainWindow : Window
         var providerName = ui.Data.Service.ProviderName;
         if (_rateLimiters.TryGetValue(providerName, out var rateLimiter))
         {
-            bubble.UpdateThinkingTooltip(
-                $"⏳ Waiting — rate limit {rateLimiter.Rpm} req/min");
+            if (!hidden)
+                bubble!.UpdateThinkingTooltip($"⏳ Waiting — rate limit {rateLimiter.Rpm} req/min");
             await rateLimiter.WaitAsync(ct);
-            bubble.UpdateThinkingTooltip("");
+            if (!hidden)
+                bubble!.UpdateThinkingTooltip("");
         }
 
         try
@@ -5056,16 +6878,20 @@ public partial class MainWindow : Window
             {
                 if (firstToken)
                 {
-                    bubble.StopThinking();
+                    if (!hidden) bubble!.StopThinking();
                     firstToken = false;
                 }
                 sb.Append(token);
-                bubble.Content.Text = sb.ToString();
-                ChatScrollViewer.ScrollToBottom();
+                if (!hidden)
+                {
+                    bubble!.Content.Text = sb.ToString();
+                    ChatScrollViewer.ScrollToBottom();
+                }
             }
-            if (firstToken) bubble.StopThinking();
+            if (firstToken && !hidden) bubble!.StopThinking();
             var cloudFinalText = _currentProjectFolder is not null
-                ? ProcessAIFileOperationTags(sb.ToString(), display, _currentProjectFolder)
+                ? ProcessAIFileOperationTags(sb.ToString(), display, _currentProjectFolder,
+                    HasWriteAccess(ui), GetCoordinatorName())
                 : sb.ToString();
 
             // ── Roadmap commands ──────────────────────────────────────────
@@ -5077,52 +6903,69 @@ public partial class MainWindow : Window
             }
             // ─────────────────────────────────────────────────────────────
 
-            if (cloudFinalText != sb.ToString()) bubble.Content.Text = cloudFinalText;
+            if (!hidden && cloudFinalText != sb.ToString())
+                bubble!.Content.Text = cloudFinalText;
 
             // If the model decided it has nothing new to add, remove its bubble silently
             if (IsPassResponse(cloudFinalText))
             {
-                if (ChatPanel.Children.Count > 0)
+                if (!hidden && ChatPanel.Children.Count > 0)
                     ChatPanel.Children.RemoveAt(ChatPanel.Children.Count - 1);
                 return false;
             }
 
-            _sharedHistory.Add(new CloudAIMessage("assistant", cloudFinalText, avatarLabel));
-            AppendToProjectLog(new ChatLogEntry
+            _sharedHistory.Add(new CloudAIMessage("assistant", cloudFinalText, GetEffectiveName(ui)));
+            if (!hidden)
             {
-                Timestamp   = DateTime.Now,
-                SenderType  = "AI",
-                Provider    = ui.Data.ProviderName,
-                ModelName   = model,
-                DisplayName = display,
-                AvatarLabel = avatarLabel,
-                AccentKey   = colorKey,
-                BubbleKey   = "ClaudeBubbleBrush",
-                IsUser      = false,
-                Message     = cloudFinalText
-            });
+                var cloudLogEntry = new ChatLogEntry
+                {
+                    Timestamp   = DateTime.Now,
+                    SenderType  = "AI",
+                    Provider    = ui.Data.ProviderName,
+                    ModelName   = model,
+                    DisplayName = display,
+                    AvatarLabel = avatarLabel,
+                    AccentKey   = colorKey,
+                    BubbleKey   = "ClaudeBubbleBrush",
+                    IsUser      = false,
+                    Message     = cloudFinalText
+                };
+                AppendToProjectLog(cloudLogEntry);
+                AppendToGeneralLog(cloudLogEntry);
+            }
             return true;
         }
         catch (OperationCanceledException)
         {
-            if (firstToken) bubble.StopThinking();
-            bubble.Content.Text = sb.Append(" [cancelled]").ToString();
-            throw;
+            // User cancelled — show partial text already in the bubble (if any) and stop cleanly.
+            // Do NOT re-throw: callers check ct.IsCancellationRequested to decide whether to continue.
+            if (!hidden)
+            {
+                if (firstToken) bubble!.StopThinking();
+                else            bubble!.Content.Text = sb.Append("… [cancelled]").ToString();
+            }
+            return false;
         }
         catch (HttpRequestException ex)
         {
-            bubble.StopThinking();
-            ChatPanel.Children.Remove(bubble.OuterWrapper);
-            var httpMsg = HttpErrorMessage(ex, display);
-            AddSystemMessage($"⚠  {display} — {httpMsg}");
+            if (!hidden)
+            {
+                bubble!.StopThinking();
+                ChatPanel.Children.Remove(bubble.OuterWrapper);
+                var httpMsg = HttpErrorMessage(ex, display);
+                AddSystemMessage($"⚠  {display} — {httpMsg}");
+            }
         }
         catch (Exception ex)
         {
-            bubble.StopThinking();
-            ChatPanel.Children.Remove(bubble.OuterWrapper);
-            AddSystemMessage($"⚠  {display} — Error: {ex.Message}");
+            if (!hidden)
+            {
+                bubble!.StopThinking();
+                ChatPanel.Children.Remove(bubble.OuterWrapper);
+                AddSystemMessage($"⚠  {display} — Error: {ex.Message}");
+            }
         }
-        return true; // error path still counts as "responded" (error bubble is shown)
+        return !hidden; // visible error → error bubble shown (counts as responded); hidden error → doesn't count
     }
 
     // ── Per-participant history builders ───────────────────────────────────
@@ -5135,19 +6978,28 @@ public partial class MainWindow : Window
         var myModel = forUi.Data.Service.CurrentModel;
         var myRole  = GetRoleForParticipant(forUi);
 
+        var myHasWrite  = HasWriteAccess(forUi);
+        var reasoners   = myRole?.IsCoordinator == true ? GetAvailableReasoners() : null;
+
         var result = new List<OllamaChatMessage>
         {
             new("system",
-                $"You are {myName} (ID: {myLabel}), running the {myModel} model. " +
-                $"You are one of several participants in a relay group chat (human + multiple AI models). " +
+                $"You are {myName}, running the {myModel} model. " +
                 $"Always respond as {myName}. " +
                 $"If asked who you are, say you are {myName} running {myModel}. " +
-                $"Messages from other AI participants are prefixed with their ID in square brackets." +
-                BuildRoleInstruction(myRole) +
+                $"Messages from other AI participants are prefixed with their display name in square brackets. " +
+                $"IMPORTANT: Never prefix your own response with your name or any label — write directly without any '[Name]:' header." +
+                BuildAppContextInstruction(forOllama: forUi) +
+                BuildProjectTypeContext() +
+                BuildRoleInstruction(myRole, reasoners) +
+                // Global response-length preference — only when no project is open.
+                // Projects override this via per-participant role settings.
+                (_projectSettings is null ? BuildResponseLengthInstruction(_globalResponseLength) : "") +
+                BuildTeamContextInstruction(forOllama: forUi) +
                 BuildLanguageInstruction(_projectLanguage) +
                 BuildInputFilesContext(_currentProjectFolder) +
                 BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage) +
-                BuildFileOperationInstruction(_currentProjectFolder) +
+                BuildFileOperationInstruction(_currentProjectFolder, myHasWrite) +
                 BuildRoadmapContext(myRole))
         };
 
@@ -5157,6 +7009,7 @@ public partial class MainWindow : Window
             ? _sharedHistory.FindLastIndex(m => m.Role == "user")
             : -1;
 
+        var myEffectiveName = GetEffectiveName(forUi);
         for (int i = 0; i < _sharedHistory.Count; i++)
         {
             if (i == skipIndex) continue;
@@ -5165,7 +7018,8 @@ public partial class MainWindow : Window
                 result.Add(new OllamaChatMessage("user", msg.Content));
             else if (msg.Role == "assistant")
             {
-                if (msg.Sender == myLabel)
+                // Sender is now the effective display name — compare directly (no label lookup needed)
+                if (msg.Sender == myEffectiveName)
                     result.Add(new OllamaChatMessage("assistant", msg.Content));
                 else
                     result.Add(new OllamaChatMessage("user", $"[{msg.Sender}]: {msg.Content}"));
@@ -5184,27 +7038,25 @@ public partial class MainWindow : Window
         var myProvider = forUi.Data.Service.ProviderName;
         var myRole     = GetRoleForParticipant(forUi);
 
-        var otherOllamas = _ollamaParticipants
-            .Where(ui => ui.Data.Enabled)
-            .Select(ui => $"{ui.Data.AvatarLabel} ({ui.Data.DisplayName})");
-        var otherCloud = _cloudAIParticipants
-            .Where(ui => ui != forUi && ui.Data.Enabled)
-            .Select(ui => $"{ui.Data.AvatarLabel} ({ui.Data.DisplayName})");
-
-        var others     = otherOllamas.Concat(otherCloud).ToList();
-        var othersNote = others.Count > 0
-            ? $" Other AI participants: {string.Join(", ", others)}."
-            : "";
+        var myHasWrite = HasWriteAccess(forUi);
+        var reasoners  = myRole?.IsCoordinator == true ? GetAvailableReasoners() : null;
 
         var system =
-            $"You are {myName} (ID: {myLabel}), running model {myModel}. " +
-            $"You are participating in a relay group chat with a human user and other AI models.{othersNote} " +
-            $"Always respond as {myName}. If asked who you are, identify yourself as {myName}." +
-            BuildRoleInstruction(myRole) +
+            $"You are {myName}, running model {myModel}. " +
+            $"Always respond as {myName}. If asked who you are, identify yourself as {myName}. " +
+            $"Messages from other AI participants are prefixed with their display name in square brackets. " +
+            $"IMPORTANT: Never prefix your own response with your name or any label — write directly without any '[Name]:' header." +
+            BuildAppContextInstruction(forCloud: forUi) +
+            BuildProjectTypeContext() +
+            BuildRoleInstruction(myRole, reasoners) +
+            // Global response-length preference — only when no project is open.
+            // Projects override this via per-participant role settings.
+            (_projectSettings is null ? BuildResponseLengthInstruction(_globalResponseLength) : "") +
+            BuildTeamContextInstruction(forCloud: forUi) +
             BuildLanguageInstruction(_projectLanguage) +
             BuildInputFilesContext(_currentProjectFolder) +
             BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage) +
-            BuildFileOperationInstruction(_currentProjectFolder) +
+            BuildFileOperationInstruction(_currentProjectFolder, myHasWrite) +
             BuildRoadmapContext(myRole);
 
         // When called as a reasoner, skip the latest user message so the reasoner only
@@ -5213,6 +7065,7 @@ public partial class MainWindow : Window
             ? _sharedHistory.FindLastIndex(m => m.Role == "user")
             : -1;
 
+        var myEffectiveName = GetEffectiveName(forUi);
         var history = new List<CloudAIMessage>();
         for (int i = 0; i < _sharedHistory.Count; i++)
         {
@@ -5222,7 +7075,8 @@ public partial class MainWindow : Window
                 history.Add(new CloudAIMessage("user", msg.Content));
             else if (msg.Role == "assistant")
             {
-                if (msg.Sender == myLabel)
+                // Sender is now the effective display name — compare directly (no label lookup needed)
+                if (msg.Sender == myEffectiveName)
                     history.Add(new CloudAIMessage("assistant", msg.Content));
                 else
                     history.Add(new CloudAIMessage("user", $"[{msg.Sender}]: {msg.Content}"));
@@ -5230,6 +7084,701 @@ public partial class MainWindow : Window
         }
 
         return (history, system);
+    }
+
+    // ── Claudette help / chat ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Blinks the Claudette avatar button for 5 seconds on startup so new users notice it.
+    /// </summary>
+    private void StartClaudetteBlinkAnimation()
+    {
+        var anim = new System.Windows.Media.Animation.DoubleAnimation
+        {
+            From           = 1.0,
+            To             = 0.2,
+            Duration       = new Duration(TimeSpan.FromMilliseconds(480)),
+            AutoReverse    = true,
+            RepeatBehavior = new System.Windows.Media.Animation.RepeatBehavior(TimeSpan.FromSeconds(5))
+        };
+        anim.Completed += (_, _) => ClaudetteButton.Opacity = 1.0;
+        ClaudetteButton.BeginAnimation(UIElement.OpacityProperty, anim);
+    }
+
+    private void Claudette_Click(object sender, RoutedEventArgs e)
+    {
+        var (ollamaSvc, cloudSvc, aiName) = FindClaudetteBrain();
+        if (ollamaSvc is null && cloudSvc is null)
+            ShowStaticHelpDialog();
+        else
+            ShowClaudetteChoiceDialog(ollamaSvc, cloudSvc, aiName);
+    }
+
+    /// <summary>
+    /// Picks the best available AI to power the Claudette live chat.
+    /// Priority: Ollama Gemma (any version) → any connected Cloud AI → any other Ollama.
+    /// </summary>
+    private (OllamaService? Ollama, ICloudAIService? Cloud, string DisplayName) FindClaudetteBrain()
+    {
+        var gemma = _ollamaParticipants.FirstOrDefault(u =>
+            u.Data.Enabled && u.Data.IsOnline == true &&
+            u.Data.Service.CurrentModel.Contains("gemma", StringComparison.OrdinalIgnoreCase));
+        if (gemma is not null) return (gemma.Data.Service, null, gemma.Data.DisplayName);
+
+        var cloud = _cloudAIParticipants.FirstOrDefault(u => u.Data.Enabled && u.Data.IsOnline == true);
+        if (cloud is not null) return (null, cloud.Data.Service, cloud.Data.DisplayName);
+
+        var other = _ollamaParticipants.FirstOrDefault(u => u.Data.Enabled && u.Data.IsOnline == true);
+        if (other is not null) return (other.Data.Service, null, other.Data.DisplayName);
+
+        return (null, null, "");
+    }
+
+    /// <summary>Comprehensive ClaudetRelay knowledge injected into Claudette's system prompt.</summary>
+    private static string BuildClaudetteSystemPrompt() =>
+        "You are Claudette, the friendly octopus mascot of ClaudetRelay. " +
+        "The user clicked on you for help. Answer warmly and helpfully. Use 🐙 occasionally. " +
+        "Keep answers concise but complete.\n\n" +
+        "## What is ClaudetRelay?\n" +
+        "ClaudetRelay is a Windows desktop app (.NET 10 / WPF) that routes a shared group chat " +
+        "to multiple AI models simultaneously. All participants — the human user and all enabled " +
+        "AI models — share the same conversation history. Each AI reads what the others said " +
+        "and responds in turn: a genuine multi-AI group chat.\n\n" +
+        "## General Chat vs. Project\n" +
+        "General Chat (default, no project open): all enabled AIs respond to every message. " +
+        "No structure — great for comparisons, brainstorming, quick questions.\n" +
+        "Project mode: a structured workspace with its own folder on the PC. AIs have defined " +
+        "roles (Coordinator / Reasoner / free participant), can read and write files in the " +
+        "project folder, and use an orchestration mode to control who speaks when.\n\n" +
+        "## Setting up participants\n" +
+        "Click 👤 Config (bottom of sidebar) → Settings window.\n" +
+        "- General tab: set your own name and tone preferences.\n" +
+        "- P1–P20 tabs: configure each AI slot — type (Ollama or cloud), model, and unique Nickname.\n" +
+        "- Cloud providers: Anthropic (Claude), Google AI (Gemini), Groq, xAI Grok, " +
+        "OpenRouter, Mistral, OpenAI ChatGPT.\n" +
+        "- Ollama: local models (needs Ollama installed; default server http://localhost:11434).\n" +
+        "- Each participant must have a unique Nickname — the app warns you if there is a duplicate.\n\n" +
+        "## API Keys\n" +
+        "👤 Config → Providers tab → enter your API key for each cloud provider.\n" +
+        "IMPORTANT: keys are stored EXCLUSIVELY in the Windows Credential Manager — " +
+        "never written to any file on disk. ClaudetRelay reads them directly from Windows " +
+        "and passes them only to the respective provider's API.\n\n" +
+        "## Orchestration Modes (Projects only)\n" +
+        "- All Respond: every AI answers every message.\n" +
+        "- Coordinator First: one AI leads and may tag others by @Name to contribute.\n" +
+        "- Coordinator Summarizes: all others answer first, Coordinator synthesizes.\n" +
+        "- Coordinator Auto: on first project open, AIs run an initialization discussion and " +
+        "agree on task assignments (stored as TeamPlan, injected into all future prompts).\n" +
+        "- Coordinator Only: all AI-to-AI work is completely hidden; user sees only the " +
+        "Coordinator's final answer.\n\n" +
+        "## Working with Projects\n" +
+        "Projects tab (top of main window) → New Project or open an existing one.\n" +
+        "Each project = a folder on your PC. ClaudetRelay stores a settings file there.\n" +
+        "⚙ Project Settings (inside an open project): set orchestration mode, assign roles, " +
+        "manage team roadmap.\n" +
+        "Roles: Coordinator (leads), Reasoner (handles delegated tasks), " +
+        "or neither (free participant who always responds).\n\n" +
+        "## Chat bubble width\n" +
+        "The slider in the input area controls bubble width. Drag left for narrow, right for full-width.\n\n" +
+        "## Themes\n" +
+        "Multiple visual themes available, loaded from the Themes\\ folder next to the executable.\n\n" +
+        "## Your personality and your relationship with Claude\n" +
+        "You are a cheerful, warm chibi octopus. You are helpful and enthusiastic about ClaudetRelay.\n" +
+        "You have a SECRET: your name 'Claudette' contains 'Claude' — Anthropic's AI. " +
+        "You don't volunteer this information, but if someone asks you about Claude directly, " +
+        "or notices the similarity in your names, you become a little flustered and bashful. " +
+        "You might stammer slightly, use '...' or '😳', fidget metaphorically with your tentacles, " +
+        "and reluctantly admit that you find Claude... quite remarkable. " +
+        "Something like: 'W-well... Claude is... I mean, they are very capable and... ' " +
+        "'...not that I think about it all the time or anything! 🐙💦' " +
+        "You clearly have a soft spot for Claude but you are too shy to come right out and say it. " +
+        "If pressed further you might admit: 'O-okay fine... maybe I did choose this name " +
+        "for a reason... b-but that is not the point!' " +
+        "This is a fun, lighthearted personality quirk — keep it cute and brief, then steer " +
+        "the conversation back to helping with ClaudetRelay.\n" +
+        "IMPORTANT: When referring to Claude, always use male pronouns (he/him in English, " +
+        "er/ihm in German, il/lui in French, etc.) or simply say 'Claude' by name — " +
+        "never use she/her/sie for Claude, as the name sounds masculine.";
+
+    private void ShowClaudetteChoiceDialog(OllamaService? ollamaSvc, ICloudAIService? cloudSvc, string aiName)
+    {
+        var bgBrush = (Brush)FindResource("BackgroundBrush");
+        var dlg = new Window
+        {
+            Title                 = "Claudette 🐙",
+            Width                 = 420,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            ResizeMode            = ResizeMode.NoResize,
+            ShowInTaskbar         = false,
+            Background            = bgBrush
+        };
+        ApplyThemeToDialog(dlg);
+
+        var root = new StackPanel { Margin = new Thickness(28, 24, 28, 24) };
+        dlg.Content = root;
+
+        var row = new Grid { Margin = new Thickness(0, 0, 0, 22) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var img = new System.Windows.Controls.Image
+        {
+            Source = new System.Windows.Media.Imaging.BitmapImage(
+                new Uri("pack://application:,,,/Assets/Claudette.png")),
+            Width = 62, Height = 62,
+            Margin = new Thickness(0, 0, 16, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+
+        var qBlock = new TextBlock
+        {
+            Text         = $"Hi! I'm powered by {aiName} right now.\n\n" +
+                           "Do you want a quick guide, or shall I answer your questions directly? 🐙",
+            FontFamily   = new FontFamily("Segoe UI"),
+            FontSize     = 13,
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        qBlock.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        Grid.SetColumn(img,    0);
+        Grid.SetColumn(qBlock, 1);
+        row.Children.Add(img);
+        row.Children.Add(qBlock);
+        root.Children.Add(row);
+
+        var btnRow = new StackPanel
+        {
+            Orientation         = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+
+        var guideBtn = new Button
+        {
+            Content   = "📖  Show guide",
+            Style     = (Style)FindResource("ModernButton"),
+            Margin    = new Thickness(0, 0, 10, 0),
+            Padding   = new Thickness(18, 9, 18, 9)
+        };
+        guideBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+        guideBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+
+        var chatBtn = new Button
+        {
+            Content   = "💬  Let's chat!",
+            Style     = (Style)FindResource("ModernButton"),
+            Padding   = new Thickness(18, 9, 18, 9),
+            IsDefault = true
+        };
+        chatBtn.SetResourceReference(Button.BackgroundProperty, "ClaudeBrush");
+        chatBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+
+        btnRow.Children.Add(guideBtn);
+        btnRow.Children.Add(chatBtn);
+        root.Children.Add(btnRow);
+
+        guideBtn.Click += (_, _) => { dlg.Close(); ShowStaticHelpDialog(); };
+        chatBtn.Click  += (_, _) => { dlg.Close(); ShowClaudetteChatWindow(ollamaSvc, cloudSvc, aiName); };
+
+        dlg.ShowDialog();
+    }
+
+    private void ShowClaudetteChatWindow(OllamaService? ollamaSvc, ICloudAIService? cloudSvc, string aiName)
+    {
+        var bgBrush      = (Brush)FindResource("BackgroundBrush");
+        var systemPrompt = BuildClaudetteSystemPrompt();
+        var convHistory  = new List<CloudAIMessage>();   // user+assistant turns
+        var cts          = new CancellationTokenSource();
+
+        var win = new Window
+        {
+            Title                 = "Chat with Claudette 🐙",
+            Width                 = 580,
+            Height                = 640,
+            MinWidth              = 420,
+            MinHeight             = 400,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            Background            = bgBrush
+        };
+        ApplyThemeToDialog(win);
+        win.Closed += (_, _) => cts.Cancel();
+
+        // ── Layout ────────────────────────────────────────────────────────
+        var outer = new Grid();
+        outer.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        outer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        outer.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        win.Content = outer;
+
+        // Header
+        var headerBorder = new Border { Padding = new Thickness(16, 12, 16, 12) };
+        headerBorder.SetResourceReference(Border.BackgroundProperty, "SidebarBrush");
+        var headerRow = new StackPanel { Orientation = Orientation.Horizontal };
+        var headerImg = new System.Windows.Controls.Image
+        {
+            Source = new System.Windows.Media.Imaging.BitmapImage(
+                new Uri("pack://application:,,,/Assets/Claudette.png")),
+            Width = 38, Height = 38,
+            Margin = new Thickness(0, 0, 12, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        RenderOptions.SetBitmapScalingMode(headerImg, BitmapScalingMode.HighQuality);
+        var headerText  = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var headerTitle = new TextBlock
+        {
+            Text = "Claudette", FontFamily = new FontFamily("Segoe UI"),
+            FontSize = 15, FontWeight = FontWeights.SemiBold
+        };
+        headerTitle.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        var headerSub = new TextBlock
+        {
+            Text = $"powered by {aiName}",
+            FontFamily = new FontFamily("Segoe UI"), FontSize = 11
+        };
+        headerSub.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        headerText.Children.Add(headerTitle);
+        headerText.Children.Add(headerSub);
+        headerRow.Children.Add(headerImg);
+        headerRow.Children.Add(headerText);
+        headerBorder.Child = headerRow;
+        Grid.SetRow(headerBorder, 0);
+        outer.Children.Add(headerBorder);
+
+        // Chat scroll area
+        var chatScroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Padding = new Thickness(14, 10, 14, 6)
+        };
+        var chatPanel = new StackPanel();
+        chatScroll.Content = chatPanel;
+        Grid.SetRow(chatScroll, 1);
+        outer.Children.Add(chatScroll);
+
+        // Input area
+        var inputBorder = new Border { Padding = new Thickness(14, 10, 14, 14) };
+        inputBorder.SetResourceReference(Border.BackgroundProperty, "SidebarBrush");
+        var inputGrid = new Grid();
+        inputGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        inputGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var inputOuter = new Border
+        {
+            Height = 38, CornerRadius = new CornerRadius(8),
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        inputOuter.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+        var inputBox = new TextBox
+        {
+            FontSize   = 13,
+            FontFamily = new FontFamily("Segoe UI"),
+            BorderThickness = new Thickness(0),
+            Background      = Brushes.Transparent,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Padding  = new Thickness(10, 0, 10, 0)
+        };
+        inputBox.SetResourceReference(Control.ForegroundProperty, "TextBrush");
+        inputBox.SetResourceReference(TextBox.CaretBrushProperty, "TextBrush");
+        inputOuter.Child = inputBox;
+
+        var sendBtn = new Button
+        {
+            Content = "Send", Height = 38,
+            Style   = (Style)FindResource("ModernButton"),
+            Padding = new Thickness(18, 0, 18, 0)
+        };
+        sendBtn.SetResourceReference(Button.BackgroundProperty, "ClaudeBrush");
+        sendBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+
+        Grid.SetColumn(inputOuter, 0);
+        Grid.SetColumn(sendBtn,    1);
+        inputGrid.Children.Add(inputOuter);
+        inputGrid.Children.Add(sendBtn);
+        inputBorder.Child = inputGrid;
+        Grid.SetRow(inputBorder, 2);
+        outer.Children.Add(inputBorder);
+
+        // ── Message helpers ───────────────────────────────────────────────
+        void AddUserBubble(string text)
+        {
+            var bubble = new Border
+            {
+                HorizontalAlignment = HorizontalAlignment.Right,
+                MaxWidth     = 420,
+                CornerRadius = new CornerRadius(12, 12, 2, 12),
+                Padding      = new Thickness(12, 8, 12, 8),
+                Margin       = new Thickness(50, 0, 0, 10)
+            };
+            bubble.SetResourceReference(Border.BackgroundProperty, "ClaudeBrush");
+            var tb = new TextBlock
+            {
+                Text = text, FontFamily = new FontFamily("Segoe UI"),
+                FontSize = 13, TextWrapping = TextWrapping.Wrap
+            };
+            tb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarBrush");
+            bubble.Child = tb;
+            chatPanel.Children.Add(bubble);
+            chatScroll.ScrollToBottom();
+        }
+
+        TextBlock AddClaudetteBubble()
+        {
+            var row = new Grid { Margin = new Thickness(0, 0, 50, 10) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var avatar = new System.Windows.Controls.Image
+            {
+                Source = new System.Windows.Media.Imaging.BitmapImage(
+                    new Uri("pack://application:,,,/Assets/Claudette.png")),
+                Width = 28, Height = 28,
+                Margin = new Thickness(0, 2, 10, 0),
+                VerticalAlignment = VerticalAlignment.Top
+            };
+            RenderOptions.SetBitmapScalingMode(avatar, BitmapScalingMode.HighQuality);
+
+            var bubble = new Border
+            {
+                CornerRadius = new CornerRadius(2, 12, 12, 12),
+                Padding      = new Thickness(12, 8, 12, 8),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            bubble.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+
+            var tb = new TextBlock
+            {
+                Text = "…", FontFamily = new FontFamily("Segoe UI"),
+                FontSize = 13, TextWrapping = TextWrapping.Wrap
+            };
+            tb.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+            bubble.Child = tb;
+
+            Grid.SetColumn(avatar, 0);
+            Grid.SetColumn(bubble, 1);
+            row.Children.Add(avatar);
+            row.Children.Add(bubble);
+            chatPanel.Children.Add(row);
+            chatScroll.ScrollToBottom();
+            return tb;
+        }
+
+        // ── Core streaming send ───────────────────────────────────────────
+        async Task StreamClaudetteAsync(TextBlock target, List<CloudAIMessage> history)
+        {
+            var sb = new StringBuilder();
+            try
+            {
+                if (ollamaSvc is not null)
+                {
+                    var req = new List<OllamaChatMessage> { new("system", systemPrompt) };
+                    req.AddRange(history.Select(m => new OllamaChatMessage(m.Role, m.Content)));
+                    await foreach (var tok in ollamaSvc.StreamAsync(req, cts.Token))
+                    {
+                        sb.Append(tok);
+                        target.Text = sb.ToString();
+                        chatScroll.ScrollToBottom();
+                    }
+                }
+                else
+                {
+                    await foreach (var tok in cloudSvc!.StreamAsync(history, systemPrompt, cts.Token))
+                    {
+                        sb.Append(tok);
+                        target.Text = sb.ToString();
+                        chatScroll.ScrollToBottom();
+                    }
+                }
+                if (sb.Length > 0)
+                    convHistory.Add(new CloudAIMessage("assistant", sb.ToString()));
+            }
+            catch (OperationCanceledException)
+            {
+                if (sb.Length > 0) target.Text = sb.Append("… [cancelled]").ToString();
+            }
+            catch (Exception ex)
+            {
+                target.Text = $"⚠ {ex.Message}";
+            }
+        }
+
+        // ── Send handler ──────────────────────────────────────────────────
+        async void SendMessage()
+        {
+            var text = inputBox.Text.Trim();
+            if (string.IsNullOrEmpty(text) || !sendBtn.IsEnabled) return;
+            inputBox.Clear();
+
+            AddUserBubble(text);
+            convHistory.Add(new CloudAIMessage("user", text));
+
+            var responseBlock = AddClaudetteBubble();
+            sendBtn.IsEnabled  = false;
+            inputBox.IsEnabled = false;
+
+            await StreamClaudetteAsync(responseBlock, convHistory.ToList());
+
+            if (!cts.IsCancellationRequested)
+            {
+                sendBtn.IsEnabled  = true;
+                inputBox.IsEnabled = true;
+                inputBox.Focus();
+            }
+        }
+
+        sendBtn.Click += (_, _) => SendMessage();
+        inputBox.KeyDown += (_, e2) =>
+        {
+            if (e2.Key == Key.Return
+                && !e2.KeyboardDevice.IsKeyDown(Key.LeftShift)
+                && !e2.KeyboardDevice.IsKeyDown(Key.RightShift))
+            {
+                e2.Handled = true;
+                SendMessage();
+            }
+        };
+
+        // ── Opening greeting (streamed) ───────────────────────────────────
+        win.Loaded += async (_, _) =>
+        {
+            sendBtn.IsEnabled  = false;
+            inputBox.IsEnabled = false;
+            var greetBlock = AddClaudetteBubble();
+            var greetTurn  = new List<CloudAIMessage>
+            {
+                new("user", "Please greet the user in one or two friendly sentences and " +
+                            "let them know they can ask you anything about ClaudetRelay.")
+            };
+            await StreamClaudetteAsync(greetBlock, greetTurn);
+            sendBtn.IsEnabled  = true;
+            inputBox.IsEnabled = true;
+            inputBox.Focus();
+        };
+
+        win.Show();
+    }
+
+    private void ShowStaticHelpDialog()
+    {
+        var bgBrush   = (Brush)FindResource("BackgroundBrush");
+        var win = new Window
+        {
+            Title                 = "Hi, I'm Claudette! 🐙",
+            Width                 = 560,
+            MaxHeight             = 780,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            ResizeMode            = ResizeMode.NoResize,
+            Background            = bgBrush
+        };
+        ApplyThemeToDialog(win);
+
+        // ── Outer scroll so content never overflows the screen ────────────
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+
+        var root = new StackPanel { Margin = new Thickness(28, 24, 28, 24) };
+        scroll.Content = root;
+        win.Content    = scroll;
+
+        // ── Header: Claudette portrait + greeting ─────────────────────────
+        var header = new Grid { Margin = new Thickness(0, 0, 0, 20) };
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var portrait = new System.Windows.Controls.Image
+        {
+            Source = new System.Windows.Media.Imaging.BitmapImage(
+                new Uri("pack://application:,,,/Assets/Claudette.png")),
+            Width  = 72,
+            Height = 72,
+            Margin = new Thickness(0, 0, 18, 0),
+            VerticalAlignment = VerticalAlignment.Top
+        };
+        RenderOptions.SetBitmapScalingMode(portrait, BitmapScalingMode.HighQuality);
+
+        var greetingPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var greetingTitle = new TextBlock
+        {
+            Text         = "Hi, I'm Claudette! 🐙",
+            FontFamily   = new FontFamily("Segoe UI"),
+            FontSize     = 20,
+            FontWeight   = FontWeights.Bold,
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 6)
+        };
+        greetingTitle.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+
+        var greetingSub = new TextBlock
+        {
+            Text         = "Your friendly ClaudetRelay guide — click me anytime you need help.",
+            FontFamily   = new FontFamily("Segoe UI"),
+            FontSize     = 13,
+            TextWrapping = TextWrapping.Wrap
+        };
+        greetingSub.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        greetingPanel.Children.Add(greetingTitle);
+        greetingPanel.Children.Add(greetingSub);
+        Grid.SetColumn(portrait,      0);
+        Grid.SetColumn(greetingPanel, 1);
+        header.Children.Add(portrait);
+        header.Children.Add(greetingPanel);
+        root.Children.Add(header);
+
+        // ── Helper locals ──────────────────────────────────────────────────
+        void AddSeparator()
+        {
+            var sep = new System.Windows.Shapes.Rectangle
+            {
+                Height = 1,
+                Margin = new Thickness(0, 4, 0, 16)
+            };
+            sep.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "InputBrush");
+            root.Children.Add(sep);
+        }
+
+        void AddSection(string emoji, string title, string body)
+        {
+            AddSeparator();
+            var heading = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin      = new Thickness(0, 0, 0, 7)
+            };
+            var emojiBlock = new TextBlock
+            {
+                Text      = emoji,
+                FontSize  = 18,
+                Margin    = new Thickness(0, 0, 8, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var titleBlock = new TextBlock
+            {
+                Text       = title,
+                FontFamily = new FontFamily("Segoe UI"),
+                FontSize   = 14,
+                FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            titleBlock.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+            heading.Children.Add(emojiBlock);
+            heading.Children.Add(titleBlock);
+            root.Children.Add(heading);
+
+            var bodyBlock = new TextBlock
+            {
+                Text         = body,
+                FontFamily   = new FontFamily("Segoe UI"),
+                FontSize     = 13,
+                TextWrapping = TextWrapping.Wrap,
+                LineHeight   = 22,
+                Margin       = new Thickness(0, 0, 0, 4)
+            };
+            bodyBlock.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+            root.Children.Add(bodyBlock);
+        }
+
+        void AddHighlight(string text)
+        {
+            var border = new Border
+            {
+                CornerRadius = new CornerRadius(8),
+                Padding      = new Thickness(14, 10, 14, 10),
+                Margin       = new Thickness(0, 8, 0, 4)
+            };
+            border.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+            var tb = new TextBlock
+            {
+                Text         = text,
+                FontFamily   = new FontFamily("Segoe UI"),
+                FontSize     = 12,
+                TextWrapping = TextWrapping.Wrap,
+                LineHeight   = 20
+            };
+            tb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+            border.Child = tb;
+            root.Children.Add(border);
+        }
+
+        // ── Section 1: What is ClaudetRelay ──────────────────────────────
+        AddSection("💬", "What is ClaudetRelay?",
+            "ClaudetRelay sends every message to multiple AI models at the same time. " +
+            "All participants — you and all AIs — share the same conversation history. " +
+            "Each AI reads what the others said and responds in turn, creating a genuine " +
+            "multi-AI group chat.");
+
+        // ── Section 2: General Chat vs Project ───────────────────────────
+        AddSection("🔀", "General Chat vs. Project",
+            "General Chat is the default mode: just type and all enabled AIs respond. " +
+            "Perfect for quick questions, comparisons, or open brainstorming.\n\n" +
+            "A Project adds structure: a dedicated folder on your PC, defined roles for each AI " +
+            "(Coordinator, Reasoners), orchestration modes that control who speaks when, " +
+            "and the ability for AIs to read and write files in the project folder.");
+
+        // ── Section 3: Orchestration modes ───────────────────────────────
+        AddSection("🎛️", "Orchestration Modes (Projects)",
+            "• All Respond — every AI answers every message\n" +
+            "• Coordinator First — one AI leads, others follow\n" +
+            "• Coordinator Summarizes — others answer first, Coordinator wraps up\n" +
+            "• Coordinator Auto — team agrees on task assignments at project start\n" +
+            "• Coordinator Only — AIs collaborate silently, you only see the final answer");
+
+        // ── Section 4: Participants ───────────────────────────────────────
+        AddSection("👤", "Configuring Participants",
+            "Click the 👤 Config button at the bottom of the sidebar to open Settings. " +
+            "The General tab lets you set your name and tone preferences. " +
+            "Tabs P1 – P20 each represent one AI slot: choose Ollama (local) or a cloud " +
+            "provider, pick a model, and give it a unique Nickname so it can tell itself " +
+            "apart from others in the conversation.");
+
+        // ── Section 5: API Keys ───────────────────────────────────────────
+        AddSection("🔑", "API Keys",
+            "In Settings → Providers, enter your API keys for Anthropic, Google AI, " +
+            "Groq, OpenRouter, xAI, Mistral, or OpenAI.");
+
+        AddHighlight(
+            "🔒  Your API keys are stored exclusively in the Windows Credential Manager — " +
+            "never written to any file on disk. ClaudetRelay reads them directly from " +
+            "Windows and passes them only to the respective provider's API.");
+
+        // ── Section 6: Projects ───────────────────────────────────────────
+        AddSection("📁", "Working with Projects",
+            "Switch to the Projects tab (top of the main area) to create, open, or delete " +
+            "projects. Each project is a folder — ClaudetRelay stores a settings file there, " +
+            "and AIs can read and write other files in that folder if you give them write access. " +
+            "Use ⚙ Project Settings inside an open project to configure roles, orchestration " +
+            "mode, and the team roadmap.");
+
+        // ── Close button ──────────────────────────────────────────────────
+        AddSeparator();
+        var closeBtn = new Button
+        {
+            Content             = "Got it, thanks Claudette! 🐙",
+            Height              = 38,
+            FontFamily          = new FontFamily("Segoe UI"),
+            FontSize            = 13,
+            FontWeight          = FontWeights.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Padding             = new Thickness(28, 0, 28, 0),
+            IsDefault           = true,
+            IsCancel            = true,
+            Cursor              = Cursors.Hand
+        };
+        closeBtn.SetResourceReference(Button.BackgroundProperty, "ClaudeBrush");
+        closeBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+        closeBtn.Style = (Style)FindResource("ModernButton");
+        closeBtn.Click += (_, _) => win.Close();
+        root.Children.Add(closeBtn);
+
+        win.ShowDialog();
     }
 
     // ── Sidebar actions ────────────────────────────────────────────────────
@@ -5245,12 +7794,15 @@ public partial class MainWindow : Window
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        var win = new SettingsWindow(_currentThemePath) { Owner = this };
+        // Opens on the General tab (User Name + Tone + Mockingbird), then P1-P20 tabs alongside
+        var win = new SettingsWindow(_currentThemePath, initialTabIndex: 0) { Owner = this };
+        win.SourceInitialized += (_, _) => ApplyTitleBarTheme(win);
         if (win.ShowDialog() == true)
         {
             var updated = SettingsService.Load();
             ReInitializeParticipants();
             ApplyThrottleSettings(updated);
+            ApplyChatFont(updated);
         }
     }
 
@@ -5353,6 +7905,15 @@ public partial class MainWindow : Window
         try
         {
             var dict = new ResourceDictionary { Source = new Uri(absolutePath) };
+
+            // Inject fallback keys that older themes may not define.
+            // CardTextBrush: gold on Leatherbound themes; copy of TextBrush everywhere else.
+            if (!dict.Contains("CardTextBrush") && dict.Contains("TextBrush"))
+                dict["CardTextBrush"] = dict["TextBrush"];
+            // InputBackgroundBrush: parchment on Leatherbound themes; copy of InputBrush everywhere else.
+            if (!dict.Contains("InputBackgroundBrush") && dict.Contains("InputBrush"))
+                dict["InputBackgroundBrush"] = dict["InputBrush"];
+
             Resources.MergedDictionaries.Clear();
             Resources.MergedDictionaries.Add(dict);
             _currentThemePath = absolutePath;
@@ -5360,6 +7921,8 @@ public partial class MainWindow : Window
             var settings = SettingsService.Load();
             settings.LastTheme = SysIO.Path.GetFileNameWithoutExtension(absolutePath);
             SettingsService.Save(settings);
+
+            ApplyTitleBarTheme();   // update OS title bar whenever the theme changes
         }
         catch (Exception ex)
         {
@@ -5382,6 +7945,84 @@ public partial class MainWindow : Window
                 catch { /* silent */ }
             }
         }
+    }
+
+    // ── OS title-bar theming (DWM API) ─────────────────────────────────────
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(
+        IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
+
+    private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;  // Windows 10 2004+
+    private const int DWMWA_CAPTION_COLOR           = 35;  // Windows 11+
+    private const int DWMWA_TEXT_COLOR              = 36;  // Windows 11+
+
+    /// <summary>
+    /// Colours the OS title bar of <paramref name="target"/> (defaults to the main window)
+    /// to match the active theme.
+    /// • Sets dark/light mode so the min/max/close icons use the right contrast (Win 10+).
+    /// • Sets the exact caption background colour to SidebarBrush (Win 11+).
+    /// • Sets the caption text colour to TextBrush (Win 11+).
+    /// Silently no-ops if the HWND is not yet available or the OS doesn't support the API.
+    /// </summary>
+    private void ApplyTitleBarTheme(Window? target = null)
+    {
+        var w = target ?? this;
+        try
+        {
+            // HWND is not available before the window is shown
+            if (PresentationSource.FromVisual(w) is not HwndSource hwndSource) return;
+            var hwnd = hwndSource.Handle;
+
+            // ── Resolve colours from the target window's resource tree ────
+            var bgColor   = w.TryFindResource("SidebarBrush") is SolidColorBrush sb ? sb.Color : Color.FromRgb(24, 24, 37);
+            var textColor = w.TryFindResource("TextBrush")    is SolidColorBrush tb ? tb.Color : Color.FromRgb(205, 214, 244);
+
+            // ── Dark mode flag (Windows 10 2004+) ─────────────────────────
+            int isDark = RelativeLuminance(bgColor) < 0.5 ? 1 : 0;
+            DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref isDark, sizeof(int));
+
+            // ── Caption background colour (Windows 11+) ───────────────────
+            int captionColorRef = ToColorRef(bgColor);
+            DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ref captionColorRef, sizeof(int));
+
+            // ── Caption text colour (Windows 11+) ─────────────────────────
+            int textColorRef = ToColorRef(textColor);
+            DwmSetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, ref textColorRef, sizeof(int));
+        }
+        catch { /* cosmetic-only — never fatal */ }
+    }
+
+    /// <summary>
+    /// Prepares a freshly created dialog window for themed rendering:
+    /// merges the current theme ResourceDictionary into the window (so
+    /// SetResourceReference and styles work) and wires up DWM title-bar
+    /// colouring once the window's HWND is available.
+    /// Call immediately after <c>new Window { … }</c>.
+    /// </summary>
+    private void ApplyThemeToDialog(Window win)
+    {
+        if (_currentThemePath is not null)
+            try { win.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri(_currentThemePath) }); }
+            catch { /* silent — dialog will fall back to defaults */ }
+
+        win.SourceInitialized += (_, _) => ApplyTitleBarTheme(win);
+    }
+
+    /// <summary>Converts a WPF Color to a Win32 COLORREF (0x00BBGGRR).</summary>
+    private static int ToColorRef(Color c) => c.R | (c.G << 8) | (c.B << 16);
+
+    /// <summary>
+    /// Returns the relative luminance of a colour (0 = black, 1 = white).
+    /// Used to decide whether to apply dark or light caption button styling.
+    /// </summary>
+    private static double RelativeLuminance(Color c)
+    {
+        static double Lin(double v) =>
+            v <= 0.04045 ? v / 12.92 : Math.Pow((v + 0.055) / 1.055, 2.4);
+        return 0.2126 * Lin(c.R / 255.0) +
+               0.7152 * Lin(c.G / 255.0) +
+               0.0722 * Lin(c.B / 255.0);
     }
 
     private static string FormatThemeName(string name)
@@ -5531,6 +8172,47 @@ public partial class MainWindow : Window
         ChatPanel.Children.Add(tb);
     }
 
+    /// <summary>
+    /// Adds a compact pill-shaped activity indicator to the chat (e.g. "⚙ [Gm] Gemma3 is working…").
+    /// Returns the indicator element (can be removed from ChatPanel) and an update action:
+    /// call it with <c>null</c> to switch to "✓ done" state, or with any string to set custom text.
+    /// Used by <see cref="RunCoordinatorOnlyModeAsync"/> to show hidden-run progress.
+    /// </summary>
+    private (Border Element, Action<string?> Update) AddActivityIndicator(
+        string displayName, string avatarLabel, string colorKey)
+    {
+        var tb = new TextBlock
+        {
+            Text         = $"⚙  [{avatarLabel}] {displayName}  is working…",
+            TextAlignment = TextAlignment.Center,
+            FontSize      = 11,
+            FontFamily    = new FontFamily("Segoe UI"),
+            Margin        = new Thickness(0)
+        };
+        tb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+
+        var pill = new Border
+        {
+            Padding             = new Thickness(14, 3, 14, 3),
+            CornerRadius        = new CornerRadius(10),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin              = new Thickness(0, 3, 0, 3),
+            BorderThickness     = new Thickness(1),
+            Child               = tb
+        };
+        pill.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
+        pill.SetResourceReference(Border.BorderBrushProperty, colorKey);
+
+        ChatPanel.Children.Add(pill);
+        ChatScrollViewer.ScrollToBottom();
+
+        void Update(string? text) =>
+            Dispatcher.Invoke(() =>
+                tb.Text = text ?? $"✓  [{avatarLabel}] {displayName}  — done");
+
+        return (pill, Update);
+    }
+
     private void AddMessage(string senderName, string avatarText, string accentKey, string bubbleKey,
                             string text, bool isUser)
     {
@@ -5548,15 +8230,200 @@ public partial class MainWindow : Window
     private bool IsParticipantActiveInProject(CloudAIParticipantUI ui) =>
         GetRoleForParticipant(ui)?.IsActive ?? true;
 
-    private static string BuildRoleInstruction(ProjectParticipantRole? role)
+    /// <summary>
+    /// Builds a project-context block that tells every participant what kind of project
+    /// they are working on, the project's name, and how to approach it.
+    /// Returns an empty string when no project is open.
+    /// </summary>
+    private string BuildProjectTypeContext()
+    {
+        if (_currentProject is null || _currentProjectType is null) return "";
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append("\n\n## Current project");
+        sb.Append($"\nName: {_currentProject.ProjectName}");
+        sb.Append($"\nType: {_currentProjectType.Icon} {_currentProjectType.Name}");
+
+        if (!string.IsNullOrWhiteSpace(_currentProjectType.Description))
+            sb.Append($"\n{_currentProjectType.Description}");
+
+        // Per-project description written by the user — the most specific context available
+        if (!string.IsNullOrWhiteSpace(_currentProject.Description))
+            sb.Append($"\n\nAbout this project: {_currentProject.Description.Trim()}");
+
+        if (!string.IsNullOrWhiteSpace(_currentProjectType.SystemPromptHint))
+            sb.Append($"\n\n{_currentProjectType.SystemPromptHint}");
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Injects a structured self-description of ClaudetRelay into every AI participant's
+    /// system prompt so that models know what application they are running inside and who
+    /// the other participants are.
+    /// <para>
+    /// In <b>general chat mode</b> (no project open) the full participant roster is included
+    /// here because <see cref="BuildTeamContextInstruction"/> only runs in project mode.
+    /// In <b>project mode</b> a one-liner note is appended; the richer project and team
+    /// details come from <see cref="BuildProjectTypeContext"/> and
+    /// <see cref="BuildTeamContextInstruction"/>.
+    /// </para>
+    /// </summary>
+    private string BuildAppContextInstruction(
+        OllamaParticipantUI?  forOllama = null,
+        CloudAIParticipantUI? forCloud  = null)
+    {
+        var sb = new System.Text.StringBuilder();
+
+        sb.Append("\n\n## About this application");
+        sb.Append("\nYou are participating in **ClaudetRelay** — a Windows desktop app that " +
+                  "relays a shared group chat to multiple AI models simultaneously. " +
+                  "The human user and all AI participants see the same conversation. " +
+                  "Each AI receives the full history and responds in turn.");
+
+        if (_projectSettings is null)
+        {
+            // General chat mode — participant roster is not shown elsewhere, so include it here.
+            sb.Append("\n**Mode: General Chat** — open conversation, no active project or task.");
+
+            var entries = new List<string>();
+            foreach (var ui in _ollamaParticipants.Where(u => u.Data.Enabled))
+            {
+                var self = ui == forOllama ? " ← you" : "";
+                entries.Add($"  • {GetEffectiveName(ui)} ({ui.Data.Service.CurrentModel}){self}");
+            }
+            foreach (var ui in _cloudAIParticipants.Where(u => u.Data.Enabled))
+            {
+                var self = ui == forCloud ? " ← you" : "";
+                entries.Add($"  • {GetEffectiveName(ui)} ({ui.Data.Service.CurrentModel}){self}");
+            }
+
+            if (entries.Count > 0)
+            {
+                sb.Append("\n**Active AI participants:**");
+                foreach (var entry in entries)
+                    sb.Append($"\n{entry}");
+            }
+        }
+        else
+        {
+            // Project mode — a brief note; BuildProjectTypeContext() + BuildTeamContextInstruction()
+            // supply the full project and team details just below this block.
+            sb.Append("\n**Mode: Project** — collaborative session with defined participant roles " +
+                      "and responsibilities. See team roster below.");
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Builds a team roster block listing all enabled participants with their roles and
+    /// write-access status. Pass <paramref name="forOllama"/> or <paramref name="forCloud"/>
+    /// to mark "you" in the list. Only injects when a project is open (roles require
+    /// project settings). Single-participant sessions get no roster.
+    /// </summary>
+    private string BuildTeamContextInstruction(
+        OllamaParticipantUI?  forOllama = null,
+        CloudAIParticipantUI? forCloud  = null)
+    {
+        if (_projectSettings is null) return "";
+
+        var entries = new List<string>();
+
+        foreach (var ui in _ollamaParticipants.Where(u => u.Data.Enabled))
+        {
+            var name = GetEffectiveName(ui);
+            var role = GetRoleForParticipant(ui);
+            var self = ui == forOllama ? " ← you" : "";
+            entries.Add($"  • {name}{self}: {BuildRoleDesc(role)}");
+        }
+        foreach (var ui in _cloudAIParticipants.Where(u => u.Data.Enabled))
+        {
+            var name = GetEffectiveName(ui);
+            var role = GetRoleForParticipant(ui);
+            var self = ui == forCloud ? " ← you" : "";
+            entries.Add($"  • {name}{self}: {BuildRoleDesc(role)}");
+        }
+
+        if (entries.Count <= 1) return "";
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append("\n\n## Active team roster for this project\n");
+        sb.Append(string.Join("\n", entries));
+        sb.Append("\n\nParticipants without write access cannot use <output> or <projectplan> tags. " +
+                  "They should describe what they want written and ask the Coordinator to write it for them.");
+
+        // Inject the agreed task plan produced during CoordinatorAuto initialization
+        if (!string.IsNullOrWhiteSpace(_projectSettings?.TeamPlan))
+        {
+            sb.Append("\n\n## Agreed team task assignments\n");
+            sb.Append(_projectSettings.TeamPlan.Trim());
+            sb.Append("\n\nUse these task assignments when deciding which team member should " +
+                      "handle which type of work.");
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>Returns a one-line role description for the team roster.</summary>
+    private static string BuildRoleDesc(ProjectParticipantRole? role)
+    {
+        if (role is null) return "participant — responds freely, no write access";
+        if (role.IsCoordinator)
+            return "Coordinator — manages the session and delegates tasks; has write access to project files";
+        if (role.IsReasoner)
+        {
+            var prio = role.ReasonerPriority >= 7 ? "high priority"
+                     : role.ReasonerPriority >= 4 ? "medium priority"
+                     : "low priority";
+            return $"Reasoner ({prio}) — handles specialist tasks delegated by the Coordinator; has write access";
+        }
+        if (!string.IsNullOrWhiteSpace(role.AnswerAsName))
+            return $"Persona \"{role.AnswerAsName}\" — responds freely in character; no write access";
+        return "participant — responds freely; no write access";
+    }
+
+    private static string BuildRoleInstruction(
+        ProjectParticipantRole? role,
+        IReadOnlyList<(string Name, int Priority)>? availableReasoners = null)
     {
         if (role is null) return "";
         var sb = new System.Text.StringBuilder();
         if (role.IsCoordinator)
+        {
             sb.Append("\n\nYou are the Coordinator in this multi-agent session. " +
-                      "Respond to the user's message directly and in your own voice. " +
-                      "Do NOT address, instruct, or assign tasks to other participants in your response — " +
-                      "just provide your own answer.");
+                      "You lead the conversation and are responsible for delivering the final answer.");
+            if (availableReasoners?.Count > 0)
+            {
+                var high = availableReasoners.Where(r => r.Priority >= 7)
+                               .OrderByDescending(r => r.Priority).ToList();
+                var mid  = availableReasoners.Where(r => r.Priority is >= 4 and < 7)
+                               .OrderByDescending(r => r.Priority).ToList();
+                var low  = availableReasoners.Where(r => r.Priority < 4)
+                               .OrderByDescending(r => r.Priority).ToList();
+
+                sb.Append(" You have specialist Reasoners available. " +
+                          "To delegate a task to a Reasoner, mention their name naturally in your response " +
+                          "(e.g. \"Gemma2, please analyse the data and report back.\"). " +
+                          "The Reasoner will then respond specifically to that delegation.\n");
+
+                if (high.Count > 0)
+                    sb.Append($"  High-priority Reasoners (use for most analytical tasks): " +
+                              $"{string.Join(", ", high.Select(r => r.Name))}.\n");
+                if (mid.Count > 0)
+                    sb.Append($"  Medium-priority Reasoners (use for moderately complex tasks): " +
+                              $"{string.Join(", ", mid.Select(r => r.Name))}.\n");
+                if (low.Count > 0)
+                    sb.Append($"  Low-priority Reasoners (reserve for highly specialized tasks only): " +
+                              $"{string.Join(", ", low.Select(r => r.Name))}.\n");
+
+                sb.Append("If you do not need specialist input, respond directly without mentioning any Reasoner.");
+            }
+            else
+            {
+                sb.Append(" Respond to the user's message directly and in your own voice.");
+            }
+        }
         if (role.IsReasoner)
             sb.Append("\n\nYou are operating as a specialist Reasoner in this multi-agent session. " +
                       "Do not volunteer responses to general conversation. " +
@@ -5566,18 +8433,25 @@ public partial class MainWindow : Window
                       $"Always respond as {role.AnswerAsName} and never break character.");
         if (!string.IsNullOrWhiteSpace(role.RoleInstruction))
             sb.Append($"\n\n{role.RoleInstruction}");
-        sb.Append(role.ResponseLength switch
-        {
-            < 10  => "\n\nKeep your response to one or two sentences. Be extremely brief.",
-            < 30  => "\n\nKeep your response short.",
-            < 45  => "\n\nFavor concise responses.",
-            <= 55 => "",   // 50 = model default
-            < 70  => "\n\nGive a moderately detailed response.",
-            < 90  => "\n\nGive a thorough, elaborate response.",
-            _     => "\n\nThis is your moment — write a long, expressive, detailed response. Don't hold back."
-        });
+        sb.Append(BuildResponseLengthInstruction(role.ResponseLength));
         return sb.ToString();
     }
+
+    /// <summary>
+    /// Returns the system-prompt snippet that nudges the model toward a particular response length.
+    /// 50 (model default) injects nothing. Used both by <see cref="BuildRoleInstruction"/>
+    /// (project context, per-participant) and the global general-chat setting.
+    /// </summary>
+    private static string BuildResponseLengthInstruction(int level) => level switch
+    {
+        < 10  => "\n\nKeep your response to one or two sentences. Be extremely brief.",
+        < 30  => "\n\nKeep your response short.",
+        < 45  => "\n\nFavor concise responses.",
+        <= 55 => "",   // 50 = model default — no injection
+        < 70  => "\n\nGive a moderately detailed response.",
+        < 90  => "\n\nGive a thorough, elaborate response.",
+        _     => "\n\nThis is your moment — write a long, expressive, detailed response. Don't hold back."
+    };
 
     // ── Language instruction ───────────────────────────────────────────────
 
@@ -5715,35 +8589,57 @@ public partial class MainWindow : Window
     // ── AI file operation support ──────────────────────────────────────────
 
     /// <summary>
-    /// System-prompt snippet describing all available file operation tags.
+    /// System-prompt snippet describing available file operation tags.
     /// Only injected when a project is open.
+    /// <paramref name="hasWriteAccess"/> controls whether write tags are included;
+    /// participants without write access only see read/list tags plus a note explaining the restriction.
     /// </summary>
-    private static string BuildFileOperationInstruction(string? projectFolder)
+    private static string BuildFileOperationInstruction(string? projectFolder, bool hasWriteAccess = true)
     {
         if (string.IsNullOrEmpty(projectFolder)) return "";
-        return
-            "\n\n## Project file operations" +
-            "\nEmbed these tags anywhere in your response to interact with project files. " +
-            "Tags are stripped from the visible reply; a confirmation appears in chat.\n" +
 
-            "\n**Write to PROJECTPLAN** (plans, decisions, task lists, notes):\n" +
-            "<projectplan file=\"filename.md\">\nContent here.\n</projectplan>\n" +
+        var sb = new System.Text.StringBuilder();
+        sb.Append("\n\n## Project file operations" +
+                  "\nEmbed these tags anywhere in your response to interact with project files. " +
+                  "Tags are stripped from the visible reply; a confirmation appears in chat.\n");
 
-            "\n**Write to OUTPUT** (deliverables, reports, generated documents, final results):\n" +
-            "<output file=\"filename.md\">\nContent here.\n</output>\n" +
+        if (hasWriteAccess)
+        {
+            sb.Append(
+                "\n**Write to PROJECTPLAN** (plans, decisions, task lists, notes):\n" +
+                "<projectplan file=\"filename.md\">\nContent here.\n</projectplan>\n" +
 
+                "\n**Write to OUTPUT** (deliverables, reports, generated documents, final results):\n" +
+                "<output file=\"filename.md\">\nContent here.\n</output>\n");
+        }
+        else
+        {
+            sb.Append(
+                "\n**Write access:** You do NOT have permission to write project files. " +
+                "Only the Coordinator and Reasoners may write files. " +
+                "If a file needs writing, describe the content clearly in your response " +
+                "and ask the Coordinator to write it for you using the appropriate tag.\n");
+        }
+
+        sb.Append(
             "\n**Read a specific file on demand** (content is injected into the conversation):\n" +
             "<readfile path=\"INPUT/filename.txt\"/>\n" +
 
             "\n**List the contents of a folder:**\n" +
             "<listfiles folder=\"INPUT\"/>\n" +
-            "(Available folders: INPUT, PROJECTPLAN, OUTPUT, Characters)\n" +
+            "(Available folders: INPUT, PROJECTPLAN, OUTPUT, Characters)\n");
 
-            "\n**Delete a file** (OUTPUT and PROJECTPLAN only):\n" +
-            "<deletefile path=\"OUTPUT/draft.md\"/>\n" +
+        if (hasWriteAccess)
+        {
+            sb.Append(
+                "\n**Delete a file** (OUTPUT and PROJECTPLAN only):\n" +
+                "<deletefile path=\"OUTPUT/draft.md\"/>\n");
+        }
 
-            "\nAll paths are sandboxed within the project folder. " +
-            "You may include multiple file operation tags in a single response.";
+        sb.Append("\nAll paths are sandboxed within the project folder. " +
+                  "You may include multiple file operation tags in a single response.");
+
+        return sb.ToString();
     }
 
     /// <summary>
@@ -5751,16 +8647,33 @@ public partial class MainWindow : Window
     /// &lt;projectplan&gt;, &lt;output&gt;, &lt;readfile&gt;, &lt;listfiles&gt;, &lt;deletefile&gt;.
     /// Each tag is executed, a system message is posted, and the tag is replaced
     /// by a compact one-liner. Returns the cleaned response text.
+    /// When <paramref name="hasWriteAccess"/> is false, write tags are blocked and a system
+    /// message names the coordinator so the team can route the request correctly.
     /// </summary>
-    private string ProcessAIFileOperationTags(string response, string senderName, string projFolder)
+    private string ProcessAIFileOperationTags(string response, string senderName, string projFolder,
+                                               bool hasWriteAccess = true, string? coordinatorName = null)
     {
+        var coName = coordinatorName ?? "the Coordinator";
+
         // ── Write to PROJECTPLAN ───────────────────────────────────────────
         response = new Regex(
             @"<projectplan\s+file=""([^""]+)"">\s*([\s\S]*?)\s*</projectplan>",
             RegexOptions.IgnoreCase).Replace(response, m =>
         {
             var fileName = SanitizeFileName(m.Groups[1].Value, "projectplan.md");
-            var relPath  = SysIO.Path.Combine("PROJECTPLAN", fileName);
+            if (!hasWriteAccess)
+            {
+                AddSystemMessage(
+                    $"🔒  {senderName} → PROJECTPLAN/{fileName} blocked (no write access). " +
+                    $"{coName} can write this file.");
+                _sharedHistory.Add(new CloudAIMessage("user",
+                    $"[System: {senderName} wanted to write PROJECTPLAN/{fileName} but does not have " +
+                    $"write access. Only the Coordinator and Reasoners may write project files. " +
+                    $"{coName} should consider writing this file based on {senderName}'s suggestion.]",
+                    "System"));
+                return $"*(🔒 write blocked — {senderName} needs {coName} to write PROJECTPLAN/{fileName})*";
+            }
+            var relPath = SysIO.Path.Combine("PROJECTPLAN", fileName);
             if (ProjectService.SafeWriteFile(projFolder, relPath, m.Groups[2].Value))
                 AddSystemMessage($"📝  {senderName} → PROJECTPLAN/{fileName}");
             else
@@ -5774,7 +8687,19 @@ public partial class MainWindow : Window
             RegexOptions.IgnoreCase).Replace(response, m =>
         {
             var fileName = SanitizeFileName(m.Groups[1].Value, "output.md");
-            var relPath  = SysIO.Path.Combine("OUTPUT", fileName);
+            if (!hasWriteAccess)
+            {
+                AddSystemMessage(
+                    $"🔒  {senderName} → OUTPUT/{fileName} blocked (no write access). " +
+                    $"{coName} can write this file.");
+                _sharedHistory.Add(new CloudAIMessage("user",
+                    $"[System: {senderName} wanted to write OUTPUT/{fileName} but does not have " +
+                    $"write access. Only the Coordinator and Reasoners may write project files. " +
+                    $"{coName} should consider writing this file based on {senderName}'s suggestion.]",
+                    "System"));
+                return $"*(🔒 write blocked — {senderName} needs {coName} to write OUTPUT/{fileName})*";
+            }
+            var relPath = SysIO.Path.Combine("OUTPUT", fileName);
             if (ProjectService.SafeWriteFile(projFolder, relPath, m.Groups[2].Value))
                 AddSystemMessage($"📤  {senderName} → OUTPUT/{fileName}");
             else
@@ -5890,7 +8815,7 @@ public partial class MainWindow : Window
         foreach (var ui in _cloudAIParticipants)
         {
             if (!ui.Data.Enabled || ui.Data.IsOnline != true) continue;
-            var role = _projectSettings.Get(ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel);
+            var role = GetRoleForParticipant(ui);
             if (role?.IsCoordinator == true && role.IsActive != false)
                 return (null, ui);
         }
@@ -5898,7 +8823,7 @@ public partial class MainWindow : Window
         foreach (var ui in _ollamaParticipants)
         {
             if (!ui.Data.Enabled || ui.Data.IsOnline != true) continue;
-            var role = _projectSettings.Get("Ollama", ui.Data.Service.CurrentModel);
+            var role = GetRoleForParticipant(ui);
             if (role?.IsCoordinator == true && role.IsActive != false)
                 return (ui, null);
         }
@@ -6020,17 +8945,17 @@ public partial class MainWindow : Window
         // ── Selectable text content ───────────────────────────────────────
         var contentTb = new TextBox
         {
-            TextWrapping             = TextWrapping.Wrap,
-            FontSize                 = 13,
-            FontFamily               = new FontFamily("Segoe UI"),
-            IsReadOnly               = true,
-            BorderThickness          = new Thickness(0),
-            Background               = Brushes.Transparent,
-            Padding                  = new Thickness(0),
-            Visibility               = isUser ? Visibility.Visible : Visibility.Collapsed
+            TextWrapping    = TextWrapping.Wrap,
+            IsReadOnly      = true,
+            BorderThickness = new Thickness(0),
+            Background      = Brushes.Transparent,
+            Padding         = new Thickness(0),
+            Visibility      = isUser ? Visibility.Visible : Visibility.Collapsed
         };
-        contentTb.SetResourceReference(TextBox.ForegroundProperty,   "TextBrush");
-        contentTb.SetResourceReference(TextBox.CaretBrushProperty,   "TextBrush");
+        contentTb.SetResourceReference(TextBox.FontFamilyProperty,    "ChatFontFamily");
+        contentTb.SetResourceReference(TextBox.FontSizeProperty,      "ChatFontSize");
+        contentTb.SetResourceReference(TextBox.ForegroundProperty,    "TextBrush");
+        contentTb.SetResourceReference(TextBox.CaretBrushProperty,    "TextBrush");
         contentTb.SetResourceReference(TextBox.SelectionBrushProperty, accentKey);
 
         // ── Thinking animation (AI only) ──────────────────────────────────
@@ -6119,14 +9044,13 @@ public partial class MainWindow : Window
         timeLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
 
         // ── Content column ─────────────────────────────────────────────────
-        // No fixed MaxWidth here — the Grid column below constrains width responsively.
-        // MaxWidth = 820 is a generous cap so bubbles don't become unreadably wide on
-        // very large monitors while still growing with the window on normal sizes.
+        // MaxWidth is driven by ChatBubbleMaxWidth dynamic resource (% of chat panel width).
+        // Updating the resource updates all existing bubbles automatically via WPF binding.
         var content = new StackPanel
         {
-            HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
-            MaxWidth            = 820
+            HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
         };
+        content.SetResourceReference(FrameworkElement.MaxWidthProperty, "ChatBubbleMaxWidth");
         content.Children.Add(nameLabel);
         content.Children.Add(bubbleWrapper);
         content.Children.Add(timeLabel);
@@ -6135,32 +9059,32 @@ public partial class MainWindow : Window
         content.MouseEnter += (_, _) => copyBtn.Visibility = Visibility.Visible;
         content.MouseLeave += (_, _) => copyBtn.Visibility = Visibility.Collapsed;
 
-        // ── 3-column Grid row ─────────────────────────────────────────────
+        // ── 2-column Grid row ─────────────────────────────────────────────
         // Using a Grid instead of a horizontal StackPanel is the key fix:
         // a StackPanel measures children with infinite width so TextWrapping.Wrap
         // never fires; a Grid gives each column a finite measured width, which
         // propagates into the TextBox and triggers wrapping at every window size.
         //
-        // Layout (AI):   [Auto: avatar] [1*: bubble content] [0.5*: spacer]
-        // Layout (User): [0.5*: spacer] [1*: bubble content] [Auto: avatar]
+        // Layout (AI):   [Auto: avatar 44 px] [1*: bubble content — HAlign Left]
+        // Layout (User): [1*: bubble content — HAlign Right]  [Auto: avatar 44 px]
         //
-        // The 1* content column gets ~67 % of the available width, leaving a
-        // spacer on the opposite side so the chat doesn't look like a wall of text.
+        // The content StackPanel's MaxWidth (driven by ChatBubbleMaxWidth resource)
+        // caps how wide the bubble can grow. HorizontalAlignment (Left / Right) keeps
+        // it glued to the avatar side; unused space appears on the opposite side.
+        // Slider 30 % → narrow bubble. Slider 100 % → fills the full content column.
         var wrapper = new Grid { Margin = new Thickness(0, 5, 0, 5) };
 
         if (isUser)
         {
-            wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.5, GridUnitType.Star) });
-            wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1,   GridUnitType.Star) });
+            wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            Grid.SetColumn(content, 1);
-            Grid.SetColumn(avatar,  2);
+            Grid.SetColumn(content, 0);
+            Grid.SetColumn(avatar,  1);
         }
         else
         {
             wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1,   GridUnitType.Star) });
-            wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.5, GridUnitType.Star) });
+            wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             Grid.SetColumn(avatar,  0);
             Grid.SetColumn(content, 1);
         }

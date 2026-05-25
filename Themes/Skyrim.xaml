@@ -1,0 +1,26 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Skyrim -->
+    <!-- Chat-Fenster: tiefer Nordicstein  |  Rahmen: geschwärzter Grabstein -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#1A1C22"/> <!-- Tiefer Nordischer Dungeon-Stein -->
+    <SolidColorBrush x:Key="SidebarBrush"   Color="#0F1014"/> <!-- Geschwärzter Grabstein / Bleak Falls -->
+    <SolidColorBrush x:Key="InputBrush"     Color="#24282E"/> <!-- Alter gemeißelter Stein -->
+    <SolidColorBrush x:Key="SurfaceBrush"   Color="#2C3038"/> <!-- Hellerer Stein — Oberflächen -->
+
+    <!-- Text: Knochenweiss / Frost -->
+    <SolidColorBrush x:Key="TextBrush"    Color="#C8D0DC"/> <!-- Frostweiss / verwittertes Knochenweiss -->
+    <SolidColorBrush x:Key="SubtextBrush" Color="#567090"/> <!-- Nordisches Eisrunen-Blau -->
+
+    <!-- Akzente: Frost-Magie, Eis, Drachenruf-Energie -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#6890C0"/> <!-- Frost-Spell-Blau -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#486880"/> <!-- Tiefes Nordisches Blaugrau -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#8098B0"/> <!-- Stahl / Frost -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#A8C8E8"/> <!-- Helles Eis / FUS RO DAH Energie -->
+
+    <!-- Chat-Bubble-Hintergründe: dunkler Stein mit kaltem Hauch -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#1E2230"/> <!-- Dunkler bläulicher Stein -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#1C1E26"/> <!-- Kalter dunkler Stein -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#20222C"/> <!-- Neutraler dunkler Stein -->
+
+</ResourceDictionary>

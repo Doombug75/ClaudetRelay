@@ -5,6 +5,7 @@
         MinHeight="600" MinWidth="900"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource BackgroundBrush}"
+        Icon="pack://application:,,,/Assets/Claudette.ico"
         AllowDrop="True"
         DragEnter="Window_DragEnter"
         Drop="Window_Drop">
@@ -255,26 +256,15 @@
                 <!-- Footer -->
                 <StackPanel DockPanel.Dock="Bottom" Margin="14,0,14,16">
                     <Rectangle Height="1" Fill="{DynamicResource InputBrush}" Margin="0,0,0,12"/>
-                    <Button Content="⚙  Settings"
+                    <Button Content="👤  Config"
                             Style="{StaticResource SidebarButton}"
                             Margin="0,0,0,7"
+                            ToolTip="Configure Chat Participants, Chat Settings and User Name"
                             Click="SettingsButton_Click"/>
                     <Button Content="🗑  Clear Chat"
                             Style="{StaticResource SidebarButton}"
                             Margin="0,0,0,6"
                             Click="ClearChat_Click"/>
-                    <!-- About / Version -->
-                    <Button x:Name="AboutButton"
-                            Content="?"
-                            Style="{StaticResource ModernButton}"
-                            HorizontalAlignment="Right"
-                            Width="26" Height="26"
-                            FontSize="13" FontWeight="Bold"
-                            Padding="0"
-                            Background="{DynamicResource InputBrush}"
-                            Foreground="{DynamicResource SubtextBrush}"
-                            ToolTip="About / Version"
-                            Click="AboutButton_Click"/>
                 </StackPanel>
 
                 <!-- Scrollable content -->
@@ -284,12 +274,16 @@
 
                         <!-- ── Logo ── -->
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,28">
-                            <Border Width="38" Height="38" CornerRadius="10"
-                                    Background="{DynamicResource ClaudeBrush}" Margin="0,0,10,0">
-                                <TextBlock Text="CR" FontSize="14" FontWeight="Bold"
-                                           Foreground="{DynamicResource SidebarBrush}"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
+                            <Button x:Name="ClaudetteButton"
+                                    Click="Claudette_Click"
+                                    Background="Transparent" BorderThickness="0"
+                                    Padding="0" Cursor="Hand"
+                                    ToolTip="Click me for help! 🐙"
+                                    Margin="0,0,10,0">
+                                <Image Source="pack://application:,,,/Assets/Claudette.png"
+                                       Width="44" Height="44"
+                                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                            </Button>
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock FontSize="17" FontWeight="Bold" FontFamily="Segoe UI">
                                     <Run Text="Claudet" Foreground="{DynamicResource ClaudeBrush}"/>
@@ -369,12 +363,19 @@
                             </Button.Foreground>
                         </Button>
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom"
-                                Margin="0,0,0,8">
-                        <Ellipse Width="9" Height="9" Fill="{DynamicResource ClaudeBrush}" Margin="0,0,5,0"/>
-                        <Ellipse Width="9" Height="9" Fill="{DynamicResource OllamaBrush}" Margin="0,0,5,0"/>
-                        <Ellipse Width="9" Height="9" Fill="{DynamicResource UserBrush}"/>
-                    </StackPanel>
+                    <Button x:Name="OptionsMenuButton"
+                            Grid.Column="1" VerticalAlignment="Bottom"
+                            Margin="0,0,0,8" Padding="4,6"
+                            Style="{StaticResource ModernButton}"
+                            Background="Transparent"
+                            ToolTip="Options"
+                            Click="OptionsMenuButton_Click">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource ClaudeBrush}" Margin="0,0,5,0"/>
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource OllamaBrush}" Margin="0,0,5,0"/>
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource UserBrush}"/>
+                        </StackPanel>
+                    </Button>
                 </Grid>
             </Border>
 
@@ -390,6 +391,33 @@
                                VerticalAlignment="Center"/>
                     <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center"
                                 Orientation="Horizontal">
+                        <Button x:Name="ExportChatButton"
+                                Content="📄"
+                                Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource InputBrush}"
+                                Foreground="{DynamicResource SubtextBrush}"
+                                FontSize="13" Padding="10,5"
+                                Margin="0,0,6,0"
+                                Click="ExportChatButton_Click"
+                                ToolTip="Export chat history as HTML or Markdown…"/>
+                        <Button x:Name="ChatFontButton"
+                                Content="Aa"
+                                Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource InputBrush}"
+                                Foreground="{DynamicResource SubtextBrush}"
+                                FontSize="12" Padding="10,5"
+                                Margin="0,0,6,0"
+                                Click="ChatFontButton_Click"
+                                ToolTip="Chat font and size"/>
+                        <Button x:Name="AiDialogueButton"
+                                Content="💬"
+                                Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource InputBrush}"
+                                Foreground="{DynamicResource SubtextBrush}"
+                                FontSize="13" Padding="10,5"
+                                Margin="0,0,6,0"
+                                Click="AiDialogueButton_Click"
+                                ToolTip="Multi-round AI dialogue — participants read and reply to each other (AllRespond mode)"/>
                         <Button x:Name="WorldButton"
                                 Content="🌍 Welt"
                                 Visibility="Collapsed"
@@ -410,6 +438,16 @@
                                 Margin="0,0,6,0"
                                 Click="RoadmapButton_Click"
                                 ToolTip="Projekt-Roadmap anzeigen (coming soon)"/>
+                        <Button x:Name="BackupButton"
+                                Content="💾 Backup"
+                                Visibility="Collapsed"
+                                Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource InputBrush}"
+                                Foreground="{DynamicResource TextBrush}"
+                                FontSize="12" Padding="10,5"
+                                Margin="0,0,6,0"
+                                Click="BackupButton_Click"
+                                ToolTip="Create a ZIP backup of this project now"/>
                         <Button x:Name="CloseProjectButton"
                                 Content="✕ Close Project"
                                 Visibility="Collapsed"
@@ -513,7 +551,7 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" Background="{DynamicResource InputBrush}"
+                        <Border Grid.Column="0" Background="{DynamicResource InputBackgroundBrush}"
                                 CornerRadius="12" Margin="0,0,10,0">
                             <Grid Margin="14,10,14,10">
                                 <TextBox x:Name="InputTextBox"

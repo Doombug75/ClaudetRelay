@@ -56,6 +56,12 @@ public class AppSettings
     public string ProjectsFolder { get; set; } = "";
 
     /// <summary>
+    /// Folder where project ZIP backups are stored.
+    /// Empty = backup feature disabled (no backup prompt on project close).
+    /// </summary>
+    public string BackupFolder { get; set; } = "";
+
+    /// <summary>
     /// Response tone/style: 0 = strictly neutral, 50 = model default (no injection), 100 = very friendly.
     /// </summary>
     public int ToneLevel { get; set; } = 50;
@@ -70,11 +76,42 @@ public class AppSettings
     /// <summary>Per-participant configuration (P1–P8). Populated on first load via migration.</summary>
     public List<ParticipantConfig> Participants { get; set; } = [];
 
+    /// <summary>Font family used in the chat window and HTML exports. Default "Segoe UI".</summary>
+    public string ChatFontFamily { get; set; } = "Segoe UI";
+
+    /// <summary>Font size (pt) used in the chat window and HTML exports. Default 13.</summary>
+    public double ChatFontSize { get; set; } = 13.0;
+
+    /// <summary>
+    /// Maximum bubble width as a percentage of the chat panel width (1–100).
+    /// Default 78 — works well on 1080p; raise on 2K/4K displays.
+    /// </summary>
+    public double ChatBubbleWidthPercent { get; set; } = 78.0;
+
     /// <summary>
     /// Per-provider request rate-limit settings.
     /// Key = provider name, e.g. "Google AI", "Groq".
     /// </summary>
     public Dictionary<string, ProviderThrottleSettings> ProviderThrottle { get; set; } = new();
+
+    /// <summary>
+    /// When true, AI participants get additional rounds to read and reply to each other
+    /// after the first response (multi-round dialogue). Effective in AllRespond mode only.
+    /// </summary>
+    public bool AiDialogueEnabled { get; set; } = false;
+
+    /// <summary>
+    /// Maximum number of turns in an AI-to-AI dialogue session (3–100).
+    /// Only used when AiDialogueEnabled is true.
+    /// </summary>
+    public int AiDialogueMaxTurns { get; set; } = 10;
+
+    /// <summary>
+    /// Default response length for general (non-project) chat (0–100).
+    /// 50 = model default — no instruction injected.
+    /// Project per-participant settings always take priority over this.
+    /// </summary>
+    public int GlobalResponseLength { get; set; } = 50;
 }
 
 public static class SettingsService

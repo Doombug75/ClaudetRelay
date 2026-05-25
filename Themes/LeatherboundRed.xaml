@@ -1,0 +1,28 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Leatherbound Red -->
+    <!-- Chat-Fenster: altes Pergament  |  Rahmen: tiefes dunkelrotes Leder -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#F4E8CC"/> <!-- Gealtertes Pergament (Chat-Fläche) -->
+    <SolidColorBrush x:Key="SidebarBrush"   Color="#5C1818"/> <!-- Tiefes dunkelrotes Leder -->
+    <SolidColorBrush x:Key="InputBrush"     Color="#7A2222"/> <!-- Aufgehelltes Leder — Buttons, Karten -->
+    <SolidColorBrush x:Key="SurfaceBrush"   Color="#8C2C2C"/> <!-- Leicht helleres Leder — Oberflächen -->
+
+    <!-- Text: dunkle Tinte auf Pergament — Blattgold auf Leder -->
+    <SolidColorBrush x:Key="TextBrush"     Color="#1A0A06"/> <!-- Dunkle warme Tinte (lesbar auf Pergament) -->
+    <SolidColorBrush x:Key="SubtextBrush"  Color="#D4AA3A"/> <!-- Blattgold (auf Leder-Bereichen) -->
+    <SolidColorBrush x:Key="CardTextBrush"        Color="#D4AA3A"/> <!-- Blattgold auf Leder-Karten (Teilnehmer-Buttons) -->
+    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#F4E8CC"/> <!-- Pergament im Chat-Eingabefeld -->
+
+    <!-- Akzente: Einband-Töne, leicht hervorgehoben -->
+    <SolidColorBrush x:Key="ClaudeBrush"  Color="#C04848"/> <!-- Aufgehelltes Weinrot -->
+    <SolidColorBrush x:Key="OllamaBrush"  Color="#A03030"/> <!-- Mittleres Rot -->
+    <SolidColorBrush x:Key="UserBrush"    Color="#D46060"/> <!-- Helles Rosérot-Highlight -->
+    <SolidColorBrush x:Key="AccentBrush"  Color="#E05050"/> <!-- Lebhaftes Rot -->
+
+    <!-- Chat-Bubble-Hintergründe: Pergament-Variationen (dunkle Tinte gut lesbar) -->
+    <SolidColorBrush x:Key="ClaudeBubbleBrush" Color="#EDE0C4"/> <!-- Warmes Amber-Pergament -->
+    <SolidColorBrush x:Key="OllamaBubbleBrush" Color="#E8DCC0"/> <!-- Kühleres Pergament -->
+    <SolidColorBrush x:Key="UserBubbleBrush"   Color="#F2EAD4"/> <!-- Cremiges Pergament -->
+
+</ResourceDictionary>
