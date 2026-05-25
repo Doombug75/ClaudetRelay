@@ -7,5 +7,5 @@
         Description="A general-purpose project for any kind of collaborative work or conversation."
         HasRoadmap="True"
         HasWorldBuilding="False"
-        SystemPromptHint=""/>
+        SystemPromptHint="You are collaborating on a general-purpose project. Adapt your approach to whatever the user needs — research, writing, planning, brainstorming, analysis, or problem-solving. There is no fixed format or domain constraint."/>
 </ResourceDictionary>

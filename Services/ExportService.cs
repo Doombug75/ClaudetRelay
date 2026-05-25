@@ -23,7 +23,9 @@ public static class ExportService
 
     // ── HTML export ────────────────────────────────────────────────────────
 
-    public static string GenerateHtml(string projectName, List<ChatLogEntry> entries)
+    public static string GenerateHtml(string projectName, List<ChatLogEntry> entries,
+                                       string fontFamily = "Segoe UI", double fontSize = 13.0,
+                                       double bubbleWidthPercent = 78.0)
     {
         // Assign colours to AI participants in order of first appearance
         var colourMap  = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -85,6 +87,9 @@ public static class ExportService
         var exportDate    = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
         var msgCount      = entries.Count(e => e.SenderType != "System");
         var safeTitle     = WebUtility.HtmlEncode(projectName);
+        var cssFontFamily    = $"'{fontFamily}', system-ui, -apple-system, sans-serif";
+        var cssFontSize      = $"{fontSize:0.##}px";
+        var cssBubbleMaxWidth = $"{bubbleWidthPercent:0.#}%";
 
         return
             $$"""
@@ -97,7 +102,8 @@ public static class ExportService
               <style>
                 *, *::before, *::after { box-sizing: border-box; }
                 body {
-                  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+                  font-family: {{cssFontFamily}};
+                  font-size: {{cssFontSize}};
                   background: #f2f3f5;
                   margin: 0; padding: 24px 16px;
                   color: #1a1a1a;
@@ -117,9 +123,9 @@ public static class ExportService
                   margin-bottom: 4px; padding: 0 4px;
                 }
                 .bubble {
-                  display: inline-block; max-width: 78%;
+                  display: inline-block; max-width: {{cssBubbleMaxWidth}};
                   padding: 10px 14px; border-radius: 14px;
-                  font-size: 14px; line-height: 1.55;
+                  line-height: 1.55;
                   white-space: pre-wrap; word-break: break-word;
                 }
                 /* User */

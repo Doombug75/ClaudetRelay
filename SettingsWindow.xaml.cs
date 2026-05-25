@@ -30,6 +30,8 @@ public partial class SettingsWindow : Window
         public required CheckBox  RpmEnabledCheck  { get; init; }
         public required TextBox   RpmValueBox      { get; init; }
         public required TextBlock RpmHintLabel     { get; init; }
+        // Nickname duplicate warning
+        public required TextBlock NicknameWarning  { get; init; }
 
         public string CurrentProvider =>
             (TypeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Ollama";
@@ -45,17 +47,27 @@ public partial class SettingsWindow : Window
 
     // ── State ──────────────────────────────────────────────────────────────
 
+    private readonly bool                   _providerModeOnly;
     private readonly List<ParticipantForm>  _forms            = [];
     private readonly List<ProviderKeyForm>  _providerKeyForms = [];
-    private TextBox   _userNameBox       = null!;
-    private TextBox   _projectsFolderBox = null!;
-    private Slider    _toneSlider        = null!;
-    private CheckBox  _mockingbirdBox    = null!;
+    private TextBox   _userNameBox          = null!;
+    private Slider    _toneSlider           = null!;
+    private CheckBox  _mockingbirdBox       = null!;
+    private TextBox   _dialogueTurnsBox     = null!;
+    private Slider    _responseLengthSlider = null!;
 
     // ── Constructor ────────────────────────────────────────────────────────
 
-    public SettingsWindow(string? currentThemePath)
+    /// <param name="currentThemePath">Path to the active theme XAML, or null.</param>
+    /// <param name="initialTabIndex">Tab to show on open (ignored in provider mode).</param>
+    /// <param name="providerModeOnly">
+    /// When true: shows only the Providers tab for API key management.
+    /// When false (default): shows General + P1–P20 participant tabs.
+    /// </param>
+    public SettingsWindow(string? currentThemePath, int initialTabIndex = 0, bool providerModeOnly = false)
     {
+        _providerModeOnly = providerModeOnly;
+
         if (currentThemePath is not null)
         {
             try
@@ -70,21 +82,31 @@ public partial class SettingsWindow : Window
 
         var settings = SettingsService.Load();
 
-        // "General" tab is always first, then "Providers" for API keys
-        BuildGeneralTab(settings);
-        BuildProvidersTab();
-
-        // P1–P20
-        for (int i = 0; i < 20; i++)
+        if (providerModeOnly)
         {
-            var config = i < settings.Participants.Count
-                ? settings.Participants[i]
-                : new ParticipantConfig();
-            BuildTab(i, config, settings);
+            // Providers-only view: just the API key tab
+            Title                  = "Providers Setup · ClaudetRelay";
+            WindowTitleBlock.Text  = "Providers Setup";
+            BuildProvidersTab();
         }
+        else
+        {
+            // Participants view: General settings + all participant slots
+            BuildGeneralTab(settings);
+            for (int i = 0; i < 20; i++)
+            {
+                var config = i < settings.Participants.Count
+                    ? settings.Participants[i]
+                    : new ParticipantConfig();
+                BuildTab(i, config, settings);
+            }
 
-        // Auto-test all participants once the window is fully rendered
-        Loaded += async (_, _) => await AutoTestAllAsync();
+            if (initialTabIndex > 0 && initialTabIndex < ParticipantsTabControl.Items.Count)
+                ParticipantsTabControl.SelectedIndex = initialTabIndex;
+
+            // Auto-test all participants once the window is fully rendered
+            Loaded += async (_, _) => await AutoTestAllAsync();
+        }
     }
 
     // ── Input helpers ──────────────────────────────────────────────────────
@@ -131,6 +153,7 @@ public partial class SettingsWindow : Window
             string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName);
         _userNameBox          = userNameInput;
         userNameOuter.Margin  = new Thickness(0, 0, 0, 6);
+        userNameInput.TextChanged += (_, _) => ValidateAllNicknames();
 
         var nameHint = new TextBlock
         {
@@ -141,71 +164,6 @@ public partial class SettingsWindow : Window
             Margin       = new Thickness(0, 0, 0, 18)
         };
         nameHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
-
-        // ── PROJECTS FOLDER ────────────────────────────────────────────────
-        var folderLabel = new TextBlock
-        {
-            Style  = (Style)FindResource("SLabel"),
-            Text   = "PROJECTS FOLDER",
-            Margin = new Thickness(0, 0, 0, 6)
-        };
-
-        var defaultFolder = ProjectService.GetDefaultProjectsFolder();
-
-        var (folderOuter, folderBox) = MakeTextInput(
-            string.IsNullOrWhiteSpace(settings.ProjectsFolder) ? "" : settings.ProjectsFolder);
-        _projectsFolderBox = folderBox;
-
-        var browseFolderBtn = new Button
-        {
-            Content = "📁 Browse",
-            Style   = (Style)FindResource("SButtonSecondary"),
-            Height  = 36,
-            Margin  = new Thickness(6, 0, 0, 0),
-            ToolTip = "Open a folder picker"
-        };
-        browseFolderBtn.Click += (_, _) =>
-        {
-            var dlg = new Microsoft.Win32.OpenFolderDialog
-            {
-                Title            = "Select Projects Folder",
-                InitialDirectory = string.IsNullOrWhiteSpace(folderBox.Text)
-                    ? defaultFolder
-                    : folderBox.Text
-            };
-            if (dlg.ShowDialog(this) == true)
-                folderBox.Text = dlg.FolderName;
-        };
-
-        var defaultFolderBtn = new Button
-        {
-            Content  = "↩ Default",
-            Style    = (Style)FindResource("SButtonSecondary"),
-            Height   = 36,
-            Margin   = new Thickness(6, 0, 0, 0),
-            ToolTip  = defaultFolder
-        };
-        defaultFolderBtn.Click += (_, _) => folderBox.Text = "";
-
-        var folderGrid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
-        folderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        folderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        folderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(folderOuter,      0);
-        Grid.SetColumn(browseFolderBtn,  1);
-        Grid.SetColumn(defaultFolderBtn, 2);
-        folderGrid.Children.Add(folderOuter);
-        folderGrid.Children.Add(browseFolderBtn);
-        folderGrid.Children.Add(defaultFolderBtn);
-
-        var folderHint = new TextBlock
-        {
-            Text         = $"Default: {defaultFolder}",
-            FontSize     = 11,
-            FontFamily   = new FontFamily("Segoe UI"),
-            TextWrapping = TextWrapping.Wrap
-        };
-        folderHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
 
         // ── RESPONSE TONE ──────────────────────────────────────────────────
         var settings2 = SettingsService.Load(); // fresh read for ToneLevel
@@ -291,18 +249,146 @@ public partial class SettingsWindow : Window
             toneValueLabel.Text = FormatToneLabel((int)toneSlider.Value);
         };
 
+        // ── AI DIALOGUE TURNS ──────────────────────────────────────────────
+        var dialogueSep = new Rectangle { Style = (Style)FindResource("SSep") };
+
+        var dialogueLabel = new TextBlock
+        {
+            Style  = (Style)FindResource("SLabel"),
+            Text   = "AI DIALOGUE TURNS",
+            Margin = new Thickness(0, 4, 0, 6)
+        };
+
+        var dialogueHint = MakeHintText(
+            "Maximum number of reply turns when 💬 multi-round dialogue is enabled " +
+            "(3 – 100). Participants automatically stop when they have nothing new to add.");
+
+        // Slider + TextBox row (same bidirectional pattern as font-size in Chat Appearance)
+        var dialogueTurnsValue = Math.Clamp(settings.AiDialogueMaxTurns, 3, 100);
+        var dialogueTurnsSlider = new Slider
+        {
+            Minimum             = 3,
+            Maximum             = 100,
+            Value               = dialogueTurnsValue,
+            TickFrequency       = 5,
+            IsSnapToTickEnabled = false,
+            Margin              = new Thickness(0, 4, 0, 4)
+        };
+
+        var dialogueTurnsBox = new TextBox
+        {
+            Text              = dialogueTurnsValue.ToString(),
+            Width             = 52,
+            Height            = 32,
+            FontSize          = 13,
+            FontFamily        = new FontFamily("Segoe UI"),
+            TextAlignment     = TextAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Margin            = new Thickness(8, 0, 0, 0)
+        };
+        dialogueTurnsBox.SetResourceReference(TextBox.BackgroundProperty, "InputBrush");
+        dialogueTurnsBox.SetResourceReference(TextBox.ForegroundProperty, "TextBrush");
+        dialogueTurnsBox.SetResourceReference(TextBox.BorderBrushProperty, "InputBrush");
+        _dialogueTurnsBox = dialogueTurnsBox;
+
+        bool updatingTurns = false;
+        dialogueTurnsSlider.ValueChanged += (_, e) =>
+        {
+            if (updatingTurns) return;
+            updatingTurns = true;
+            dialogueTurnsBox.Text = ((int)Math.Round(e.NewValue)).ToString();
+            updatingTurns = false;
+        };
+        dialogueTurnsBox.TextChanged += (_, _) =>
+        {
+            if (updatingTurns) return;
+            if (int.TryParse(dialogueTurnsBox.Text, out var v) && v >= 3 && v <= 100)
+            {
+                updatingTurns = true;
+                dialogueTurnsSlider.Value = v;
+                updatingTurns = false;
+            }
+        };
+
+        // The slider should take all available width; TextBox is fixed-width on the right.
+        var dialogueSliderRow = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        dialogueSliderRow.ColumnDefinitions.Add(
+            new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        dialogueSliderRow.ColumnDefinitions.Add(
+            new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(dialogueTurnsSlider, 0);
+        Grid.SetColumn(dialogueTurnsBox,    1);
+        dialogueSliderRow.Children.Add(dialogueTurnsSlider);
+        dialogueSliderRow.Children.Add(dialogueTurnsBox);
+
+        // ── RESPONSE LENGTH ────────────────────────────────────────────────
+        var responseLengthSep = new Rectangle { Style = (Style)FindResource("SSep") };
+
+        var responseLengthLabel = new TextBlock
+        {
+            Style  = (Style)FindResource("SLabel"),
+            Text   = "RESPONSE LENGTH",
+            Margin = new Thickness(0, 4, 0, 6)
+        };
+
+        var responseLengthValue = Math.Clamp(settings.GlobalResponseLength, 0, 100);
+        var responseLengthValueLabel = new TextBlock
+        {
+            FontSize   = 12,
+            FontFamily = new FontFamily("Segoe UI"),
+            Text       = FormatResponseLengthLabel(responseLengthValue),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin     = new Thickness(0, 0, 0, 4)
+        };
+        responseLengthValueLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+
+        var responseLengthSlider = new Slider
+        {
+            Minimum             = 0,
+            Maximum             = 100,
+            Value               = responseLengthValue,
+            TickFrequency       = 10,
+            IsSnapToTickEnabled = false,
+            Margin              = new Thickness(0, 0, 0, 4)
+        };
+        _responseLengthSlider = responseLengthSlider;
+        responseLengthSlider.ValueChanged += (_, e) =>
+            responseLengthValueLabel.Text = FormatResponseLengthLabel((int)e.NewValue);
+
+        var responseLengthRow = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        responseLengthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        responseLengthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        responseLengthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var rlLeft  = MakeHintText("Brief");
+        var rlRight = MakeHintText("Detailed");
+        Grid.SetColumn(rlLeft,                 0);
+        Grid.SetColumn(responseLengthSlider,   1);
+        Grid.SetColumn(rlRight,                2);
+        responseLengthRow.Children.Add(rlLeft);
+        responseLengthRow.Children.Add(responseLengthSlider);
+        responseLengthRow.Children.Add(rlRight);
+
+        var responseLengthHint = MakeHintText(
+            "50 = model default (no instruction injected)  ·  Only applies in general chat — project settings always take priority.");
+
         var root = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         root.Children.Add(nameLabel);
         root.Children.Add(userNameOuter);
         root.Children.Add(nameHint);
-        root.Children.Add(folderLabel);
-        root.Children.Add(folderGrid);
-        root.Children.Add(folderHint);
         root.Children.Add(toneLabel);
         root.Children.Add(toneValueLabel);
         root.Children.Add(toneRow);
         root.Children.Add(toneHint);
         root.Children.Add(mockingbirdCheck);
+        root.Children.Add(dialogueSep);
+        root.Children.Add(dialogueLabel);
+        root.Children.Add(dialogueHint);
+        root.Children.Add(dialogueSliderRow);
+        root.Children.Add(responseLengthSep);
+        root.Children.Add(responseLengthLabel);
+        root.Children.Add(responseLengthValueLabel);
+        root.Children.Add(responseLengthRow);
+        root.Children.Add(responseLengthHint);
 
         var scroll = new ScrollViewer
         {
@@ -521,8 +607,19 @@ public partial class SettingsWindow : Window
         };
 
         // ── Name + Type row ───────────────────────────────────────────────
-        var nameLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "NAME" };
+        var nameLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "NICKNAME" };
         var (nameBoxOuter, nameBox) = MakeTextInput(config.Name);
+
+        var nicknameWarning = new TextBlock
+        {
+            Text         = "⚠ Nickname already used by another participant",
+            FontSize     = 11,
+            FontFamily   = new FontFamily("Segoe UI"),
+            Foreground   = Brushes.OrangeRed,
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 3, 0, 0),
+            Visibility   = Visibility.Collapsed
+        };
 
         var typeLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "TYPE" };
         var typeCombo = new ComboBox { Style = (Style)FindResource("SComboBox") };
@@ -533,6 +630,7 @@ public partial class SettingsWindow : Window
         var nameCol = new StackPanel { Margin = new Thickness(0, 0, 8, 14) };
         nameCol.Children.Add(nameLabel);
         nameCol.Children.Add(nameBoxOuter);
+        nameCol.Children.Add(nicknameWarning);
 
         var typeCol = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
         typeCol.Children.Add(typeLabel);
@@ -770,7 +868,8 @@ public partial class SettingsWindow : Window
             CloudTestLabel   = cloudTestLabel,
             RpmEnabledCheck  = rpmCheck,
             RpmValueBox      = rpmValueTb,
-            RpmHintLabel     = rpmHintLabel
+            RpmHintLabel     = rpmHintLabel,
+            NicknameWarning  = nicknameWarning
         };
         _forms.Add(form);
 
@@ -782,6 +881,7 @@ public partial class SettingsWindow : Window
                 ? $"P{index + 1}"
                 : form.NameBox.Text.Trim();
             form.Tab.Header = h;
+            ValidateAllNicknames();
         };
 
         typeCombo.SelectionChanged += (_, _) =>
@@ -811,6 +911,52 @@ public partial class SettingsWindow : Window
 
         ollamaTestBtn.Click += async (_, _) => await TestOllamaAsync(form);
         cloudTestBtn.Click  += async (_, _) => await TestCloudAIAsync(form);
+    }
+
+    // ── Nickname uniqueness validation ────────────────────────────────────
+
+    /// <summary>
+    /// Re-validates every participant tab's nickname against all other participants
+    /// and the user's own name. Shows or hides the orange-red warning on each tab.
+    /// Called from every name-box TextChanged event, including the user-name box.
+    /// </summary>
+    private void ValidateAllNicknames()
+    {
+        var userName = _userNameBox?.Text.Trim() ?? "";
+
+        foreach (var f in _forms)
+        {
+            var name = f.NameBox.Text.Trim();
+            bool duplicate = false;
+
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                // Duplicate of the user's own name?
+                if (!string.IsNullOrWhiteSpace(userName) &&
+                    string.Equals(userName, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    duplicate = true;
+                }
+
+                // Duplicate of another participant?
+                if (!duplicate)
+                {
+                    foreach (var other in _forms)
+                    {
+                        if (other.SlotIndex == f.SlotIndex) continue;
+                        var otherName = other.NameBox.Text.Trim();
+                        if (!string.IsNullOrWhiteSpace(otherName) &&
+                            string.Equals(otherName, name, StringComparison.OrdinalIgnoreCase))
+                        {
+                            duplicate = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            f.NicknameWarning.Visibility = duplicate ? Visibility.Visible : Visibility.Collapsed;
+        }
     }
 
     // ── Section visibility helper ──────────────────────────────────────────
@@ -930,23 +1076,32 @@ public partial class SettingsWindow : Window
     {
         var settings = SettingsService.Load();
 
-        // General settings
+        if (_providerModeOnly)
+        {
+            // Providers-only mode: save API keys and close
+            foreach (var pkf in _providerKeyForms)
+            {
+                var key = pkf.KeyOuter.Visibility == Visibility.Visible
+                    ? pkf.KeyBox.Password
+                    : pkf.KeyTextBox.Text;
+                if (!string.IsNullOrWhiteSpace(key))
+                    WindowsCredentialManager.Save(pkf.Provider, key);
+            }
+            SettingsService.Save(settings);
+            SaveStatusLabel.Text = "Saved ✓";
+            DialogResult = true;
+            return;
+        }
+
+        // Participants mode: save general settings + participant slots
         var userName = _userNameBox.Text.Trim();
         settings.UserName = string.IsNullOrEmpty(userName) ? "You" : userName;
 
-        settings.ProjectsFolder  = _projectsFolderBox.Text.Trim();
-        settings.ToneLevel       = (int)_toneSlider.Value;
-        settings.MockingbirdMode = _mockingbirdBox.IsChecked == true;
-
-        // Save API keys from the Providers tab to Windows Credential Manager
-        foreach (var pkf in _providerKeyForms)
-        {
-            var key = pkf.KeyOuter.Visibility == Visibility.Visible
-                ? pkf.KeyBox.Password
-                : pkf.KeyTextBox.Text;
-            if (!string.IsNullOrWhiteSpace(key))
-                WindowsCredentialManager.Save(pkf.Provider, key);
-        }
+        settings.ToneLevel           = (int)_toneSlider.Value;
+        settings.MockingbirdMode     = _mockingbirdBox.IsChecked == true;
+        settings.AiDialogueMaxTurns  = int.TryParse(_dialogueTurnsBox.Text, out var dTurns)
+                                       && dTurns is >= 3 and <= 100 ? dTurns : 10;
+        settings.GlobalResponseLength = (int)_responseLengthSlider.Value;
 
         settings.Participants.Clear();
 
@@ -1082,6 +1237,17 @@ public partial class SettingsWindow : Window
         < 70  => "Affectionately funny",
         < 90  => "Lovingly teasing",
         _     => "Affectionate insults 💕"
+    };
+
+    private static string FormatResponseLengthLabel(int v) => v switch
+    {
+        < 10  => "Very brief",
+        < 30  => "Short",
+        < 45  => "Concise",
+        <= 55 => "Model default",
+        < 70  => "Moderate",
+        < 90  => "Thorough",
+        _     => "Very detailed"
     };
 
     private TextBlock MakeHintText(string text) => new TextBlock

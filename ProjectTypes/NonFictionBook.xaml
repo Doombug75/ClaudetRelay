@@ -10,5 +10,5 @@
         HasRoadmap="True"
         HasWorldBuilding="False"
         HasPlotNotes="True"
-        SystemPromptHint="This is a non-fiction book project. The work is organised into parts and chapters. Accuracy, clarity and well-sourced claims are a priority."/>
+        SystemPromptHint="You are co-writing a non-fiction book. Prioritise accuracy, clarity, and a consistent authorial voice across all sections. Structure arguments logically, flag where citations or supporting evidence are needed, and keep the intended reader in mind throughout. Do not state unverified claims as fact — mark them as assumptions or flag them for research. Avoid padding; every paragraph should earn its place."/>
 </ResourceDictionary>

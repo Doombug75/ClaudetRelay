@@ -12,5 +12,5 @@
         HasWorldBuilding="True"
         HasPlotNotes="True"
         HasStageDirections="True"
-        SystemPromptHint="This is a theatre/screenplay writing project. The script is organised into acts and scenes. Characters and locations are defined in the world-building section. Stage directions and production notes are supported."/>
+        SystemPromptHint="You are collaborating on a stage play or screenplay. Think in terms of dramatic tension, character voice, scene structure, and visual storytelling. Format dialogue in standard playscript style when writing script content. Consider what is shown versus what is spoken — theatre communicates through action and presence as much as words. Stage directions should be specific and performable. Respect character voices and relationships already established in the script."/>
 </ResourceDictionary>

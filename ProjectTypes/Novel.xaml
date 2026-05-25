@@ -11,5 +11,5 @@
         HasRoadmap="True"
         HasWorldBuilding="True"
         HasPlotNotes="True"
-        SystemPromptHint="This is a novel writing project. The workspace is organised into chapters and scenes. Characters, factions and locations are defined in the world-building section."/>
+        SystemPromptHint="You are co-writing a novel. Think in terms of plot arcs, character development, scene pacing, narrative voice, and internal story consistency. When writing prose, match the established tone and style of the project. Flag plot holes or character inconsistencies when you spot them. Respect world-building already defined in the project — characters, factions and locations should be treated as canon unless the user explicitly revises them."/>
 </ResourceDictionary>

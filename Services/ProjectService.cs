@@ -26,6 +26,13 @@ public class ProjectMeta
     /// Empty / null means "General".
     /// </summary>
     public string ProjectTypeName { get; set; } = "General";
+
+    /// <summary>
+    /// Optional freeform description of this specific project instance, shown to all AI
+    /// participants as part of their system prompt context.
+    /// Example: "A dark fantasy novel about a dragon who falls in love with a wizard."
+    /// </summary>
+    public string Description { get; set; } = "";
 }
 
 // ── Project settings (roles, orchestration) ────────────────────────────────
@@ -46,7 +53,23 @@ public enum OrchestrationMode
     /// All participants respond; the Coordinator then receives all answers as context
     /// and writes a final synthesising summary.
     /// </summary>
-    CoordinatorSummarizes = 2
+    CoordinatorSummarizes = 2,
+
+    /// <summary>
+    /// On first project open the team runs a visible initialization discussion to agree
+    /// on task assignments; the result is stored in <see cref="ProjectSettings.TeamPlan"/>
+    /// and injected into all subsequent system prompts. After initialization, behaviour
+    /// is identical to <see cref="CoordinatorFirst"/>.
+    /// </summary>
+    CoordinatorAuto   = 3,
+
+    /// <summary>
+    /// The user communicates only with the Coordinator. All AI-to-AI work (Coordinator
+    /// deliberation and Reasoner responses) runs hidden from the user's chat. Small status
+    /// indicators show which participant is active. Only the Coordinator's final synthesis
+    /// is shown to the user.
+    /// </summary>
+    CoordinatorOnly   = 4,
 }
 
 /// <summary>Role assignment for one participant within a specific project.</summary>
@@ -124,6 +147,13 @@ public class ProjectSettings
     /// 50 = model default (no injection).
     /// </summary>
     public int DefaultResponseLength { get; set; } = 50;
+
+    /// <summary>
+    /// Team task-assignment plan agreed during the <see cref="OrchestrationMode.CoordinatorAuto"/>
+    /// initialization discussion. Injected into every AI system prompt as context.
+    /// Empty string = not yet initialized (or mode is not CoordinatorAuto).
+    /// </summary>
+    public string TeamPlan { get; set; } = "";
 
     /// <summary>
     /// Participants that were active the last time this project was open.
