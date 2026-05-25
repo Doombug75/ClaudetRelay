@@ -96,25 +96,6 @@ To add your own project type, copy one of the existing `.xaml` files in `Project
 > **A visual Project Type Editor is also planned** for a future release.
 
 ---
-## Screenshots
-
-### Application
-| Settings | Projects |
-|----------|----------|
-| ![Settings](Assets/Settings.png) | ![Projects](Assets/projects.png) |
-
-### Themes
-| Cosmic Noir | Neon Warp |
-|-------------|-----------|
-| ![Cosmic Noir](Assets/themeCN.png) | ![Neon Warp](Assets/themeNW.png) |
-
-| Emergency Breach Terminal | Meadow Bloom |
-|---------------------------|--------------|
-| ![Emergency Breach Terminal](Assets/themeEB.png) | ![Meadow Bloom](Assets/themeMB.png) |
-
-There's about 60 themes. Themes are in .xaml format - be very welcome to make your own.
-
----
 
 ## Requirements
 
