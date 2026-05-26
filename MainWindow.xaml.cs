@@ -171,14 +171,38 @@ public partial class MainWindow : Window
             _chatBubbleWidthPct = s.ChatBubbleWidthPercent;
             ApplyChatFont(s);                        // seed font resources before first bubble
             UpdateChatBubbleMaxWidth();              // seed bubble-width resource
-            AddSystemMessage("Chat started  ·  configure participants in ⚙ Participant Config.");
+
+            // ── Restore general chat history ──────────────────────────────
+            var savedLog = GeneralChatLogService.LoadRecentLog();
+            if (savedLog.Count > 0)
+            {
+                foreach (var entry in savedLog)
+                    RenderChatLogEntry(entry);
+                AddSystemMessage($"Chat resumed  ·  {savedLog.Count} messages loaded.");
+                ChatScrollViewer.ScrollToBottom();
+            }
+            else
+            {
+                AddSystemMessage("Chat started  ·  configure participants in ⚙ Participant Config.");
+            }
+
             InputTextBox.Focus();
             await CheckAllStatusAsync();
             StartStatusTimer();
         };
-        // Recalculate bubble MaxWidth whenever the chat area resizes (e.g. window drag).
-        // ChatPanel.SizeChanged is more reliable than ChatScrollViewer.ViewportWidth,
-        // which misbehaves with HorizontalScrollBarVisibility=Disabled.
+        // Recalculate bubble MaxWidth whenever the chat area resizes (e.g. window drag / maximize).
+        //
+        // ChatScrollViewer.SizeChanged is the primary trigger for window resize / maximize / restore:
+        // the ScrollViewer is sized directly by the Grid column and fires reliably on every width change.
+        // We pass the new width from the event args so we don't read ActualWidth during a live layout pass.
+        //
+        // ChatPanel.SizeChanged is a secondary trigger for when only content height changed
+        // (e.g. a new bubble was added at the same window width).
+        ChatScrollViewer.SizeChanged += (_, e) =>
+        {
+            var w = e.NewSize.Width - 40; // subtract Padding="20,12,20,12" (left+right = 40)
+            if (w > 10) UpdateChatBubbleMaxWidth(w);
+        };
         ChatPanel.SizeChanged += (_, _) => UpdateChatBubbleMaxWidth();
     }
 
@@ -2745,6 +2769,14 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task SummarizeAndCompressGeneralLogAsync(List<ChatLogEntry> displaced)
     {
+        // ── Show Claudette speech bubble + start pulsing ──────────────────
+        await Dispatcher.InvokeAsync(() =>
+        {
+            ClaudetteSpeechText.Text         = "Ich räume mal den Chat auf! 🐙";
+            ClaudetteSpeechBubble.Visibility  = Visibility.Visible;
+            StartClaudettePulse();
+        });
+
         try
         {
             // Build a readable text version of the displaced segment
@@ -2801,6 +2833,15 @@ public partial class MainWindow : Window
                 await CompressGeneralSummaryAsync(fullSummary, ollamaUi, cloudUi);
         }
         catch { /* non-fatal — summarisation is best-effort */ }
+        finally
+        {
+            // ── Hide speech bubble + stop pulsing ─────────────────────────
+            await Dispatcher.InvokeAsync(() =>
+            {
+                ClaudetteSpeechBubble.Visibility = Visibility.Collapsed;
+                StopClaudettePulse();
+            });
+        }
     }
 
     /// <summary>
@@ -3433,15 +3474,22 @@ public partial class MainWindow : Window
     /// Recalculates and publishes ChatBubbleMaxWidth as a dynamic resource.
     /// Called on startup, on window resize, and when the user changes the percentage.
     /// </summary>
-    private void UpdateChatBubbleMaxWidth()
+    /// <param name="availableOverride">
+    /// Pre-computed available content width in DIPs.
+    /// Pass this from SizeChanged event args to avoid reading ActualWidth mid-layout-pass.
+    /// When null (slider, startup, etc.) the method reads ChatPanel.ActualWidth directly.
+    /// </param>
+    private void UpdateChatBubbleMaxWidth(double? availableOverride = null)
     {
-        // ChatPanel.ActualWidth is the rendered width of the StackPanel inside the ScrollViewer.
-        // It already accounts for the ScrollViewer's Padding — no further subtraction needed.
-        // (Using ViewportWidth was unreliable because with HorizontalScrollBarVisibility=Disabled
-        //  WPF sets ViewportWidth = ExtentWidth which can be 0 on an empty panel.)
         const double avatarWidth = 44.0;  // avatar border 34 px + margin 10 px
+
+        // If a pre-computed width was supplied (from the SizeChanged event) use it.
+        // Otherwise fall back to ChatPanel.ActualWidth, which is correct whenever the
+        // panel has been laid out (slider calls, startup after Loaded, etc.).
+        // 840 px is a last-resort fallback before the very first layout pass.
         var panelWidth = ChatPanel.ActualWidth;
-        var available  = panelWidth > 10 ? panelWidth : 840.0;  // fallback before first layout pass
+        var available  = availableOverride ?? (panelWidth > 10 ? panelWidth : 840.0);
+
         Resources["ChatBubbleMaxWidth"] = Math.Max(50.0, (available - avatarWidth) * (_chatBubbleWidthPct / 100.0));
     }
 
@@ -7105,6 +7153,33 @@ public partial class MainWindow : Window
         ClaudetteButton.BeginAnimation(UIElement.OpacityProperty, anim);
     }
 
+    /// <summary>
+    /// Starts an indefinite slow pulse on the Claudette avatar — used while background
+    /// summarisation is running. Call <see cref="StopClaudettePulse"/> when done.
+    /// </summary>
+    private void StartClaudettePulse()
+    {
+        var anim = new System.Windows.Media.Animation.DoubleAnimation
+        {
+            From           = 1.0,
+            To             = 0.25,
+            Duration       = new Duration(TimeSpan.FromMilliseconds(700)),
+            AutoReverse    = true,
+            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
+        };
+        ClaudetteButton.BeginAnimation(UIElement.OpacityProperty, anim);
+    }
+
+    /// <summary>
+    /// Stops the indefinite pulse started by <see cref="StartClaudettePulse"/> and
+    /// restores the avatar to full opacity.
+    /// </summary>
+    private void StopClaudettePulse()
+    {
+        ClaudetteButton.BeginAnimation(UIElement.OpacityProperty, null);
+        ClaudetteButton.Opacity = 1.0;
+    }
+
     private void Claudette_Click(object sender, RoutedEventArgs e)
     {
         var (ollamaSvc, cloudSvc, aiName) = FindClaudetteBrain();
@@ -7789,6 +7864,16 @@ public partial class MainWindow : Window
         ChatPanel.Children.Clear();
         _sharedHistory.Clear();
         CloseCurrentProject();
+
+        // Delete all general-chat log files (chatlog.json, chatlog-prev.json, summary.md)
+        try
+        {
+            if (SysIO.Directory.Exists(GeneralChatLogService.LogFolder))
+                foreach (var file in SysIO.Directory.GetFiles(GeneralChatLogService.LogFolder))
+                    SysIO.File.Delete(file);
+        }
+        catch { /* non-fatal — log cleanup is best-effort */ }
+
         AddSystemMessage("Chat cleared.");
     }
 

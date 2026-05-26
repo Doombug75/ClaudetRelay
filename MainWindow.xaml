@@ -294,6 +294,22 @@
                             </StackPanel>
                         </StackPanel>
 
+                        <!-- ── Claudette speech bubble (shown while log summarisation runs) ── -->
+                        <Border x:Name="ClaudetteSpeechBubble"
+                                Visibility="Collapsed"
+                                Background="{DynamicResource SurfaceBrush}"
+                                BorderBrush="{DynamicResource AccentBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="8,6"
+                                Margin="0,-18,0,10">
+                            <TextBlock x:Name="ClaudetteSpeechText"
+                                       FontSize="11"
+                                       FontFamily="Segoe UI"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextBrush}"/>
+                        </Border>
+
                         <!-- ── Participants ── -->
                         <TextBlock Text="PARTICIPANTS" FontSize="10" FontWeight="Bold"
                                    Foreground="{DynamicResource SubtextBrush}" Margin="2,0,0,10"/>
