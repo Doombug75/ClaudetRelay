@@ -210,10 +210,23 @@ public static class RoadmapService
         sb.AppendLine("  [ROADMAP:update:ITEM_ID:PROGRESS]  — e.g. [ROADMAP:update:a1b2c3d4:75]");
         if (isCoordinator)
         {
-            sb.AppendLine("As Coordinator, you may also formally complete an item:");
-            sb.AppendLine("  [ROADMAP:complete:ITEM_ID]  — e.g. [ROADMAP:complete:a1b2c3d4]");
+            sb.AppendLine("As Coordinator, you may also:");
+            sb.AppendLine("  Formally complete an item:");
+            sb.AppendLine("    [ROADMAP:complete:ITEM_ID]  — e.g. [ROADMAP:complete:a1b2c3d4]");
+            sb.AppendLine("  Set a description on any item or milestone (supports multi-line text and lists):");
+            sb.AppendLine("    <roadmap-describe id=\"ITEM_OR_MILESTONE_ID\">");
+            sb.AppendLine("    Description text here — can be multiple lines, bullet points, etc.");
+            sb.AppendLine("    </roadmap-describe>");
+            sb.AppendLine("  Add a new item to an existing milestone:");
+            sb.AppendLine("    <roadmap-additem milestone=\"Milestone Title\" title=\"New task title\" description=\"Optional short desc\"/>");
+            sb.AppendLine("  Extend the roadmap with one or more new milestones (same format as roadmapproposal):");
+            sb.AppendLine("    <roadmap-addmilestone>");
+            sb.AppendLine("    MILESTONE: Title | Optional description");
+            sb.AppendLine("      ITEM: Task title | Optional description");
+            sb.AppendLine("      ITEM: Another task");
+            sb.AppendLine("    </roadmap-addmilestone>");
         }
-        sb.AppendLine("Tags are stripped from the visible chat — only the roadmap state changes.");
+        sb.AppendLine("All tags are stripped from the visible chat — only the roadmap state changes.");
         sb.AppendLine("--- END ROADMAP ---");
         return sb.ToString();
     }

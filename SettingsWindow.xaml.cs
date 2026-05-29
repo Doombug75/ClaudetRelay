@@ -1055,9 +1055,19 @@ public partial class SettingsWindow : Window
                             form.CloudModelCombo.Items.Add(item);
                             if (m == current) form.CloudModelCombo.SelectedItem = item;
                         }
-                        if (form.CloudModelCombo.SelectedItem is null &&
-                            form.CloudModelCombo.Items.Count > 0)
-                            form.CloudModelCombo.SelectedIndex = 0;
+                        if (form.CloudModelCombo.SelectedItem is null)
+                        {
+                            // Saved model is not in the live list — keep it as a custom entry
+                            // so the user's choice is preserved (they can change it manually).
+                            if (!string.IsNullOrEmpty(current))
+                            {
+                                var custom = new ComboBoxItem { Content = current };
+                                form.CloudModelCombo.Items.Insert(0, custom);
+                                form.CloudModelCombo.SelectedItem = custom;
+                            }
+                            else if (form.CloudModelCombo.Items.Count > 0)
+                                form.CloudModelCombo.SelectedIndex = 0;
+                        }
                     }
                 }
                 catch { /* keep default list */ }
@@ -1270,8 +1280,20 @@ public partial class SettingsWindow : Window
             combo.Items.Add(item);
             if (m == selectedModel) combo.SelectedItem = item;
         }
-        if (combo.SelectedItem is null && combo.Items.Count > 0)
-            combo.SelectedIndex = 0;
+
+        if (combo.SelectedItem is null)
+        {
+            // Saved model is not in the static default list (e.g. a live-fetched model).
+            // Add it as a custom entry at the top so the saved value is preserved.
+            if (!string.IsNullOrEmpty(selectedModel))
+            {
+                var custom = new ComboBoxItem { Content = selectedModel };
+                combo.Items.Insert(0, custom);
+                combo.SelectedItem = custom;
+            }
+            else if (combo.Items.Count > 0)
+                combo.SelectedIndex = 0;
+        }
     }
 
     private static string[] GetDefaultModels(string provider) => provider switch

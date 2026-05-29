@@ -65,10 +65,15 @@ public partial class MainWindow : Window
         public required TextBlock         AvatarText    { get; init; }
         public required Border            CoBadge       { get; init; }
         public required Border            RBadge        { get; init; }
+        public required Border            CrBadge       { get; init; }
+        public required Border            PlBadge       { get; init; }
+        public required Border            RsBadge       { get; init; }
         public required TextBlock         NameLabel     { get; init; }
         public required Ellipse           StatusDot     { get; init; }
         public required TextBlock         ModelLabel    { get; init; }
         public required TextBlock         OfflineLabel  { get; init; }
+        public required Border            ErrorBadge    { get; init; }
+        public required TextBlock         StatusLabel   { get; init; }
         public required Popup             Popup         { get; init; }
         public required TextBlock         PopupTitle    { get; init; }
         public required CheckBox          EnabledToggle { get; init; }
@@ -116,15 +121,30 @@ public partial class MainWindow : Window
         public required TextBlock          AvatarText    { get; init; }
         public required Border             CoBadge       { get; init; }
         public required Border             RBadge        { get; init; }
+        public required Border             CrBadge       { get; init; }
+        public required Border             PlBadge       { get; init; }
+        public required Border             RsBadge       { get; init; }
         public required TextBlock          NameLabel     { get; init; }
         public required Ellipse            StatusDot     { get; init; }
         public required TextBlock          ModelLabel    { get; init; }
         public required TextBlock          OfflineLabel  { get; init; }
+        public required Border             ErrorBadge    { get; init; }
+        public required TextBlock          StatusLabel   { get; init; }
         public required Popup              Popup         { get; init; }
         public required TextBlock          PopupTitle    { get; init; }
         public required CheckBox           EnabledToggle { get; init; }
         public required Button             RemoveButton  { get; init; }
     }
+
+    /// <summary>Describes a single slot mismatch between the project's saved participant
+    /// list and the current global configuration.</summary>
+    private readonly record struct ParticipantMismatch(
+        int                Slot,
+        string             ProjectName,
+        string             ProjectType,
+        string             ProjectModel,
+        string             GlobalDesc,           // human-readable description of what is globally at this slot
+        ParticipantConfig? GlobalReplacement);   // the actual global participant at this slot, if any
 
     // ── State ──────────────────────────────────────────────────────────────
     private readonly List<CloudAIParticipantUI>          _cloudAIParticipants = [];
@@ -147,10 +167,14 @@ public partial class MainWindow : Window
 
     // ── Project state ──────────────────────────────────────────────────────
     private string?                    _currentProjectFolder;
-    private ProjectMeta?               _currentProject;
+    private ProjectSettings?           _currentProject;   // same object as _projectSettings
     private ProjectTypeDefinition?     _currentProjectType;
     private Roadmap?                   _currentRoadmap;
+    /// <summary>Cached SuperRoles for the open project. Null = not loaded yet or no file.</summary>
+    private Dictionary<string, (string Title, string Instruction)>? _superRoles;
     private string?                    _selectedProjectFolder; // selected in Projects list
+    private DateTime?                  _sessionStartTime;      // set on OpenProject, cleared on close
+    private bool                       _workSessionFired;      // prevents double-greeting per open
 
     // ── Project types (loaded from ProjectTypes/*.xaml) ────────────────────
     private List<ProjectTypeDefinition> _projectTypes = [];
@@ -170,7 +194,7 @@ public partial class MainWindow : Window
             var s = SettingsService.Load();
             _chatBubbleWidthPct = s.ChatBubbleWidthPercent;
             ApplyChatFont(s);                        // seed font resources before first bubble
-            UpdateChatBubbleMaxWidth();              // seed bubble-width resource
+            UpdateChatBubbleWidth();                 // seed bubble-width resource
 
             // ── Restore general chat history ──────────────────────────────
             var savedLog = GeneralChatLogService.LoadRecentLog();
@@ -194,16 +218,13 @@ public partial class MainWindow : Window
         //
         // ChatScrollViewer.SizeChanged is the primary trigger for window resize / maximize / restore:
         // the ScrollViewer is sized directly by the Grid column and fires reliably on every width change.
-        // We pass the new width from the event args so we don't read ActualWidth during a live layout pass.
-        //
-        // ChatPanel.SizeChanged is a secondary trigger for when only content height changed
-        // (e.g. a new bubble was added at the same window width).
-        ChatScrollViewer.SizeChanged += (_, e) =>
-        {
-            var w = e.NewSize.Width - 40; // subtract Padding="20,12,20,12" (left+right = 40)
-            if (w > 10) UpdateChatBubbleMaxWidth(w);
-        };
-        ChatPanel.SizeChanged += (_, _) => UpdateChatBubbleMaxWidth();
+        // Both SizeChanged events call UpdateChatBubbleWidth() so bubbles reflow on every resize.
+        // We always read ChatPanel.ActualWidth directly (most accurate; avoids scrollbar-width
+        // error from the "e.NewSize.Width − 40" approach).
+        // ChatScrollViewer.SizeChanged catches the initial window-show; ChatPanel.SizeChanged
+        // catches subsequent height-only changes (new bubble added, same window width).
+        ChatScrollViewer.SizeChanged += (_, _) => UpdateChatBubbleWidth();
+        ChatPanel.SizeChanged        += (_, _) => UpdateChatBubbleWidth();
     }
 
     // ── Initialization ─────────────────────────────────────────────────────
@@ -281,8 +302,8 @@ public partial class MainWindow : Window
         // Remove Cloud AI cards
         foreach (var ui in _cloudAIParticipants.ToList())
         {
-            CloudAICardsPanel.Children.Remove(ui.Popup);
-            CloudAICardsPanel.Children.Remove(ui.Card);
+            ParticipantsPanel.Children.Remove(ui.Popup);
+            ParticipantsPanel.Children.Remove(ui.Card);
             ui.Data.Service.Dispose();
         }
         _cloudAIParticipants.Clear();
@@ -290,8 +311,8 @@ public partial class MainWindow : Window
         // Remove Ollama cards
         foreach (var ui in _ollamaParticipants.ToList())
         {
-            OllamaCardsPanel.Children.Remove(ui.Popup);
-            OllamaCardsPanel.Children.Remove(ui.Card);
+            ParticipantsPanel.Children.Remove(ui.Popup);
+            ParticipantsPanel.Children.Remove(ui.Card);
         }
         _ollamaParticipants.Clear();
         _availableOllamaModels.Clear();
@@ -334,28 +355,40 @@ public partial class MainWindow : Window
 
         var saved = new List<ParticipantConfig>();
 
-        foreach (var ui in _ollamaParticipants)
-            saved.Add(new ParticipantConfig
+        // Walk the unified panel in visual (slot) order so the saved list always
+        // matches top-to-bottom card order, regardless of participant type.
+        foreach (FrameworkElement child in ParticipantsPanel.Children)
+        {
+            var cloud = _cloudAIParticipants.FirstOrDefault(u => ReferenceEquals(u.Card, child));
+            if (cloud is not null)
             {
-                Name      = ui.Data.CustomName ?? "",
-                Type      = "Ollama",
-                Model     = ui.Data.Service.CurrentModel,
-                ServerUrl = ui.Data.Service.BaseUrl,
-                Enabled   = ui.Data.Enabled
-            });
+                saved.Add(new ParticipantConfig
+                {
+                    Name      = cloud.Data.CustomName ?? "",
+                    Type      = cloud.Data.Service.ProviderName,
+                    Model     = cloud.Data.Service.CurrentModel,
+                    ServerUrl = "",
+                    Enabled   = cloud.Data.Enabled
+                });
+                continue;
+            }
 
-        foreach (var ui in _cloudAIParticipants)
-            saved.Add(new ParticipantConfig
+            var ollama = _ollamaParticipants.FirstOrDefault(u => ReferenceEquals(u.Card, child));
+            if (ollama is not null)
             {
-                Name      = ui.Data.CustomName ?? "",
-                Type      = ui.Data.Service.ProviderName,
-                Model     = ui.Data.Service.CurrentModel,
-                ServerUrl = "",
-                Enabled   = ui.Data.Enabled
-            });
+                saved.Add(new ParticipantConfig
+                {
+                    Name      = ollama.Data.CustomName ?? "",
+                    Type      = "Ollama",
+                    Model     = ollama.Data.Service.CurrentModel,
+                    ServerUrl = ollama.Data.Service.BaseUrl,
+                    Enabled   = ollama.Data.Enabled
+                });
+            }
+        }
 
         _projectSettings.ActiveParticipants = saved;
-        try { ProjectService.SaveProjectSettings(_currentProjectFolder, _projectSettings); }
+        try { ProjectService.SaveProject(_currentProjectFolder!, _projectSettings); }
         catch { /* non-fatal — settings will re-save next time */ }
     }
 
@@ -370,8 +403,8 @@ public partial class MainWindow : Window
         // Remove Cloud AI
         foreach (var ui in _cloudAIParticipants.ToList())
         {
-            CloudAICardsPanel.Children.Remove(ui.Popup);
-            CloudAICardsPanel.Children.Remove(ui.Card);
+            ParticipantsPanel.Children.Remove(ui.Popup);
+            ParticipantsPanel.Children.Remove(ui.Card);
             ui.Data.Service.Dispose();
         }
         _cloudAIParticipants.Clear();
@@ -379,8 +412,8 @@ public partial class MainWindow : Window
         // Remove Ollama
         foreach (var ui in _ollamaParticipants.ToList())
         {
-            OllamaCardsPanel.Children.Remove(ui.Popup);
-            OllamaCardsPanel.Children.Remove(ui.Card);
+            ParticipantsPanel.Children.Remove(ui.Popup);
+            ParticipantsPanel.Children.Remove(ui.Card);
         }
         _ollamaParticipants.Clear();
         _availableOllamaModels.Clear();
@@ -513,7 +546,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private Border BuildProjectCard(string projFolder, ProjectMeta meta)
+    private Border BuildProjectCard(string projFolder, ProjectSettings meta)
     {
         // Resolve the project type so we can show its icon
         var ptd = ResolveProjectType(meta.ProjectTypeName);
@@ -551,18 +584,11 @@ public partial class MainWindow : Window
         };
         dateLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
 
-        // Show currently-active participants from live project settings (not the creation-time snapshot)
-        var livePs          = ProjectService.LoadProjectSettings(projFolder);
-        var liveActiveNames = livePs.Roles
+        // Show currently-active participants from the project's saved roles
+        var liveActiveNames = meta.Roles
             .Where(r => r.IsActive && !string.IsNullOrWhiteSpace(r.DisplayName))
             .Select(r => r.DisplayName)
             .ToList();
-        // Fall back to meta snapshot if settings have no roles yet (e.g. fresh project)
-        if (liveActiveNames.Count == 0)
-            liveActiveNames = meta.Participants
-                .Where(p => p.IsActive && !string.IsNullOrWhiteSpace(p.DisplayName))
-                .Select(p => p.DisplayName)
-                .ToList();
 
         var participantsLabel = new TextBlock
         {
@@ -587,7 +613,7 @@ public partial class MainWindow : Window
             Height              = 32,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment   = VerticalAlignment.Center,
-            ToolTip             = "ZIP-Backup dieses Projekts erstellen",
+            ToolTip             = "Create ZIP backup of this project",
             Style               = (Style)FindResource("ModernButton"),
             Background          = (Brush)FindResource("InputBrush"),
             Foreground          = (Brush)FindResource("SubtextBrush"),
@@ -600,6 +626,28 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             await CreateProjectBackupAsync(capturedFolderForBackup, capturedNameForBackup);
+        };
+
+        var cardLoadBtn = new Button
+        {
+            Content             = "📂",
+            FontSize            = 15,
+            Width               = 32,
+            Height              = 32,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment   = VerticalAlignment.Center,
+            ToolTip             = "Load project",
+            Style               = (Style)FindResource("ModernButton"),
+            Background          = (Brush)FindResource("InputBrush"),
+            Foreground          = (Brush)FindResource("SubtextBrush"),
+            Padding             = new Thickness(0),
+            Margin              = new Thickness(0, 0, 4, 0)
+        };
+        var capturedFolderForLoad = projFolder;
+        cardLoadBtn.Click += (_, e) =>
+        {
+            e.Handled = true;
+            OpenProject(capturedFolderForLoad);
         };
 
         var settingsBtn = new Button
@@ -626,10 +674,13 @@ public partial class MainWindow : Window
         cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         Grid.SetColumn(infoStack,     0);
-        Grid.SetColumn(cardBackupBtn, 1);
-        Grid.SetColumn(settingsBtn,   2);
+        Grid.SetColumn(cardLoadBtn,   1);
+        Grid.SetColumn(cardBackupBtn, 2);
+        Grid.SetColumn(settingsBtn,   3);
         cardGrid.Children.Add(infoStack);
+        cardGrid.Children.Add(cardLoadBtn);
         cardGrid.Children.Add(cardBackupBtn);
         cardGrid.Children.Add(settingsBtn);
 
@@ -674,7 +725,7 @@ public partial class MainWindow : Window
         return card;
     }
 
-    private void ExportProject(string projFolder, ProjectMeta meta, string format)
+    private void ExportProject(string projFolder, ProjectSettings meta, string format)
     {
         var entries = ProjectService.LoadChatLog(projFolder);
         if (entries.Count == 0)
@@ -764,11 +815,10 @@ public partial class MainWindow : Window
                                                        chosenType.Name,
                                                        chosenType.GetWorldFolderList());
 
-        // Update meta with current participants and description
-        var meta = ProjectService.LoadMeta(projFolder)!;
-        meta.Participants = BuildCurrentParticipantSnapshot();
-        meta.Description  = description;
-        ProjectService.SaveMeta(projFolder, meta);
+        // Store the description entered at creation time
+        var meta = ProjectService.LoadProject(projFolder)!;
+        meta.Description = description;
+        ProjectService.SaveProject(projFolder, meta);
 
         RefreshProjectList();
     }
@@ -784,6 +834,7 @@ public partial class MainWindow : Window
         // so SetResourceReference would resolve nothing → black window.
         // Resolve once here on 'this' and assign directly, same as all other dialogs.
         var bgBrush      = (Brush)FindResource("BackgroundBrush");
+        var sidebarBrush = (Brush)FindResource("SidebarBrush");
         var textBrush    = (Brush)FindResource("TextBrush");
         var subtextBrush = (Brush)FindResource("SubtextBrush");
         var inputBrush   = (Brush)FindResource("InputBrush");
@@ -945,7 +996,7 @@ public partial class MainWindow : Window
             IsEnabled  = true,
             Style      = btnStyle,
             Background = accentBrush,
-            Foreground = textBrush
+            Foreground = sidebarBrush   // SidebarBrush contrasts with AccentBrush on all themes
         };
 
         var cancelBtn = new Button
@@ -994,7 +1045,7 @@ public partial class MainWindow : Window
     {
         if (_selectedProjectFolder is null) return;
 
-        var meta = ProjectService.LoadMeta(_selectedProjectFolder);
+        var meta = ProjectService.LoadProject(_selectedProjectFolder);
         var name = meta?.ProjectName ?? SysIO.Path.GetFileName(_selectedProjectFolder);
 
         var result = MessageBox.Show(
@@ -1014,16 +1065,32 @@ public partial class MainWindow : Window
 
     private void OpenProject(string projFolder)
     {
-        var meta    = ProjectService.LoadMeta(projFolder);
-        if (meta is null) { MessageBox.Show("Could not read project.json.", "Error"); return; }
+        var loaded = ProjectService.LoadProject(projFolder);
+        if (loaded is null) { MessageBox.Show("Could not read project file.", "Error"); return; }
 
-        // Save participant state for the project we're leaving (before changing _currentProjectFolder)
+        // ── Mismatch check BEFORE touching any UI or state ──────────────────
+        if (loaded.ActiveParticipants is { Count: > 0 })
+        {
+            var mismatches = GetParticipantMismatches(
+                loaded.ActiveParticipants,
+                SettingsService.Load().Participants);
+
+            if (mismatches.Count > 0)
+            {
+                ShowMismatchBlockDialog(projFolder, loaded.ActiveParticipants, mismatches);
+                return;
+            }
+        }
+
+        // ── Everything checks out — actually load the project ────────────────
+
+        // Save participant state for the project we're leaving
         if (_currentProjectFolder is not null && _currentProjectFolder != projFolder)
             SaveProjectParticipants();
 
-        // Update LastOpened
-        meta.LastOpened = DateTime.UtcNow;
-        ProjectService.SaveMeta(projFolder, meta);
+        // Update LastOpened and persist (single save)
+        loaded.LastOpened = DateTime.UtcNow;
+        ProjectService.SaveProject(projFolder, loaded);
 
         // Switch to Chat tab
         ActivateTab(chat: true);
@@ -1033,25 +1100,37 @@ public partial class MainWindow : Window
         ChatPanel.Children.Clear();
         _sharedHistory.Clear();
 
-        // Store project state
+        // Store project state — _currentProject and _projectSettings are the SAME object
         _currentProjectFolder = projFolder;
-        _currentProject       = meta;
-        _currentProjectType   = ResolveProjectType(meta.ProjectTypeName);
+        _projectSettings      = loaded;
+        _currentProject       = loaded;
+        _superRoles           = null;   // cleared; will be loaded lazily by GetSuperRoleInstruction
+        _currentProjectType   = ResolveProjectType(loaded.ProjectTypeName);
         _currentRoadmap       = RoadmapService.Load(projFolder);
-        var loadedPs          = ProjectService.LoadProjectSettings(projFolder);
-        _projectSettings      = loadedPs;
-        _projectLanguage      = loadedPs.Language;
-        _maxDialogDepth       = Math.Max(1, loadedPs.MaxDialogDepth);
+        _projectLanguage      = loaded.Language;
+        _maxDialogDepth       = Math.Max(1, loaded.MaxDialogDepth);
+        _sessionStartTime     = DateTime.Now;
+        _workSessionFired     = false;
 
-        // Restore this project's saved participants (if any were saved before)
-        if (loadedPs.ActiveParticipants is { Count: > 0 })
-            ReInitializeParticipantsFrom(loadedPs.ActiveParticipants);
+        // Guarantee all expected project subfolders exist (idempotent — no-op if present).
+        // This repairs projects created before PROJECTSETTINGS was introduced, and ensures
+        // manually-deleted folders are restored before any read/write operations run.
+        EnsureProjectFolders(projFolder);
+
+        // Restore this project's saved participants
+        if (loaded.ActiveParticipants is { Count: > 0 })
+            ReInitializeParticipantsFrom(loaded.ActiveParticipants);
+
+        // Always snapshot current live participants into ActiveParticipants before
+        // any coordinator automation fires.  For existing projects this is a no-op;
+        // for brand-new projects it ensures ResolveRoleAtGroupIndex can match roles.
+        SaveProjectParticipants();
 
         // Reflect CO / R roles on all sidebar cards for this project
         RefreshParticipantBadges();
 
         // Update header
-        ChatHeaderTitle.Text              = meta.ProjectName;
+        ChatHeaderTitle.Text              = loaded.ProjectName;
         ProjectSettingsButton.Visibility  = Visibility.Visible;
         CloseProjectButton   .Visibility  = Visibility.Visible;
         BackupButton         .Visibility  = Visibility.Visible;
@@ -1066,19 +1145,35 @@ public partial class MainWindow : Window
             RenderChatLogEntry(entry);
 
         if (log.Count == 0)
-            AddSystemMessage($"Project \"{meta.ProjectName}\" opened. Start chatting!");
+            AddSystemMessage($"Project \"{loaded.ProjectName}\" opened. Start chatting!");
         else
-            AddSystemMessage($"Project \"{meta.ProjectName}\" — {log.Count} messages loaded.");
+            AddSystemMessage($"Project \"{loaded.ProjectName}\" — {log.Count} messages loaded.");
 
         ChatScrollViewer.ScrollToBottom();
 
-        // CoordinatorAuto: trigger the team initialization discussion on first open.
-        if (loadedPs.OrchestrationMode == OrchestrationMode.CoordinatorAuto &&
-            string.IsNullOrWhiteSpace(loadedPs.TeamPlan))
-        {
-            Dispatcher.InvokeAsync(async () => await TriggerTeamInitializationAsync(),
-                                   System.Windows.Threading.DispatcherPriority.Background);
-        }
+        // Any mode with a coordinator: refresh the capability profile if participants changed.
+        // SuperPowers → RoadmapBuilding → WorkSession all chain together.
+        // Dispatch RoadmapBuilding independently as a fallback for projects where SuperPowers
+        // does not run (it chains into WorkSession itself).
+        Dispatcher.InvokeAsync(async () => await CheckAndTriggerSuperPowersAsync(),
+                               System.Windows.Threading.DispatcherPriority.Background);
+        Dispatcher.InvokeAsync(async () => await CheckAndTriggerRoadmapBuildingAsync(),
+                               System.Windows.Threading.DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Ensures all expected project subfolders exist. Safe to call on every open —
+    /// <see cref="Directory.CreateDirectory"/> is a no-op when the folder already exists.
+    /// Repairs projects that were created before PROJECTSETTINGS was introduced,
+    /// and restores any folder that was manually deleted.
+    /// </summary>
+    private static void EnsureProjectFolders(string projFolder)
+    {
+        SysIO.Directory.CreateDirectory(SysIO.Path.Combine(projFolder, "INPUT"));
+        SysIO.Directory.CreateDirectory(SysIO.Path.Combine(projFolder, "PROJECTPLAN"));
+        SysIO.Directory.CreateDirectory(SysIO.Path.Combine(projFolder, "OUTPUT"));
+        SysIO.Directory.CreateDirectory(SysIO.Path.Combine(projFolder, "AI-Characters"));
+        SysIO.Directory.CreateDirectory(SysIO.Path.Combine(projFolder, "PROJECTSETTINGS"));
     }
 
     private void CloseCurrentProject()
@@ -1090,8 +1185,11 @@ public partial class MainWindow : Window
         _currentProjectType              = null;
         _currentRoadmap                  = null;
         _projectSettings                 = null;
+        _superRoles                      = null;
         _projectLanguage                 = "";
         _maxDialogDepth                  = 1;
+        _sessionStartTime                = null;
+        _workSessionFired                = false;
         ChatHeaderTitle.Text             = "Chat";
         ProjectSettingsButton.Visibility = Visibility.Collapsed;
         CloseProjectButton   .Visibility = Visibility.Collapsed;
@@ -1105,6 +1203,454 @@ public partial class MainWindow : Window
         // Restore the globally configured participants (enabled only — skip empty disabled slots)
         var globalSettings = SettingsService.Load();
         ReInitializeParticipantsFrom(globalSettings.Participants.Where(p => p.Enabled).ToList());
+    }
+
+    // ── Project participant mismatch detection ─────────────────────────────
+
+    /// <summary>
+    /// Compares <paramref name="projectParticipants"/> (saved with the project) against
+    /// <paramref name="globalParticipants"/>.  Returns every slot whose provider+model is no
+    /// longer present in the global config, together with what the global config has at that slot.
+    /// Disabled project participants are skipped — they are intentionally off.
+    /// </summary>
+    private static List<ParticipantMismatch> GetParticipantMismatches(
+        List<ParticipantConfig> projectParticipants,
+        List<ParticipantConfig> globalParticipants)
+    {
+        var mismatches = new List<ParticipantMismatch>();
+
+        for (int i = 0; i < projectParticipants.Count; i++)
+        {
+            var proj = projectParticipants[i];
+            if (!proj.Enabled) continue;   // intentionally disabled — not a mismatch
+
+            bool inGlobal = globalParticipants.Any(g =>
+                g.Enabled &&
+                string.Equals(g.Type,  proj.Type,  StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(g.Model, proj.Model, StringComparison.OrdinalIgnoreCase));
+
+            if (inGlobal) continue;
+
+            // Build description of what the global config currently has at this index
+            string             globalDesc;
+            ParticipantConfig? globalReplacement = null;
+            if (i < globalParticipants.Count)
+            {
+                var g     = globalParticipants[i];
+                var gName = string.IsNullOrEmpty(g.Name) ? $"\"{g.Model}\"" : $"\"{g.Name}\"";
+                globalDesc        = $"{gName}  ({g.Type} · {g.Model})";
+                globalReplacement = g;
+            }
+            else
+                globalDesc = "– not configured –";
+
+            var projName = string.IsNullOrEmpty(proj.Name) ? proj.Model : proj.Name;
+            mismatches.Add(new ParticipantMismatch(
+                i + 1, projName, proj.Type, proj.Model, globalDesc, globalReplacement));
+        }
+
+        return mismatches;
+    }
+
+    /// <summary>
+    /// Blocks project loading and presents the user with three options:
+    /// go to Participant Settings, open the Project Participant Fix dialog, or cancel.
+    /// </summary>
+    private void ShowMismatchBlockDialog(string projFolder,
+                                         List<ParticipantConfig>   activePs,
+                                         List<ParticipantMismatch> mismatches)
+    {
+        var win = new Window
+        {
+            Title                 = "⚠  Participant Mismatch",
+            Width                 = 520,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            ResizeMode            = ResizeMode.NoResize,
+            ShowInTaskbar         = false
+        };
+        ApplyThemeToDialog(win);
+        win.SetResourceReference(Window.BackgroundProperty, "BackgroundBrush");
+
+        var panel = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
+
+        // ── Header ────────────────────────────────────────────────────────
+        var headerText = mismatches.Count == 1
+            ? "1 project participant is no longer in your configuration:"
+            : $"{mismatches.Count} project participants no longer match your configuration:";
+        var header = new TextBlock
+        {
+            Text         = "⚠  " + headerText,
+            FontSize     = 13,
+            FontWeight   = FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 16)
+        };
+        header.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        panel.Children.Add(header);
+
+        // ── Mismatch rows ─────────────────────────────────────────────────
+        var warnBrush = new SolidColorBrush(Color.FromRgb(255, 185, 0));
+        foreach (var m in mismatches)
+        {
+            var projLine = new TextBlock
+            {
+                Text         = $"Slot {m.Slot}:  \"{m.ProjectName}\"  ({m.ProjectType} · {m.ProjectModel})",
+                FontSize     = 12,
+                FontWeight   = FontWeights.SemiBold,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground   = warnBrush
+            };
+            var globalLine = new TextBlock
+            {
+                Text         = $"  ↳  Slot {m.Slot} now:  {m.GlobalDesc}",
+                FontSize     = 11,
+                TextWrapping = TextWrapping.Wrap,
+                Margin       = new Thickness(0, 2, 0, 10)
+            };
+            globalLine.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+            panel.Children.Add(projLine);
+            panel.Children.Add(globalLine);
+        }
+
+        // ── Separator ─────────────────────────────────────────────────────
+        var sep = new Rectangle { Height = 1, Margin = new Thickness(0, 4, 0, 16) };
+        sep.SetResourceReference(Rectangle.FillProperty, "InputBrush");
+        panel.Children.Add(sep);
+
+        // ── Footer note ───────────────────────────────────────────────────
+        var note = new TextBlock
+        {
+            Text         = "The project will not be loaded until the participants are resolved.\n" +
+                           "Adjust your participant configuration — or fix the saved project participants.",
+            FontSize     = 11,
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 20)
+        };
+        note.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        panel.Children.Add(note);
+
+        // ── Buttons ───────────────────────────────────────────────────────
+        var btnRow = new StackPanel
+        {
+            Orientation         = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        var btnStyle = FindResource("ModernButton") as Style;
+
+        var participantSettingsBtn = new Button
+        {
+            Content = "👤  Participant Settings",
+            Height  = 32,
+            Padding = new Thickness(14, 0, 14, 0),
+            Margin  = new Thickness(0, 0, 8, 0),
+            Style   = btnStyle
+        };
+        participantSettingsBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+        participantSettingsBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        participantSettingsBtn.Click += (_, _) =>
+        {
+            win.Close();
+            SettingsButton_Click(null!, null!);
+        };
+
+        var projectSettingsBtn = new Button
+        {
+            Content = "⚙  Project Settings",
+            Height  = 32,
+            Padding = new Thickness(14, 0, 14, 0),
+            Margin  = new Thickness(0, 0, 8, 0),
+            Style   = btnStyle
+        };
+        projectSettingsBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+        projectSettingsBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        projectSettingsBtn.Click += (_, _) =>
+        {
+            win.Close();
+            ShowProjectParticipantFixDialog(projFolder, activePs, mismatches);
+        };
+
+        var cancelBtn = new Button
+        {
+            Content   = "Cancel",
+            Height    = 32,
+            Padding   = new Thickness(14, 0, 14, 0),
+            IsDefault = true,
+            Style     = btnStyle
+        };
+        cancelBtn.SetResourceReference(Button.BackgroundProperty, "AccentBrush");
+        cancelBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+        cancelBtn.Click += (_, _) => win.Close();
+
+        btnRow.Children.Add(participantSettingsBtn);
+        btnRow.Children.Add(projectSettingsBtn);
+        btnRow.Children.Add(cancelBtn);
+        panel.Children.Add(btnRow);
+
+        win.Content = new ScrollViewer
+        {
+            Content                       = panel,
+            VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        win.ShowDialog();
+    }
+
+    /// <summary>
+    /// Shows a dialog where the user can fix mismatched project participants:
+    /// adopt the current global config for that slot, deactivate, or remove the mismatched entry.
+    /// On save, writes the corrected list back to the project file and then re-opens the project.
+    /// </summary>
+    private void ShowProjectParticipantFixDialog(string projFolder,
+                                                  List<ParticipantConfig>   activePs,
+                                                  List<ParticipantMismatch> mismatches)
+    {
+        // Work on a deep copy so we don't mutate the original before the user confirms
+        var workingPs    = activePs.Select(p => new ParticipantConfig
+        {
+            Name      = p.Name,
+            Type      = p.Type,
+            Model     = p.Model,
+            ServerUrl = p.ServerUrl,
+            Enabled   = p.Enabled
+        }).ToList();
+        var removedSlots = new HashSet<int>();   // 0-based indices to exclude on save
+
+        var win = new Window
+        {
+            Title                 = "⚙  Fix Project Participants",
+            Width                 = 600,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            ResizeMode            = ResizeMode.NoResize,
+            ShowInTaskbar         = false
+        };
+        ApplyThemeToDialog(win);
+        win.SetResourceReference(Window.BackgroundProperty, "BackgroundBrush");
+
+        var outerPanel = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
+
+        // ── Header ────────────────────────────────────────────────────────
+        var header = new TextBlock
+        {
+            Text         = "Saved project participants — please resolve all conflicts:",
+            FontSize     = 13,
+            FontWeight   = FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 16)
+        };
+        header.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        outerPanel.Children.Add(header);
+
+        var warnBrush  = new SolidColorBrush(Color.FromRgb(255, 185, 0));
+        var btnStyle   = FindResource("ModernButton") as Style;
+
+        // ── One row per saved participant ─────────────────────────────────
+        for (int i = 0; i < workingPs.Count; i++)
+        {
+            var idx      = i;                    // captured in closures
+            var p        = workingPs[i];
+            var mismatch = mismatches.FirstOrDefault(m => m.Slot == i + 1);
+            bool isMismatch = mismatch.Slot > 0; // Slot=0 means default(struct) → not found
+
+            var rowBorder = new Border
+            {
+                CornerRadius    = new CornerRadius(8),
+                Padding         = new Thickness(12, 8, 12, 8),
+                Margin          = new Thickness(0, 0, 0, 6),
+                BorderThickness = isMismatch ? new Thickness(1.5) : new Thickness(0),
+                BorderBrush     = isMismatch ? warnBrush : null
+            };
+            rowBorder.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+
+            var rowGrid = new Grid();
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var displayName = string.IsNullOrEmpty(p.Name) ? p.Model : p.Name;
+            var nameText    = new TextBlock
+            {
+                FontSize     = 12,
+                FontWeight   = FontWeights.SemiBold,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            if (isMismatch)
+            {
+                nameText.Text       = $"⚠  Slot {i + 1}:  {displayName}  ({p.Type} · {p.Model})";
+                nameText.Foreground = warnBrush;
+            }
+            else
+            {
+                nameText.Text = $"✓  Slot {i + 1}:  {displayName}  ({p.Type} · {p.Model})";
+                nameText.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+            }
+            Grid.SetColumn(nameText, 0);
+            rowGrid.Children.Add(nameText);
+
+            if (isMismatch)
+            {
+                var actionRow = new StackPanel
+                {
+                    Orientation       = Orientation.Horizontal,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin            = new Thickness(8, 0, 0, 0)
+                };
+
+                // 🔄 Apply — only when a global replacement exists at this slot
+                if (mismatch.GlobalReplacement is not null)
+                {
+                    var rep       = mismatch.GlobalReplacement;
+                    var adoptBtn  = new Button
+                    {
+                        Content = "🔄 Apply",
+                        Height  = 26,
+                        Padding = new Thickness(8, 0, 8, 0),
+                        Margin  = new Thickness(0, 0, 4, 0),
+                        Style   = btnStyle,
+                        ToolTip = $"Replace with:  {mismatch.GlobalDesc}"
+                    };
+                    adoptBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+                    adoptBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+                    adoptBtn.Click += (_, _) =>
+                    {
+                        workingPs[idx].Name      = rep.Name;
+                        workingPs[idx].Type      = rep.Type;
+                        workingPs[idx].Model     = rep.Model;
+                        workingPs[idx].ServerUrl = rep.ServerUrl;
+                        workingPs[idx].Enabled   = true;
+                        var updName = string.IsNullOrEmpty(rep.Name) ? rep.Model : rep.Name;
+                        nameText.Text = $"✓  Slot {idx + 1}:  {updName}  ({rep.Type} · {rep.Model})";
+                        nameText.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+                        rowBorder.BorderThickness = new Thickness(0);
+                        actionRow.Visibility      = Visibility.Collapsed;
+                    };
+                    actionRow.Children.Add(adoptBtn);
+                }
+
+                // ⏸ Disable
+                var disableBtn = new Button
+                {
+                    Content = "⏸ Disable",
+                    Height  = 26,
+                    Padding = new Thickness(8, 0, 8, 0),
+                    Margin  = new Thickness(0, 0, 4, 0),
+                    Style   = btnStyle,
+                    ToolTip = "Disable this participant for this project"
+                };
+                disableBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+                disableBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+                disableBtn.Click += (_, _) =>
+                {
+                    workingPs[idx].Enabled    = false;
+                    nameText.Text             = $"⏸  Slot {idx + 1}:  {displayName}  (disabled)";
+                    nameText.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+                    rowBorder.BorderThickness = new Thickness(0);
+                    actionRow.Visibility      = Visibility.Collapsed;
+                };
+                actionRow.Children.Add(disableBtn);
+
+                // 🗑 Remove
+                var removeBtn = new Button
+                {
+                    Content = "🗑 Remove",
+                    Height  = 26,
+                    Padding = new Thickness(8, 0, 8, 0),
+                    Style   = btnStyle,
+                    ToolTip = "Remove this participant from the project"
+                };
+                removeBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+                removeBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+                removeBtn.Click += (_, _) =>
+                {
+                    removedSlots.Add(idx);
+                    rowBorder.BorderThickness = new Thickness(0);
+                    rowBorder.Opacity         = 0.35;
+                    nameText.Text             = $"🗑  Slot {idx + 1}:  {displayName}  (removing)";
+                    nameText.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+                    actionRow.Visibility      = Visibility.Collapsed;
+                };
+                actionRow.Children.Add(removeBtn);
+
+                Grid.SetColumn(actionRow, 1);
+                rowGrid.Children.Add(actionRow);
+            }
+
+            rowBorder.Child = rowGrid;
+            outerPanel.Children.Add(rowBorder);
+        }
+
+        // ── Separator ─────────────────────────────────────────────────────
+        var sep = new Rectangle { Height = 1, Margin = new Thickness(0, 8, 0, 16) };
+        sep.SetResourceReference(Rectangle.FillProperty, "InputBrush");
+        outerPanel.Children.Add(sep);
+
+        // ── Bottom buttons ─────────────────────────────────────────────────
+        var bottomRow = new StackPanel
+        {
+            Orientation         = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        var btnStyle2 = FindResource("ModernButton") as Style;
+        bool saved    = false;
+
+        var cancelBtn = new Button
+        {
+            Content = "Cancel",
+            Height  = 32,
+            Padding = new Thickness(14, 0, 14, 0),
+            Margin  = new Thickness(0, 0, 8, 0),
+            Style   = btnStyle2
+        };
+        cancelBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
+        cancelBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        cancelBtn.Click += (_, _) => win.Close();
+
+        var saveBtn = new Button
+        {
+            Content   = "💾  Save & Load Project",
+            Height    = 32,
+            Padding   = new Thickness(14, 0, 14, 0),
+            IsDefault = true,
+            Style     = btnStyle2
+        };
+        saveBtn.SetResourceReference(Button.BackgroundProperty, "AccentBrush");
+        saveBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+        saveBtn.Click += (_, _) => { saved = true; win.Close(); };
+
+        bottomRow.Children.Add(cancelBtn);
+        bottomRow.Children.Add(saveBtn);
+        outerPanel.Children.Add(bottomRow);
+
+        win.Content = new ScrollViewer
+        {
+            Content                       = outerPanel,
+            VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        win.ShowDialog();
+
+        if (!saved) return;
+
+        // ── Persist fixes and re-open ──────────────────────────────────────
+        var finalPs = workingPs
+            .Where((_, i) => !removedSlots.Contains(i))
+            .ToList();
+
+        var ps = ProjectService.LoadProject(projFolder) ?? new ProjectSettings();
+        ps.ActiveParticipants = finalPs;
+        try { ProjectService.SaveProject(projFolder, ps); }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error saving project participants:\n{ex.Message}",
+                            "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        // Re-open — mismatch check will either pass or show the dialog again
+        OpenProject(projFolder);
     }
 
     private void RoadmapButton_Click(object sender, RoutedEventArgs e)
@@ -2248,9 +2794,104 @@ public partial class MainWindow : Window
     /// </summary>
     private string ApplyRoadmapCommands(string text, string sender, bool isCoordinator)
     {
-        if (_currentRoadmap is null) return text;
+        if (_currentRoadmap is null || _currentProjectFolder is null) return text;
 
         bool changed = false;
+
+        // <roadmapproposal>…</roadmapproposal> — build/replace the whole roadmap
+        var proposalMatch = RoadmapProposalRx.Match(text);
+        if (proposalMatch.Success)
+        {
+            var parsed = ParseRoadmapProposal(proposalMatch.Groups[1].Value, sender);
+            if (parsed.Milestones.Count > 0)
+            {
+                _currentRoadmap = parsed;
+                RoadmapService.Save(_currentProjectFolder, _currentRoadmap);
+                var itemCount = parsed.Milestones.Sum(m => m.Items.Count);
+                AddSystemMessage(
+                    $"✅ Roadmap saved — {parsed.Milestones.Count} milestone(s), {itemCount} task(s). " +
+                    $"Click 📊 Roadmap to view or edit.");
+                Dispatcher.InvokeAsync(() => ShowRoadmapPanel(true),
+                    System.Windows.Threading.DispatcherPriority.Background);
+            }
+            // Strip the proposal tag regardless — never show raw XML to the user
+            text = RoadmapProposalRx.Replace(text, "").Trim();
+        }
+
+        // <roadmap-describe id="...">description text</roadmap-describe>  — coordinator only
+        if (isCoordinator)
+        {
+            text = RoadmapDescribeRx.Replace(text, m =>
+            {
+                var id   = m.Groups[1].Value.ToLowerInvariant();
+                var desc = m.Groups[2].Value.Trim();
+
+                // Search items first, then milestones
+                var item = _currentRoadmap.Milestones
+                    .SelectMany(ms => ms.Items)
+                    .FirstOrDefault(i => i.Id == id);
+                if (item is not null)
+                {
+                    item.Description = desc;
+                    changed = true;
+                    return "";
+                }
+                var milestone = _currentRoadmap.Milestones
+                    .FirstOrDefault(ms => ms.Id == id);
+                if (milestone is not null)
+                {
+                    milestone.Description = desc;
+                    changed = true;
+                }
+                return "";
+            });
+
+            // <roadmap-additem milestone="..." title="..." description="..."/>  — coordinator only
+            text = RoadmapAddItemRx.Replace(text, m =>
+            {
+                var milestoneRef = m.Groups[1].Value.Trim();
+                var title        = m.Groups[2].Value.Trim();
+                var desc         = m.Groups[3].Success ? m.Groups[3].Value.Trim() : "";
+
+                if (string.IsNullOrWhiteSpace(title)) return "";
+
+                // Match by id or title (case-insensitive)
+                var parent = _currentRoadmap.Milestones.FirstOrDefault(ms =>
+                    string.Equals(ms.Id, milestoneRef, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ms.Title, milestoneRef, StringComparison.OrdinalIgnoreCase));
+
+                if (parent is not null)
+                {
+                    parent.Items.Add(new RoadmapItem
+                    {
+                        Title       = title,
+                        Description = desc,
+                        CreatedBy   = sender
+                    });
+                    UpdateMilestoneStatus(parent);
+                    changed = true;
+                }
+                return "";
+            });
+
+            // <roadmap-addmilestone>MILESTONE:/ITEM: format</roadmap-addmilestone>  — coordinator only
+            var addMsMatch = RoadmapAddMilestoneRx.Match(text);
+            if (addMsMatch.Success)
+            {
+                var parsed = ParseRoadmapProposal(addMsMatch.Groups[1].Value, sender);
+                foreach (var ms in parsed.Milestones)
+                    _currentRoadmap.Milestones.Add(ms);
+                if (parsed.Milestones.Count > 0)
+                {
+                    var newItemCount = parsed.Milestones.Sum(ms => ms.Items.Count);
+                    AddSystemMessage(
+                        $"✅ Roadmap extended — {parsed.Milestones.Count} new milestone(s), " +
+                        $"{newItemCount} task(s) added.");
+                    changed = true;
+                }
+                text = RoadmapAddMilestoneRx.Replace(text, "").Trim();
+            }
+        }
 
         // [ROADMAP:update:xxxxxxxx:N]
         text = RoadmapUpdateRx.Replace(text, m =>
@@ -2314,14 +2955,141 @@ public partial class MainWindow : Window
         new(@"\[ROADMAP:complete:([0-9a-f]{8})\]",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static readonly Regex RoadmapProposalRx =
+        new(@"<roadmapproposal>(.*?)</roadmapproposal>",
+            RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    // Coordinator-only enrichment tags
+    private static readonly Regex RoadmapDescribeRx =
+        new(@"<roadmap-describe\s+id=""([^""]+)"">(.*?)</roadmap-describe>",
+            RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex RoadmapAddItemRx =
+        new(@"<roadmap-additem\s+milestone=""([^""]+)""\s+title=""([^""]+)""(?:\s+description=""([^""]*)"")?/?>\s*(?:</roadmap-additem>)?",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex RoadmapAddMilestoneRx =
+        new(@"<roadmap-addmilestone>(.*?)</roadmap-addmilestone>",
+            RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Parses the body of a <c>&lt;roadmapproposal&gt;</c> tag into a <see cref="Roadmap"/>.
+    /// Expected format (one directive per line):
+    /// <code>
+    /// MILESTONE: Title | Optional description
+    ///   ITEM: Title | Optional description
+    ///   ITEM: Another task
+    /// MILESTONE: Second milestone
+    ///   ITEM: ...
+    /// </code>
+    /// Lines not matching either directive are ignored.
+    /// </summary>
+    private static Roadmap ParseRoadmapProposal(string body, string createdBy)
+    {
+        var roadmap  = new Roadmap();
+        RoadmapMilestone? current = null;
+
+        foreach (var rawLine in body.Split('\n'))
+        {
+            var line = rawLine.Trim();
+            if (line.StartsWith("MILESTONE:", StringComparison.OrdinalIgnoreCase))
+            {
+                var rest  = line[10..].Trim();
+                var parts = rest.Split('|', 2, StringSplitOptions.TrimEntries);
+                current = new RoadmapMilestone
+                {
+                    Title       = parts[0],
+                    Description = parts.Length > 1 ? parts[1] : "",
+                    CreatedBy   = createdBy
+                };
+                roadmap.Milestones.Add(current);
+            }
+            else if (line.StartsWith("ITEM:", StringComparison.OrdinalIgnoreCase) && current is not null)
+            {
+                var rest  = line[5..].Trim();
+                var parts = rest.Split('|', 2, StringSplitOptions.TrimEntries);
+                current.Items.Add(new RoadmapItem
+                {
+                    Title       = parts[0],
+                    Description = parts.Length > 1 ? parts[1] : "",
+                    CreatedBy   = createdBy
+                });
+            }
+        }
+
+        return roadmap;
+    }
+
     /// <summary>
     /// Returns roadmap context text for injection into AI system prompts.
-    /// Empty string if no project is open or the roadmap is empty.
+    /// When the roadmap is empty and the participant is a Coordinator or Planner,
+    /// injects the <c>&lt;roadmapproposal&gt;</c> tag format so they know how to submit one.
     /// </summary>
     private string BuildRoadmapContext(ProjectParticipantRole? role)
     {
-        if (_currentRoadmap is null || _currentRoadmap.Milestones.Count == 0) return "";
+        if (_currentRoadmap is null) return "";
+
+        if (_currentRoadmap.Milestones.Count == 0)
+        {
+            if (_currentProjectType?.HasRoadmap == true &&
+                (role?.IsCoordinator == true || role?.IsPlanner == true))
+            {
+                return "\n\n--- ROADMAP ---\n" +
+                       "This project has no roadmap yet. You are helping the user build one through " +
+                       "conversation. Once you have gathered enough information about their goals and " +
+                       "deliverables, propose a complete roadmap using this format:\n\n" +
+                       "<roadmapproposal>\n" +
+                       "MILESTONE: Milestone title | Optional description\n" +
+                       "  ITEM: Task title | Optional description\n" +
+                       "  ITEM: Another task | Another description\n" +
+                       "MILESTONE: Second milestone | Description\n" +
+                       "  ITEM: ...\n" +
+                       "</roadmapproposal>\n\n" +
+                       "The proposal will be parsed and saved automatically. " +
+                       "Only include the tag when you have enough information to propose a meaningful roadmap.\n" +
+                       "--- END ROADMAP ---";
+            }
+            return "";
+        }
+
         return RoadmapService.GetContextText(_currentRoadmap, role?.IsCoordinator == true);
+    }
+
+    /// <summary>
+    /// Returns a clock-watching instruction for the coordinator so it can suggest breaks
+    /// when the user has been working for an extended period.
+    /// Only emits when the current role is a coordinator and a session is active.
+    /// </summary>
+    private string BuildSessionTimeInstruction(ProjectParticipantRole? role)
+    {
+        if (role?.IsCoordinator != true) return "";
+        if (_sessionStartTime is null)   return "";
+
+        var elapsed = DateTime.Now - _sessionStartTime.Value;
+        var minutes = (int)elapsed.TotalMinutes;
+        if (minutes < 1) return "";
+
+        var timeStr = minutes < 60
+            ? $"{minutes} minute{(minutes == 1 ? "" : "s")}"
+            : $"{(int)elapsed.TotalHours}h {elapsed.Minutes:D2}m";
+
+        var thresholdNote = elapsed.TotalHours switch
+        {
+            >= 10 => "\n  IMPORTANT: The user has been at this for 10+ hours. " +
+                     "Once or twice every hour, firmly but kindly remind them that rest and sleep " +
+                     "will do them far more good than pushing on, and actively encourage them to stop for today.",
+            >= 8  => "\n  NOTE: The user has been working for 8+ hours (with only small breaks). " +
+                     "Find a natural moment to suggest they step away from the screen, get some fresh " +
+                     "air, and move around — their body needs it.",
+            >= 3  => "\n  NOTE: The user has been working non-stop for 3+ hours. " +
+                     "When the moment feels right, gently ask whether they'd like a short break, " +
+                     "a coffee, or something to eat.",
+            _     => ""
+        };
+
+        return $"\n\n--- WORK SESSION CLOCK ---\n" +
+               $"Session time so far: {timeStr}.{thresholdNote}\n" +
+               $"--- END WORK SESSION CLOCK ---";
     }
 
     private void WorldButton_Click(object sender, RoutedEventArgs e)
@@ -2362,7 +3130,7 @@ public partial class MainWindow : Window
 
         // Persist last-opened timestamp before closing
         _currentProject.LastOpened = DateTime.UtcNow;
-        ProjectService.SaveMeta(_currentProjectFolder, _currentProject);
+        ProjectService.SaveProject(_currentProjectFolder!, _currentProject);
 
         // Stop any running stream, clear the chat panel
         _streamCts?.Cancel();
@@ -2388,7 +3156,7 @@ public partial class MainWindow : Window
 
         var dlg = new Window
         {
-            Title                 = "Projekt schließen",
+            Title                 = "Close Project",
             Width                 = 460,
             SizeToContent         = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -2420,7 +3188,7 @@ public partial class MainWindow : Window
         var textCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var titleTb = new TextBlock
         {
-            Text         = "Backup erstellen? 🐙",
+            Text         = "Create backup? 🐙",
             FontSize     = 15,
             FontWeight   = FontWeights.SemiBold,
             FontFamily   = new FontFamily("Segoe UI"),
@@ -2431,11 +3199,10 @@ public partial class MainWindow : Window
 
         var msgTb = new TextBlock
         {
-            Text         = $"Du schließt das Projekt \"{projectName}\". " +
-                           "Soll ich vorher ein Backup erstellen? 🐙\n\n" +
-                           "Kleiner Tipp: Halte den Projektordner schlank und lösche " +
-                           "ab und zu alte Backups — " +
-                           "ein voller Backup-Ordner ist wie ein zu enges Tentakel-Netz! 🐙💦",
+            Text         = $"You are closing project \"{projectName}\". " +
+                           "Should I create a backup first? 🐙\n\n" +
+                           "Quick tip: keep your project folder tidy and delete old backups from time to time — " +
+                           "a full backup folder is like a tangled tentacle net! 🐙💦",
             FontSize     = 13,
             FontFamily   = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap
@@ -2459,7 +3226,7 @@ public partial class MainWindow : Window
 
         var backupBtn = new Button
         {
-            Content = "💾 Backup + Schließen",
+            Content = "💾 Backup + Close",
             Height  = 36,
             Padding = new Thickness(16, 0, 16, 0),
             Margin  = new Thickness(0, 0, 8, 0),
@@ -2470,7 +3237,7 @@ public partial class MainWindow : Window
 
         var closeBtn = new Button
         {
-            Content = "Schließen",
+            Content = "Close",
             Height  = 36,
             Padding = new Thickness(16, 0, 16, 0),
             Margin  = new Thickness(0, 0, 8, 0),
@@ -2481,7 +3248,7 @@ public partial class MainWindow : Window
 
         var cancelBtn = new Button
         {
-            Content = "Abbrechen",
+            Content = "Cancel",
             Height  = 36,
             Padding = new Thickness(16, 0, 16, 0),
             Style   = (Style)FindResource("ModernButton")
@@ -2514,8 +3281,8 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(settings.BackupFolder))
         {
             MessageBox.Show(
-                "Bitte zuerst einen Backup-Ordner unter ☰ → Folders Setup einrichten.",
-                "Kein Backup-Ordner", MessageBoxButton.OK, MessageBoxImage.Information);
+                "Please set a backup folder first under ☰ → Folders Setup.",
+                "No Backup Folder", MessageBoxButton.OK, MessageBoxImage.Information);
             return false;
         }
 
@@ -2527,8 +3294,8 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Backup-Ordner konnte nicht erstellt werden:\n{ex.Message}",
-                "Backup-Fehler", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Could not create backup folder:\n{ex.Message}",
+                "Backup Error", MessageBoxButton.OK, MessageBoxImage.Error);
             return false;
         }
 
@@ -2544,7 +3311,7 @@ public partial class MainWindow : Window
         var bgBrush     = (Brush)FindResource("BackgroundBrush");
         var progressWin = new Window
         {
-            Title                 = "Backup wird erstellt…",
+            Title                 = "Creating backup…",
             Width                 = 420,
             SizeToContent         = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -2587,7 +3354,7 @@ public partial class MainWindow : Window
 
         var fileLabel = new TextBlock
         {
-            Text         = "Dateien werden eingelesen…",
+            Text         = "Reading files…",
             FontSize     = 11,
             FontFamily   = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.NoWrap,
@@ -2617,8 +3384,8 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Projektunterordner konnte nicht erstellt werden:\n{ex.Message}",
-                "Backup-Fehler", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Could not create project subfolder:\n{ex.Message}",
+                "Backup Error", MessageBoxButton.OK, MessageBoxImage.Error);
             return false;
         }
 
@@ -2654,7 +3421,7 @@ public partial class MainWindow : Window
             });
 
             progressWin.Close();
-            AddSystemMessage($"✅ Backup erstellt: {zipPath}");
+            AddSystemMessage($"✅ Backup created: {zipPath}");
             return true;
         }
         catch (Exception ex)
@@ -2664,10 +3431,10 @@ public partial class MainWindow : Window
             try { if (SysIO.File.Exists(zipPath)) SysIO.File.Delete(zipPath); } catch { }
 
             MessageBox.Show(
-                $"Backup fehlgeschlagen:\n{ex.Message}\n\n" +
-                "Die Projektdaten liegen weiterhin sicher im Projektordner.\n" +
-                "Bitte nach Fehlerbehebung das Backup manuell über den 💾-Button erstellen.",
-                "Backup-Fehler", MessageBoxButton.OK, MessageBoxImage.Warning);
+                $"Backup failed:\n{ex.Message}\n\n" +
+                "Your project data is still safe in the project folder.\n" +
+                "Please retry the backup manually via the 💾 button after fixing the issue.",
+                "Backup Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
     }
@@ -2695,30 +3462,6 @@ public partial class MainWindow : Window
                                          entry.AccentKey, entry.BubbleKey, entry.IsUser);
         bubble.StopThinking();
         bubble.Content.Text = entry.Message;
-    }
-
-    private List<ProjectParticipant> BuildCurrentParticipantSnapshot()
-    {
-        var list = new List<ProjectParticipant>();
-        foreach (var ui in _ollamaParticipants)
-            list.Add(new ProjectParticipant
-            {
-                Type        = "Ollama",
-                Provider    = "Ollama",
-                ModelName   = ui.Data.Service.CurrentModel,
-                DisplayName = ui.Data.DisplayName,
-                IsActive    = ui.Data.Enabled
-            });
-        foreach (var ui in _cloudAIParticipants)
-            list.Add(new ProjectParticipant
-            {
-                Type        = "Cloud",
-                Provider    = ui.Data.ProviderName,
-                ModelName   = ui.Data.Service.CurrentModel,
-                DisplayName = ui.Data.DisplayName,
-                IsActive    = ui.Data.Enabled
-            });
-        return list;
     }
 
     private void AppendToProjectLog(ChatLogEntry entry)
@@ -3471,26 +4214,38 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Recalculates and publishes ChatBubbleMaxWidth as a dynamic resource.
-    /// Called on startup, on window resize, and when the user changes the percentage.
+    /// Recalculates the bubble width and publishes it via the "ChatBubbleMaxWidth" resource.
+    /// Bubbles use Width (not MaxWidth) so they always fill exactly slider-% of the chat area —
+    /// even short messages don't produce a narrower bubble than the chosen percentage.
+    /// Called on startup, on window resize, and when the user changes the slider.
     /// </summary>
-    /// <param name="availableOverride">
-    /// Pre-computed available content width in DIPs.
-    /// Pass this from SizeChanged event args to avoid reading ActualWidth mid-layout-pass.
-    /// When null (slider, startup, etc.) the method reads ChatPanel.ActualWidth directly.
-    /// </param>
-    private void UpdateChatBubbleMaxWidth(double? availableOverride = null)
+    private void UpdateChatBubbleWidth()
     {
-        const double avatarWidth = 44.0;  // avatar border 34 px + margin 10 px
+        const double avatarWidth = 44.0;  // avatar Border 34 px + Margin 10 px
 
-        // If a pre-computed width was supplied (from the SizeChanged event) use it.
-        // Otherwise fall back to ChatPanel.ActualWidth, which is correct whenever the
-        // panel has been laid out (slider calls, startup after Loaded, etc.).
-        // 840 px is a last-resort fallback before the very first layout pass.
+        // ChatPanel.ActualWidth is the most accurate source: it is the exact content-area
+        // width (ScrollViewer width minus padding minus scrollbar).  Fall back to the
+        // ScrollViewer's own ActualWidth (minus padding) if the panel hasn't been laid out
+        // yet, or use 840 px as a startup default.
         var panelWidth = ChatPanel.ActualWidth;
-        var available  = availableOverride ?? (panelWidth > 10 ? panelWidth : 840.0);
+        double available;
+        if (panelWidth > 10)
+            available = panelWidth;
+        else
+        {
+            var svw = ChatScrollViewer.ActualWidth;
+            available = svw > 10 ? svw - 40 : 840.0;   // 40 = left(20)+right(20) padding
+        }
 
-        Resources["ChatBubbleMaxWidth"] = Math.Max(50.0, (available - avatarWidth) * (_chatBubbleWidthPct / 100.0));
+        var bubbleW = Math.Max(50.0, (available - avatarWidth) * (_chatBubbleWidthPct / 100.0));
+        Resources["ChatBubbleMaxWidth"] = bubbleW;   // key name kept for compatibility
+
+        // Belt-and-suspenders: SetResourceReference is cleared the first time Width is set
+        // directly, so we walk every BubbleContent panel explicitly on every recalculation.
+        foreach (var wrapper in ChatPanel.Children.OfType<Grid>())
+            foreach (FrameworkElement cell in wrapper.Children)
+                if (cell.Tag as string == "BubbleContent")
+                    cell.Width = bubbleW;
     }
 
     // ── AI Dialogue toggle ─────────────────────────────────────────────────
@@ -3716,7 +4471,7 @@ public partial class MainWindow : Window
         {
             var pct = Math.Clamp(widthSlider.Value, 30, 100);
             _chatBubbleWidthPct = pct;
-            UpdateChatBubbleMaxWidth();
+            UpdateChatBubbleWidth();
         }
 
         // Slider → TextBox
@@ -3921,8 +4676,7 @@ public partial class MainWindow : Window
 
     private void ShowProjectSettingsDialog(string projFolder, string projectName)
     {
-        var ps   = ProjectService.LoadProjectSettings(projFolder);
-        var meta = ProjectService.LoadMeta(projFolder) ?? new ProjectMeta { ProjectName = projectName };
+        var ps = ProjectService.LoadProject(projFolder) ?? new ProjectSettings { ProjectName = projectName };
 
         // ── Normalize potentially corrupted role data ──────────────────────
         // The old aliasing bug (before the deep-copy fix) could save every
@@ -3975,7 +4729,7 @@ public partial class MainWindow : Window
 
         var descBox = new TextBox
         {
-            Text            = meta.Description,
+            Text            = ps.Description,
             FontSize        = 13, FontFamily = new FontFamily("Segoe UI"),
             MinHeight       = 72,
             BorderThickness = new Thickness(0),
@@ -4032,25 +4786,21 @@ public partial class MainWindow : Window
             ToolTip     = tip
         };
 
-        var radioAll = MakeRadio("All participants respond",
-            "Every active participant answers every user message. Default behaviour.",
-            OrchestrationMode.AllRespond);
-
-        var radioCoordFirst = MakeRadio("Coordinator-first",
+        // CoordinatorFirst is checked for projects that were previously saved as CoordinatorAuto
+        // (legacy value 3) since CoordinatorAuto is no longer exposed in the UI.
+        var radioCoordFirst = MakeRadio("Coordinator-first  (default)",
             "The Coordinator answers first and decides which Reasoner(s) should respond next.\n" +
-            "Reasoners are triggered when the Coordinator tags them (e.g. @Reasoner).",
+            "Reasoners are triggered when the Coordinator tags them (e.g. @Reasoner).\n" +
+            "Coordinator automation (SuperPowers calibration, work-session greeting) runs automatically.",
             OrchestrationMode.CoordinatorFirst);
+        // Treat legacy CoordinatorAuto as CoordinatorFirst in the UI
+        if (ps.OrchestrationMode == OrchestrationMode.CoordinatorAuto)
+            radioCoordFirst.IsChecked = true;
 
         var radioCoordSum = MakeRadio("All respond, Coordinator summarizes",
             "All participants respond normally. The Coordinator then receives all answers\n" +
             "as context and writes a final synthesising summary.",
             OrchestrationMode.CoordinatorSummarizes);
-
-        var radioCoordAuto = MakeRadio("Coordinator Auto  (team initialization)",
-            "On first open the team holds a visible discussion to agree on task assignments.\n" +
-            "The agreed plan is saved and injected into every subsequent system prompt.\n" +
-            "After initialization, behaviour is identical to Coordinator-first.",
-            OrchestrationMode.CoordinatorAuto);
 
         var radioCoordOnly = MakeRadio("Coordinator Only  (hidden AI-to-AI)",
             "The user communicates only with the Coordinator.\n" +
@@ -4059,43 +4809,38 @@ public partial class MainWindow : Window
             "Only the Coordinator's final synthesis is shown to the user.",
             OrchestrationMode.CoordinatorOnly);
 
-        // Reset-team-plan link — only meaningful in CoordinatorAuto when a plan exists
-        var resetPlanTb = new TextBlock
+        var radioAll = MakeRadio("Full Manual Mode",
+            "Every active participant answers every user message — no coordinator automation.\n" +
+            "No SuperPowers calibration, no work-session greeting.\n" +
+            "Use when you want to manage all task assignments yourself.",
+            OrchestrationMode.AllRespond);
+
+        // Reset-roadmap-planning link — shown when roadmap building has already been started
+        var resetRoadmapTb = new TextBlock
         {
             FontFamily  = new FontFamily("Segoe UI"),
             FontSize    = 11,
-            Margin      = new Thickness(20, 2, 0, 4),
-            Visibility  = (ps.OrchestrationMode == OrchestrationMode.CoordinatorAuto &&
-                           !string.IsNullOrWhiteSpace(ps.TeamPlan))
+            Margin      = new Thickness(20, 0, 0, 4),
+            Visibility  = (_currentProjectType?.HasRoadmap == true && ps.RoadmapInitialized)
                           ? Visibility.Visible : Visibility.Collapsed
         };
-        resetPlanTb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
-        var resetHyperlink = new Hyperlink();
-        resetHyperlink.Inlines.Add("🔄 Reset team plan (re-runs initialization on next open)");
-        resetHyperlink.Click += (_, _) =>
+        resetRoadmapTb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        var resetRoadmapLink = new Hyperlink();
+        resetRoadmapLink.Inlines.Add("🗺 Reset roadmap planning (coordinator re-starts conversation on next open)");
+        resetRoadmapLink.Click += (_, _) =>
         {
-            ps.TeamPlan = "";
-            resetPlanTb.Visibility = Visibility.Collapsed;
+            ps.RoadmapInitialized = false;
+            resetRoadmapTb.Visibility = Visibility.Collapsed;
         };
-        resetPlanTb.Inlines.Add(resetHyperlink);
-
-        void RefreshResetLink()
-        {
-            resetPlanTb.Visibility =
-                radioCoordAuto.IsChecked == true && !string.IsNullOrWhiteSpace(ps.TeamPlan)
-                ? Visibility.Visible : Visibility.Collapsed;
-        }
-        foreach (var rb in new[] { radioAll, radioCoordFirst, radioCoordSum, radioCoordAuto, radioCoordOnly })
-            rb.Checked += (_, _) => RefreshResetLink();
+        resetRoadmapTb.Inlines.Add(resetRoadmapLink);
 
         var modeStack = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
         modeStack.Children.Add(modeLabel);
-        modeStack.Children.Add(radioAll);
         modeStack.Children.Add(radioCoordFirst);
         modeStack.Children.Add(radioCoordSum);
-        modeStack.Children.Add(radioCoordAuto);
         modeStack.Children.Add(radioCoordOnly);
-        modeStack.Children.Add(resetPlanTb);
+        modeStack.Children.Add(radioAll);
+        modeStack.Children.Add(resetRoadmapTb);
         root.Children.Add(modeStack);
 
         // ── Language ───────────────────────────────────────────────────────
@@ -4345,6 +5090,9 @@ public partial class MainWindow : Window
                 IsCoordinator    = existing?.IsCoordinator    ?? (!anyCoordinator && pi == 0),
                 IsReasoner       = existing?.IsReasoner       ?? false,
                 ReasonerPriority = existing?.ReasonerPriority ?? 5,
+                IsCritic         = existing?.IsCritic         ?? false,
+                IsPlanner        = existing?.IsPlanner        ?? false,
+                IsResearcher     = existing?.IsResearcher     ?? false,
                 IsActive         = existing?.IsActive         ?? true
             };
 
@@ -4386,7 +5134,7 @@ public partial class MainWindow : Window
                 Child = coBadgeText
             };
 
-            // R badge — silver, bottom-right
+            // R badge — silver, center-right
             var rBadgeText = new TextBlock
             {
                 Text = "R", FontSize = 8, FontWeight = FontWeights.Bold,
@@ -4401,9 +5149,74 @@ public partial class MainWindow : Window
                 Height              = 13,
                 Background          = (Brush)FindResource("SubtextBrush"),
                 HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment   = VerticalAlignment.Bottom,
+                VerticalAlignment   = VerticalAlignment.Center,
                 Visibility          = role.IsReasoner ? Visibility.Visible : Visibility.Collapsed,
                 Child = rBadgeText
+            };
+
+            // CR badge — brass, top-left
+            var crBadgeBorder = new Border
+            {
+                CornerRadius        = new CornerRadius(3),
+                Padding             = new Thickness(2, 0, 2, 0),
+                Height              = 13,
+                Background          = new SolidColorBrush(Color.FromRgb(205, 149, 12)),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment   = VerticalAlignment.Top,
+                Visibility          = role.IsCritic ? Visibility.Visible : Visibility.Collapsed,
+                Child               = new TextBlock { Text = "CR", FontSize = 8, FontWeight = FontWeights.Bold,
+                                          FontFamily = new FontFamily("Segoe UI"), Foreground = Brushes.Black,
+                                          HorizontalAlignment = HorizontalAlignment.Center,
+                                          VerticalAlignment   = VerticalAlignment.Center }
+            };
+
+            // PL badge — amber, bottom-left
+            var plBadgeBorder = new Border
+            {
+                CornerRadius        = new CornerRadius(3),
+                Padding             = new Thickness(2, 0, 2, 0),
+                Height              = 13,
+                Background          = new SolidColorBrush(Color.FromRgb(255, 140, 0)),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment   = VerticalAlignment.Bottom,
+                Visibility          = role.IsPlanner ? Visibility.Visible : Visibility.Collapsed,
+                Child               = new TextBlock { Text = "PL", FontSize = 8, FontWeight = FontWeights.Bold,
+                                          FontFamily = new FontFamily("Segoe UI"), Foreground = Brushes.Black,
+                                          HorizontalAlignment = HorizontalAlignment.Center,
+                                          VerticalAlignment   = VerticalAlignment.Center }
+            };
+
+            // RS badge — steel blue, bottom-right
+            var rsBadgeBorder = new Border
+            {
+                CornerRadius        = new CornerRadius(3),
+                Padding             = new Thickness(2, 0, 2, 0),
+                Height              = 13,
+                Background          = new SolidColorBrush(Color.FromRgb(70, 130, 180)),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment   = VerticalAlignment.Bottom,
+                Visibility          = role.IsResearcher ? Visibility.Visible : Visibility.Collapsed,
+                Child               = new TextBlock { Text = "RS", FontSize = 8, FontWeight = FontWeights.Bold,
+                                          FontFamily = new FontFamily("Segoe UI"), Foreground = Brushes.White,
+                                          HorizontalAlignment = HorizontalAlignment.Center,
+                                          VerticalAlignment   = VerticalAlignment.Center }
+            };
+
+            // WR badge — green, bottom-center (avoids covering the avatar initials)
+            // Show for any participant with explicit write access OR the coordinator (write always implied).
+            var wrBadgeBorder = new Border
+            {
+                CornerRadius        = new CornerRadius(3),
+                Padding             = new Thickness(2, 0, 2, 0),
+                Height              = 13,
+                Background          = new SolidColorBrush(Color.FromRgb(34, 139, 34)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment   = VerticalAlignment.Bottom,
+                Visibility          = (role.IsWriteAccess || role.IsCoordinator) ? Visibility.Visible : Visibility.Collapsed,
+                Child               = new TextBlock { Text = "WR", FontSize = 8, FontWeight = FontWeights.Bold,
+                                          FontFamily = new FontFamily("Segoe UI"), Foreground = Brushes.White,
+                                          HorizontalAlignment = HorizontalAlignment.Center,
+                                          VerticalAlignment   = VerticalAlignment.Center }
             };
 
             // Grid container (still named avatarBorder — column-set code below unchanged)
@@ -4416,6 +5229,10 @@ public partial class MainWindow : Window
             avatarBorder.Children.Add(avatarCircle);
             avatarBorder.Children.Add(coBadgeBorder);
             avatarBorder.Children.Add(rBadgeBorder);
+            avatarBorder.Children.Add(crBadgeBorder);
+            avatarBorder.Children.Add(plBadgeBorder);
+            avatarBorder.Children.Add(rsBadgeBorder);
+            avatarBorder.Children.Add(wrBadgeBorder);
 
             // ── Name + model sub-label ─────────────────────────────────────
             var nameTb = new TextBlock
@@ -4463,6 +5280,9 @@ public partial class MainWindow : Window
             var capturedModelTb = modelTb;
             var capturedCoBadge = coBadgeBorder;
             var capturedRBadge  = rBadgeBorder;
+            var capturedCrBadge = crBadgeBorder;
+            var capturedPlBadge = plBadgeBorder;
+            var capturedRsBadge = rsBadgeBorder;
             editBtn.Click += (_, _) =>
             {
                 if (ShowCharacterEditorDialog(capturedRole, projFolder, displayName))
@@ -4471,11 +5291,12 @@ public partial class MainWindow : Window
                     capturedModelTb.Text = string.IsNullOrWhiteSpace(capturedRole.AnswerAsName)
                         ? $"{provider}  ·  {model}"
                         : $"{provider}  ·  {model}  ·  🎭 {capturedRole.AnswerAsName}";
-                    // Refresh CO / R badges independently
-                    capturedCoBadge.Visibility = capturedRole.IsCoordinator
-                        ? Visibility.Visible : Visibility.Collapsed;
-                    capturedRBadge.Visibility  = capturedRole.IsReasoner
-                        ? Visibility.Visible : Visibility.Collapsed;
+                    // Refresh all role badges independently
+                    capturedCoBadge.Visibility = capturedRole.IsCoordinator ? Visibility.Visible : Visibility.Collapsed;
+                    capturedRBadge .Visibility = capturedRole.IsReasoner    ? Visibility.Visible : Visibility.Collapsed;
+                    capturedCrBadge.Visibility = capturedRole.IsCritic      ? Visibility.Visible : Visibility.Collapsed;
+                    capturedPlBadge.Visibility = capturedRole.IsPlanner     ? Visibility.Visible : Visibility.Collapsed;
+                    capturedRsBadge.Visibility = capturedRole.IsResearcher  ? Visibility.Visible : Visibility.Collapsed;
                 }
             };
 
@@ -4573,9 +5394,8 @@ public partial class MainWindow : Window
             // Collect orchestration mode
             ps.OrchestrationMode = radioCoordFirst.IsChecked == true ? OrchestrationMode.CoordinatorFirst
                                  : radioCoordSum  .IsChecked == true ? OrchestrationMode.CoordinatorSummarizes
-                                 : radioCoordAuto .IsChecked == true ? OrchestrationMode.CoordinatorAuto
                                  : radioCoordOnly .IsChecked == true ? OrchestrationMode.CoordinatorOnly
-                                 : OrchestrationMode.AllRespond;
+                                 : OrchestrationMode.AllRespond;  // radioAll = Full Manual Mode
 
             // Collect language
             ps.Language = langCombo.Text.Trim();
@@ -4591,21 +5411,38 @@ public partial class MainWindow : Window
             foreach (var (_, _, getRoleSnapshot) in roleRows)
                 ps.Roles.Add(getRoleSnapshot());
 
-            // Enforce single coordinator
-            if (ps.Roles.Count(r => r.IsCoordinator) > 1)
+            // ── Enforce exactly one coordinator ───────────────────────────────
+            var coordinators = ps.Roles.Where(r => r.IsCoordinator).ToList();
+
+            if (coordinators.Count == 0 && ps.Roles.Count > 0)
             {
+                // No coordinator — auto-assign the first participant (prefer Cloud AI over Ollama
+                // since cloud models have larger context windows and handle routing better).
+                var autoCoord = ps.Roles.FirstOrDefault(r =>
+                                    !string.Equals(r.Provider, "Ollama", StringComparison.OrdinalIgnoreCase))
+                             ?? ps.Roles[0];
+                autoCoord.IsCoordinator = true;
+                autoCoord.IsReasoner    = false;   // coordinator can't simultaneously be a reasoner
                 MessageBox.Show(
-                    "Only one participant can be Coordinator.\n" +
-                    "Please open each participant's editor and ensure only one is marked as Coordinator.",
-                    "Multiple Coordinators", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                    $"No Coordinator was set — \"{autoCoord.DisplayName}\" has been automatically assigned as Coordinator.\n\n" +
+                    "Every project needs a Coordinator to route messages and manage the team.",
+                    "Coordinator Auto-Assigned", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else if (coordinators.Count > 1)
+            {
+                // Multiple coordinators — keep only the first, quietly fix the rest.
+                foreach (var r in coordinators.Skip(1)) r.IsCoordinator = false;
+                MessageBox.Show(
+                    $"Only one Coordinator is allowed — \"{coordinators[0].DisplayName}\" has been kept.",
+                    "Multiple Coordinators Fixed", MessageBoxButton.OK, MessageBoxImage.Information);
             }
 
-            ProjectService.SaveProjectSettings(projFolder, ps);
+            // A coordinator cannot simultaneously be a reasoner.
+            foreach (var r in ps.Roles.Where(r => r.IsCoordinator))
+                r.IsReasoner = false;
 
-            // Save updated description to project meta
-            meta.Description = descBox.Text.Trim();
-            ProjectService.SaveMeta(projFolder, meta);
+            ps.Description = descBox.Text.Trim();
+            ProjectService.SaveProject(projFolder, ps);
 
             // Keep live fields in sync if this is the currently open project
             if (_currentProjectFolder == projFolder)
@@ -4613,7 +5450,7 @@ public partial class MainWindow : Window
                 _projectLanguage  = ps.Language;
                 _maxDialogDepth   = ps.MaxDialogDepth;
                 _projectSettings  = ps;
-                _currentProject   = meta;   // description now live for system prompts
+                _currentProject   = ps;
                 RefreshParticipantBadges();
             }
 
@@ -4644,6 +5481,10 @@ public partial class MainWindow : Window
             IsCoordinator    = role.IsCoordinator,
             IsReasoner       = role.IsReasoner,
             ReasonerPriority = role.ReasonerPriority,
+            IsCritic         = role.IsCritic,
+            IsPlanner        = role.IsPlanner,
+            IsResearcher     = role.IsResearcher,
+            IsWriteAccess    = role.IsWriteAccess,
             IsActive         = role.IsActive
         };
 
@@ -4828,8 +5669,70 @@ public partial class MainWindow : Window
         priorityPanel.Children.Add(prioritySlider);
         root.Children.Add(priorityPanel);
 
+        // Coordinator ↔ Reasoner are mutually exclusive routing roles
+        coordCheck  .Checked += (_, _) => { if (reasonerCheck.IsChecked == true) reasonerCheck.IsChecked = false; };
+        reasonerCheck.Checked += (_, _) => { if (coordCheck.IsChecked   == true) coordCheck.IsChecked   = false; };
+
         reasonerCheck.Checked   += (_, _) => priorityPanel.Visibility = Visibility.Visible;
         reasonerCheck.Unchecked += (_, _) => priorityPanel.Visibility = Visibility.Collapsed;
+
+        // Critic, Planner, Researcher — independent specialisation roles
+        var criticCheck = new CheckBox
+        {
+            Content    = "Critic — reviews output for consistency, logic errors, and hallucinations",
+            IsChecked  = role.IsCritic,
+            FontSize   = 13,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("TextBrush"),
+            ToolTip    = "Critic reviews the output of other participants after they respond. Brass badge (CR).",
+            Margin     = new Thickness(0, 0, 0, 8)
+        };
+        root.Children.Add(criticCheck);
+
+        var plannerCheck = new CheckBox
+        {
+            Content    = "Planner — breaks the user's goal into a structured plan before execution",
+            IsChecked  = role.IsPlanner,
+            FontSize   = 13,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("TextBrush"),
+            ToolTip    = "Planner is called first to produce a work plan. Amber badge (PL).",
+            Margin     = new Thickness(0, 0, 0, 8)
+        };
+        root.Children.Add(plannerCheck);
+
+        var researcherCheck = new CheckBox
+        {
+            Content    = "Researcher — gathers context and references before main answer",
+            IsChecked  = role.IsResearcher,
+            FontSize   = 13,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("TextBrush"),
+            ToolTip    = "Researcher is called second (after Planner) to supply background knowledge. Steel-blue badge (RS).",
+            Margin     = new Thickness(0, 0, 0, 8)
+        };
+        root.Children.Add(researcherCheck);
+
+        var writeAccessCheck = new CheckBox
+        {
+            Content    = "Write Access (WR) — may write files using <output> and <projectplan> tags",
+            // Pre-check for CO and R: they imply write access by default.
+            // Also covers existing saved roles where IsWriteAccess was false before this field existed.
+            IsChecked  = role.IsWriteAccess || role.IsCoordinator || role.IsReasoner,
+            FontSize   = 13,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("TextBrush"),
+            ToolTip    = "Grants this participant file-write access. Coordinators always have write access. " +
+                         "All other participants are read-only by default. Green badge (WR).",
+            Margin     = new Thickness(0, 0, 0, 8)
+        };
+        root.Children.Add(writeAccessCheck);
+
+        // CO and R default to write access — pre-check WR as a convenience.
+        // WR stays separate so it can be unchecked freely (e.g. a routing-only Reasoner
+        // whose SuperRole is purely analytical and never needs to write files).
+        coordCheck   .Checked += (_, _) => { writeAccessCheck.IsChecked = true; };
+        reasonerCheck.Checked += (_, _) => { writeAccessCheck.IsChecked = true; };
 
         // ── CHARACTER FILE ────────────────────────────────────────────────
         root.Children.Add(SectionHeader("CHARACTER FILE"));
@@ -5025,12 +5928,16 @@ public partial class MainWindow : Window
         // ── Reset handler ─────────────────────────────────────────────────
         resetBtn.Click += (_, _) =>
         {
-            answerAsBox.Text        = snap.AnswerAsName;
-            instrBox.Text           = snap.RoleInstruction;
-            lengthSlider.Value      = snap.ResponseLength;
-            coordCheck.IsChecked    = snap.IsCoordinator;
-            reasonerCheck.IsChecked = snap.IsReasoner;
-            prioritySlider.Value    = snap.ReasonerPriority;
+            answerAsBox.Text          = snap.AnswerAsName;
+            instrBox.Text             = snap.RoleInstruction;
+            lengthSlider.Value        = snap.ResponseLength;
+            coordCheck.IsChecked        = snap.IsCoordinator;
+            reasonerCheck.IsChecked     = snap.IsReasoner;
+            prioritySlider.Value        = snap.ReasonerPriority;
+            criticCheck.IsChecked       = snap.IsCritic;
+            plannerCheck.IsChecked      = snap.IsPlanner;
+            researcherCheck.IsChecked   = snap.IsResearcher;
+            writeAccessCheck.IsChecked  = snap.IsWriteAccess;
         };
 
         // ── OK handler — write back in-place ──────────────────────────────
@@ -5039,9 +5946,13 @@ public partial class MainWindow : Window
             role.AnswerAsName     = answerAsBox.Text.Trim();
             role.RoleInstruction  = instrBox.Text.Trim();
             role.ResponseLength   = (int)Math.Round(lengthSlider.Value);
-            role.IsCoordinator    = coordCheck.IsChecked    == true;
-            role.IsReasoner       = reasonerCheck.IsChecked == true;
+            role.IsCoordinator    = coordCheck.IsChecked      == true;
+            role.IsReasoner       = reasonerCheck.IsChecked   == true;
             role.ReasonerPriority = (int)Math.Round(prioritySlider.Value);
+            role.IsCritic         = criticCheck.IsChecked       == true;
+            role.IsPlanner        = plannerCheck.IsChecked      == true;
+            role.IsResearcher     = researcherCheck.IsChecked   == true;
+            role.IsWriteAccess    = writeAccessCheck.IsChecked  == true;
             win.DialogResult      = true;
         };
 
@@ -5072,8 +5983,8 @@ public partial class MainWindow : Window
 
     private void RemoveCloudAIParticipant(CloudAIParticipantUI ui)
     {
-        CloudAICardsPanel.Children.Remove(ui.Popup);
-        CloudAICardsPanel.Children.Remove(ui.Card);
+        ParticipantsPanel.Children.Remove(ui.Popup);
+        ParticipantsPanel.Children.Remove(ui.Card);
         ui.Data.Service.Dispose();
         _cloudAIParticipants.Remove(ui);
         RenumberCloudAIParticipants();
@@ -5137,7 +6048,7 @@ public partial class MainWindow : Window
             Padding             = new Thickness(2, 0, 2, 0),
             Height              = 13,
             HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment   = VerticalAlignment.Bottom,
+            VerticalAlignment   = VerticalAlignment.Center,
             Visibility          = Visibility.Collapsed,
             Child               = new TextBlock { Text = "R", FontSize = 8, FontWeight = FontWeights.Bold,
                                       Foreground = Brushes.Black,
@@ -5145,6 +6056,75 @@ public partial class MainWindow : Window
                                       VerticalAlignment   = VerticalAlignment.Center }
         };
         rBadge.SetResourceReference(Border.BackgroundProperty, "SubtextBrush");
+
+        // CR badge — brass, top-left
+        var crBadge = new Border
+        {
+            CornerRadius        = new CornerRadius(3),
+            Padding             = new Thickness(2, 0, 2, 0),
+            Height              = 13,
+            Background          = new SolidColorBrush(Color.FromRgb(205, 149, 12)),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment   = VerticalAlignment.Top,
+            Visibility          = Visibility.Collapsed,
+            Child               = new TextBlock { Text = "CR", FontSize = 8, FontWeight = FontWeights.Bold,
+                                      Foreground = Brushes.Black,
+                                      HorizontalAlignment = HorizontalAlignment.Center,
+                                      VerticalAlignment   = VerticalAlignment.Center }
+        };
+
+        // PL badge — amber, bottom-left
+        var plBadge = new Border
+        {
+            CornerRadius        = new CornerRadius(3),
+            Padding             = new Thickness(2, 0, 2, 0),
+            Height              = 13,
+            Background          = new SolidColorBrush(Color.FromRgb(255, 140, 0)),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment   = VerticalAlignment.Bottom,
+            Visibility          = Visibility.Collapsed,
+            Child               = new TextBlock { Text = "PL", FontSize = 8, FontWeight = FontWeights.Bold,
+                                      Foreground = Brushes.Black,
+                                      HorizontalAlignment = HorizontalAlignment.Center,
+                                      VerticalAlignment   = VerticalAlignment.Center }
+        };
+
+        // RS badge — steel blue, bottom-right
+        var rsBadge = new Border
+        {
+            CornerRadius        = new CornerRadius(3),
+            Padding             = new Thickness(2, 0, 2, 0),
+            Height              = 13,
+            Background          = new SolidColorBrush(Color.FromRgb(70, 130, 180)),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment   = VerticalAlignment.Bottom,
+            Visibility          = Visibility.Collapsed,
+            Child               = new TextBlock { Text = "RS", FontSize = 8, FontWeight = FontWeights.Bold,
+                                      Foreground = Brushes.White,
+                                      HorizontalAlignment = HorizontalAlignment.Center,
+                                      VerticalAlignment   = VerticalAlignment.Center }
+        };
+
+        // Error badge — black background, yellow !, bottom-center of avatar
+        var errorBadgeCloud = new Border
+        {
+            CornerRadius        = new CornerRadius(3),
+            Padding             = new Thickness(3, 0, 3, 0),
+            Height              = 13,
+            Background          = Brushes.Black,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment   = VerticalAlignment.Bottom,
+            Visibility          = Visibility.Collapsed,
+            Child               = new TextBlock
+                                  {
+                                      Text                = "!",
+                                      FontSize            = 9,
+                                      FontWeight          = FontWeights.Bold,
+                                      Foreground          = new SolidColorBrush(Color.FromRgb(255, 220, 0)),
+                                      HorizontalAlignment = HorizontalAlignment.Center,
+                                      VerticalAlignment   = VerticalAlignment.Center
+                                  }
+        };
 
         var avatarContainer = new Grid
         {
@@ -5155,6 +6135,10 @@ public partial class MainWindow : Window
         avatarContainer.Children.Add(avatarBorder);
         avatarContainer.Children.Add(coBadge);
         avatarContainer.Children.Add(rBadge);
+        avatarContainer.Children.Add(crBadge);
+        avatarContainer.Children.Add(plBadge);
+        avatarContainer.Children.Add(rsBadge);
+        avatarContainer.Children.Add(errorBadgeCloud);
 
         // ── Status dot ────────────────────────────────────────────────────
         var statusDot = new Ellipse { Width = 8, Height = 8, VerticalAlignment = VerticalAlignment.Center };
@@ -5179,6 +6163,8 @@ public partial class MainWindow : Window
         var offlineLabel = new TextBlock { Text = "Offline", FontSize = 10, Visibility = Visibility.Collapsed };
         offlineLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
 
+        var statusLabelCloud = new TextBlock { FontSize = 10, Visibility = Visibility.Collapsed };
+
         // ── Remove button ─────────────────────────────────────────────────
         var removeButton = new Button
         {
@@ -5201,6 +6187,7 @@ public partial class MainWindow : Window
         labelPanel.Children.Add(nameLabel);
         labelPanel.Children.Add(modelLabel);
         labelPanel.Children.Add(offlineLabel);
+        labelPanel.Children.Add(statusLabelCloud);
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -5299,10 +6286,15 @@ public partial class MainWindow : Window
             AvatarText    = avatarText,
             CoBadge       = coBadge,
             RBadge        = rBadge,
+            CrBadge       = crBadge,
+            PlBadge       = plBadge,
+            RsBadge       = rsBadge,
             NameLabel     = nameLabel,
             StatusDot     = statusDot,
             ModelLabel    = modelLabel,
             OfflineLabel  = offlineLabel,
+            ErrorBadge    = errorBadgeCloud,
+            StatusLabel   = statusLabelCloud,
             Popup         = popup,
             PopupTitle    = popupTitle,
             EnabledToggle = enabledToggle,
@@ -5321,8 +6313,8 @@ public partial class MainWindow : Window
 
         removeButton.Click += (_, _) => RemoveCloudAIParticipant(ui);
 
-        CloudAICardsPanel.Children.Add(popup);
-        CloudAICardsPanel.Children.Add(card);
+        ParticipantsPanel.Children.Add(popup);
+        ParticipantsPanel.Children.Add(card);
         _cloudAIParticipants.Add(ui);
     }
 
@@ -5355,8 +6347,8 @@ public partial class MainWindow : Window
     {
         if (_ollamaParticipants.Count + _cloudAIParticipants.Count <= 1) return;
 
-        OllamaCardsPanel.Children.Remove(ui.Popup);
-        OllamaCardsPanel.Children.Remove(ui.Card);
+        ParticipantsPanel.Children.Remove(ui.Popup);
+        ParticipantsPanel.Children.Remove(ui.Card);
         _ollamaParticipants.Remove(ui);
 
         RenumberParticipants();
@@ -5432,7 +6424,7 @@ public partial class MainWindow : Window
             Padding             = new Thickness(2, 0, 2, 0),
             Height              = 13,
             HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment   = VerticalAlignment.Bottom,
+            VerticalAlignment   = VerticalAlignment.Center,
             Visibility          = Visibility.Collapsed,
             Child               = new TextBlock { Text = "R", FontSize = 8, FontWeight = FontWeights.Bold,
                                       Foreground = Brushes.Black,
@@ -5440,6 +6432,54 @@ public partial class MainWindow : Window
                                       VerticalAlignment   = VerticalAlignment.Center }
         };
         rBadge.SetResourceReference(Border.BackgroundProperty, "SubtextBrush");
+
+        // CR badge — brass, top-left
+        var crBadge = new Border
+        {
+            CornerRadius        = new CornerRadius(3),
+            Padding             = new Thickness(2, 0, 2, 0),
+            Height              = 13,
+            Background          = new SolidColorBrush(Color.FromRgb(205, 149, 12)),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment   = VerticalAlignment.Top,
+            Visibility          = Visibility.Collapsed,
+            Child               = new TextBlock { Text = "CR", FontSize = 8, FontWeight = FontWeights.Bold,
+                                      Foreground = Brushes.Black,
+                                      HorizontalAlignment = HorizontalAlignment.Center,
+                                      VerticalAlignment   = VerticalAlignment.Center }
+        };
+
+        // PL badge — amber, bottom-left
+        var plBadge = new Border
+        {
+            CornerRadius        = new CornerRadius(3),
+            Padding             = new Thickness(2, 0, 2, 0),
+            Height              = 13,
+            Background          = new SolidColorBrush(Color.FromRgb(255, 140, 0)),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment   = VerticalAlignment.Bottom,
+            Visibility          = Visibility.Collapsed,
+            Child               = new TextBlock { Text = "PL", FontSize = 8, FontWeight = FontWeights.Bold,
+                                      Foreground = Brushes.Black,
+                                      HorizontalAlignment = HorizontalAlignment.Center,
+                                      VerticalAlignment   = VerticalAlignment.Center }
+        };
+
+        // RS badge — steel blue, bottom-right
+        var rsBadge = new Border
+        {
+            CornerRadius        = new CornerRadius(3),
+            Padding             = new Thickness(2, 0, 2, 0),
+            Height              = 13,
+            Background          = new SolidColorBrush(Color.FromRgb(70, 130, 180)),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment   = VerticalAlignment.Bottom,
+            Visibility          = Visibility.Collapsed,
+            Child               = new TextBlock { Text = "RS", FontSize = 8, FontWeight = FontWeights.Bold,
+                                      Foreground = Brushes.White,
+                                      HorizontalAlignment = HorizontalAlignment.Center,
+                                      VerticalAlignment   = VerticalAlignment.Center }
+        };
 
         var avatarContainer = new Grid
         {
@@ -5450,6 +6490,31 @@ public partial class MainWindow : Window
         avatarContainer.Children.Add(avatarBorder);
         avatarContainer.Children.Add(coBadge);
         avatarContainer.Children.Add(rBadge);
+        avatarContainer.Children.Add(crBadge);
+        avatarContainer.Children.Add(plBadge);
+        avatarContainer.Children.Add(rsBadge);
+
+        // Error badge — black background, yellow !, bottom-center of avatar
+        var errorBadgeOllama = new Border
+        {
+            CornerRadius        = new CornerRadius(3),
+            Padding             = new Thickness(3, 0, 3, 0),
+            Height              = 13,
+            Background          = Brushes.Black,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment   = VerticalAlignment.Bottom,
+            Visibility          = Visibility.Collapsed,
+            Child               = new TextBlock
+                                  {
+                                      Text                = "!",
+                                      FontSize            = 9,
+                                      FontWeight          = FontWeights.Bold,
+                                      Foreground          = new SolidColorBrush(Color.FromRgb(255, 220, 0)),
+                                      HorizontalAlignment = HorizontalAlignment.Center,
+                                      VerticalAlignment   = VerticalAlignment.Center
+                                  }
+        };
+        avatarContainer.Children.Add(errorBadgeOllama);
 
         var statusDot = new Ellipse { Width = 8, Height = 8, VerticalAlignment = VerticalAlignment.Center };
         statusDot.SetResourceReference(Ellipse.FillProperty, "SubtextBrush");
@@ -5462,6 +6527,8 @@ public partial class MainWindow : Window
 
         var offlineLabel = new TextBlock { Text = "Offline", FontSize = 10, Visibility = Visibility.Collapsed };
         offlineLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+
+        var statusLabelOllama = new TextBlock { FontSize = 10, Visibility = Visibility.Collapsed };
 
         var removeButton = new Button
         {
@@ -5483,6 +6550,7 @@ public partial class MainWindow : Window
         labelPanel.Children.Add(nameLabel);
         labelPanel.Children.Add(modelLabel);
         labelPanel.Children.Add(offlineLabel);
+        labelPanel.Children.Add(statusLabelOllama);
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -5581,10 +6649,15 @@ public partial class MainWindow : Window
             AvatarText    = avatarText,
             CoBadge       = coBadge,
             RBadge        = rBadge,
+            CrBadge       = crBadge,
+            PlBadge       = plBadge,
+            RsBadge       = rsBadge,
             NameLabel     = nameLabel,
             StatusDot     = statusDot,
             ModelLabel    = modelLabel,
             OfflineLabel  = offlineLabel,
+            ErrorBadge    = errorBadgeOllama,
+            StatusLabel   = statusLabelOllama,
             Popup         = popup,
             PopupTitle    = popupTitle,
             EnabledToggle = enabledToggle,
@@ -5603,8 +6676,8 @@ public partial class MainWindow : Window
 
         removeButton.Click += (_, _) => RemoveOllamaParticipant(ui);
 
-        OllamaCardsPanel.Children.Add(popup);
-        OllamaCardsPanel.Children.Add(card);
+        ParticipantsPanel.Children.Add(popup);
+        ParticipantsPanel.Children.Add(card);
         _ollamaParticipants.Add(ui);
     }
 
@@ -5654,6 +6727,23 @@ public partial class MainWindow : Window
         ui.OfflineLabel.Visibility = online ? Visibility.Collapsed : Visibility.Visible;
         ui.ModelLabel.Visibility   = online ? Visibility.Visible   : Visibility.Collapsed;
 
+        if (online)
+        {
+            // Only set "Ready" if there is no active error badge — don't overwrite a live error
+            if (ui.ErrorBadge.Visibility == Visibility.Collapsed)
+            {
+                ui.StatusLabel.Text       = "Ready";
+                ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
+                ui.StatusLabel.Visibility = Visibility.Visible;
+            }
+        }
+        else
+        {
+            // Offline: hide status and error badge (offline label takes over)
+            ui.StatusLabel.Visibility = Visibility.Collapsed;
+            ui.ErrorBadge.Visibility  = Visibility.Collapsed;
+        }
+
         double targetOpacity = (online && ui.Data.Enabled) ? 1.0 : 0.6;
 
         if (changed)
@@ -5678,7 +6768,22 @@ public partial class MainWindow : Window
         ui.ModelLabel.Visibility   = online ? Visibility.Visible   : Visibility.Collapsed;
 
         if (online)
+        {
             ui.ModelLabel.Text = FormatModelDisplayName(ui.Data.Service.CurrentModel);
+            // Only set "Ready" if there is no active error badge — don't overwrite a live error
+            if (ui.ErrorBadge.Visibility == Visibility.Collapsed)
+            {
+                ui.StatusLabel.Text       = "Ready";
+                ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
+                ui.StatusLabel.Visibility = Visibility.Visible;
+            }
+        }
+        else
+        {
+            // Offline: hide status and error badge (offline label takes over)
+            ui.StatusLabel.Visibility = Visibility.Collapsed;
+            ui.ErrorBadge.Visibility  = Visibility.Collapsed;
+        }
 
         double targetOpacity = (online && ui.Data.Enabled) ? 1.0 : 0.6;
 
@@ -5705,6 +6810,79 @@ public partial class MainWindow : Window
         var sb = new Storyboard();
         sb.Children.Add(kf);
         sb.Begin();
+    }
+
+    // ── Error state helpers ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Shows or clears the error badge and status label on a participant card.
+    /// Pass null to clear (shows "Ready"); pass an error text like "ERROR" or "Wants Money"
+    /// to show the yellow/black error badge with the given status text.
+    /// </summary>
+    private static void ApplyErrorState(Border badge, TextBlock label, string? errorText)
+    {
+        if (string.IsNullOrEmpty(errorText))
+        {
+            badge.Visibility   = Visibility.Collapsed;
+            label.Text         = "Ready";
+            label.Foreground   = new SolidColorBrush(Color.FromRgb(100, 190, 100));
+            label.Visibility   = Visibility.Visible;
+        }
+        else
+        {
+            badge.Visibility   = Visibility.Visible;
+            label.Text         = errorText;
+            label.Foreground   = errorText.Contains("Money")
+                ? new SolidColorBrush(Colors.Orange)
+                : new SolidColorBrush(Colors.OrangeRed);
+            label.Visibility   = Visibility.Visible;
+        }
+    }
+
+    private void SetParticipantError(OllamaParticipantUI   ui, string? errorText)
+        => ApplyErrorState(ui.ErrorBadge, ui.StatusLabel, errorText);
+
+    private void SetParticipantError(CloudAIParticipantUI  ui, string? errorText)
+        => ApplyErrorState(ui.ErrorBadge, ui.StatusLabel, errorText);
+
+    /// <summary>
+    /// Injects a system-level notification into the shared history so the coordinator
+    /// sees that a participant is currently unavailable.
+    /// </summary>
+    private void NotifyCoordinatorOfError(string participantName, string errorType)
+    {
+        if (!HasCoordinatorRole()) return;
+        _sharedHistory.Add(new CloudAIMessage(
+            "user",
+            $"[SYSTEM: {participantName} encountered an error ({errorType}). " +
+            $"This participant is currently unavailable — do not wait for or delegate to them.]",
+            "System"));
+    }
+
+    // ── Card refresh helpers ───────────────────────────────────────────────
+
+    private void RefreshOllamaCard(OllamaParticipantUI ui, ParticipantConfig config)
+    {
+        ui.Data.Service.CurrentModel = config.Model;
+        ui.Data.CustomName           = string.IsNullOrWhiteSpace(config.Name) ? null : config.Name;
+        var newName = ui.Data.DisplayName;
+        ui.NameLabel.Text        = newName;
+        ui.ModelLabel.Text       = FormatModelDisplayName(config.Model);
+        ui.AvatarText.Text       = ui.Data.AvatarLabel;
+        ui.PopupTitle.Text       = newName;
+        ui.EnabledToggle.Content = $"{newName} enabled";
+    }
+
+    private void RefreshCloudAICard(CloudAIParticipantUI ui, ParticipantConfig config)
+    {
+        ui.Data.Service.CurrentModel = config.Model;
+        ui.Data.CustomName           = string.IsNullOrWhiteSpace(config.Name) ? null : config.Name;
+        var newName = ui.Data.DisplayName;
+        ui.NameLabel.Text        = newName;
+        ui.ModelLabel.Text       = FormatModelDisplayName(config.Model);
+        ui.AvatarText.Text       = ui.Data.AvatarLabel;
+        ui.PopupTitle.Text       = newName;
+        ui.EnabledToggle.Content = $"{newName} enabled";
     }
 
     private async Task LoadOllamaModelsAsync()
@@ -5934,12 +7112,9 @@ public partial class MainWindow : Window
         if (count > 0)
         {
             AddSystemMessage($"📎 {count} file(s) copied to INPUT folder.");
-            // Update project meta participants snapshot
+            // Persist current project state
             if (_currentProject is not null)
-            {
-                _currentProject.Participants = BuildCurrentParticipantSnapshot();
-                ProjectService.SaveMeta(_currentProjectFolder, _currentProject);
-            }
+                ProjectService.SaveProject(_currentProjectFolder!, _currentProject);
         }
     }
 
@@ -6365,25 +7540,601 @@ public partial class MainWindow : Window
             await RunOllamaStreamAsync(coordOllama!, ct, synthHint);
     }
 
+    // ── ParticipantSuperPowers ─────────────────────────────────────────────────
+
     /// <summary>
-    /// CoordinatorAuto initialization: runs a visible team discussion so the AI team
-    /// can agree on task assignments. The agreed plan is extracted from a
-    /// <c>&lt;teamplan&gt;…&lt;/teamplan&gt;</c> block and saved to
-    /// <see cref="ProjectSettings.TeamPlan"/>.
+    /// Sorted fingerprint of the currently enabled active participants.
+    /// Used to detect team composition changes between sessions.
     /// </summary>
-    private async Task TriggerTeamInitializationAsync()
+    private string GetParticipantFingerprint()
+    {
+        var keys = new List<string>();
+        foreach (var ui in _ollamaParticipants.Where(u => u.Data.Enabled))
+            keys.Add($"ollama:{ui.Data.Service.CurrentModel.ToLowerInvariant()}");
+        foreach (var ui in _cloudAIParticipants.Where(u => u.Data.Enabled))
+            keys.Add($"{ui.Data.Service.ProviderName.ToLowerInvariant()}:{ui.Data.Service.CurrentModel.ToLowerInvariant()}");
+        keys.Sort(StringComparer.OrdinalIgnoreCase);
+        return string.Join("|", keys);
+    }
+
+    /// <summary>
+    /// Returns true if the model name matches known reasoning / thinking model patterns
+    /// (o1, o3, DeepSeek-R1, Gemini-Thinking, QwQ, etc.).
+    /// </summary>
+    private static bool IsReasonerModel(string model)
+    {
+        var m = model.ToLowerInvariant();
+        return Regex.IsMatch(m, @"\bo[13](-mini|-preview|-pro)?\b") ||
+               m.Contains("deepseek-r1") || m.Contains("-r1-") ||
+               m.Contains("thinking") ||
+               m.Contains("qwq") ||
+               m.Contains("reasoner");
+    }
+
+    /// <summary>Estimates the cost tier of a participant (free / low / medium / high).</summary>
+    private static string GetCostTier(string provider, string model)
+    {
+        if (string.Equals(provider, "Ollama", StringComparison.OrdinalIgnoreCase))
+            return "free (local)";
+        var m = model.ToLowerInvariant();
+        if (m.Contains("opus")  || m.Contains("ultra") ||
+            (m.Contains("gpt-4o") && !m.Contains("mini")) ||
+            (m.Contains("o3")     && !m.Contains("mini")))
+            return "high";
+        if (m.Contains("haiku") || m.Contains("flash") || m.Contains("mini") ||
+            m.Contains("nano")  || m.Contains("8b")    || m.Contains("7b"))
+            return "low";
+        return "medium";
+    }
+
+    /// <summary>
+    /// Path to this project's ParticipantSuperPowers.xaml, or null when no project is open.
+    /// </summary>
+    private string? GetSuperPowersPath() =>
+        _currentProjectFolder is null ? null
+            : SysIO.Path.Combine(_currentProjectFolder, "PROJECTSETTINGS", "ParticipantSuperPowers.xaml");
+
+    /// <summary>Path to the AI-determined role assignments file, or null when no project is open.</summary>
+    private string? GetSuperRolesPath() =>
+        _currentProjectFolder is null ? null
+            : SysIO.Path.Combine(_currentProjectFolder, "PROJECTSETTINGS", "ParticipantSuperRoles.xml");
+
+    /// <summary>
+    /// Parses ParticipantSuperRoles.xml and returns a dictionary keyed by participant display name.
+    /// Returns null when the file is absent or unreadable.
+    /// </summary>
+    private Dictionary<string, (string Title, string Instruction)>? LoadSuperRoles()
+    {
+        var path = GetSuperRolesPath();
+        if (path is null || !SysIO.File.Exists(path)) return null;
+        try
+        {
+            var doc = System.Xml.Linq.XDocument.Load(path);
+            return doc.Root?
+                .Elements("Role")
+                .Where(e => e.Attribute("name")?.Value is { Length: > 0 })
+                .ToDictionary(
+                    e => e.Attribute("name")!.Value,
+                    e => (
+                        Title:       e.Attribute("title")?.Value ?? "",
+                        Instruction: e.Value.Trim()),
+                    StringComparer.OrdinalIgnoreCase);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Returns the AI-determined role instruction for <paramref name="displayName"/>,
+    /// or null if SuperRoles are unavailable or Full Manual Mode is active.
+    /// The cache is loaded lazily and cleared on project open/close.
+    /// </summary>
+    private string? GetSuperRoleInstruction(string displayName)
+    {
+        // Full Manual Mode always uses checkbox-only instructions — never AI-determined roles.
+        if (_projectSettings?.OrchestrationMode == OrchestrationMode.AllRespond) return null;
+
+        _superRoles ??= LoadSuperRoles();
+        return _superRoles is not null && _superRoles.TryGetValue(displayName, out var entry)
+            ? entry.Instruction
+            : null;
+    }
+
+    /// <summary>Reads the Fingerprint attribute from the stored SuperPowers file.</summary>
+    private string? LoadStoredSuperPowersFingerprint()
+    {
+        var path = GetSuperPowersPath();
+        if (path is null || !SysIO.File.Exists(path)) return null;
+        try
+        {
+            return System.Xml.Linq.XDocument.Load(path)
+                         .Root?.Attribute("Fingerprint")?.Value;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Loads the SuperPowers XAML and returns a compact text summary for injection
+    /// into system prompts. Returns null when the file does not exist.
+    /// </summary>
+    private string? LoadSuperPowersForContext()
+    {
+        var path = GetSuperPowersPath();
+        if (path is null || !SysIO.File.Exists(path)) return null;
+        try
+        {
+            var doc = System.Xml.Linq.XDocument.Load(path);
+            if (doc.Root is null) return null;
+
+            var lines = new List<string>();
+            foreach (var p in doc.Root.Elements("Participant"))
+            {
+                var name         = p.Attribute("Name")?.Value          ?? "?";
+                var role         = p.Attribute("Role")?.Value          ?? "Participant";
+                var cost         = p.Attribute("CostTier")?.Value      ?? "medium";
+                var isRModel     = p.Attribute("IsReasonerModel")?.Value?.ToLowerInvariant() == "true";
+                var priority     = p.Attribute("ReasonerPriority")?.Value ?? "5";
+                var isCritic     = p.Attribute("IsCritic")?.Value?.ToLowerInvariant()     == "true";
+                var isPlanner    = p.Attribute("IsPlanner")?.Value?.ToLowerInvariant()    == "true";
+                var isResearcher = p.Attribute("IsResearcher")?.Value?.ToLowerInvariant() == "true";
+
+                // New compact attribute format (preferred)
+                var strengths = p.Attribute("Strengths")?.Value?.Trim() ?? "";
+                var bestFor   = p.Attribute("BestFor")?.Value?.Trim()   ?? "";
+                var avoid     = p.Attribute("Avoid")?.Value?.Trim()     ?? "";
+
+                // Build the header line
+                var meta = new System.Text.StringBuilder($"{name} [{role}, cost:{cost}");
+                if (isRModel)     meta.Append($", reasoner(p{priority})");
+                if (isCritic)     meta.Append(", CR");
+                if (isPlanner)    meta.Append(", PL");
+                if (isResearcher) meta.Append(", RS");
+                meta.Append(']');
+                lines.Add(meta.ToString());
+
+                if (!string.IsNullOrEmpty(strengths)) lines.Add($"  + {strengths}");
+                if (!string.IsNullOrEmpty(bestFor))   lines.Add($"  ✓ {bestFor}");
+                if (!string.IsNullOrEmpty(avoid))     lines.Add($"  ✗ {avoid}");
+
+                // Legacy fallback: old files stored a prose <Description> element
+                if (string.IsNullOrEmpty(strengths) && string.IsNullOrEmpty(bestFor))
+                {
+                    var legacyDesc = p.Element("Description")?.Value?.Trim() ?? "";
+                    if (!string.IsNullOrEmpty(legacyDesc))
+                        lines.Add($"  {legacyDesc}");
+                }
+            }
+            return lines.Count > 0 ? string.Join("\n", lines) : null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Triggers <see cref="TriggerSuperPowersInterviewAsync"/> only when the current
+    /// participant fingerprint differs from what is stored in the SuperPowers file
+    /// (or when the file does not exist). No-op if no coordinator is configured.
+    /// </summary>
+    private async Task CheckAndTriggerSuperPowersAsync()
+    {
+        if (_projectSettings is null || _currentProjectFolder is null) return;
+        // Full Manual Mode has no coordinator automation — skip SuperPowers entirely.
+        if (_projectSettings.OrchestrationMode == OrchestrationMode.AllRespond) return;
+
+        // Use HasCoordinatorRole() rather than FindActiveCoordinator() so we do not
+        // silently skip the interview when IsOnline is still null on fresh project open.
+        // FindActiveCoordinator() requires IsOnline == true; on open that check races
+        // against CheckAllStatusAsync and almost always loses → SuperPowers never fires.
+        if (!HasCoordinatorRole()) return;
+
+        var currentFp      = GetParticipantFingerprint();
+        var fpMatch        = currentFp == LoadStoredSuperPowersFingerprint();
+        var superRolesPath = GetSuperRolesPath();
+        var rolesExist     = superRolesPath is not null && SysIO.File.Exists(superRolesPath);
+
+        // Re-calibrate if the participant set changed OR if the SuperRoles file is missing
+        // (SuperPowers without SuperRoles means the coordinator never wrote its role definitions).
+        if (fpMatch && rolesExist) return;
+
+        await TriggerSuperPowersInterviewAsync(currentFp);
+    }
+
+    /// <summary>
+    /// Hidden capability interview: silently asks every participant about their strengths
+    /// and weak points, then builds and saves PROJECTSETTINGS/ParticipantSuperPowers.xaml.
+    /// After saving, the Coordinator gives the user a visible summary and asks for feedback.
+    /// </summary>
+    private async Task TriggerSuperPowersInterviewAsync(string fingerprint)
     {
         if (_projectSettings is null || _currentProjectFolder is null || _currentProject is null) return;
-        if (_streamCts is not null) return; // another stream already running
+        if (_streamCts is not null) return;   // another stream already running
 
-        var activeOllamas = _ollamaParticipants
-            .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true && IsParticipantActiveInProject(ui))
-            .ToList();
+        var activeOllamas  = _ollamaParticipants
+            .Where(ui => ui.Data.Enabled && IsParticipantActiveInProject(ui)).ToList();
         var activeCloudAIs = _cloudAIParticipants
-            .Where(ui => ui.Data.Enabled && ui.Data.IsOnline == true && IsParticipantActiveInProject(ui))
-            .ToList();
+            .Where(ui => ui.Data.Enabled && IsParticipantActiveInProject(ui)).ToList();
 
         if (activeOllamas.Count + activeCloudAIs.Count == 0) return;
+
+        var (coordOllama, coordCloud) = FindCoordinatorInLists(activeOllamas, activeCloudAIs);
+        if (coordOllama is null && coordCloud is null)
+        {
+            // HasCoordinatorRole() passed but we still couldn't match the coordinator to a UI
+            // participant — most likely the project's ActiveParticipants list is stale or missing.
+            AddSystemMessage("⚠  Coordinator role is configured but no active coordinator participant " +
+                             "was found — capability profile skipped. Try reopening the project.");
+            return;
+        }
+
+        AIRespondButton.IsEnabled = false;
+        SendButton.IsEnabled      = false;
+        _streamCts = new CancellationTokenSource();
+        var ct = _streamCts.Token;
+
+        // ── Spinner animation ─────────────────────────────────────────────────
+        var spinFrames = new[] { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
+        int spinIdx  = 0;
+        string spinBase = "";
+        var spinTimer = new System.Windows.Threading.DispatcherTimer
+            { Interval = TimeSpan.FromMilliseconds(110) };
+
+        try
+        {
+            var total    = activeOllamas.Count + activeCloudAIs.Count;
+            spinBase     = $"— Calibrating team capabilities — 0 / {total}";
+            var statusTb = AddUpdatableSystemMessage($"{spinBase}  {spinFrames[0]}");
+
+            spinTimer.Tick += (_, _) =>
+            {
+                spinIdx = (spinIdx + 1) % spinFrames.Length;
+                statusTb.Text = $"{spinBase}  {spinFrames[spinIdx]}";
+            };
+            spinTimer.Start();
+
+            // ── Hidden capability assessment ──────────────────────────────────────
+            // Inject a minimal context message so each participant knows what's expected.
+            _sharedHistory.Add(new CloudAIMessage("user",
+                "[INTERNAL] Technical capability snapshot — coordinator use only. " +
+                "Each participant: reply with exactly 3 labelled lines, no prose."));
+
+            // Strict 3-line machine-readable format — kept as short as possible so
+            // the resulting SuperPowers file is lean and fast for the coordinator to parse.
+            const string assessmentHint =
+                "[INTERNAL] Capability snapshot for coordinator routing. " +
+                "Reply with EXACTLY these 3 lines and nothing else:\n" +
+                "Strengths: [comma-separated keywords, max 6]\n" +
+                "Best for: [comma-separated task types, max 6]\n" +
+                "Avoid: [comma-separated weaknesses, max 4]";
+
+            const string coordSelfHint =
+                "[INTERNAL] Self-assessment for capability routing file. " +
+                "Reply with EXACTLY these 3 lines and nothing else:\n" +
+                "Strengths: [comma-separated keywords, max 6]\n" +
+                "Best for: [comma-separated task types, max 6]\n" +
+                "Avoid: [comma-separated weaknesses, max 4]";
+
+            // ── Collect profiles ──────────────────────────────────────────────────
+            var profiles = new List<(string Name, string Provider, string Model, string Answer)>();
+            int assessed = 0;
+
+            // Non-coordinator participants first
+            foreach (var ui in activeOllamas.Where(u => u != coordOllama))
+            {
+                if (ct.IsCancellationRequested) break;
+                var name = GetEffectiveName(ui);
+                spinBase = $"— Calibrating team capabilities — [{name}] ({assessed + 1} / {total})";
+                var before = _sharedHistory.Count;
+                await RunOllamaStreamAsync(ui, ct, assessmentHint, hidden: true);
+                if (_sharedHistory.Count > before)
+                    profiles.Add((name, "Ollama",
+                                  ui.Data.Service.CurrentModel, _sharedHistory.Last().Content));
+                assessed++;
+            }
+            foreach (var ui in activeCloudAIs.Where(u => u != coordCloud))
+            {
+                if (ct.IsCancellationRequested) break;
+                var name = GetEffectiveName(ui);
+                spinBase = $"— Calibrating team capabilities — [{name}] ({assessed + 1} / {total})";
+                var before = _sharedHistory.Count;
+                await RunCloudAIStreamAsync(ui, ct, assessmentHint, hidden: true);
+                if (_sharedHistory.Count > before)
+                    profiles.Add((name, ui.Data.Service.ProviderName,
+                                  ui.Data.Service.CurrentModel, _sharedHistory.Last().Content));
+                assessed++;
+            }
+
+            // Coordinator answers for themselves
+            if (!ct.IsCancellationRequested)
+            {
+                var coordName = coordCloud is not null
+                    ? GetEffectiveName(coordCloud) : GetEffectiveName(coordOllama!);
+                spinBase = $"— Calibrating team capabilities — [{coordName}] ({assessed + 1} / {total})";
+
+                var before = _sharedHistory.Count;
+                if (coordCloud is not null)
+                {
+                    await RunCloudAIStreamAsync(coordCloud, ct, coordSelfHint, hidden: true);
+                    if (_sharedHistory.Count > before)
+                        profiles.Insert(0, (coordName,
+                                           coordCloud.Data.Service.ProviderName,
+                                           coordCloud.Data.Service.CurrentModel,
+                                           _sharedHistory.Last().Content));
+                }
+                else if (coordOllama is not null)
+                {
+                    await RunOllamaStreamAsync(coordOllama!, ct, coordSelfHint, hidden: true);
+                    if (_sharedHistory.Count > before)
+                        profiles.Insert(0, (coordName,
+                                           "Ollama",
+                                           coordOllama!.Data.Service.CurrentModel,
+                                           _sharedHistory.Last().Content));
+                }
+                assessed++;
+            }
+
+            spinTimer.Stop();
+            statusTb.Text = profiles.Count > 0
+                ? $"✓ Team capabilities profiled — {profiles.Count} participant(s)"
+                : "⚠  Capability profiling produced no results";
+
+            // Use conditional blocks instead of early returns so the finally + chain always run.
+            if (!ct.IsCancellationRequested && profiles.Count > 0)
+            {
+                // ── Build and save XAML ───────────────────────────────────────────────
+                var xaml     = BuildSuperPowersXaml(fingerprint, profiles, activeOllamas, activeCloudAIs);
+                var xamlPath = GetSuperPowersPath();   // may be null if project was closed mid-run
+                if (xamlPath is not null)
+                {
+                    try
+                    {
+                        // EnsureProjectFolders() is called on every OpenProject so the
+                        // PROJECTSETTINGS directory should already exist, but CreateDirectory
+                        // is idempotent — this handles any edge cases gracefully.
+                        var dir = SysIO.Path.GetDirectoryName(xamlPath)!;
+                        SysIO.Directory.CreateDirectory(dir);
+                        SysIO.File.WriteAllText(xamlPath, xaml, System.Text.Encoding.UTF8);
+                    }
+                    catch (Exception ex)
+                    {
+                        AddSystemMessage($"⚠  Could not save ParticipantSuperPowers.xaml: {ex.Message}");
+                        // Tell coordinator so it knows the profile was not persisted
+                        _sharedHistory.Add(new CloudAIMessage("user",
+                            "[SYSTEM: The capability profile could not be saved to disk " +
+                            $"({ex.Message}). The assessment results are still in context for " +
+                            "this session, but will need to be re-run next time.]", "System"));
+                    }
+                }
+
+                // ── Coordinator presents visible summary and role-quality check ─────────
+                if (!ct.IsCancellationRequested)
+                {
+                    // Build a role summary so the coordinator can check fitness
+                    var roleSummary = new System.Text.StringBuilder();
+                    roleSummary.Append("Current role assignments:\n");
+                    foreach (var (name, provider, model, _) in profiles)
+                    {
+                        var r = _projectSettings?.Get(provider, model);
+                        if (r is null) continue;
+                        var parts = new List<string>();
+                        if (r.IsCoordinator) parts.Add("Coordinator");
+                        if (r.IsReasoner)    parts.Add($"Reasoner (priority {r.ReasonerPriority})");
+                        if (r.IsCritic)      parts.Add("Critic");
+                        if (r.IsPlanner)     parts.Add("Planner");
+                        if (r.IsResearcher)  parts.Add("Researcher");
+                        var roleList = parts.Count > 0 ? string.Join(", ", parts) : "no special role";
+                        roleSummary.Append($"  • {name}: {roleList}\n");
+                    }
+
+                    // Build the display name list so the coordinator can reference exact names in the file
+                    var participantNameList = string.Join(", ", profiles.Select(p => p.Name));
+
+                    _sharedHistory.Add(new CloudAIMessage("user",
+                        "The team capability profile has been saved. " +
+                        roleSummary.ToString() +
+                        "\nPlease do four things:\n" +
+                        "1. Give the user a concise overview of the team's strengths and your task routing plan, " +
+                        "highlighting any cost/performance trade-offs.\n" +
+                        "2. Evaluate the current role assignments. If any participant would be better suited " +
+                        "to a different role based on their capabilities, explain clearly and suggest the change.\n" +
+                        "3. Recommend which participants should receive Write Access (WR). Write Access lets a " +
+                        "participant create and edit project files directly. Only grant it to participants whose " +
+                        "role genuinely requires writing output — typically active creative/code contributors. " +
+                        "Read-only participants (critics, reviewers, researchers) should NOT have write access. " +
+                        "Name the specific participants you recommend for WR and briefly explain why.\n" +
+                        "4. Write a ParticipantSuperRoles.xml file that defines each participant's specific role " +
+                        "for THIS project. This file will be injected into each participant's system prompt on " +
+                        "every future session, so make the instructions project-specific, directive, and useful.\n\n" +
+                        "Use EXACTLY this format — one <Role> element per participant, covering all " +
+                        $"participants ({participantNameList}):\n\n" +
+                        "<output path=\"PROJECTSETTINGS/ParticipantSuperRoles.xml\">\n" +
+                        "<ParticipantSuperRoles>\n" +
+                        "  <Role name=\"ExactDisplayName\" title=\"Short Role Title\">Detailed second-person instruction for this participant's role in this specific project.</Role>\n" +
+                        "  <!-- one <Role> per participant -->\n" +
+                        "</ParticipantSuperRoles>\n" +
+                        "</output>\n\n" +
+                        "Write the <output> block first (it will be processed silently), then present your " +
+                        "summary, role evaluation, and Write Access recommendations to the user. " +
+                        "Finally ask whether any adjustments are needed."));
+
+                    if (coordCloud is not null)
+                        await RunCloudAIStreamAsync(coordCloud, ct);
+                    else
+                        await RunOllamaStreamAsync(coordOllama!, ct);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            spinTimer.Stop();
+            AddSystemMessage($"⚠  Capability profiling failed: {ex.Message}");
+        }
+        finally
+        {
+            spinTimer.Stop();
+            // Invalidate the SuperRoles cache so the file written by the coordinator
+            // during this session is picked up immediately on the next prompt.
+            _superRoles = null;
+            _streamCts?.Dispose();
+            _streamCts = null;
+            AIRespondButton.IsEnabled = true;
+            SendButton.IsEnabled      = true;
+        }
+
+        // After SuperPowers, start roadmap building if project needs it
+        await CheckAndTriggerRoadmapBuildingAsync();
+    }
+
+    /// <summary>
+    /// Builds the ParticipantSuperPowers XML document from the collected profiles.
+    /// </summary>
+    private string BuildSuperPowersXaml(
+        string fingerprint,
+        List<(string Name, string Provider, string Model, string Answer)> profiles,
+        List<OllamaParticipantUI>  activeOllamas,
+        List<CloudAIParticipantUI> activeCloudAIs)
+    {
+        var xns = System.Xml.Linq.XNamespace.None;
+
+        var root = new System.Xml.Linq.XElement("ParticipantSuperPowers",
+            new System.Xml.Linq.XAttribute("Fingerprint", fingerprint),
+            new System.Xml.Linq.XAttribute("Generated",   DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")),
+            new System.Xml.Linq.XAttribute("Project",     _currentProject?.ProjectName ?? ""));
+
+        foreach (var (name, provider, model, answer) in profiles)
+        {
+            var role      = _projectSettings?.Get(provider, model);
+            var roleStr   = role?.IsCoordinator == true ? "Coordinator"
+                          : role?.IsReasoner    == true ? "Reasoner"
+                          : "Participant";
+            var priority  = role?.ReasonerPriority ?? 5;
+            var isRModel  = IsReasonerModel(model);
+            var costTier  = GetCostTier(provider, model);
+
+            // Parse the compact 3-line answer into separate attributes
+            var (strengths, bestFor, avoid) = ParseCapabilityLines(answer);
+
+            root.Add(new System.Xml.Linq.XElement("Participant",
+                new System.Xml.Linq.XAttribute("Name",              name),
+                new System.Xml.Linq.XAttribute("Provider",          provider),
+                new System.Xml.Linq.XAttribute("Model",             model),
+                new System.Xml.Linq.XAttribute("Role",              roleStr),
+                new System.Xml.Linq.XAttribute("IsCritic",          role?.IsCritic     == true),
+                new System.Xml.Linq.XAttribute("IsPlanner",         role?.IsPlanner    == true),
+                new System.Xml.Linq.XAttribute("IsResearcher",      role?.IsResearcher == true),
+                new System.Xml.Linq.XAttribute("IsReasonerModel",   isRModel),
+                new System.Xml.Linq.XAttribute("ReasonerPriority",  priority),
+                new System.Xml.Linq.XAttribute("CostTier",          costTier),
+                new System.Xml.Linq.XAttribute("Strengths",         strengths),
+                new System.Xml.Linq.XAttribute("BestFor",           bestFor),
+                new System.Xml.Linq.XAttribute("Avoid",             avoid)));
+        }
+
+        var doc = new System.Xml.Linq.XDocument(
+            new System.Xml.Linq.XComment(
+                " ClaudetRelay — ParticipantSuperPowers.xaml\n" +
+                "     Auto-generated from hidden capability interviews.\n" +
+                "     Do not edit manually — re-run by changing project participants. "),
+            root);
+
+        // Return as indented XML string
+        var sb = new System.Text.StringBuilder();
+        using (var writer = System.Xml.XmlWriter.Create(sb, new System.Xml.XmlWriterSettings
+               { Indent = true, IndentChars = "  ", Encoding = System.Text.Encoding.UTF8,
+                 OmitXmlDeclaration = false }))
+            doc.Save(writer);
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Parses the compact 3-line capability answer produced by the assessment prompt
+    /// into separate Strengths / BestFor / Avoid strings.
+    /// Tolerates minor variations in labelling and gracefully falls back for
+    /// models that produce prose instead of the expected format.
+    /// </summary>
+    private static (string Strengths, string BestFor, string Avoid) ParseCapabilityLines(string answer)
+    {
+        var strengths = "";
+        var bestFor   = "";
+        var avoid     = "";
+
+        foreach (var rawLine in answer.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var line = rawLine.Trim();
+            if (line.StartsWith("Strengths:",  StringComparison.OrdinalIgnoreCase))
+                strengths = ExtractAfterFirstColon(line);
+            else if (line.StartsWith("Best for:", StringComparison.OrdinalIgnoreCase) ||
+                     line.StartsWith("Best-for:", StringComparison.OrdinalIgnoreCase) ||
+                     line.StartsWith("Bestfor:",  StringComparison.OrdinalIgnoreCase))
+                bestFor = ExtractAfterFirstColon(line);
+            else if (line.StartsWith("Avoid:", StringComparison.OrdinalIgnoreCase) ||
+                     line.StartsWith("Not for:", StringComparison.OrdinalIgnoreCase) ||
+                     line.StartsWith("Weakness:", StringComparison.OrdinalIgnoreCase))
+                avoid = ExtractAfterFirstColon(line);
+        }
+
+        // If the model ignored the format and returned prose, store everything in Strengths
+        // so at least something is captured.
+        if (string.IsNullOrEmpty(strengths) && string.IsNullOrEmpty(bestFor) &&
+            string.IsNullOrEmpty(avoid))
+        {
+            strengths = answer.Replace('\n', ' ').Trim();
+            if (strengths.Length > 200) strengths = strengths[..200] + "…";
+        }
+
+        return (strengths, bestFor, avoid);
+    }
+
+    private static string ExtractAfterFirstColon(string line)
+    {
+        var idx = line.IndexOf(':');
+        return idx >= 0 ? line[(idx + 1)..].Trim() : line.Trim();
+    }
+
+    // ── Roadmap-building conversation ──────────────────────────────────────
+
+    /// <summary>
+    /// Triggers roadmap building when the project supports a roadmap that is still empty and
+    /// the init conversation has not started yet.  Once roadmap building is either not needed
+    /// or already done, chains into <see cref="CheckAndTriggerWorkSessionAsync"/>.
+    /// </summary>
+    private async Task CheckAndTriggerRoadmapBuildingAsync()
+    {
+        if (_projectSettings is null || _currentProjectFolder is null) return;
+        // Full Manual Mode has no coordinator automation.
+        if (_projectSettings.OrchestrationMode == OrchestrationMode.AllRespond) return;
+
+        if (_currentProjectType?.HasRoadmap == true &&
+            !_projectSettings.RoadmapInitialized &&
+            (_currentRoadmap is null || _currentRoadmap.Milestones.Count == 0) &&
+            HasCoordinatorRole())
+        {
+            // TriggerRoadmapBuildingAsync chains into CheckAndTriggerWorkSessionAsync when done
+            await TriggerRoadmapBuildingAsync();
+            return;
+        }
+
+        // Roadmap building not needed or no coordinator — proceed to work session
+        await CheckAndTriggerWorkSessionAsync();
+    }
+
+    /// <summary>
+    /// Fires the coordinator's opening roadmap-planning message.
+    /// The Planner (if any) gets the first word; the coordinator introduces the process
+    /// and asks the user the first clarifying question.
+    /// The conversation then continues normally — once the coordinator has enough information
+    /// it will embed a <c>&lt;roadmapproposal&gt;</c> in a response, which
+    /// <see cref="ApplyRoadmapCommands"/> parses and saves automatically.
+    /// </summary>
+    private async Task TriggerRoadmapBuildingAsync()
+    {
+        if (_projectSettings is null || _currentProjectFolder is null || _currentProject is null) return;
+        if (_streamCts is not null) return;
+
+        var activeOllamas  = _ollamaParticipants
+            .Where(ui => ui.Data.Enabled && IsParticipantActiveInProject(ui)).ToList();
+        var activeCloudAIs = _cloudAIParticipants
+            .Where(ui => ui.Data.Enabled && IsParticipantActiveInProject(ui)).ToList();
+
+        var (coordOllama, coordCloud) = FindCoordinatorInLists(activeOllamas, activeCloudAIs);
+        if (coordOllama is null && coordCloud is null) return;
 
         AIRespondButton.IsEnabled = false;
         SendButton.IsEnabled      = false;
@@ -6392,122 +8143,289 @@ public partial class MainWindow : Window
 
         try
         {
-            AddSystemMessage("— Team Initialization —");
+            AddSystemMessage("— Roadmap Planning —");
 
             var projectType = _currentProjectType is null ? "general"
                 : $"{_currentProjectType.Icon} {_currentProjectType.Name}";
             var projectDesc = string.IsNullOrWhiteSpace(_currentProject.Description) ? ""
-                : $"Project description: {_currentProject.Description.Trim()}\n\n";
+                : $"The project description is: \"{_currentProject.Description.Trim()}\"\n";
 
-            var participantList = activeOllamas
-                .Select(u => $"  • {GetEffectiveName(u)}" +
-                             (GetRoleForParticipant(u)?.IsCoordinator == true ? " [Coordinator]" :
-                              IsReasoner(u)                                   ? " [Reasoner]"    : ""))
-                .Concat(activeCloudAIs
-                .Select(u => $"  • {GetEffectiveName(u)}" +
-                             (GetRoleForParticipant(u)?.IsCoordinator == true ? " [Coordinator]" :
-                              IsReasoner(u)                                   ? " [Reasoner]"    : "")))
-                .ToList();
-
-            // Inject the initialization prompt directly into shared history so all AIs see it.
-            // It's not shown as a user chat bubble — it's a system-level setup message.
+            // Inject hidden context so all participants know what's happening
             _sharedHistory.Add(new CloudAIMessage("user",
-                $"Team initialization — Project: \"{_currentProject.ProjectName}\" (type: {projectType})\n" +
-                $"{projectDesc}" +
-                $"Active team:\n{string.Join("\n", participantList)}\n\n" +
-                "Coordinator: please introduce the project to the team and propose task assignments — " +
-                "which type of work will each member be responsible for, based on their capabilities? " +
-                "Reasoners: confirm your assigned role or suggest adjustments. " +
-                "Once agreed, the Coordinator must output the final plan exactly like this:\n\n" +
-                "<teamplan>\n" +
-                "- [Name]: [task responsibility]\n" +
-                "- [Name]: [task responsibility]\n" +
-                "</teamplan>"));
+                "[INTERNAL — not shown to user]\n" +
+                $"This project (\"{_currentProject.ProjectName}\", type: {projectType}) has no roadmap yet.\n" +
+                projectDesc +
+                "Coordinator: open a friendly conversation with the user to build a roadmap together. " +
+                "Ask about goals, key phases, and main deliverables — one focused question at a time. " +
+                "Once you have gathered enough information (through back-and-forth with the user), " +
+                "propose the full roadmap using:\n\n" +
+                "<roadmapproposal>\n" +
+                "MILESTONE: Milestone title | Optional description\n" +
+                "  ITEM: Task title | Optional description\n" +
+                "  ITEM: Another task\n" +
+                "MILESTONE: Second milestone\n" +
+                "  ITEM: ...\n" +
+                "</roadmapproposal>\n\n" +
+                "Do NOT produce the proposal tag right away — first have a conversation. " +
+                "Start by greeting the user and asking your first question about the project's main goal."));
 
-            // ── Team init sequence ────────────────────────────────────────
-            // Unlike normal CoordinatorFirst (where reasoners only respond when tagged),
-            // initialization is a discussion round: every participant must reply so
-            // each AI can confirm or adjust its role before the plan is finalised.
-            //
-            // Pass 1 — Coordinator goes first and proposes assignments.
-            // Pass 2 — All other participants confirm/adjust (no tagging required).
-            // Pass 3 — Coordinator reads the responses and writes the final <teamplan>.
+            // If a Planner is present (and isn't the coordinator), let them set the stage first
+            var (plannerOllama, plannerCloud) = FindPlannerInLists(activeOllamas, activeCloudAIs);
+            bool plannerIsCoord = plannerCloud == coordCloud && plannerOllama == coordOllama;
 
-            var (coordOllama, coordCloud) = FindCoordinatorInLists(activeOllamas, activeCloudAIs);
-
-            if (coordOllama is null && coordCloud is null)
+            if (!plannerIsCoord)
             {
-                // No coordinator configured — let everyone respond freely
-                await RunAllRespondModeAsync(activeOllamas, activeCloudAIs, ct, 1);
+                if (!ct.IsCancellationRequested && plannerCloud is not null)
+                {
+                    await RunCloudAIStreamAsync(plannerCloud, ct,
+                        "INTERNAL SYSTEM — Planner role. Briefly (1-2 sentences) indicate you will " +
+                        "help structure the roadmap once the Coordinator has gathered the project goals. " +
+                        "Then hand over to the Coordinator.");
+                }
+                else if (!ct.IsCancellationRequested && plannerOllama is not null)
+                {
+                    await RunOllamaStreamAsync(plannerOllama!, ct,
+                        "INTERNAL SYSTEM — Planner role. Briefly (1-2 sentences) indicate you will " +
+                        "help structure the roadmap once the Coordinator has gathered the project goals. " +
+                        "Then hand over to the Coordinator.");
+                }
+            }
+
+            // Coordinator kicks off the conversation
+            if (!ct.IsCancellationRequested)
+            {
+                const string coordHint =
+                    "Start the roadmap-building conversation now. In 2–3 sentences: introduce that " +
+                    "you'll help the user build a project roadmap through a short conversation, then " +
+                    "ask your first question about the project's main goal or top priority. " +
+                    "Be warm, concise, and encouraging.";
+
+                if (coordCloud is not null)
+                    await RunCloudAIStreamAsync(coordCloud, ct, coordHint);
+                else
+                    await RunOllamaStreamAsync(coordOllama!, ct, coordHint);
+            }
+
+            // Mark conversation as started so we don't re-trigger on subsequent project opens
+            _projectSettings.RoadmapInitialized = true;
+            ProjectService.SaveProject(_currentProjectFolder!, _projectSettings);
+        }
+        finally
+        {
+            _streamCts?.Dispose();
+            _streamCts = null;
+            AIRespondButton.IsEnabled = true;
+            SendButton.IsEnabled      = true;
+        }
+
+        // The roadmap-building intro counts as the coordinator's greeting for this open.
+        // Mark the flag so we don't fire a second greeting via CheckAndTriggerWorkSessionAsync.
+        _workSessionFired = true;
+    }
+
+    // ── Work session ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns <c>true</c> when the current project settings contain at least one active
+    /// coordinator role.  Does NOT require the participant to be online — online status is
+    /// checked later inside the actual trigger methods.
+    /// </summary>
+    private bool HasCoordinatorRole() =>
+        _projectSettings?.Roles.Any(r => r.IsCoordinator && r.IsActive) == true;
+
+    /// <summary>
+    /// Triggers <see cref="TriggerWorkSessionAsync"/> when a coordinator role is configured
+    /// and the work-session greeting has not already fired this open.
+    /// No-op when conditions are not met or when roadmap building already introduced
+    /// the coordinator (<see cref="_workSessionFired"/> is set).
+    /// </summary>
+    private async Task CheckAndTriggerWorkSessionAsync()
+    {
+        if (_projectSettings is null || _currentProjectFolder is null) return;
+        // Full Manual Mode has no coordinator automation — no work-session greeting.
+        if (_projectSettings.OrchestrationMode == OrchestrationMode.AllRespond) return;
+        if (_workSessionFired) return;
+        if (!HasCoordinatorRole()) return;
+
+        await TriggerWorkSessionAsync();
+    }
+
+    /// <summary>
+    /// Coordinator greeting and work-session check-in on every project open.
+    /// <para>
+    /// The coordinator always greets the user first and asks whether to start working
+    /// or have a chat.  Once the user is ready the coordinator follows one of two paths:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item><b>Open tasks present</b> — standard work session: review InProgress items,
+    ///     pick next task, clarify work mode (user-led vs AI-led), update roadmap when done.</item>
+    ///   <item><b>No open tasks</b> — completion check: verify with the user that all items
+    ///     are truly done, then offer to enrich existing items with descriptions/sub-task lists
+    ///     or extend the roadmap with new milestones.</item>
+    /// </list>
+    /// Clock-watching thresholds (3 h / 8 h / 10 h) are always active via
+    /// <see cref="BuildSessionTimeInstruction"/>.
+    /// </summary>
+    private async Task TriggerWorkSessionAsync()
+    {
+        if (_projectSettings is null || _currentProjectFolder is null || _currentProject is null) return;
+        if (_streamCts is not null) return;
+        if (_workSessionFired) return;   // already ran this open — don't double-greet
+        _workSessionFired = true;
+
+        var activeOllamas  = _ollamaParticipants
+            .Where(ui => ui.Data.Enabled && IsParticipantActiveInProject(ui)).ToList();
+        var activeCloudAIs = _cloudAIParticipants
+            .Where(ui => ui.Data.Enabled && IsParticipantActiveInProject(ui)).ToList();
+
+        var (coordOllama, coordCloud) = FindCoordinatorInLists(activeOllamas, activeCloudAIs);
+        if (coordOllama is null && coordCloud is null) return;
+
+        AIRespondButton.IsEnabled = false;
+        SendButton.IsEnabled      = false;
+        _streamCts = new CancellationTokenSource();
+        var ct = _streamCts.Token;
+
+        try
+        {
+            AddSystemMessage("— Work Session —");
+
+            // ── Roadmap state snapshot ────────────────────────────────────
+            var hasMilestones = _currentRoadmap?.Milestones.Count > 0;
+
+            var inProgress = hasMilestones
+                ? _currentRoadmap!.Milestones
+                    .SelectMany(ms => ms.Items.Select(it => (Milestone: ms, Item: it)))
+                    .Where(x => x.Item.Status == ItemStatus.InProgress)
+                    .ToList()
+                : [];
+
+            var todo = hasMilestones
+                ? _currentRoadmap!.Milestones
+                    .SelectMany(ms => ms.Items.Select(it => (Milestone: ms, Item: it)))
+                    .Where(x => x.Item.Status == ItemStatus.Todo)
+                    .Take(10)
+                    .ToList()
+                : [];
+
+            var allDone = hasMilestones && inProgress.Count == 0 && todo.Count == 0;
+
+            // Items whose description is empty (any status)
+            var noDesc = hasMilestones
+                ? _currentRoadmap!.Milestones
+                    .SelectMany(ms => ms.Items.Select(it => (Milestone: ms, Item: it)))
+                    .Where(x => string.IsNullOrWhiteSpace(x.Item.Description))
+                    .ToList()
+                : [];
+
+            // ── Build protocol instruction ────────────────────────────────
+            var protocol = new System.Text.StringBuilder();
+
+            protocol.AppendLine("[INTERNAL — not shown to user]");
+            protocol.AppendLine("Work session starting. IMPORTANT: do NOT dive straight into work.");
+            protocol.AppendLine();
+            protocol.AppendLine("STEP 1 — GREETING (do this first, every time):");
+            protocol.AppendLine("  Greet the user warmly. Ask whether they want to start working on the");
+            protocol.AppendLine("  project right away or would prefer to have a friendly chat first.");
+            protocol.AppendLine("  Keep this greeting to 2–3 sentences maximum.");
+            protocol.AppendLine("  Wait for the user's reply before proceeding to any work steps.");
+            protocol.AppendLine();
+
+            if (!hasMilestones)
+            {
+                // No roadmap content yet — simple greeting, no task protocol
+                protocol.AppendLine("ROADMAP STATE: No roadmap tasks exist yet.");
+                protocol.AppendLine("STEP 2 — once the user is ready: just get started naturally.");
+                protocol.AppendLine("  Do not reference the roadmap or tasks — there are none to discuss.");
+                protocol.AppendLine("  Ask what the user would like to work on or talk about.");
+            }
+            else if (allDone)
+            {
+                protocol.AppendLine("ROADMAP STATE: No open tasks (no InProgress or Todo items).");
+                protocol.AppendLine();
+                protocol.AppendLine("STEP 2 — COMPLETION CHECK (once user is ready to work):");
+                protocol.AppendLine("  - Congratulate the user on completing all current roadmap items.");
+                protocol.AppendLine("  - Verify with them that everything really is done — some items may");
+                protocol.AppendLine("    have been marked complete by accident.");
+                protocol.AppendLine("  - Ask if they want to extend the roadmap with new milestones or");
+                protocol.AppendLine("    add more tasks to existing milestones.");
+                protocol.AppendLine("  - Go through each item and offer to add or improve its description");
+                protocol.AppendLine("    and sub-task list. Ask the user for the content of each one.");
+                protocol.AppendLine("    For example, for a book: ask for the chapter summary and list of");
+                protocol.AppendLine("    scenes; for software: ask for acceptance criteria and sub-tasks.");
+                protocol.AppendLine("  - Use these tags to update the roadmap:");
+                protocol.AppendLine("      <roadmap-describe id=\"ITEM_ID\">");
+                protocol.AppendLine("      Description / sub-task list here (multi-line supported)");
+                protocol.AppendLine("      </roadmap-describe>");
+                protocol.AppendLine("      <roadmap-additem milestone=\"Milestone Title\" title=\"New task\" description=\"Optional\"/>");
+                protocol.AppendLine("      <roadmap-addmilestone>");
+                protocol.AppendLine("      MILESTONE: Title | Description");
+                protocol.AppendLine("        ITEM: Task title | Description");
+                protocol.AppendLine("      </roadmap-addmilestone>");
+
+                if (noDesc.Count > 0)
+                {
+                    protocol.AppendLine();
+                    protocol.AppendLine($"Items without descriptions ({noDesc.Count}):");
+                    foreach (var (ms, it) in noDesc.Take(20))
+                        protocol.AppendLine($"  • [id:{it.Id}] [{ms.Title}] → {it.Title}");
+                }
             }
             else
             {
-                // Pass 1: Coordinator proposes
-                const string coordProposalHint =
-                    "You go first. Introduce the project to the team, propose task assignments " +
-                    "for each member based on their capabilities, and invite them to confirm.";
-
-                if (coordCloud is not null)
-                    await RunCloudAIStreamAsync(coordCloud, ct, coordProposalHint);
-                else
-                    await RunOllamaStreamAsync(coordOllama!, ct, coordProposalHint);
-
-                // Pass 2: Every other participant replies (free + reasoners — no tagging required)
-                if (!ct.IsCancellationRequested)
+                if (inProgress.Count > 0)
                 {
-                    const string memberConfirmHint =
-                        "The Coordinator has proposed the team task assignments above. " +
-                        "Confirm your assigned role or briefly suggest any adjustments. " +
-                        "Keep your reply concise.";
-
-                    foreach (var ui in activeOllamas.Where(u => u != coordOllama))
-                    {
-                        if (ct.IsCancellationRequested) break;
-                        await RunOllamaStreamAsync(ui, ct, memberConfirmHint);
-                    }
-                    foreach (var ui in activeCloudAIs.Where(u => u != coordCloud))
-                    {
-                        if (ct.IsCancellationRequested) break;
-                        await RunCloudAIStreamAsync(ui, ct, memberConfirmHint);
-                    }
+                    protocol.AppendLine("Unfinished from last session:");
+                    foreach (var (ms, it) in inProgress)
+                        protocol.AppendLine($"  🔄 [{ms.Title}] → {it.Title} ({it.Progress}%)");
+                    protocol.AppendLine();
                 }
 
-                // Pass 3: Coordinator reads all replies and outputs the final <teamplan>
-                if (!ct.IsCancellationRequested)
+                if (todo.Count > 0)
                 {
-                    const string coordFinaliseHint =
-                        "All team members have now replied. " +
-                        "Write a brief closing summary and output the final agreed plan " +
-                        "wrapped in exactly these tags (no other text between the tags):\n\n" +
-                        "<teamplan>\n" +
-                        "- [Name]: [task responsibility]\n" +
-                        "- [Name]: [task responsibility]\n" +
-                        "</teamplan>";
+                    protocol.AppendLine("Next available tasks (Todo):");
+                    foreach (var (ms, it) in todo)
+                        protocol.AppendLine($"  ⬜ [{ms.Title}] → {it.Title}");
+                    protocol.AppendLine();
+                }
 
-                    if (coordCloud is not null)
-                        await RunCloudAIStreamAsync(coordCloud, ct, coordFinaliseHint,
-                                                    skipLatestUserMessage: true);
-                    else
-                        await RunOllamaStreamAsync(coordOllama!, ct, coordFinaliseHint,
-                                                   skipLatestUserMessage: true);
+                protocol.AppendLine("STEP 2 — WORK SESSION (once user is ready):");
+                protocol.AppendLine("  a) Mention any unfinished InProgress tasks from last time.");
+                protocol.AppendLine("  b) Ask the user if anything on the roadmap needs to be");
+                protocol.AppendLine("     changed or updated before starting.");
+                protocol.AppendLine("  c) Help the user pick the next task to work on.");
+                protocol.AppendLine("  d) Clarify the preferred work mode:");
+                protocol.AppendLine("       • User-led: user does the work, AI gives tips and motivation");
+                protocol.AppendLine("       • AI-led: AI does the heavy lifting, user gives feedback");
+                protocol.AppendLine("  e) Work on the task together.");
+                protocol.AppendLine("  f) When a task or sub-task is finished, update the roadmap:");
+                protocol.AppendLine("       [ROADMAP:update:ITEM_ID:PROGRESS]  — e.g. 75 for 75%");
+                protocol.AppendLine("       [ROADMAP:complete:ITEM_ID]         — marks item 100% done");
+                protocol.AppendLine("  g) After finishing, ask whether to continue or wrap up for today.");
+
+                if (noDesc.Count > 0)
+                {
+                    protocol.AppendLine();
+                    protocol.AppendLine($"Note: {noDesc.Count} item(s) have no description yet.");
+                    protocol.AppendLine("      When you reach those items, use <roadmap-describe> to add one.");
                 }
             }
 
+            _sharedHistory.Add(new CloudAIMessage("user", protocol.ToString().Trim()));
+
+            // ── Coordinator fires the greeting ────────────────────────────
+            const string coordHint =
+                "Start the work session now. Greet the user warmly (2–3 sentences). " +
+                "Ask whether they are ready to dive into work on this project or would prefer " +
+                "to have a friendly chat first. Do NOT start discussing tasks yet — just greet " +
+                "and ask. Be warm and encouraging.";
+
             if (!ct.IsCancellationRequested)
             {
-                var teamPlan = ExtractTeamPlan(_sharedHistory);
-                if (!string.IsNullOrWhiteSpace(teamPlan))
-                {
-                    _projectSettings.TeamPlan = teamPlan;
-                    ProjectService.SaveProjectSettings(_currentProjectFolder, _projectSettings);
-                    AddSystemMessage("✓ Team plan saved — use Project Settings to reset it.");
-                }
+                if (coordCloud is not null)
+                    await RunCloudAIStreamAsync(coordCloud, ct, coordHint);
                 else
-                {
-                    AddSystemMessage(
-                        "⚠  No <teamplan> block found. Ask the Coordinator to provide one, " +
-                        "or reset and re-run initialization from Project Settings.");
-                }
+                    await RunOllamaStreamAsync(coordOllama!, ct, coordHint);
             }
         }
         finally
@@ -6517,24 +8435,6 @@ public partial class MainWindow : Window
             AIRespondButton.IsEnabled = true;
             SendButton.IsEnabled      = true;
         }
-    }
-
-    /// <summary>
-    /// Scans <paramref name="history"/> from the end and returns the content of the first
-    /// <c>&lt;teamplan&gt;…&lt;/teamplan&gt;</c> block found (innerText, trimmed).
-    /// Returns <c>null</c> if no such block exists.
-    /// </summary>
-    private static string? ExtractTeamPlan(List<CloudAIMessage> history)
-    {
-        var rx = new Regex(@"<teamplan>(.*?)</teamplan>",
-            RegexOptions.Singleline | RegexOptions.IgnoreCase);
-        for (int i = history.Count - 1; i >= 0; i--)
-        {
-            if (history[i].Role != "assistant") continue;
-            var m = rx.Match(history[i].Content);
-            if (m.Success) return m.Groups[1].Value.Trim();
-        }
-        return null;
     }
 
     // ── Orchestration helpers ──────────────────────────────────────────────
@@ -6554,6 +8454,24 @@ public partial class MainWindow : Window
 
         var ollama = ollamas.FirstOrDefault(ui =>
             GetRoleForParticipant(ui)?.IsCoordinator == true);
+        return (ollama, null);
+    }
+
+    /// <summary>
+    /// Finds the first Planner (PL) among the active participant lists.
+    /// Cloud AI is preferred over Ollama; returns (null, null) if none assigned.
+    /// </summary>
+    private (OllamaParticipantUI? Ollama, CloudAIParticipantUI? Cloud) FindPlannerInLists(
+        List<OllamaParticipantUI> ollamas, List<CloudAIParticipantUI> clouds)
+    {
+        if (_projectSettings is null) return (null, null);
+
+        var cloud = clouds.FirstOrDefault(ui =>
+            GetRoleForParticipant(ui)?.IsPlanner == true);
+        if (cloud is not null) return (null, cloud);
+
+        var ollama = ollamas.FirstOrDefault(ui =>
+            GetRoleForParticipant(ui)?.IsPlanner == true);
         return (ollama, null);
     }
 
@@ -6617,13 +8535,16 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Finds the <paramref name="indexInGroup"/>-th Ollama (typeGroup="Ollama") or Cloud AI
-    /// (typeGroup="Cloud") entry in the enabled settings list and returns its project role
-    /// using the same positional-first / key-based-fallback logic as the settings dialog.
+    /// (typeGroup="Cloud") entry in the project's active participant list and returns its
+    /// project role using the same positional-first / key-based-fallback logic as the
+    /// settings dialog. The project-saved list exactly mirrors the current UI, so positional
+    /// matching is reliable regardless of what global settings contain.
     /// </summary>
     private ProjectParticipantRole? ResolveRoleAtGroupIndex(string typeGroup, int indexInGroup)
     {
-        var ps      = _projectSettings!;
-        var enabled = SettingsService.Load().Participants.Where(p => p.Enabled).ToList();
+        var ps = _projectSettings!;
+        if (ps.ActiveParticipants is not { Count: > 0 }) return null;
+        var enabled = ps.ActiveParticipants.Where(p => p.Enabled).ToList();
 
         int groupCount = 0;
         for (int pi = 0; pi < enabled.Count; pi++)
@@ -6658,29 +8579,62 @@ public partial class MainWindow : Window
     private bool IsReasoner(CloudAIParticipantUI ui) =>
         GetRoleForParticipant(ui)?.IsReasoner == true;
 
+    /// <summary>Returns all enabled Critics (Ollama + Cloud AI) sorted by effective display name.</summary>
+    private List<string> GetAvailableCritics()
+    {
+        var result = new List<string>();
+        foreach (var u in _ollamaParticipants.Where(u => u.Data.Enabled && GetRoleForParticipant(u)?.IsCritic == true))
+            result.Add(GetEffectiveName(u));
+        foreach (var u in _cloudAIParticipants.Where(u => u.Data.Enabled && GetRoleForParticipant(u)?.IsCritic == true))
+            result.Add(GetEffectiveName(u));
+        return result;
+    }
+
+    /// <summary>Returns all enabled Planners (Ollama + Cloud AI) sorted by effective display name.</summary>
+    private List<string> GetAvailablePlanners()
+    {
+        var result = new List<string>();
+        foreach (var u in _ollamaParticipants.Where(u => u.Data.Enabled && GetRoleForParticipant(u)?.IsPlanner == true))
+            result.Add(GetEffectiveName(u));
+        foreach (var u in _cloudAIParticipants.Where(u => u.Data.Enabled && GetRoleForParticipant(u)?.IsPlanner == true))
+            result.Add(GetEffectiveName(u));
+        return result;
+    }
+
+    /// <summary>Returns all enabled Researchers (Ollama + Cloud AI) sorted by effective display name.</summary>
+    private List<string> GetAvailableResearchers()
+    {
+        var result = new List<string>();
+        foreach (var u in _ollamaParticipants.Where(u => u.Data.Enabled && GetRoleForParticipant(u)?.IsResearcher == true))
+            result.Add(GetEffectiveName(u));
+        foreach (var u in _cloudAIParticipants.Where(u => u.Data.Enabled && GetRoleForParticipant(u)?.IsResearcher == true))
+            result.Add(GetEffectiveName(u));
+        return result;
+    }
+
     /// <summary>
-    /// Returns true if the participant may write project files (<output>, <projectplan> tags).
-    /// Only Coordinators and Reasoners have write access.
-    /// Falls back to unrestricted access when no gated roles are defined in the project
+    /// Returns true if the participant may write project files (&lt;output&gt;, &lt;projectplan&gt; tags).
+    /// Coordinators always have write access. All other participants need the explicit
+    /// Write Access (WR) flag. Falls back to unrestricted when no coordinator is configured
     /// (backwards compatibility with projects that predate role assignment).
     /// </summary>
     private bool HasWriteAccess(OllamaParticipantUI ui)
     {
         if (_projectSettings is null) return true;
-        bool anyGated = _projectSettings.Roles.Any(r => r.IsCoordinator || r.IsReasoner);
-        if (!anyGated) return true;
+        bool anyCoordinator = _projectSettings.Roles.Any(r => r.IsCoordinator);
+        if (!anyCoordinator) return true;   // no roles configured yet — open access
         var role = GetRoleForParticipant(ui);
-        return role?.IsCoordinator == true || role?.IsReasoner == true;
+        return role?.IsCoordinator == true || role?.IsWriteAccess == true;
     }
 
     /// <inheritdoc cref="HasWriteAccess(OllamaParticipantUI)"/>
     private bool HasWriteAccess(CloudAIParticipantUI ui)
     {
         if (_projectSettings is null) return true;
-        bool anyGated = _projectSettings.Roles.Any(r => r.IsCoordinator || r.IsReasoner);
-        if (!anyGated) return true;
+        bool anyCoordinator = _projectSettings.Roles.Any(r => r.IsCoordinator);
+        if (!anyCoordinator) return true;
         var role = GetRoleForParticipant(ui);
-        return role?.IsCoordinator == true || role?.IsReasoner == true;
+        return role?.IsCoordinator == true || role?.IsWriteAccess == true;
     }
 
     /// <summary>
@@ -6718,12 +8672,18 @@ public partial class MainWindow : Window
             var role = GetRoleForParticipant(ui);
             ui.CoBadge.Visibility = role?.IsCoordinator == true ? Visibility.Visible : Visibility.Collapsed;
             ui.RBadge .Visibility = role?.IsReasoner    == true ? Visibility.Visible : Visibility.Collapsed;
+            ui.CrBadge.Visibility = role?.IsCritic      == true ? Visibility.Visible : Visibility.Collapsed;
+            ui.PlBadge.Visibility = role?.IsPlanner     == true ? Visibility.Visible : Visibility.Collapsed;
+            ui.RsBadge.Visibility = role?.IsResearcher  == true ? Visibility.Visible : Visibility.Collapsed;
         }
         foreach (var ui in _cloudAIParticipants)
         {
             var role = GetRoleForParticipant(ui);
             ui.CoBadge.Visibility = role?.IsCoordinator == true ? Visibility.Visible : Visibility.Collapsed;
             ui.RBadge .Visibility = role?.IsReasoner    == true ? Visibility.Visible : Visibility.Collapsed;
+            ui.CrBadge.Visibility = role?.IsCritic      == true ? Visibility.Visible : Visibility.Collapsed;
+            ui.PlBadge.Visibility = role?.IsPlanner     == true ? Visibility.Visible : Visibility.Collapsed;
+            ui.RsBadge.Visibility = role?.IsResearcher  == true ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 
@@ -6797,6 +8757,7 @@ public partial class MainWindow : Window
                 {
                     if (!hidden) bubble!.StopThinking();   // hides dots + tooltip disappears naturally
                     firstToken = false;
+                    SetParticipantError(ui, null);         // clear any previous error badge
                 }
                 sb.Append(token);
                 if (!hidden)
@@ -6806,13 +8767,14 @@ public partial class MainWindow : Window
                 }
             }
             if (firstToken && !hidden) bubble!.StopThinking(); // empty response
-            var ollamaFinalText = _currentProjectFolder is not null
+            // Hidden streams are internal assessments — never write files or mutate roadmap.
+            var ollamaFinalText = (!hidden && _currentProjectFolder is not null)
                 ? ProcessAIFileOperationTags(sb.ToString(), display, _currentProjectFolder,
                     HasWriteAccess(ui), GetCoordinatorName())
                 : sb.ToString();
 
             // ── Roadmap commands ──────────────────────────────────────────
-            if (_currentRoadmap is not null)
+            if (!hidden && _currentRoadmap is not null)
             {
                 var myRole = GetRoleForParticipant(ui);
                 var cleaned = ApplyRoadmapCommands(ollamaFinalText, display, myRole?.IsCoordinator == true);
@@ -6872,6 +8834,10 @@ public partial class MainWindow : Window
                 var httpMsg = HttpErrorMessage(ex, display);
                 AddSystemMessage($"⚠  {display} — {httpMsg}");
             }
+            var errText = ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests
+                ? "Wants Money" : "ERROR";
+            SetParticipantError(ui, errText);
+            if (!hidden) NotifyCoordinatorOfError(display, errText);
         }
         catch (Exception ex)
         {
@@ -6881,6 +8847,8 @@ public partial class MainWindow : Window
                 ChatPanel.Children.Remove(bubble.OuterWrapper);
                 AddSystemMessage($"⚠  {display} — Error: {ex.Message}");
             }
+            SetParticipantError(ui, "ERROR");
+            if (!hidden) NotifyCoordinatorOfError(display, "ERROR");
         }
         finally
         {
@@ -6928,6 +8896,7 @@ public partial class MainWindow : Window
                 {
                     if (!hidden) bubble!.StopThinking();
                     firstToken = false;
+                    SetParticipantError(ui, null);         // clear any previous error badge
                 }
                 sb.Append(token);
                 if (!hidden)
@@ -6937,13 +8906,14 @@ public partial class MainWindow : Window
                 }
             }
             if (firstToken && !hidden) bubble!.StopThinking();
-            var cloudFinalText = _currentProjectFolder is not null
+            // Hidden streams are internal assessments — never write files or mutate roadmap.
+            var cloudFinalText = (!hidden && _currentProjectFolder is not null)
                 ? ProcessAIFileOperationTags(sb.ToString(), display, _currentProjectFolder,
                     HasWriteAccess(ui), GetCoordinatorName())
                 : sb.ToString();
 
             // ── Roadmap commands ──────────────────────────────────────────
-            if (_currentRoadmap is not null)
+            if (!hidden && _currentRoadmap is not null)
             {
                 var myRole  = GetRoleForParticipant(ui);
                 var cleaned = ApplyRoadmapCommands(cloudFinalText, display, myRole?.IsCoordinator == true);
@@ -7003,6 +8973,10 @@ public partial class MainWindow : Window
                 var httpMsg = HttpErrorMessage(ex, display);
                 AddSystemMessage($"⚠  {display} — {httpMsg}");
             }
+            var errText = ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests
+                ? "Wants Money" : "ERROR";
+            SetParticipantError(ui, errText);
+            if (!hidden) NotifyCoordinatorOfError(display, errText);
         }
         catch (Exception ex)
         {
@@ -7012,6 +8986,8 @@ public partial class MainWindow : Window
                 ChatPanel.Children.Remove(bubble.OuterWrapper);
                 AddSystemMessage($"⚠  {display} — Error: {ex.Message}");
             }
+            SetParticipantError(ui, "ERROR");
+            if (!hidden) NotifyCoordinatorOfError(display, "ERROR");
         }
         return !hidden; // visible error → error bubble shown (counts as responded); hidden error → doesn't count
     }
@@ -7026,8 +9002,14 @@ public partial class MainWindow : Window
         var myModel = forUi.Data.Service.CurrentModel;
         var myRole  = GetRoleForParticipant(forUi);
 
-        var myHasWrite  = HasWriteAccess(forUi);
-        var reasoners   = myRole?.IsCoordinator == true ? GetAvailableReasoners() : null;
+        var myHasWrite   = HasWriteAccess(forUi);
+        var isCoord      = myRole?.IsCoordinator == true;
+        var reasoners    = isCoord ? GetAvailableReasoners()    : null;
+        var planners     = isCoord ? GetAvailablePlanners()     : null;
+        var researchers  = isCoord ? GetAvailableResearchers()  : null;
+        var critics      = isCoord ? GetAvailableCritics()      : null;
+        var superRole    = GetSuperRoleInstruction(myName);
+        var writerNames  = myHasWrite ? null : GetWriteAccessParticipantNames();
 
         var result = new List<OllamaChatMessage>
         {
@@ -7039,7 +9021,7 @@ public partial class MainWindow : Window
                 $"IMPORTANT: Never prefix your own response with your name or any label — write directly without any '[Name]:' header." +
                 BuildAppContextInstruction(forOllama: forUi) +
                 BuildProjectTypeContext() +
-                BuildRoleInstruction(myRole, reasoners) +
+                BuildRoleInstruction(myRole, reasoners, planners, researchers, critics, superRole) +
                 // Global response-length preference — only when no project is open.
                 // Projects override this via per-participant role settings.
                 (_projectSettings is null ? BuildResponseLengthInstruction(_globalResponseLength) : "") +
@@ -7047,8 +9029,9 @@ public partial class MainWindow : Window
                 BuildLanguageInstruction(_projectLanguage) +
                 BuildInputFilesContext(_currentProjectFolder) +
                 BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage) +
-                BuildFileOperationInstruction(_currentProjectFolder, myHasWrite) +
-                BuildRoadmapContext(myRole))
+                BuildFileOperationInstruction(_currentProjectFolder, myHasWrite, writerNames) +
+                BuildRoadmapContext(myRole) +
+                BuildSessionTimeInstruction(myRole))
         };
 
         // When called as a reasoner, skip the latest user message so the reasoner only
@@ -7086,8 +9069,14 @@ public partial class MainWindow : Window
         var myProvider = forUi.Data.Service.ProviderName;
         var myRole     = GetRoleForParticipant(forUi);
 
-        var myHasWrite = HasWriteAccess(forUi);
-        var reasoners  = myRole?.IsCoordinator == true ? GetAvailableReasoners() : null;
+        var myHasWrite  = HasWriteAccess(forUi);
+        var isCoord     = myRole?.IsCoordinator == true;
+        var reasoners   = isCoord ? GetAvailableReasoners()   : null;
+        var planners    = isCoord ? GetAvailablePlanners()    : null;
+        var researchers = isCoord ? GetAvailableResearchers() : null;
+        var critics     = isCoord ? GetAvailableCritics()     : null;
+        var superRole   = GetSuperRoleInstruction(myName);
+        var writerNames = myHasWrite ? null : GetWriteAccessParticipantNames();
 
         var system =
             $"You are {myName}, running model {myModel}. " +
@@ -7096,7 +9085,7 @@ public partial class MainWindow : Window
             $"IMPORTANT: Never prefix your own response with your name or any label — write directly without any '[Name]:' header." +
             BuildAppContextInstruction(forCloud: forUi) +
             BuildProjectTypeContext() +
-            BuildRoleInstruction(myRole, reasoners) +
+            BuildRoleInstruction(myRole, reasoners, planners, researchers, critics, superRole) +
             // Global response-length preference — only when no project is open.
             // Projects override this via per-participant role settings.
             (_projectSettings is null ? BuildResponseLengthInstruction(_globalResponseLength) : "") +
@@ -7104,8 +9093,9 @@ public partial class MainWindow : Window
             BuildLanguageInstruction(_projectLanguage) +
             BuildInputFilesContext(_currentProjectFolder) +
             BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage) +
-            BuildFileOperationInstruction(_currentProjectFolder, myHasWrite) +
-            BuildRoadmapContext(myRole);
+            BuildFileOperationInstruction(_currentProjectFolder, myHasWrite, writerNames) +
+            BuildRoadmapContext(myRole) +
+            BuildSessionTimeInstruction(myRole);
 
         // When called as a reasoner, skip the latest user message so the reasoner only
         // responds to the coordinator's explicit delegation, not the user's question directly.
@@ -7239,13 +9229,10 @@ public partial class MainWindow : Window
         "never written to any file on disk. ClaudetRelay reads them directly from Windows " +
         "and passes them only to the respective provider's API.\n\n" +
         "## Orchestration Modes (Projects only)\n" +
-        "- All Respond: every AI answers every message.\n" +
-        "- Coordinator First: one AI leads and may tag others by @Name to contribute.\n" +
+        "- Coordinator First (default): one AI leads and may tag others by @Name to contribute.\n" +
         "- Coordinator Summarizes: all others answer first, Coordinator synthesizes.\n" +
-        "- Coordinator Auto: on first project open, AIs run an initialization discussion and " +
-        "agree on task assignments (stored as TeamPlan, injected into all future prompts).\n" +
-        "- Coordinator Only: all AI-to-AI work is completely hidden; user sees only the " +
-        "Coordinator's final answer.\n\n" +
+        "- Coordinator Only: all AI-to-AI work is completely hidden; user sees only the Coordinator's final answer.\n" +
+        "- Full Manual Mode: every AI answers every message — no coordinator automation.\n\n" +
         "## Working with Projects\n" +
         "Projects tab (top of main window) → New Project or open an existing one.\n" +
         "Each project = a folder on your PC. ClaudetRelay stores a settings file there.\n" +
@@ -7879,16 +9866,128 @@ public partial class MainWindow : Window
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
+        // Snapshot enabled-state BEFORE the window opens so we can diff on save.
+        var settingsBefore = SettingsService.Load();
+
         // Opens on the General tab (User Name + Tone + Mockingbird), then P1-P20 tabs alongside
         var win = new SettingsWindow(_currentThemePath, initialTabIndex: 0) { Owner = this };
         win.SourceInitialized += (_, _) => ApplyTitleBarTheme(win);
         if (win.ShowDialog() == true)
         {
-            var updated = SettingsService.Load();
-            ReInitializeParticipants();
-            ApplyThrottleSettings(updated);
-            ApplyChatFont(updated);
+            var settingsAfter = SettingsService.Load();
+            ApplyParticipantDelta(settingsBefore.Participants, settingsAfter.Participants, settingsAfter);
+            ApplyThrottleSettings(settingsAfter);
+            ApplyChatFont(settingsAfter);
         }
+    }
+
+    /// <summary>
+    /// Incrementally syncs the live participant panel with the diff between the settings
+    /// saved before and after the Settings window was open.
+    /// • Freshly-enabled slots  → added to the panel.
+    /// • Freshly-disabled slots → removed from the panel.
+    /// • Slots that were already active and remain enabled → left completely untouched.
+    /// </summary>
+    private void ApplyParticipantDelta(
+        List<ParticipantConfig> before,
+        List<ParticipantConfig> after,
+        AppSettings             newSettings)
+    {
+        // Apply non-participant general settings unconditionally
+        _userName             = string.IsNullOrWhiteSpace(newSettings.UserName) ? "You" : newSettings.UserName.Trim();
+        _toneLevel            = newSettings.ToneLevel;
+        _mockingbirdMode      = newSettings.MockingbirdMode;
+        _aiDialogueEnabled    = newSettings.AiDialogueEnabled;
+        _aiDialogueMaxTurns   = Math.Clamp(newSettings.AiDialogueMaxTurns, 3, 100);
+        _globalResponseLength = Math.Clamp(newSettings.GlobalResponseLength, 0, 100);
+        UpdateAiDialogueButton();
+
+        bool anyRemoved = false;
+        int  maxSlots   = Math.Max(before.Count, after.Count);
+
+        for (int i = 0; i < maxSlots; i++)
+        {
+            var prev = i < before.Count ? before[i] : null;
+            var curr = i < after.Count  ? after[i]  : null;
+
+            bool wasEnabled = prev?.Enabled == true;
+            bool nowEnabled = curr?.Enabled == true;
+
+            if (!wasEnabled && nowEnabled && curr is not null)
+            {
+                // Freshly checked → add to panel
+                if (curr.Type == "Ollama")
+                    AddOllamaParticipant(curr.Model, curr.ServerUrl, curr.Name);
+                else
+                    AddCloudAIParticipant(curr.Type, curr.Model, curr.Name);
+            }
+            else if (wasEnabled && !nowEnabled && prev is not null)
+            {
+                // Freshly unchecked → remove from panel
+                anyRemoved = true;
+                if (prev.Type == "Ollama")
+                {
+                    var match = _ollamaParticipants.FirstOrDefault(ui =>
+                        string.Equals(ui.Data.Service.CurrentModel, prev.Model,
+                                      StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(ui.Data.Service.BaseUrl,      prev.ServerUrl,
+                                      StringComparison.OrdinalIgnoreCase));
+                    if (match is not null) RemoveOllamaParticipant(match);
+                }
+                else
+                {
+                    var match = _cloudAIParticipants.FirstOrDefault(ui =>
+                        string.Equals(ui.Data.Service.ProviderName, prev.Type,
+                                      StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(ui.Data.Service.CurrentModel, prev.Model,
+                                      StringComparison.OrdinalIgnoreCase));
+                    if (match is not null) RemoveCloudAIParticipant(match);
+                }
+            }
+            else if (wasEnabled && nowEnabled && prev is not null && curr is not null)
+            {
+                // Still active — refresh card if name or model changed
+                if (prev.Type == "Ollama")
+                {
+                    var match = _ollamaParticipants.FirstOrDefault(ui =>
+                        string.Equals(ui.Data.Service.CurrentModel, prev.Model,
+                                      StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(ui.Data.Service.BaseUrl,      prev.ServerUrl,
+                                      StringComparison.OrdinalIgnoreCase));
+                    if (match is not null &&
+                        (!string.Equals(prev.Model, curr.Model, StringComparison.OrdinalIgnoreCase) ||
+                         !string.Equals(prev.Name,  curr.Name,  StringComparison.Ordinal)))
+                        RefreshOllamaCard(match, curr);
+                }
+                else
+                {
+                    var match = _cloudAIParticipants.FirstOrDefault(ui =>
+                        string.Equals(ui.Data.Service.ProviderName, prev.Type,
+                                      StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(ui.Data.Service.CurrentModel, prev.Model,
+                                      StringComparison.OrdinalIgnoreCase));
+                    if (match is not null &&
+                        (!string.Equals(prev.Model, curr.Model, StringComparison.OrdinalIgnoreCase) ||
+                         !string.Equals(prev.Name,  curr.Name,  StringComparison.Ordinal)))
+                        RefreshCloudAICard(match, curr);
+                }
+            }
+            // !wasEnabled && !nowEnabled → wasn't active and still isn't — nothing to do
+        }
+
+        // Cancel any running stream only if a participant was just removed
+        if (anyRemoved) _streamCts?.Cancel();
+
+        if (_ollamaParticipants.Count == 0 && _cloudAIParticipants.Count == 0)
+            AddSystemMessage("⚠  No participants enabled — configure them in 👤 Participant Config.");
+
+        UpdateAddRemoveButtons();
+        UpdateCloudAIAddRemoveButtons();
+        _ = CheckAllStatusAsync();
+
+        // If a project is open, refresh the capability profile if the team changed.
+        if (_currentProjectFolder is not null)
+            _ = CheckAndTriggerSuperPowersAsync();
     }
 
     private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -7955,8 +10054,8 @@ public partial class MainWindow : Window
 
         var savedTheme = SettingsService.Load().LastTheme ?? "";
 
-        ComboBoxItem? savedItem = null;
-        ComboBoxItem? mochaItem = null;
+        ComboBoxItem? savedItem     = null;
+        ComboBoxItem? newspaperItem = null;
         foreach (var file in files)
         {
             var name    = SysIO.Path.GetFileNameWithoutExtension(file)!;
@@ -7968,14 +10067,15 @@ public partial class MainWindow : Window
                 name.Equals(savedTheme, StringComparison.OrdinalIgnoreCase))
                 savedItem = item;
 
-            if (name.Equals("CatppuccinMocha", StringComparison.OrdinalIgnoreCase))
-                mochaItem = item;
+            if (name.Equals("Newspaper", StringComparison.OrdinalIgnoreCase))
+                newspaperItem = item;
         }
 
         ThemeComboBox.SelectionChanged += ThemeComboBox_SelectionChanged;
 
+        // Priority: user's saved choice → Newspaper (clean professional default) → first available
         var target = savedItem
-                  ?? mochaItem
+                  ?? newspaperItem
                   ?? (ThemeComboBox.Items.Count > 0 ? (ComboBoxItem)ThemeComboBox.Items[0]! : null);
         if (target is not null)
         {
@@ -8258,6 +10358,25 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Like <see cref="AddSystemMessage"/> but returns the live <see cref="TextBlock"/>
+    /// so callers can update <c>.Text</c> in-place (e.g. for progress ticks).
+    /// </summary>
+    private TextBlock AddUpdatableSystemMessage(string text)
+    {
+        var tb = new TextBlock
+        {
+            Text          = text,
+            TextAlignment = TextAlignment.Center,
+            FontSize      = 11,
+            FontFamily    = new FontFamily("Segoe UI"),
+            Margin        = new Thickness(0, 10, 0, 10)
+        };
+        tb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        ChatPanel.Children.Add(tb);
+        return tb;
+    }
+
+    /// <summary>
     /// Adds a compact pill-shaped activity indicator to the chat (e.g. "⚙ [Gm] Gemma3 is working…").
     /// Returns the indicator element (can be removed from ChatPanel) and an update action:
     /// call it with <c>null</c> to switch to "✓ done" state, or with any string to set custom text.
@@ -8435,42 +10554,75 @@ public partial class MainWindow : Window
         var sb = new System.Text.StringBuilder();
         sb.Append("\n\n## Active team roster for this project\n");
         sb.Append(string.Join("\n", entries));
-        sb.Append("\n\nParticipants without write access cannot use <output> or <projectplan> tags. " +
-                  "They should describe what they want written and ask the Coordinator to write it for them.");
+        sb.Append("\n\nWrite access is shown per participant above [write access] / [read-only]. " +
+                  "Read-only participants must not use <output> or <projectplan> tags — " +
+                  "instead, state the issue or correction clearly and address a write-access participant by name to apply it.");
 
-        // Inject the agreed task plan produced during CoordinatorAuto initialization
-        if (!string.IsNullOrWhiteSpace(_projectSettings?.TeamPlan))
+        // Inject the participant capability profile (SuperPowers) when available.
+        // This tells the Coordinator each participant's strengths, weak points, cost tier,
+        // and whether they are a slow/expensive reasoning model — so tasks can be routed
+        // optimally: cheap fast models for routine work, powerful/costly ones only when needed.
+        var superPowers = LoadSuperPowersForContext();
+        if (!string.IsNullOrEmpty(superPowers))
         {
-            sb.Append("\n\n## Agreed team task assignments\n");
-            sb.Append(_projectSettings.TeamPlan.Trim());
-            sb.Append("\n\nUse these task assignments when deciding which team member should " +
-                      "handle which type of work.");
+            sb.Append("\n\n## Team capability profile\n");
+            sb.Append(superPowers);
+            sb.Append("\n\nRoute tasks using this profile: prefer low-cost / fast participants for " +
+                      "routine work; reserve high-cost or low-priority Reasoners for tasks that " +
+                      "genuinely require their specialized capabilities.");
         }
 
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Returns display names of all active participants who have write access
+    /// (Coordinator or explicit Write Access flag).
+    /// </summary>
+    private List<string> GetWriteAccessParticipantNames()
+    {
+        var names = new List<string>();
+        foreach (var ui in _ollamaParticipants.Where(u => u.Data.Enabled && IsParticipantActiveInProject(u)))
+            if (HasWriteAccess(ui)) names.Add(GetEffectiveName(ui));
+        foreach (var ui in _cloudAIParticipants.Where(u => u.Data.Enabled && IsParticipantActiveInProject(u)))
+            if (HasWriteAccess(ui)) names.Add(GetEffectiveName(ui));
+        return names;
+    }
+
     /// <summary>Returns a one-line role description for the team roster.</summary>
     private static string BuildRoleDesc(ProjectParticipantRole? role)
     {
-        if (role is null) return "participant — responds freely, no write access";
+        if (role is null) return "participant — read-only";
         if (role.IsCoordinator)
-            return "Coordinator — manages the session and delegates tasks; has write access to project files";
+            return "Coordinator — manages the session and delegates tasks  [write access]";
+
+        // Specialist roles — list all that apply
+        var parts = new List<string>();
         if (role.IsReasoner)
         {
             var prio = role.ReasonerPriority >= 7 ? "high priority"
                      : role.ReasonerPriority >= 4 ? "medium priority"
                      : "low priority";
-            return $"Reasoner ({prio}) — handles specialist tasks delegated by the Coordinator; has write access";
+            parts.Add($"Reasoner ({prio})");
         }
+        if (role.IsCritic)      parts.Add("Critic (CR)");
+        if (role.IsPlanner)     parts.Add("Planner (PL)");
+        if (role.IsResearcher)  parts.Add("Researcher (RS)");
+
+        var roleText = parts.Count > 0 ? string.Join(", ", parts) : "participant";
+        var writeTag = role.IsWriteAccess ? "  [write access]" : "  [read-only]";
         if (!string.IsNullOrWhiteSpace(role.AnswerAsName))
-            return $"Persona \"{role.AnswerAsName}\" — responds freely in character; no write access";
-        return "participant — responds freely; no write access";
+            roleText += $" · persona \"{role.AnswerAsName}\"";
+        return roleText + writeTag;
     }
 
     private static string BuildRoleInstruction(
         ProjectParticipantRole? role,
-        IReadOnlyList<(string Name, int Priority)>? availableReasoners = null)
+        IReadOnlyList<(string Name, int Priority)>? availableReasoners = null,
+        IReadOnlyList<string>? availablePlanners    = null,
+        IReadOnlyList<string>? availableResearchers = null,
+        IReadOnlyList<string>? availableCritics     = null,
+        string? superRoleInstruction                = null)
     {
         if (role is null) return "";
         var sb = new System.Text.StringBuilder();
@@ -8478,6 +10630,21 @@ public partial class MainWindow : Window
         {
             sb.Append("\n\nYou are the Coordinator in this multi-agent session. " +
                       "You lead the conversation and are responsible for delivering the final answer.");
+
+            // Planners — mentioned first so the Coordinator calls them first
+            if (availablePlanners?.Count > 0)
+            {
+                sb.Append($"\n  Planners (call first to break down a complex goal into a structured plan): " +
+                          $"{string.Join(", ", availablePlanners)}.");
+            }
+
+            // Researchers — called after planner, before main execution
+            if (availableResearchers?.Count > 0)
+            {
+                sb.Append($"\n  Researchers (call after the Planner to gather context, facts, or references): " +
+                          $"{string.Join(", ", availableResearchers)}.");
+            }
+
             if (availableReasoners?.Count > 0)
             {
                 var high = availableReasoners.Where(r => r.Priority >= 7)
@@ -8501,23 +10668,64 @@ public partial class MainWindow : Window
                 if (low.Count > 0)
                     sb.Append($"  Low-priority Reasoners (reserve for highly specialized tasks only): " +
                               $"{string.Join(", ", low.Select(r => r.Name))}.\n");
+            }
 
-                sb.Append("If you do not need specialist input, respond directly without mentioning any Reasoner.");
+            // Critics — mentioned last; call them after the main answer is produced
+            if (availableCritics?.Count > 0)
+            {
+                sb.Append($"\n  Critics (call after the main answer is ready to review for consistency, " +
+                          $"logic errors, and hallucinations): {string.Join(", ", availableCritics)}.");
+            }
+
+            if ((availableReasoners?.Count ?? 0) + (availablePlanners?.Count ?? 0) +
+                (availableResearchers?.Count ?? 0) + (availableCritics?.Count ?? 0) > 0)
+            {
+                sb.Append("\nMention a specialist by name to engage them. " +
+                          "If no specialist input is needed, respond directly without mentioning any of them.");
             }
             else
             {
                 sb.Append(" Respond to the user's message directly and in your own voice.");
             }
         }
-        if (role.IsReasoner)
-            sb.Append("\n\nYou are operating as a specialist Reasoner in this multi-agent session. " +
-                      "Do not volunteer responses to general conversation. " +
-                      "Only engage when the Coordinator explicitly delegates a specific task to you by name.");
+        if (!string.IsNullOrWhiteSpace(superRoleInstruction))
+        {
+            // AI-determined project-specific role — replaces the generic checkbox descriptions.
+            // The coordinator's structural routing block above is always kept regardless.
+            sb.Append($"\n\n{superRoleInstruction}");
+        }
+        else
+        {
+            // Fallback: checkbox-based generic role instructions.
+            // Used in Full Manual Mode (always) and in other modes before calibration runs.
+            if (role.IsReasoner)
+                sb.Append("\n\nYou are operating as a specialist Reasoner in this multi-agent session. " +
+                          "Do not volunteer responses to general conversation. " +
+                          "Only engage when the Coordinator explicitly delegates a specific task to you by name.");
+            if (role.IsCritic)
+                sb.Append("\n\nYou are a Critic in this multi-agent session. " +
+                          "When called by the Coordinator, carefully review the preceding responses for: " +
+                          "(a) internal consistency and self-contradiction, " +
+                          "(b) logical errors or flawed reasoning, " +
+                          "(c) unsupported or hallucinated claims. " +
+                          "Be precise and constructive. Do not repeat content — focus only on what needs correction.");
+            if (role.IsPlanner)
+                sb.Append("\n\nYou are a Planner in this multi-agent session. " +
+                          "When called by the Coordinator, produce a clear, concise work plan that breaks the " +
+                          "user's goal into numbered steps. Keep the plan focused and actionable — " +
+                          "avoid implementation detail unless explicitly asked.");
+            if (role.IsResearcher)
+                sb.Append("\n\nYou are a Researcher in this multi-agent session. " +
+                          "When called by the Coordinator, gather relevant context, background knowledge, and " +
+                          "reference material related to the current task. " +
+                          "Summarise concisely so that other participants can build on your findings. " +
+                          "Flag uncertainty clearly rather than guessing.");
+            if (!string.IsNullOrWhiteSpace(role.RoleInstruction))
+                sb.Append($"\n\n{role.RoleInstruction}");
+        }
         if (!string.IsNullOrWhiteSpace(role.AnswerAsName))
             sb.Append($"\n\nFor this project you are playing the character \"{role.AnswerAsName}\". " +
                       $"Always respond as {role.AnswerAsName} and never break character.");
-        if (!string.IsNullOrWhiteSpace(role.RoleInstruction))
-            sb.Append($"\n\n{role.RoleInstruction}");
         sb.Append(BuildResponseLengthInstruction(role.ResponseLength));
         return sb.ToString();
     }
@@ -8679,7 +10887,10 @@ public partial class MainWindow : Window
     /// <paramref name="hasWriteAccess"/> controls whether write tags are included;
     /// participants without write access only see read/list tags plus a note explaining the restriction.
     /// </summary>
-    private static string BuildFileOperationInstruction(string? projectFolder, bool hasWriteAccess = true)
+    private static string BuildFileOperationInstruction(
+        string? projectFolder,
+        bool hasWriteAccess   = true,
+        IReadOnlyList<string>? writerNames = null)
     {
         if (string.IsNullOrEmpty(projectFolder)) return "";
 
@@ -8699,11 +10910,20 @@ public partial class MainWindow : Window
         }
         else
         {
+            var writers = writerNames is { Count: > 0 }
+                ? string.Join(", ", writerNames)
+                : "a write-access participant";
+
             sb.Append(
-                "\n**Write access:** You do NOT have permission to write project files. " +
-                "Only the Coordinator and Reasoners may write files. " +
-                "If a file needs writing, describe the content clearly in your response " +
-                "and ask the Coordinator to write it for you using the appropriate tag.\n");
+                $"\n**Write access: READ-ONLY.** You cannot use <output> or <projectplan> tags.\n" +
+                $"Participants with write access on this team: {writers}.\n\n" +
+                $"When you identify an issue, have a correction to suggest, or spot something that needs changing:\n" +
+                $"1. Describe the problem or required change precisely — quote the relevant content and name the exact issue.\n" +
+                $"2. Propose your correction or improvement clearly.\n" +
+                $"3. Address {writers} directly by name and ask them to apply the change.\n\n" +
+                $"This handoff deliberately improves output quality: your precise analysis guides the writer " +
+                $"to make a better, more informed change. A short back-and-forth between you and the writer " +
+                $"before the final edit is not just acceptable — it is encouraged.\n");
         }
 
         sb.Append(
@@ -8759,8 +10979,17 @@ public partial class MainWindow : Window
                 return $"*(🔒 write blocked — {senderName} needs {coName} to write PROJECTPLAN/{fileName})*";
             }
             var relPath = SysIO.Path.Combine("PROJECTPLAN", fileName);
-            if (ProjectService.SafeWriteFile(projFolder, relPath, m.Groups[2].Value))
+            if (ProjectService.SafeWriteFile(projFolder, relPath, m.Groups[2].Value, out bool ppDirCreated))
+            {
                 AddSystemMessage($"📝  {senderName} → PROJECTPLAN/{fileName}");
+                if (ppDirCreated)
+                {
+                    AddSystemMessage("📁  PROJECTPLAN/ folder was missing — recreated automatically.");
+                    _sharedHistory.Add(new CloudAIMessage("user",
+                        "[SYSTEM: The PROJECTPLAN/ folder did not exist and was recreated automatically. " +
+                        $"{fileName} was written successfully.]", "System"));
+                }
+            }
             else
                 AddSystemMessage($"⚠  Could not write PROJECTPLAN/{fileName} (path rejected).");
             return $"*(→ PROJECTPLAN/{fileName})*";
@@ -8785,8 +11014,17 @@ public partial class MainWindow : Window
                 return $"*(🔒 write blocked — {senderName} needs {coName} to write OUTPUT/{fileName})*";
             }
             var relPath = SysIO.Path.Combine("OUTPUT", fileName);
-            if (ProjectService.SafeWriteFile(projFolder, relPath, m.Groups[2].Value))
+            if (ProjectService.SafeWriteFile(projFolder, relPath, m.Groups[2].Value, out bool outDirCreated))
+            {
                 AddSystemMessage($"📤  {senderName} → OUTPUT/{fileName}");
+                if (outDirCreated)
+                {
+                    AddSystemMessage("📁  OUTPUT/ folder was missing — recreated automatically.");
+                    _sharedHistory.Add(new CloudAIMessage("user",
+                        "[SYSTEM: The OUTPUT/ folder did not exist and was recreated automatically. " +
+                        $"{fileName} was written successfully.]", "System"));
+                }
+            }
             else
                 AddSystemMessage($"⚠  Could not write OUTPUT/{fileName} (path rejected).");
             return $"*(→ OUTPUT/{fileName})*";
@@ -9133,9 +11371,12 @@ public partial class MainWindow : Window
         // Updating the resource updates all existing bubbles automatically via WPF binding.
         var content = new StackPanel
         {
-            HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
+            HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+            Tag = "BubbleContent"   // used by UpdateChatBubbleWidth for direct Width refresh
         };
-        content.SetResourceReference(FrameworkElement.MaxWidthProperty, "ChatBubbleMaxWidth");
+        // Width (not MaxWidth) so the bubble always fills exactly slider-% of the chat area.
+        // Short messages no longer cap at their natural text width.
+        content.SetResourceReference(FrameworkElement.WidthProperty, "ChatBubbleMaxWidth");
         content.Children.Add(nameLabel);
         content.Children.Add(bubbleWrapper);
         content.Children.Add(timeLabel);

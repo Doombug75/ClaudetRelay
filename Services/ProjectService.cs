@@ -3,49 +3,23 @@ using System.Text.Json;
 
 namespace ClaudetRelay.Services;
 
-// ── Project data models ────────────────────────────────────────────────────
-
-public class ProjectParticipant
-{
-    public string Type        { get; set; } = "Ollama";   // "Ollama" | provider name
-    public string Provider    { get; set; } = "";
-    public string ModelName   { get; set; } = "";
-    public string DisplayName { get; set; } = "";
-    public bool   IsActive    { get; set; } = true;
-}
-
-public class ProjectMeta
-{
-    public string   ProjectName    { get; set; } = "Untitled";
-    public DateTime CreatedAt      { get; set; } = DateTime.UtcNow;
-    public DateTime LastOpened     { get; set; } = DateTime.UtcNow;
-    public List<ProjectParticipant> Participants { get; set; } = [];
-
-    /// <summary>
-    /// The project type key (matches ProjectTypeDefinition.Name, e.g. "Novel", "Software Project").
-    /// Empty / null means "General".
-    /// </summary>
-    public string ProjectTypeName { get; set; } = "General";
-
-    /// <summary>
-    /// Optional freeform description of this specific project instance, shown to all AI
-    /// participants as part of their system prompt context.
-    /// Example: "A dark fantasy novel about a dragon who falls in love with a wizard."
-    /// </summary>
-    public string Description { get; set; } = "";
-}
-
-// ── Project settings (roles, orchestration) ────────────────────────────────
+// ── Project data model ────────────────────────────────────────────────────
+// Single class — identity + settings stored together in PROJECTSETTINGS/project.json.
+// No separate ProjectMeta / project-settings.json split.
 
 /// <summary>How participants interact when a user message arrives.</summary>
 public enum OrchestrationMode
 {
-    /// <summary>All active participants respond to every message (default behaviour).</summary>
+    /// <summary>
+    /// Full Manual Mode — all active participants respond to every message.
+    /// No coordinator automation: no SuperPowers calibration, no work-session greeting.
+    /// The user manages all task assignments manually.
+    /// </summary>
     AllRespond = 0,
 
     /// <summary>
     /// The Coordinator responds first and may delegate to one or more Reasoners
-    /// by tagging them (e.g. @Reasoner) in its reply.
+    /// by tagging them (e.g. @Reasoner) in its reply. Default mode.
     /// </summary>
     CoordinatorFirst = 1,
 
@@ -56,10 +30,8 @@ public enum OrchestrationMode
     CoordinatorSummarizes = 2,
 
     /// <summary>
-    /// On first project open the team runs a visible initialization discussion to agree
-    /// on task assignments; the result is stored in <see cref="ProjectSettings.TeamPlan"/>
-    /// and injected into all subsequent system prompts. After initialization, behaviour
-    /// is identical to <see cref="CoordinatorFirst"/>.
+    /// Legacy — kept for backward compatibility with saved projects.
+    /// Treated identically to <see cref="CoordinatorFirst"/> at runtime.
     /// </summary>
     CoordinatorAuto   = 3,
 
@@ -117,48 +89,78 @@ public class ProjectParticipantRole
     public int ResponseLength      { get; set; } = 50;
 
     /// <summary>
+    /// Critic reviews other participants' output for consistency, logic errors,
+    /// and factual accuracy. Multiple critics allowed.
+    /// </summary>
+    public bool IsCritic           { get; set; } = false;
+
+    /// <summary>
+    /// Planner breaks down the user's goal into a structured work plan before
+    /// execution begins. Multiple planners allowed.
+    /// </summary>
+    public bool IsPlanner          { get; set; } = false;
+
+    /// <summary>
+    /// Researcher gathers information, looks up references, or explores context
+    /// before the main answer is produced. Multiple researchers allowed.
+    /// </summary>
+    public bool IsResearcher       { get; set; } = false;
+
+    /// <summary>
+    /// Write Access — participant may use &lt;output&gt; and &lt;projectplan&gt; file-write tags.
+    /// Coordinators always have write access regardless of this flag.
+    /// All other participants are read-only unless this flag is set.
+    /// </summary>
+    public bool IsWriteAccess      { get; set; } = false;
+
+    /// <summary>
     /// Whether this participant is active in the current project / scene.
     /// Inactive participants are skipped during AI response rounds.
     /// </summary>
     public bool IsActive           { get; set; } = true;
 }
 
-/// <summary>Per-project settings saved as <c>project-settings.json</c> inside the project folder.</summary>
+/// <summary>
+/// All project data in one place — identity, settings, and roles.
+/// Saved as <c>PROJECTSETTINGS/project.json</c> inside the project folder.
+/// </summary>
 public class ProjectSettings
 {
-    public OrchestrationMode            OrchestrationMode { get; set; } = OrchestrationMode.AllRespond;
+    // ── Identity ──────────────────────────────────────────────────────────
+    public string   ProjectName     { get; set; } = "Untitled";
+    public DateTime CreatedAt       { get; set; } = DateTime.UtcNow;
+    public DateTime LastOpened      { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Matches ProjectTypeDefinition.Name (e.g. "Novel", "Software Project"). Empty = General.</summary>
+    public string   ProjectTypeName { get; set; } = "General";
+
+    /// <summary>Freeform project description injected into every AI system prompt.</summary>
+    public string   Description     { get; set; } = "";
+
+    // ── Orchestration ──────────────────────────────────────────────────────
+    public OrchestrationMode            OrchestrationMode { get; set; } = OrchestrationMode.CoordinatorFirst;
     public List<ProjectParticipantRole> Roles             { get; set; } = [];
 
-    /// <summary>
-    /// Language all AI participants must use in this project.
-    /// Empty string = follow the conversation language (model default).
-    /// </summary>
+    /// <summary>Language override. Empty = follow conversation language.</summary>
     public string Language { get; set; } = "";
 
-    /// <summary>
-    /// Maximum number of consecutive AI-to-AI response rounds after a user message.
-    /// 1 = only respond to user (no chaining). Default = 3.
-    /// </summary>
+    /// <summary>Max consecutive AI-to-AI response rounds per user message.</summary>
     public int MaxDialogDepth { get; set; } = 3;
 
-    /// <summary>
-    /// Default response length (0–100) applied to new participants when they are first
-    /// added to this project. Existing roles are not changed unless "Apply to All" is used.
-    /// 50 = model default (no injection).
-    /// </summary>
+    /// <summary>Default response length (0–100) for new participants. 50 = model default.</summary>
     public int DefaultResponseLength { get; set; } = 50;
 
-    /// <summary>
-    /// Team task-assignment plan agreed during the <see cref="OrchestrationMode.CoordinatorAuto"/>
-    /// initialization discussion. Injected into every AI system prompt as context.
-    /// Empty string = not yet initialized (or mode is not CoordinatorAuto).
-    /// </summary>
+    /// <summary>Legacy — no longer used. Kept so existing JSON round-trips cleanly.</summary>
     public string TeamPlan { get; set; } = "";
 
     /// <summary>
-    /// Participants that were active the last time this project was open.
-    /// <c>null</c> = project has never been saved with participant state yet;
-    /// the app falls back to the global participant settings on first open.
+    /// True once the coordinator has started the roadmap-building conversation.
+    /// Reset to false to restart from Project Settings.
+    /// </summary>
+    public bool RoadmapInitialized { get; set; } = false;
+
+    /// <summary>
+    /// Participants active the last time this project was open, used for positional role matching.
     /// </summary>
     public List<ParticipantConfig>? ActiveParticipants { get; set; } = null;
 
@@ -234,63 +236,53 @@ public static class ProjectService
     public static string ResolveFolder(string? configured) =>
         string.IsNullOrWhiteSpace(configured) ? GetDefaultProjectsFolder() : configured;
 
+    /// <summary>Path to the single project file inside a project folder.</summary>
+    public static string ProjectFilePath(string projectFolder) =>
+        Path.Combine(projectFolder, "PROJECTSETTINGS", "project.json");
+
     // ── List ──────────────────────────────────────────────────────────────
 
-    public static List<(string Folder, ProjectMeta Meta)> ListProjects(string folder)
+    public static List<(string Folder, ProjectSettings Settings)> ListProjects(string folder)
     {
-        var result = new List<(string, ProjectMeta)>();
+        var result = new List<(string, ProjectSettings)>();
         if (!Directory.Exists(folder)) return result;
 
         foreach (var dir in Directory.GetDirectories(folder)
                                      .OrderByDescending(Directory.GetLastWriteTime))
         {
-            var meta = LoadMeta(dir);
-            if (meta is not null) result.Add((dir, meta));
+            var ps = LoadProject(dir);
+            if (ps is not null) result.Add((dir, ps));
         }
         return result;
     }
 
-    // ── Load / Save meta ──────────────────────────────────────────────────
+    // ── Load / Save ───────────────────────────────────────────────────────
 
-    public static ProjectMeta? LoadMeta(string projectFolder)
+    /// <summary>
+    /// Loads the project from <c>PROJECTSETTINGS/project.json</c>.
+    /// Returns <c>null</c> when the file is absent (not a project folder).
+    /// </summary>
+    public static ProjectSettings? LoadProject(string projectFolder)
     {
-        var path = Path.Combine(projectFolder, "project.json");
+        var path = ProjectFilePath(projectFolder);
         if (!File.Exists(path)) return null;
         try
         {
-            return JsonSerializer.Deserialize<ProjectMeta>(File.ReadAllText(path), ReadOpts);
+            return JsonSerializer.Deserialize<ProjectSettings>(File.ReadAllText(path), ReadOpts);
         }
         catch { return null; }
     }
 
-    public static void SaveMeta(string projectFolder, ProjectMeta meta)
+    /// <summary>
+    /// Saves all project data to <c>PROJECTSETTINGS/project.json</c>.
+    /// Creates the PROJECTSETTINGS folder if needed.
+    /// </summary>
+    public static void SaveProject(string projectFolder, ProjectSettings settings)
     {
-        Directory.CreateDirectory(projectFolder);
-        File.WriteAllText(
-            Path.Combine(projectFolder, "project.json"),
-            JsonSerializer.Serialize(meta, WriteOpts));
-    }
-
-    // ── Project settings ──────────────────────────────────────────────────
-
-    public static ProjectSettings LoadProjectSettings(string projectFolder)
-    {
-        var path = Path.Combine(projectFolder, "project-settings.json");
-        if (!File.Exists(path)) return new ProjectSettings();
-        try
-        {
-            return JsonSerializer.Deserialize<ProjectSettings>(
-                       File.ReadAllText(path), ReadOpts) ?? new ProjectSettings();
-        }
-        catch { return new ProjectSettings(); }
-    }
-
-    public static void SaveProjectSettings(string projectFolder, ProjectSettings settings)
-    {
-        Directory.CreateDirectory(projectFolder);
-        File.WriteAllText(
-            Path.Combine(projectFolder, "project-settings.json"),
-            JsonSerializer.Serialize(settings, WriteOpts));
+        var dir = Path.GetDirectoryName(ProjectFilePath(projectFolder))!;
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(ProjectFilePath(projectFolder),
+                          JsonSerializer.Serialize(settings, WriteOpts));
     }
 
     // ── Chat log ──────────────────────────────────────────────────────────
@@ -413,6 +405,7 @@ public static class ProjectService
         Directory.CreateDirectory(planFolder);
         Directory.CreateDirectory(Path.Combine(folder, "OUTPUT"));
         Directory.CreateDirectory(Path.Combine(folder, "AI-Characters"));
+        Directory.CreateDirectory(Path.Combine(folder, "PROJECTSETTINGS"));
 
         // Type-specific world-building subfolders inside PROJECTPLAN/
         if (worldFolders is { Length: > 0 })
@@ -425,12 +418,12 @@ public static class ProjectService
             }
         }
 
-        SaveMeta(folder, new ProjectMeta
+        SaveProject(folder, new ProjectSettings
         {
-            ProjectName    = name,
+            ProjectName     = name,
             ProjectTypeName = typeName,
-            CreatedAt      = DateTime.UtcNow,
-            LastOpened     = DateTime.UtcNow
+            CreatedAt       = DateTime.UtcNow,
+            LastOpened      = DateTime.UtcNow
         });
         return folder;
     }
@@ -460,15 +453,28 @@ public static class ProjectService
     /// <summary>
     /// Safe file-write helper: only writes if the resolved path stays inside
     /// <paramref name="projectFolder"/>. Returns false and writes nothing otherwise.
+    /// <paramref name="directoryCreated"/> is true when the containing directory
+    /// did not exist and was freshly created — callers can notify the coordinator.
     /// </summary>
-    public static bool SafeWriteFile(string projectFolder, string relativePath, string content)
+    public static bool SafeWriteFile(string projectFolder, string relativePath, string content,
+                                     out bool directoryCreated)
     {
+        directoryCreated = false;
         var full = Path.GetFullPath(Path.Combine(projectFolder, relativePath));
         if (!IsPathSafe(full, projectFolder)) return false;
-        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+        var dir = Path.GetDirectoryName(full)!;
+        if (!Directory.Exists(dir))
+        {
+            Directory.CreateDirectory(dir);
+            directoryCreated = true;
+        }
         File.WriteAllText(full, content);
         return true;
     }
+
+    /// <inheritdoc cref="SafeWriteFile(string,string,string,out bool)"/>
+    public static bool SafeWriteFile(string projectFolder, string relativePath, string content)
+        => SafeWriteFile(projectFolder, relativePath, content, out _);
 
     /// <summary>
     /// Safe file-read helper: only reads if the resolved path stays inside
