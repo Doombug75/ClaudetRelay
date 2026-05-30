@@ -12,20 +12,23 @@ public partial class SettingsWindow : Window
 
     private sealed class ParticipantForm
     {
-        public required int         SlotIndex        { get; init; }
-        public required TabItem     Tab              { get; init; }
-        public required CheckBox    EnabledCheck     { get; init; }
-        public required TextBox     NameBox          { get; init; }
-        public required ComboBox    TypeCombo        { get; init; }
-        // Ollama section
-        public required Border      OllamaSection    { get; init; }
-        public required TextBox     ServerUrlBox     { get; init; }
-        public required ComboBox    OllamaModelCombo { get; init; }
-        public required TextBlock   OllamaTestLabel  { get; init; }
+        public required int         SlotIndex           { get; init; }
+        public required TabItem     Tab                 { get; init; }
+        public required CheckBox    EnabledCheck        { get; init; }
+        public required TextBox     NameBox             { get; init; }
+        public required ComboBox    TypeCombo           { get; init; }
+        // Ollama (local) section
+        public required Border      OllamaSection       { get; init; }
+        public required TextBox     ServerUrlBox        { get; init; }
+        public required ComboBox    OllamaModelCombo    { get; init; }
+        public required TextBlock   OllamaTestLabel     { get; init; }
         // Cloud AI section
-        public required Border      CloudAISection   { get; init; }
-        public required ComboBox    CloudModelCombo  { get; init; }
-        public required TextBlock   CloudTestLabel   { get; init; }
+        public required Border      CloudAISection      { get; init; }
+        public required ComboBox    CloudModelCombo     { get; init; }
+        public required TextBox     CloudModelFilter    { get; init; }  // live search box
+        public required TextBlock   CloudTestLabel      { get; init; }
+        // Full unfiltered model list — updated by Test button, read by the filter
+        public List<string> AllCloudModels { get; set; } = [];
         // Rate-limit row (Cloud AI only)
         public required CheckBox  RpmEnabledCheck  { get; init; }
         public required TextBox   RpmValueBox      { get; init; }
@@ -33,8 +36,11 @@ public partial class SettingsWindow : Window
         // Nickname duplicate warning
         public required TextBlock NicknameWarning  { get; init; }
 
+        /// <summary>Returns the canonical provider name (stored in Tag), ignoring any display-only decorations in Content.</summary>
         public string CurrentProvider =>
-            (TypeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Ollama";
+            (TypeCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString()
+            ?? (TypeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString()
+            ?? "Ollama";
     }
 
     /// <summary>Holds the key-input controls for one cloud provider on the Providers tab.</summary>
@@ -72,8 +78,9 @@ public partial class SettingsWindow : Window
         {
             try
             {
-                Resources.MergedDictionaries.Add(
-                    new ResourceDictionary { Source = new Uri(currentThemePath) });
+                var dict = OxsuitLoader.Load(currentThemePath);
+                if (dict is not null)
+                    Resources.MergedDictionaries.Add(dict);
             }
             catch { /* no theme – window still usable */ }
         }
@@ -120,11 +127,12 @@ public partial class SettingsWindow : Window
         // Local values beat any system-theme setter
         tb.FontSize   = 14;
         tb.FontFamily = new FontFamily("Segoe UI");
-        tb.SetResourceReference(Control.ForegroundProperty, "TextBrush");
-        tb.SetResourceReference(TextBox.CaretBrushProperty, "TextBrush");
+        tb.SetResourceReference(Control.ForegroundProperty, "ContentTextBrush");
+        tb.SetResourceReference(TextBox.CaretBrushProperty, "InputTextBrush");
 
-        var outer = new Border { Height = 36, CornerRadius = new CornerRadius(8) };
-        outer.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+        var outer = new Border { Height = 36, CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1) };
+        outer.SetResourceReference(Border.BackgroundProperty,  "InputBgBrush");
+        outer.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         outer.Child = tb;
         return (outer, tb);
     }
@@ -135,10 +143,11 @@ public partial class SettingsWindow : Window
         var pb = new PasswordBox { Style = (Style)FindResource("SPasswordBox") };
         pb.FontSize   = 14;
         pb.FontFamily = new FontFamily("Segoe UI");
-        pb.SetResourceReference(Control.ForegroundProperty, "TextBrush");
+        pb.SetResourceReference(Control.ForegroundProperty, "ContentTextBrush");
 
-        var outer = new Border { Height = 36, CornerRadius = new CornerRadius(8) };
-        outer.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+        var outer = new Border { Height = 36, CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1) };
+        outer.SetResourceReference(Border.BackgroundProperty,  "InputBgBrush");
+        outer.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         outer.Child = pb;
         return (outer, pb);
     }
@@ -163,7 +172,7 @@ public partial class SettingsWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 0, 0, 18)
         };
-        nameHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        nameHint.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         // ── RESPONSE TONE ──────────────────────────────────────────────────
         var settings2 = SettingsService.Load(); // fresh read for ToneLevel
@@ -182,7 +191,7 @@ public partial class SettingsWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin     = new Thickness(0, 0, 0, 4)
         };
-        toneValueLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        toneValueLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
 
         var toneSlider = new Slider
         {
@@ -286,9 +295,9 @@ public partial class SettingsWindow : Window
             VerticalContentAlignment = VerticalAlignment.Center,
             Margin            = new Thickness(8, 0, 0, 0)
         };
-        dialogueTurnsBox.SetResourceReference(TextBox.BackgroundProperty, "InputBrush");
-        dialogueTurnsBox.SetResourceReference(TextBox.ForegroundProperty, "TextBrush");
-        dialogueTurnsBox.SetResourceReference(TextBox.BorderBrushProperty, "InputBrush");
+        dialogueTurnsBox.SetResourceReference(TextBox.BackgroundProperty, "InputBgBrush");
+        dialogueTurnsBox.SetResourceReference(TextBox.ForegroundProperty, "InputTextBrush");
+        dialogueTurnsBox.SetResourceReference(TextBox.BorderBrushProperty, "InputBgBrush");
         _dialogueTurnsBox = dialogueTurnsBox;
 
         bool updatingTurns = false;
@@ -340,7 +349,7 @@ public partial class SettingsWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin     = new Thickness(0, 0, 0, 4)
         };
-        responseLengthValueLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        responseLengthValueLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
 
         var responseLengthSlider = new Slider
         {
@@ -399,165 +408,165 @@ public partial class SettingsWindow : Window
         ParticipantsTabControl.Items.Add(tab);
     }
 
-    // ── Providers tab ─────────────────────────────────────────────────────
+    // ── Provider tabs (one per provider, alphabetically sorted) ──────────
 
     private void BuildProvidersTab()
     {
-        var root = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
-
-        var introHint = new TextBlock
+        // Alphabetical order — easy to scan, easy to extend
+        var providers = new[]
         {
-            Text         = "Enter your API key for each provider once. All participants of the same provider share the same key.",
-            FontSize     = 12,
+            "Anthropic", "Google AI", "Groq", "Mistral",
+            "Ollama ☁", "OpenAI ChatGPT", "OpenRouter", "xAI Grok"
+        };
+
+        foreach (var provider in providers)
+            BuildSingleProviderTab(provider);
+    }
+
+    private void BuildSingleProviderTab(string provider)
+    {
+        // ── Key input (password + plain-text toggle) ──────────────────
+        var (keyOuter, keyBox)         = MakePasswordInput();
+        var (keyTextOuter, keyTextBox) = MakeTextInput();
+        keyTextOuter.Visibility = Visibility.Collapsed;
+
+        var existingKey   = WindowsCredentialManager.Load(provider) ?? "";
+        keyBox.Password   = existingKey;
+        keyTextBox.Text   = existingKey;
+
+        var showHideBtn = new Button
+        {
+            Content = "Show",
+            Height  = 36,
+            Padding = new Thickness(10, 0, 10, 0),
+            Margin  = new Thickness(6, 0, 0, 0),
+            Style   = (Style)FindResource("SButtonSecondary"),
+            ToolTip = "Show / hide key"
+        };
+
+        // Row: key input + show/hide button
+        var keyGrid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        keyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        keyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(keyOuter,     0);
+        Grid.SetColumn(keyTextOuter, 0);   // same cell — they toggle
+        Grid.SetColumn(showHideBtn,  1);
+        keyGrid.Children.Add(keyOuter);
+        keyGrid.Children.Add(keyTextOuter);
+        keyGrid.Children.Add(showHideBtn);
+
+        var hintText = new TextBlock
+        {
+            FontSize     = 11,
             FontFamily   = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap,
-            Margin       = new Thickness(0, 0, 0, 16)
+            Margin       = new Thickness(0, 0, 0, 10)
         };
-        introHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
-        root.Children.Add(introHint);
+        hintText.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+        UpdateApiKeyHint(hintText, provider);
 
-        foreach (var provider in new[]
-            { "Anthropic", "OpenAI ChatGPT", "Google AI", "Groq", "xAI Grok", "OpenRouter", "Mistral" })
+        // Test button + status label
+        var testBtn = new Button
         {
-            // ── Provider heading ──────────────────────────────────────────
-            var heading = new TextBlock
+            Content = "Test Connection",
+            Style   = (Style)FindResource("SButtonSecondary"),
+            Margin  = new Thickness(0, 0, 10, 0),
+            Height  = 32
+        };
+
+        var testLabel = new TextBlock
+        {
+            FontSize          = 12,
+            FontFamily        = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        testLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+
+        var testRow = new StackPanel { Orientation = Orientation.Horizontal };
+        testRow.Children.Add(testBtn);
+        testRow.Children.Add(testLabel);
+
+        var keyLabel = new TextBlock
+        {
+            Style  = (Style)FindResource("SLabel"),
+            Text   = "API KEY",
+            Margin = new Thickness(0, 4, 0, 6)
+        };
+
+        var root = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
+        root.Children.Add(keyLabel);
+        root.Children.Add(keyGrid);
+        root.Children.Add(hintText);
+        root.Children.Add(testRow);
+
+        // ── Store form record ─────────────────────────────────────────
+        _providerKeyForms.Add(new ProviderKeyForm(provider, keyBox, keyTextBox, keyOuter, testLabel));
+
+        // ── Events ────────────────────────────────────────────────────
+        showHideBtn.Click += (_, _) =>
+        {
+            if (keyOuter.Visibility == Visibility.Visible)   // dots → show plain text
             {
-                Style  = (Style)FindResource("SLabel"),
-                Text   = provider.ToUpperInvariant(),
-                Margin = new Thickness(0, 8, 0, 6)
-            };
-
-            // ── Key input (password + plain-text toggle) ──────────────────
-            var (keyOuter, keyBox)         = MakePasswordInput();
-            var (keyTextOuter, keyTextBox) = MakeTextInput();
-            keyTextOuter.Visibility = Visibility.Collapsed;
-
-            var existingKey   = WindowsCredentialManager.Load(provider) ?? "";
-            keyBox.Password   = existingKey;
-            keyTextBox.Text   = existingKey;
-
-            // Show/Hide toggles between "Show" and "Hide" text — no fixed width needed
-            var showHideBtn = new Button
+                keyTextBox.Text         = keyBox.Password;
+                keyOuter.Visibility     = Visibility.Collapsed;
+                keyTextOuter.Visibility = Visibility.Visible;
+                showHideBtn.Content     = "Hide";
+                keyTextBox.Focus();
+                keyTextBox.CaretIndex   = keyTextBox.Text.Length;
+            }
+            else                                             // plain text → back to dots
             {
-                Content = "Show",
-                Height  = 36,
-                Padding = new Thickness(10, 0, 10, 0),
-                Margin  = new Thickness(6, 0, 0, 0),
-                Style   = (Style)FindResource("SButtonSecondary"),
-                ToolTip = "Show / hide key"
-            };
+                keyBox.Password         = keyTextBox.Text;
+                keyTextOuter.Visibility = Visibility.Collapsed;
+                keyOuter.Visibility     = Visibility.Visible;
+                showHideBtn.Content     = "Show";
+            }
+        };
 
-            // Row 1: key input + show/hide button
-            var keyGrid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
-            keyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            keyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            Grid.SetColumn(keyOuter,     0);
-            Grid.SetColumn(keyTextOuter, 0);   // same cell — they toggle
-            Grid.SetColumn(showHideBtn,  1);
-            keyGrid.Children.Add(keyOuter);
-            keyGrid.Children.Add(keyTextOuter);
-            keyGrid.Children.Add(showHideBtn);
+        keyBox.PasswordChanged += (_, _) => keyTextBox.Text  = keyBox.Password;
+        keyTextBox.TextChanged  += (_, _) => keyBox.Password = keyTextBox.Text;
 
-            var hintText = new TextBlock
+        var capturedProvider = provider;
+        testBtn.Click += async (_, _) =>
+        {
+            testLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+            testLabel.Text = "Testing…";
+            try
             {
-                FontSize     = 11,
-                FontFamily   = new FontFamily("Segoe UI"),
-                TextWrapping = TextWrapping.Wrap,
-                Margin       = new Thickness(0, 0, 0, 6)
-            };
-            hintText.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
-            UpdateApiKeyHint(hintText, provider);
-
-            // Row 2: test button + status label, side by side
-            var testBtn = new Button
-            {
-                Content = "Test Connection",
-                Style   = (Style)FindResource("SButtonSecondary"),
-                Margin  = new Thickness(0, 0, 10, 0),
-                Height  = 32
-            };
-
-            var testLabel = new TextBlock
-            {
-                FontSize          = 12,
-                FontFamily        = new FontFamily("Segoe UI"),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            testLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
-
-            var testRow = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Margin      = new Thickness(0, 0, 0, 14)
-            };
-            testRow.Children.Add(testBtn);
-            testRow.Children.Add(testLabel);
-
-            root.Children.Add(heading);
-            root.Children.Add(keyGrid);
-            root.Children.Add(hintText);
-            root.Children.Add(testRow);
-
-            // ── Store form record ─────────────────────────────────────────
-            _providerKeyForms.Add(new ProviderKeyForm(provider, keyBox, keyTextBox, keyOuter, testLabel));
-
-            // ── Events ────────────────────────────────────────────────────
-            showHideBtn.Click += (_, _) =>
-            {
-                if (keyOuter.Visibility == Visibility.Visible)   // currently dots → show plain text
+                var key = GetApiKeyForProvider(capturedProvider);
+                if (string.IsNullOrWhiteSpace(key))
                 {
-                    keyTextBox.Text         = keyBox.Password;
-                    keyOuter.Visibility     = Visibility.Collapsed;
-                    keyTextOuter.Visibility = Visibility.Visible;
-                    showHideBtn.Content     = "Hide";
-                    keyTextBox.Focus();
-                    keyTextBox.CaretIndex   = keyTextBox.Text.Length;
+                    testLabel.Text = "⚠  Enter a key first.";
+                    return;
                 }
-                else                                             // currently plain text → back to dots
-                {
-                    keyBox.Password         = keyTextBox.Text;
-                    keyTextOuter.Visibility = Visibility.Collapsed;
-                    keyOuter.Visibility     = Visibility.Visible;
-                    showHideBtn.Content     = "Show";
-                }
-            };
 
-            keyBox.PasswordChanged += (_, _) => keyTextBox.Text  = keyBox.Password;
-            keyTextBox.TextChanged  += (_, _) => keyBox.Password = keyTextBox.Text;
-
-            var capturedProvider = provider;
-            testBtn.Click += async (_, _) =>
+                using var svc = BuildCloudAIService(capturedProvider, key);
+                var ok = await svc.IsAvailableAsync();
+                testLabel.SetResourceReference(TextBlock.ForegroundProperty,
+                    ok ? "SecondaryAccentBrush" : "AccentHighlightBrush");
+                testLabel.Text = ok ? "Connected ✓" : "Failed ✗  (check your key)";
+            }
+            catch (Exception ex)
             {
-                testLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
-                testLabel.Text = "Testing…";
-                try
-                {
-                    var key = GetApiKeyForProvider(capturedProvider);
-                    if (string.IsNullOrWhiteSpace(key))
-                    {
-                        testLabel.Text = "⚠  Enter a key first.";
-                        return;
-                    }
-                    using var svc = BuildCloudAIService(capturedProvider, key);
-                    var ok = await svc.IsAvailableAsync();
-                    testLabel.SetResourceReference(TextBlock.ForegroundProperty,
-                        ok ? "OllamaBrush" : "AccentBrush");
-                    testLabel.Text = ok ? "Connected ✓" : "Failed ✗  (check your key)";
-                }
-                catch (Exception ex)
-                {
-                    testLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
-                    testLabel.Text = $"Error: {ex.Message}";
-                }
-            };
-        }
+                testLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentHighlightBrush");
+                testLabel.Text = $"Error: {ex.Message}";
+            }
+        };
 
         var scroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = root
         };
-        ParticipantsTabControl.Items.Add(new TabItem { Header = "Providers", Content = scroll });
+
+        // Short tab header — no need to repeat "ChatGPT" or "Grok" brand names in the tab bar
+        var tabHeader = provider switch
+        {
+            "OpenAI ChatGPT" => "OpenAI",
+            "xAI Grok"       => "xAI",
+            _                => provider
+        };
+        ParticipantsTabControl.Items.Add(new TabItem { Header = tabHeader, Content = scroll });
     }
 
     // ── API-key helper ─────────────────────────────────────────────────────
@@ -623,8 +632,12 @@ public partial class SettingsWindow : Window
 
         var typeLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "TYPE" };
         var typeCombo = new ComboBox { Style = (Style)FindResource("SComboBox") };
-        foreach (var t in new[] { "Ollama", "Anthropic", "OpenAI ChatGPT", "Google AI", "Groq", "xAI Grok", "OpenRouter", "Mistral" })
-            typeCombo.Items.Add(new ComboBoxItem { Content = t });
+        foreach (var t in new[] { "Ollama", "Ollama ☁", "Anthropic", "OpenAI ChatGPT", "Google AI", "Groq", "xAI Grok", "OpenRouter", "Mistral" })
+        {
+            // "Ollama" is local — no cloud symbol. "Ollama ☁" already has one. All others are cloud.
+            var display = t == "Ollama" || t == "Ollama ☁" ? t : $"{t} ☁";
+            typeCombo.Items.Add(new ComboBoxItem { Content = display, Tag = t });
+        }
         SelectComboByContent(typeCombo, config.Type);
 
         var nameCol = new StackPanel { Margin = new Thickness(0, 0, 8, 14) };
@@ -687,7 +700,7 @@ public partial class SettingsWindow : Window
             Margin       = new Thickness(0, 0, 0, 10),
             TextWrapping = TextWrapping.Wrap
         };
-        ollamaHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        ollamaHint.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         var ollamaTestBtn = new Button
         {
@@ -701,7 +714,7 @@ public partial class SettingsWindow : Window
             FontFamily        = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center
         };
-        ollamaTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        ollamaTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         var ollamaTestRow = new StackPanel { Orientation = Orientation.Horizontal };
         ollamaTestRow.Children.Add(ollamaTestBtn);
@@ -725,6 +738,45 @@ public partial class SettingsWindow : Window
         // API keys are managed in the Providers tab — not per participant.
 
         var cloudModelLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "MODEL" };
+
+        // ── Model filter box ──────────────────────────────────────────────
+        // Watermark overlay: a hint TextBlock in the same Grid cell as the TextBox.
+        // IsHitTestVisible=false lets clicks fall through to the TextBox.
+        var cloudModelFilterBox = new TextBox
+        {
+            Style        = (Style)FindResource("STextBox"),
+            ToolTip      = "Type to filter the model list",
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        cloudModelFilterBox.SetResourceReference(TextBox.ForegroundProperty, "ContentTextBrush");
+        cloudModelFilterBox.SetResourceReference(TextBox.CaretBrushProperty, "InputTextBrush");
+
+        var cloudModelFilterHint = new TextBlock
+        {
+            Text                = "🔍  Filter models…",
+            FontSize            = 13,
+            FontFamily          = new FontFamily("Segoe UI"),
+            IsHitTestVisible    = false,
+            VerticalAlignment   = VerticalAlignment.Center,
+            Margin              = new Thickness(10, 0, 0, 0),
+        };
+        cloudModelFilterHint.SetResourceReference(TextBlock.ForegroundProperty, "InputDimBrush");
+
+        var filterGrid = new Grid();
+        filterGrid.Children.Add(cloudModelFilterBox);
+        filterGrid.Children.Add(cloudModelFilterHint);
+
+        var cloudModelFilterOuter = new Border
+        {
+            Height        = 34,
+            CornerRadius  = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            Margin        = new Thickness(0, 0, 0, 6),
+            Child         = filterGrid,
+        };
+        cloudModelFilterOuter.SetResourceReference(Border.BackgroundProperty,    "InputBgBrush");
+        cloudModelFilterOuter.SetResourceReference(Border.BorderBrushProperty,   "InputBorderBrush");
+
         var cloudModelCombo = new ComboBox
         {
             Style  = (Style)FindResource("SComboBox"),
@@ -744,7 +796,7 @@ public partial class SettingsWindow : Window
             FontFamily        = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center
         };
-        cloudTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        cloudTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         var cloudTestRow = new StackPanel { Orientation = Orientation.Horizontal };
         cloudTestRow.Children.Add(cloudTestBtn);
@@ -752,6 +804,7 @@ public partial class SettingsWindow : Window
 
         var cloudContent = new StackPanel();
         cloudContent.Children.Add(cloudModelLabel);
+        cloudContent.Children.Add(cloudModelFilterOuter);
         cloudContent.Children.Add(cloudModelCombo);
         cloudContent.Children.Add(cloudTestRow);
 
@@ -770,8 +823,8 @@ public partial class SettingsWindow : Window
         var rpmValueTb = new TextBox { Style = (Style)FindResource("STextBox"), Text = "15" };
         rpmValueTb.FontSize   = 13;
         rpmValueTb.FontFamily = new FontFamily("Segoe UI");
-        rpmValueTb.SetResourceReference(Control.ForegroundProperty,  "TextBrush");
-        rpmValueTb.SetResourceReference(TextBox.CaretBrushProperty,  "TextBrush");
+        rpmValueTb.SetResourceReference(Control.ForegroundProperty,  "ContentTextBrush");
+        rpmValueTb.SetResourceReference(TextBox.CaretBrushProperty,  "InputTextBrush");
         // Accept only digits
         rpmValueTb.PreviewTextInput += (_, e) =>
         {
@@ -785,7 +838,7 @@ public partial class SettingsWindow : Window
             CornerRadius = new CornerRadius(8),
             Child        = rpmValueTb
         };
-        rpmValueOuter.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+        rpmValueOuter.SetResourceReference(Border.BackgroundProperty, "InputBgBrush");
 
         var rpmSuffix = new TextBlock
         {
@@ -795,7 +848,7 @@ public partial class SettingsWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Margin            = new Thickness(8, 0, 0, 0)
         };
-        rpmSuffix.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        rpmSuffix.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
 
         var rpmRow = new StackPanel
         {
@@ -814,7 +867,7 @@ public partial class SettingsWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 0, 0, 4)
         };
-        rpmHintLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        rpmHintLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         // Load initial state for current provider
         if (settings.ProviderThrottle.TryGetValue(config.Type, out var initThrottle))
@@ -830,7 +883,7 @@ public partial class SettingsWindow : Window
 
         var cloudAISection = new Border
         {
-            Visibility = isOllama ? Visibility.Collapsed : Visibility.Visible,
+            Visibility = !isOllama ? Visibility.Visible : Visibility.Collapsed,
             Child      = cloudContent
         };
 
@@ -854,24 +907,28 @@ public partial class SettingsWindow : Window
         // ── Build form record ─────────────────────────────────────────────
         var form = new ParticipantForm
         {
-            SlotIndex        = index,
-            Tab              = tab,
-            EnabledCheck     = enabledCheck,
-            NameBox          = nameBox,
-            TypeCombo        = typeCombo,
-            OllamaSection    = ollamaSection,
-            ServerUrlBox     = serverUrlBox,
-            OllamaModelCombo = ollamaModelCombo,
-            OllamaTestLabel  = ollamaTestLabel,
-            CloudAISection   = cloudAISection,
-            CloudModelCombo  = cloudModelCombo,
-            CloudTestLabel   = cloudTestLabel,
-            RpmEnabledCheck  = rpmCheck,
-            RpmValueBox      = rpmValueTb,
-            RpmHintLabel     = rpmHintLabel,
-            NicknameWarning  = nicknameWarning
+            SlotIndex             = index,
+            Tab                   = tab,
+            EnabledCheck          = enabledCheck,
+            NameBox               = nameBox,
+            TypeCombo             = typeCombo,
+            OllamaSection         = ollamaSection,
+            ServerUrlBox          = serverUrlBox,
+            OllamaModelCombo      = ollamaModelCombo,
+            OllamaTestLabel       = ollamaTestLabel,
+            CloudAISection        = cloudAISection,
+            CloudModelCombo       = cloudModelCombo,
+            CloudModelFilter      = cloudModelFilterBox,
+            CloudTestLabel        = cloudTestLabel,
+            RpmEnabledCheck       = rpmCheck,
+            RpmValueBox           = rpmValueTb,
+            RpmHintLabel          = rpmHintLabel,
+            NicknameWarning       = nicknameWarning
         };
         _forms.Add(form);
+
+        // Seed the master model list (filter reads from this; Test replaces it)
+        form.AllCloudModels = GetDefaultModels(config.Type).ToList();
 
         // ── Events ────────────────────────────────────────────────────────
 
@@ -890,7 +947,10 @@ public partial class SettingsWindow : Window
             var provider = form.CurrentProvider;
             if (provider != "Ollama")
             {
-                PopulateCloudModelCombo(form.CloudModelCombo, provider, "");
+                // Reset master list to defaults for the new provider, clear filter, refresh combo
+                form.AllCloudModels         = GetDefaultModels(provider).ToList();
+                form.CloudModelFilter.Text  = "";
+                ApplyCloudModelFilter(form);
 
                 // Refresh RPM controls for the newly selected provider
                 if (settings.ProviderThrottle.TryGetValue(provider, out var t))
@@ -909,8 +969,16 @@ public partial class SettingsWindow : Window
 
         localhostBtn.Click += (_, _) => serverUrlBox.Text = "http://localhost:11434";
 
-        ollamaTestBtn.Click += async (_, _) => await TestOllamaAsync(form);
-        cloudTestBtn.Click  += async (_, _) => await TestCloudAIAsync(form);
+        ollamaTestBtn.Click  += async (_, _) => await TestOllamaAsync(form);
+        cloudTestBtn.Click   += async (_, _) => await TestCloudAIAsync(form);
+
+        cloudModelFilterBox.TextChanged += (_, _) =>
+        {
+            // Toggle the watermark hint
+            cloudModelFilterHint.Visibility =
+                cloudModelFilterBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+            ApplyCloudModelFilter(form);
+        };
     }
 
     // ── Nickname uniqueness validation ────────────────────────────────────
@@ -959,20 +1027,66 @@ public partial class SettingsWindow : Window
         }
     }
 
+    // ── Model filter helper ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Rebuilds <see cref="ParticipantForm.CloudModelCombo"/> from the master model list,
+    /// applying the current text in <see cref="ParticipantForm.CloudModelFilter"/>.
+    /// Preserves the previously selected model (adds it as a custom entry if it drops out
+    /// of the filtered view when the filter is cleared).
+    /// </summary>
+    private static void ApplyCloudModelFilter(ParticipantForm form)
+    {
+        var text = form.CloudModelFilter.Text;
+        var source = string.IsNullOrWhiteSpace(text)
+            ? form.AllCloudModels
+            : form.AllCloudModels
+                   .Where(m => m.Contains(text, StringComparison.OrdinalIgnoreCase))
+                   .ToList();
+
+        var current = (form.CloudModelCombo.SelectedItem as ComboBoxItem)
+                          ?.Content?.ToString() ?? "";
+        form.CloudModelCombo.Items.Clear();
+
+        foreach (var m in source)
+        {
+            var item = new ComboBoxItem { Content = m };
+            form.CloudModelCombo.Items.Add(item);
+            if (m == current) form.CloudModelCombo.SelectedItem = item;
+        }
+
+        if (form.CloudModelCombo.SelectedItem is null)
+        {
+            if (!string.IsNullOrEmpty(current) && string.IsNullOrWhiteSpace(text))
+            {
+                // Model not in the (full) list — keep it as a custom entry so the
+                // user's saved choice is not silently discarded.
+                var custom = new ComboBoxItem { Content = current };
+                form.CloudModelCombo.Items.Insert(0, custom);
+                form.CloudModelCombo.SelectedItem = custom;
+            }
+            else if (form.CloudModelCombo.Items.Count > 0 && string.IsNullOrWhiteSpace(text))
+            {
+                form.CloudModelCombo.SelectedIndex = 0;
+            }
+            // When actively filtering, leave combo unselected — the user is browsing
+        }
+    }
+
     // ── Section visibility helper ──────────────────────────────────────────
 
     private static void ApplySectionVisibility(ParticipantForm form)
     {
         bool isOllama = form.CurrentProvider == "Ollama";
-        form.OllamaSection .Visibility = isOllama ? Visibility.Visible   : Visibility.Collapsed;
-        form.CloudAISection.Visibility = isOllama ? Visibility.Collapsed : Visibility.Visible;
+        form.OllamaSection .Visibility = isOllama  ? Visibility.Visible : Visibility.Collapsed;
+        form.CloudAISection.Visibility = !isOllama ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ── Test buttons ───────────────────────────────────────────────────────
 
     private async Task TestOllamaAsync(ParticipantForm form)
     {
-        form.OllamaTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        form.OllamaTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         form.OllamaTestLabel.Text = "Testing…";
 
         try
@@ -984,7 +1098,7 @@ public partial class SettingsWindow : Window
             var ok = await svc.IsAvailableAsync();
 
             form.OllamaTestLabel.SetResourceReference(TextBlock.ForegroundProperty,
-                ok ? "OllamaBrush" : "AccentBrush");
+                ok ? "SecondaryAccentBrush" : "AccentHighlightBrush");
             form.OllamaTestLabel.Text = ok ? "Online ✓" : "Offline ✗";
 
             if (ok)
@@ -1013,14 +1127,14 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            form.OllamaTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+            form.OllamaTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentHighlightBrush");
             form.OllamaTestLabel.Text = $"Error: {ex.Message}";
         }
     }
 
     private async Task TestCloudAIAsync(ParticipantForm form)
     {
-        form.CloudTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        form.CloudTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         form.CloudTestLabel.Text = "Testing…";
 
         try
@@ -1036,7 +1150,7 @@ public partial class SettingsWindow : Window
             var ok = await svc.IsAvailableAsync();
 
             form.CloudTestLabel.SetResourceReference(TextBlock.ForegroundProperty,
-                ok ? "OllamaBrush" : "AccentBrush");
+                ok ? "SecondaryAccentBrush" : "AccentHighlightBrush");
             form.CloudTestLabel.Text = ok ? "Connected ✓" : "Failed ✗  (check your key)";
 
             if (ok)
@@ -1046,28 +1160,10 @@ public partial class SettingsWindow : Window
                     var models = await svc.GetModelsAsync();
                     if (models.Count > 0)
                     {
-                        var current = (form.CloudModelCombo.SelectedItem as ComboBoxItem)
-                                        ?.Content?.ToString() ?? "";
-                        form.CloudModelCombo.Items.Clear();
-                        foreach (var m in models)
-                        {
-                            var item = new ComboBoxItem { Content = m };
-                            form.CloudModelCombo.Items.Add(item);
-                            if (m == current) form.CloudModelCombo.SelectedItem = item;
-                        }
-                        if (form.CloudModelCombo.SelectedItem is null)
-                        {
-                            // Saved model is not in the live list — keep it as a custom entry
-                            // so the user's choice is preserved (they can change it manually).
-                            if (!string.IsNullOrEmpty(current))
-                            {
-                                var custom = new ComboBoxItem { Content = current };
-                                form.CloudModelCombo.Items.Insert(0, custom);
-                                form.CloudModelCombo.SelectedItem = custom;
-                            }
-                            else if (form.CloudModelCombo.Items.Count > 0)
-                                form.CloudModelCombo.SelectedIndex = 0;
-                        }
+                        // Update master list then re-apply any active filter
+                        form.AllCloudModels      = models;
+                        ApplyCloudModelFilter(form);
+                        form.CloudTestLabel.Text = $"Connected ✓  · {models.Count} models";
                     }
                 }
                 catch { /* keep default list */ }
@@ -1075,7 +1171,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            form.CloudTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+            form.CloudTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentHighlightBrush");
             form.CloudTestLabel.Text = $"Error: {ex.Message}";
         }
     }
@@ -1121,10 +1217,10 @@ public partial class SettingsWindow : Window
 
             var model = isOllama
                 ? (form.OllamaModelCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? ""
-                : (form.CloudModelCombo   .SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
+                : (form.CloudModelCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
 
             var serverUrl = form.ServerUrlBox.Text.Trim();
-            if (string.IsNullOrEmpty(serverUrl)) serverUrl = "http://localhost:11434";
+            if (string.IsNullOrEmpty(serverUrl) && isOllama) serverUrl = "http://localhost:11434";
 
             settings.Participants.Add(new ParticipantConfig
             {
@@ -1145,7 +1241,7 @@ public partial class SettingsWindow : Window
             settings.OllamaBaseUrl = firstOllama.ServerUrl;
             settings.OllamaModel   = firstOllama.Model;
         }
-        var firstCloud = settings.Participants.FirstOrDefault(p => p.Type != "Ollama" && p.Enabled);
+        var firstCloud = settings.Participants.FirstOrDefault(p => p.Type != "Ollama" && p.Type != "Ollama ☁" && p.Enabled);
         if (firstCloud is not null)
         {
             settings.SelectedProvider   = firstCloud.Type;
@@ -1189,7 +1285,7 @@ public partial class SettingsWindow : Window
     private static void SelectComboByContent(ComboBox combo, string value)
     {
         foreach (ComboBoxItem item in combo.Items)
-            if (item.Content?.ToString() == value)
+            if ((item.Tag?.ToString() ?? item.Content?.ToString()) == value)
             {
                 combo.SelectedItem = item;
                 return;
@@ -1208,6 +1304,7 @@ public partial class SettingsWindow : Window
             "Mistral"        => "Get your key at console.mistral.ai",
             "xAI Grok"       => "Get your key at console.x.ai — requires credit card",
             "OpenAI ChatGPT" => "Get your key at platform.openai.com — requires credit card",
+            "Ollama ☁"       => "Get your API key from your Ollama cloud provider account.",
             _                => ""
         };
     }
@@ -1267,7 +1364,7 @@ public partial class SettingsWindow : Window
         FontFamily   = new FontFamily("Segoe UI"),
         TextWrapping = TextWrapping.Wrap,
         Margin       = new Thickness(0, 0, 0, 4),
-        Foreground   = (Brush)(TryFindResource("SubtextBrush") ?? Brushes.Gray)
+        Foreground   = (Brush)(TryFindResource("ContentDimBrush") ?? Brushes.Gray)
     };
 
     private void PopulateCloudModelCombo(ComboBox combo, string provider, string selectedModel)
@@ -1305,12 +1402,14 @@ public partial class SettingsWindow : Window
         "Mistral"        => MistralService.DefaultModels,
         "xAI Grok"       => XAIGrokService.DefaultModels,
         "OpenAI ChatGPT" => OpenAIService.DefaultModels,
+        "Ollama ☁"       => OllamaOpenAIService.DefaultModels,
         _                => []
     };
 
     private static ICloudAIService BuildCloudAIService(string provider, string apiKey) =>
         provider switch
         {
+            "Ollama ☁"       => new OllamaOpenAIService(apiKey),
             "Google AI"      => new GoogleAIService(apiKey),
             "Groq"           => new GroqService(apiKey),
             "OpenRouter"     => new OpenRouterService(apiKey),

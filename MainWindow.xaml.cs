@@ -44,7 +44,7 @@ public partial class MainWindow : Window
         public bool?    IsOnline   { get; set; }
         public string?  CustomName { get; set; }
 
-        public string ColorKey    => Position switch { 2 => "AccentBrush", 3 => "ClaudeBrush", _ => "OllamaBrush" };
+        public string ColorKey    => Position switch { 2 => "AccentBgBrush", 3 => "PrimaryAccentBrush", _ => "SecondaryAccentBrush" };
 
         public string AvatarLabel => string.IsNullOrEmpty(Service.CurrentModel)
             ? $"O{Position}"
@@ -68,6 +68,8 @@ public partial class MainWindow : Window
         public required Border            CrBadge       { get; init; }
         public required Border            PlBadge       { get; init; }
         public required Border            RsBadge       { get; init; }
+        public required Border            WrBadge       { get; init; }
+        public required StackPanel        BadgeRow      { get; init; }
         public required TextBlock         NameLabel     { get; init; }
         public required Ellipse           StatusDot     { get; init; }
         public required TextBlock         ModelLabel    { get; init; }
@@ -88,7 +90,7 @@ public partial class MainWindow : Window
         public bool?    IsOnline   { get; set; }
         public string?  CustomName { get; set; }
 
-        public string ColorKey => Position switch { 2 => "AccentBrush", 3 => "OllamaBrush", _ => "ClaudeBrush" };
+        public string ColorKey => Position switch { 2 => "AccentBgBrush", 3 => "SecondaryAccentBrush", _ => "PrimaryAccentBrush" };
 
         public string AvatarLabel => string.IsNullOrEmpty(Service.CurrentModel)
             ? Service.ProviderName switch
@@ -100,6 +102,7 @@ public partial class MainWindow : Window
                 "Mistral"        => "Mi",
                 "xAI Grok"       => "xG",
                 "OpenAI ChatGPT" => "GP",
+                "Ollama ☁"       => "O☁",
                 _                => Service.ProviderName.Length >= 2
                                         ? Service.ProviderName[..2]
                                         : Service.ProviderName
@@ -124,6 +127,8 @@ public partial class MainWindow : Window
         public required Border             CrBadge       { get; init; }
         public required Border             PlBadge       { get; init; }
         public required Border             RsBadge       { get; init; }
+        public required Border             WrBadge       { get; init; }
+        public required StackPanel         BadgeRow      { get; init; }
         public required TextBlock          NameLabel     { get; init; }
         public required Ellipse            StatusDot     { get; init; }
         public required TextBlock          ModelLabel    { get; init; }
@@ -501,15 +506,16 @@ public partial class MainWindow : Window
 
         // Tab button visual state
         ChatTabButton.SetResourceReference(Button.BackgroundProperty,
-            chat ? "InputBrush" : "Transparent");
+            chat ? "ControlBgBrush" : "Transparent");
         ChatTabButton.FontWeight = chat ? FontWeights.SemiBold : FontWeights.Normal;
         ChatTabButton.SetResourceReference(Button.ForegroundProperty,
-            chat ? "TextBrush" : "SubtextBrush");
+            chat ? "ContentTextBrush" : "ContentDimBrush");
 
-        ProjectsTabButton.Background = Brushes.Transparent;
+        ProjectsTabButton.SetResourceReference(Button.BackgroundProperty,
+            chat ? "Transparent" : "ControlBgBrush");
         ProjectsTabButton.FontWeight = chat ? FontWeights.Normal : FontWeights.SemiBold;
         ProjectsTabButton.SetResourceReference(Button.ForegroundProperty,
-            chat ? "SubtextBrush" : "TextBrush");
+            chat ? "ContentDimBrush" : "ContentTextBrush");
     }
 
     // ── Project list ───────────────────────────────────────────────────────
@@ -534,7 +540,7 @@ public partial class MainWindow : Window
                 Margin    = new Thickness(0, 8, 0, 0),
                 TextWrapping = TextWrapping.Wrap
             };
-            empty.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+            empty.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
             ProjectListPanel.Children.Add(empty);
             return;
         }
@@ -559,6 +565,7 @@ public partial class MainWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Margin     = new Thickness(0, 0, 6, 0)
         };
+        typeIconTb.SetResourceReference(TextBlock.ForegroundProperty, "ControlHighBrush");
 
         var nameLabel = new TextBlock
         {
@@ -567,7 +574,7 @@ public partial class MainWindow : Window
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center
         };
-        nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
 
         var titleRow = new StackPanel
         {
@@ -582,7 +589,7 @@ public partial class MainWindow : Window
             Text     = $"{ptd.Name}  ·  Last opened: {meta.LastOpened.ToLocalTime():yyyy-MM-dd HH:mm}",
             FontSize = 11, FontFamily = new FontFamily("Segoe UI")
         };
-        dateLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        dateLabel.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
 
         // Show currently-active participants from the project's saved roles
         var liveActiveNames = meta.Roles
@@ -595,7 +602,7 @@ public partial class MainWindow : Window
             FontSize     = 11, FontFamily = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap
         };
-        participantsLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        participantsLabel.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
         if (liveActiveNames.Count > 0)
             participantsLabel.Text = string.Join(", ", liveActiveNames);
 
@@ -615,8 +622,8 @@ public partial class MainWindow : Window
             VerticalAlignment   = VerticalAlignment.Center,
             ToolTip             = "Create ZIP backup of this project",
             Style               = (Style)FindResource("ModernButton"),
-            Background          = (Brush)FindResource("InputBrush"),
-            Foreground          = (Brush)FindResource("SubtextBrush"),
+            Background          = (Brush)FindResource("ControlBgBrush"),
+            Foreground          = (Brush)FindResource("ControlHighBrush"),
             Padding             = new Thickness(0),
             Margin              = new Thickness(0, 0, 4, 0)
         };
@@ -638,8 +645,8 @@ public partial class MainWindow : Window
             VerticalAlignment   = VerticalAlignment.Center,
             ToolTip             = "Load project",
             Style               = (Style)FindResource("ModernButton"),
-            Background          = (Brush)FindResource("InputBrush"),
-            Foreground          = (Brush)FindResource("SubtextBrush"),
+            Background          = (Brush)FindResource("ControlBgBrush"),
+            Foreground          = (Brush)FindResource("ControlHighBrush"),
             Padding             = new Thickness(0),
             Margin              = new Thickness(0, 0, 4, 0)
         };
@@ -660,8 +667,8 @@ public partial class MainWindow : Window
             VerticalAlignment   = VerticalAlignment.Center,
             ToolTip           = "Project settings (roles, orchestration mode)",
             Style             = (Style)FindResource("ModernButton"),
-            Background        = (Brush)FindResource("InputBrush"),
-            Foreground        = (Brush)FindResource("SubtextBrush"),
+            Background        = (Brush)FindResource("ControlBgBrush"),
+            Foreground        = (Brush)FindResource("ControlHighBrush"),
             Padding           = new Thickness(0)
         };
         settingsBtn.Click += (_, e) =>
@@ -693,7 +700,9 @@ public partial class MainWindow : Window
             Child        = cardGrid,
             Tag          = projFolder
         };
-        card.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+        card.SetResourceReference(Border.BackgroundProperty,   "ControlBgBrush");
+        card.BorderThickness = new Thickness(1);
+        card.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
 
         card.MouseLeftButtonDown += (_, _) => SelectProjectCard(card, projFolder);
         card.MouseLeftButtonUp   += (_, e) =>
@@ -773,10 +782,10 @@ public partial class MainWindow : Window
     {
         // Deselect all
         foreach (Border c in ProjectListPanel.Children.OfType<Border>())
-            c.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+            c.SetResourceReference(Border.BackgroundProperty, "ControlBgBrush");
 
         // Highlight selected
-        clicked.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
+        clicked.SetResourceReference(Border.BackgroundProperty, "ControlHoverBrush");
 
         _selectedProjectFolder     = folder;
         OpenProjectButton  .IsEnabled = true;
@@ -829,18 +838,25 @@ public partial class MainWindow : Window
     /// </summary>
     private ProjectTypeDefinition? ShowProjectTypePicker()
     {
+        var typesDir = SysIO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ProjectTypes");
+
+        while (true)   // loops back if the user opens the editor then wants to pick a type
+        {
+
         // ── Cache brushes from MainWindow (theme-aware) ───────────────────
         // New Window instances don't inherit MainWindow's MergedDictionaries,
         // so SetResourceReference would resolve nothing → black window.
         // Resolve once here on 'this' and assign directly, same as all other dialogs.
-        var bgBrush      = (Brush)FindResource("BackgroundBrush");
-        var sidebarBrush = (Brush)FindResource("SidebarBrush");
-        var textBrush    = (Brush)FindResource("TextBrush");
-        var subtextBrush = (Brush)FindResource("SubtextBrush");
-        var inputBrush   = (Brush)FindResource("InputBrush");
-        var surfaceBrush = (Brush)FindResource("SurfaceBrush");
-        var accentBrush  = (Brush)FindResource("AccentBrush");
-        var btnStyle     = (Style)FindResource("ModernButton");
+        var bgBrush          = (Brush)FindResource("ContentBgBrush");
+        var textBrush        = (Brush)FindResource("ContentTextBrush");
+        var sidebarTextBrush = (Brush)FindResource("SidebarTextBrush");
+        var subtextBrush     = (Brush)FindResource("ControlDimBrush");
+        var inputBrush       = (Brush)FindResource("ControlBgBrush");
+        var surfaceBrush     = (Brush)FindResource("ControlHoverBrush");
+        var accentBrush      = (Brush)FindResource("AccentBgBrush");
+        var accentTextBrush  = (Brush)FindResource("AccentTextBrush");
+        var controlHighBrush = (Brush)FindResource("ControlHighBrush");
+        var btnStyle         = (Style)FindResource("ModernButton");
 
         ProjectTypeDefinition? result = null;
 
@@ -899,6 +915,7 @@ public partial class MainWindow : Window
             {
                 Text                = ptd.Icon,
                 FontSize            = 24,
+                Foreground          = controlHighBrush,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin              = new Thickness(0, 0, 0, 4)
             };
@@ -909,7 +926,7 @@ public partial class MainWindow : Window
                 FontSize            = 12,
                 FontWeight          = FontWeights.SemiBold,
                 FontFamily          = new FontFamily("Segoe UI"),
-                Foreground          = textBrush,
+                Foreground          = sidebarTextBrush,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextWrapping        = TextWrapping.Wrap,
                 TextAlignment       = TextAlignment.Center
@@ -989,21 +1006,21 @@ public partial class MainWindow : Window
         {
             Content    = "Create Project",
             Width      = 130,
-            Height     = 32,
+            Height     = 36,
             FontFamily = new FontFamily("Segoe UI"),
             FontSize   = 13,
             Margin     = new Thickness(0, 0, 8, 0),
             IsEnabled  = true,
             Style      = btnStyle,
             Background = accentBrush,
-            Foreground = sidebarBrush   // SidebarBrush contrasts with AccentBrush on all themes
+            Foreground = accentTextBrush
         };
 
         var cancelBtn = new Button
         {
             Content    = "Cancel",
             Width      = 80,
-            Height     = 32,
+            Height     = 36,
             FontFamily = new FontFamily("Segoe UI"),
             FontSize   = 13,
             Style      = btnStyle,
@@ -1011,8 +1028,23 @@ public partial class MainWindow : Window
             Foreground = subtextBrush
         };
 
+        bool openEditor = false;
         okBtn    .Click += (_, _) => { result = selectedType; dlg.DialogResult = true; };
         cancelBtn.Click += (_, _) => dlg.DialogResult = false;
+
+        // "Manage Types…" — opens the editor, then loops back to the picker
+        var manageBtn = new Button
+        {
+            Content    = "⚙  Manage Types…",
+            Height     = 36,
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize   = 12,
+            Style      = btnStyle,
+            Background = inputBrush,
+            Foreground = subtextBrush,
+            Margin     = new Thickness(20, 0, 0, 0)
+        };
+        manageBtn.Click += (_, _) => { openEditor = true; dlg.DialogResult = false; };
 
         var btnRow = new StackPanel
         {
@@ -1023,16 +1055,33 @@ public partial class MainWindow : Window
         btnRow.Children.Add(okBtn);
         btnRow.Children.Add(cancelBtn);
 
+        // Footer row: manage-types link left, ok/cancel right
+        var footerRow = new Grid { Margin = new Thickness(0) };
+        footerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        footerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(manageBtn, 0);
+        Grid.SetColumn(btnRow,    1);
+        footerRow.Children.Add(manageBtn);
+        footerRow.Children.Add(btnRow);
+
         // ── Layout ────────────────────────────────────────────────────────
         var root = new StackPanel();
         root.Children.Add(header);
         root.Children.Add(subtitle);
         root.Children.Add(typePanel);
-        root.Children.Add(btnRow);
+        root.Children.Add(footerRow);
         dlg.Content = root;
 
         dlg.ShowDialog();
-        return result;
+
+        if (!openEditor) return result;
+
+        // User wants to manage types — open editor then loop back to picker
+        var editor = new ProjectTypeEditorWindow(this, typesDir, _currentThemePath);
+        editor.ShowDialog();
+        LoadProjectTypes();
+
+        } // end while(true)
     }
 
     private void OpenProject_Click(object sender, RoutedEventArgs e)
@@ -1226,8 +1275,19 @@ public partial class MainWindow : Window
 
             bool inGlobal = globalParticipants.Any(g =>
                 g.Enabled &&
-                string.Equals(g.Type,  proj.Type,  StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(g.Model, proj.Model, StringComparison.OrdinalIgnoreCase));
+                (
+                    // Primary match: same provider type + model (original logic)
+                    (string.Equals(g.Type,  proj.Type,  StringComparison.OrdinalIgnoreCase) &&
+                     string.Equals(g.Model, proj.Model, StringComparison.OrdinalIgnoreCase))
+                    ||
+                    // Fallback: same display name + model, ignoring provider type.
+                    // Lets the user change only the provider (e.g. Anthropic → OpenRouter)
+                    // without the mismatch dialog firing for every project.
+                    (!string.IsNullOrWhiteSpace(proj.Name) &&
+                     !string.IsNullOrWhiteSpace(g.Name) &&
+                     string.Equals(g.Name,  proj.Name,  StringComparison.OrdinalIgnoreCase) &&
+                     string.Equals(g.Model, proj.Model, StringComparison.OrdinalIgnoreCase))
+                ));
 
             if (inGlobal) continue;
 
@@ -1271,7 +1331,7 @@ public partial class MainWindow : Window
             ShowInTaskbar         = false
         };
         ApplyThemeToDialog(win);
-        win.SetResourceReference(Window.BackgroundProperty, "BackgroundBrush");
+        win.SetResourceReference(Window.BackgroundProperty, "ContentBgBrush");
 
         var panel = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
 
@@ -1287,7 +1347,7 @@ public partial class MainWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 0, 0, 16)
         };
-        header.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        header.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
         panel.Children.Add(header);
 
         // ── Mismatch rows ─────────────────────────────────────────────────
@@ -1309,14 +1369,14 @@ public partial class MainWindow : Window
                 TextWrapping = TextWrapping.Wrap,
                 Margin       = new Thickness(0, 2, 0, 10)
             };
-            globalLine.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+            globalLine.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
             panel.Children.Add(projLine);
             panel.Children.Add(globalLine);
         }
 
         // ── Separator ─────────────────────────────────────────────────────
         var sep = new Rectangle { Height = 1, Margin = new Thickness(0, 4, 0, 16) };
-        sep.SetResourceReference(Rectangle.FillProperty, "InputBrush");
+        sep.SetResourceReference(Rectangle.FillProperty, "ControlBgBrush");
         panel.Children.Add(sep);
 
         // ── Footer note ───────────────────────────────────────────────────
@@ -1328,7 +1388,7 @@ public partial class MainWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 0, 0, 20)
         };
-        note.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        note.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         panel.Children.Add(note);
 
         // ── Buttons ───────────────────────────────────────────────────────
@@ -1347,8 +1407,8 @@ public partial class MainWindow : Window
             Margin  = new Thickness(0, 0, 8, 0),
             Style   = btnStyle
         };
-        participantSettingsBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-        participantSettingsBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        participantSettingsBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        participantSettingsBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
         participantSettingsBtn.Click += (_, _) =>
         {
             win.Close();
@@ -1363,8 +1423,8 @@ public partial class MainWindow : Window
             Margin  = new Thickness(0, 0, 8, 0),
             Style   = btnStyle
         };
-        projectSettingsBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-        projectSettingsBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        projectSettingsBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        projectSettingsBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
         projectSettingsBtn.Click += (_, _) =>
         {
             win.Close();
@@ -1379,8 +1439,8 @@ public partial class MainWindow : Window
             IsDefault = true,
             Style     = btnStyle
         };
-        cancelBtn.SetResourceReference(Button.BackgroundProperty, "AccentBrush");
-        cancelBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+        cancelBtn.SetResourceReference(Button.BackgroundProperty, "AccentBgBrush");
+        cancelBtn.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
         cancelBtn.Click += (_, _) => win.Close();
 
         btnRow.Children.Add(participantSettingsBtn);
@@ -1428,7 +1488,7 @@ public partial class MainWindow : Window
             ShowInTaskbar         = false
         };
         ApplyThemeToDialog(win);
-        win.SetResourceReference(Window.BackgroundProperty, "BackgroundBrush");
+        win.SetResourceReference(Window.BackgroundProperty, "ContentBgBrush");
 
         var outerPanel = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
 
@@ -1441,7 +1501,7 @@ public partial class MainWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 0, 0, 16)
         };
-        header.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        header.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
         outerPanel.Children.Add(header);
 
         var warnBrush  = new SolidColorBrush(Color.FromRgb(255, 185, 0));
@@ -1463,7 +1523,7 @@ public partial class MainWindow : Window
                 BorderThickness = isMismatch ? new Thickness(1.5) : new Thickness(0),
                 BorderBrush     = isMismatch ? warnBrush : null
             };
-            rowBorder.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+            rowBorder.SetResourceReference(Border.BackgroundProperty, "ControlBgBrush");
 
             var rowGrid = new Grid();
             rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -1485,7 +1545,7 @@ public partial class MainWindow : Window
             else
             {
                 nameText.Text = $"✓  Slot {i + 1}:  {displayName}  ({p.Type} · {p.Model})";
-                nameText.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+                nameText.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
             }
             Grid.SetColumn(nameText, 0);
             rowGrid.Children.Add(nameText);
@@ -1512,8 +1572,8 @@ public partial class MainWindow : Window
                         Style   = btnStyle,
                         ToolTip = $"Replace with:  {mismatch.GlobalDesc}"
                     };
-                    adoptBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-                    adoptBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+                    adoptBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+                    adoptBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
                     adoptBtn.Click += (_, _) =>
                     {
                         workingPs[idx].Name      = rep.Name;
@@ -1523,7 +1583,7 @@ public partial class MainWindow : Window
                         workingPs[idx].Enabled   = true;
                         var updName = string.IsNullOrEmpty(rep.Name) ? rep.Model : rep.Name;
                         nameText.Text = $"✓  Slot {idx + 1}:  {updName}  ({rep.Type} · {rep.Model})";
-                        nameText.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+                        nameText.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
                         rowBorder.BorderThickness = new Thickness(0);
                         actionRow.Visibility      = Visibility.Collapsed;
                     };
@@ -1540,13 +1600,13 @@ public partial class MainWindow : Window
                     Style   = btnStyle,
                     ToolTip = "Disable this participant for this project"
                 };
-                disableBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-                disableBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+                disableBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+                disableBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
                 disableBtn.Click += (_, _) =>
                 {
                     workingPs[idx].Enabled    = false;
                     nameText.Text             = $"⏸  Slot {idx + 1}:  {displayName}  (disabled)";
-                    nameText.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+                    nameText.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
                     rowBorder.BorderThickness = new Thickness(0);
                     actionRow.Visibility      = Visibility.Collapsed;
                 };
@@ -1561,15 +1621,15 @@ public partial class MainWindow : Window
                     Style   = btnStyle,
                     ToolTip = "Remove this participant from the project"
                 };
-                removeBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-                removeBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+                removeBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+                removeBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
                 removeBtn.Click += (_, _) =>
                 {
                     removedSlots.Add(idx);
                     rowBorder.BorderThickness = new Thickness(0);
                     rowBorder.Opacity         = 0.35;
                     nameText.Text             = $"🗑  Slot {idx + 1}:  {displayName}  (removing)";
-                    nameText.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+                    nameText.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
                     actionRow.Visibility      = Visibility.Collapsed;
                 };
                 actionRow.Children.Add(removeBtn);
@@ -1584,7 +1644,7 @@ public partial class MainWindow : Window
 
         // ── Separator ─────────────────────────────────────────────────────
         var sep = new Rectangle { Height = 1, Margin = new Thickness(0, 8, 0, 16) };
-        sep.SetResourceReference(Rectangle.FillProperty, "InputBrush");
+        sep.SetResourceReference(Rectangle.FillProperty, "ControlBgBrush");
         outerPanel.Children.Add(sep);
 
         // ── Bottom buttons ─────────────────────────────────────────────────
@@ -1604,8 +1664,8 @@ public partial class MainWindow : Window
             Margin  = new Thickness(0, 0, 8, 0),
             Style   = btnStyle2
         };
-        cancelBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-        cancelBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        cancelBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        cancelBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
         cancelBtn.Click += (_, _) => win.Close();
 
         var saveBtn = new Button
@@ -1616,8 +1676,8 @@ public partial class MainWindow : Window
             IsDefault = true,
             Style     = btnStyle2
         };
-        saveBtn.SetResourceReference(Button.BackgroundProperty, "AccentBrush");
-        saveBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+        saveBtn.SetResourceReference(Button.BackgroundProperty, "AccentBgBrush");
+        saveBtn.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
         saveBtn.Click += (_, _) => { saved = true; win.Close(); };
 
         bottomRow.Children.Add(cancelBtn);
@@ -1685,15 +1745,15 @@ public partial class MainWindow : Window
         if (_currentRoadmap is null) return;
 
         // ── Theme brushes (must come from MainWindow, not SetResourceReference) ──
-        var bgBrush      = (Brush)FindResource("BackgroundBrush");
-        var sidebarBrush = (Brush)FindResource("SidebarBrush");
-        var textBrush    = (Brush)FindResource("TextBrush");
-        var subtextBrush = (Brush)FindResource("SubtextBrush");
-        var inputBrush   = (Brush)FindResource("InputBrush");
-        var surfaceBrush = (Brush)FindResource("SurfaceBrush");
-        var accentBrush  = (Brush)FindResource("AccentBrush");
-        var claudeBrush  = (Brush)FindResource("ClaudeBrush");
-        var ollamaBrush  = (Brush)FindResource("OllamaBrush");
+        var bgBrush      = (Brush)FindResource("ContentBgBrush");
+        var sidebarBrush = (Brush)FindResource("SidebarBgBrush");
+        var textBrush    = (Brush)FindResource("ContentTextBrush");
+        var subtextBrush = (Brush)FindResource("ContentDimBrush");
+        var inputBrush   = (Brush)FindResource("ControlBgBrush");
+        var surfaceBrush = (Brush)FindResource("ControlHoverBrush");
+        var accentBrush  = (Brush)FindResource("AccentBgBrush");
+        var claudeBrush  = (Brush)FindResource("PrimaryAccentBrush");
+        var ollamaBrush  = (Brush)FindResource("SecondaryAccentBrush");
         var btnStyle     = (Style)FindResource("ModernButton");
 
         // ── Root DockPanel ────────────────────────────────────────────────
@@ -2356,12 +2416,12 @@ public partial class MainWindow : Window
         string title = "", string desc = "")
     {
         var isEdit     = !string.IsNullOrEmpty(title);
-        var bgBrush    = (Brush)FindResource("SidebarBrush");
-        var textBrush  = (Brush)FindResource("TextBrush");
-        var subBrush   = (Brush)FindResource("SubtextBrush");
-        var inputBrush = (Brush)FindResource("InputBrush");
-        var accentBrush= (Brush)FindResource("AccentBrush");
-        var claudeBrush= (Brush)FindResource("ClaudeBrush");
+        var bgBrush    = (Brush)FindResource("SidebarBgBrush");
+        var textBrush  = (Brush)FindResource("ContentTextBrush");
+        var subBrush   = (Brush)FindResource("ContentDimBrush");
+        var inputBrush = (Brush)FindResource("ControlBgBrush");
+        var accentBrush= (Brush)FindResource("AccentBgBrush");
+        var claudeBrush= (Brush)FindResource("PrimaryAccentBrush");
         var btnStyle   = (Style)FindResource("ModernButton");
 
         (string, string)? result = null;
@@ -2436,7 +2496,7 @@ public partial class MainWindow : Window
             Margin     = new Thickness(0, 0, 8, 0),
             Style      = btnStyle,
             Background = claudeBrush,
-            Foreground = (Brush)FindResource("SidebarBrush")
+            Foreground = (Brush)FindResource("AccentTextBrush")
         };
         okBtn.Click += (_, _) =>
         {
@@ -2495,12 +2555,12 @@ public partial class MainWindow : Window
         string title = "", string desc = "", int progress = 0)
     {
         var isEdit      = !string.IsNullOrEmpty(title);
-        var bgBrush     = (Brush)FindResource("SidebarBrush");
-        var textBrush   = (Brush)FindResource("TextBrush");
-        var subBrush    = (Brush)FindResource("SubtextBrush");
-        var inputBrush  = (Brush)FindResource("InputBrush");
-        var claudeBrush = (Brush)FindResource("ClaudeBrush");
-        var accentBrush = (Brush)FindResource("AccentBrush");
+        var bgBrush     = (Brush)FindResource("SidebarBgBrush");
+        var textBrush   = (Brush)FindResource("ContentTextBrush");
+        var subBrush    = (Brush)FindResource("ContentDimBrush");
+        var inputBrush  = (Brush)FindResource("ControlBgBrush");
+        var claudeBrush = (Brush)FindResource("PrimaryAccentBrush");
+        var accentBrush = (Brush)FindResource("AccentBgBrush");
         var btnStyle    = (Style)FindResource("ModernButton");
 
         (string, string, int)? result = null;
@@ -2596,7 +2656,7 @@ public partial class MainWindow : Window
             Margin     = new Thickness(0, 0, 8, 0),
             Style      = btnStyle,
             Background = claudeBrush,
-            Foreground = (Brush)FindResource("SidebarBrush")
+            Foreground = (Brush)FindResource("AccentTextBrush")
         };
         okBtn.Click += (_, _) =>
         {
@@ -2660,11 +2720,11 @@ public partial class MainWindow : Window
 
     private int? ShowProgressSliderDialog(int currentValue)
     {
-        var bgBrush    = (Brush)FindResource("SidebarBrush");
-        var textBrush  = (Brush)FindResource("TextBrush");
-        var subtextBrush=(Brush)FindResource("SubtextBrush");
-        var inputBrush = (Brush)FindResource("InputBrush");
-        var accentBrush= (Brush)FindResource("AccentBrush");
+        var bgBrush    = (Brush)FindResource("SidebarBgBrush");
+        var textBrush  = (Brush)FindResource("ContentTextBrush");
+        var subtextBrush=(Brush)FindResource("ContentDimBrush");
+        var inputBrush = (Brush)FindResource("ControlBgBrush");
+        var accentBrush= (Brush)FindResource("AccentBgBrush");
         var btnStyle   = (Style)FindResource("ModernButton");
 
         int? result = null;
@@ -3151,7 +3211,7 @@ public partial class MainWindow : Window
     /// </summary>
     private BackupChoice ShowClaudetteBackupDialog(string projectName)
     {
-        var bgBrush  = (Brush)FindResource("BackgroundBrush");
+        var bgBrush  = (Brush)FindResource("ContentBgBrush");
         var result   = BackupChoice.Cancel;
 
         var dlg = new Window
@@ -3195,7 +3255,7 @@ public partial class MainWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 0, 0, 6)
         };
-        titleTb.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        titleTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
 
         var msgTb = new TextBlock
         {
@@ -3207,7 +3267,7 @@ public partial class MainWindow : Window
             FontFamily   = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap
         };
-        msgTb.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        msgTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
         textCol.Children.Add(titleTb);
         textCol.Children.Add(msgTb);
         Grid.SetColumn(textCol, 1);
@@ -3232,8 +3292,8 @@ public partial class MainWindow : Window
             Margin  = new Thickness(0, 0, 8, 0),
             Style   = (Style)FindResource("ModernButton")
         };
-        backupBtn.SetResourceReference(Button.BackgroundProperty, "ClaudeBrush");
-        backupBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+        backupBtn.SetResourceReference(Button.BackgroundProperty, "PrimaryAccentBrush");
+        backupBtn.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
 
         var closeBtn = new Button
         {
@@ -3243,8 +3303,8 @@ public partial class MainWindow : Window
             Margin  = new Thickness(0, 0, 8, 0),
             Style   = (Style)FindResource("ModernButton")
         };
-        closeBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-        closeBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        closeBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        closeBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
 
         var cancelBtn = new Button
         {
@@ -3253,8 +3313,8 @@ public partial class MainWindow : Window
             Padding = new Thickness(16, 0, 16, 0),
             Style   = (Style)FindResource("ModernButton")
         };
-        cancelBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-        cancelBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        cancelBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        cancelBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
 
         btnRow.Children.Add(backupBtn);
         btnRow.Children.Add(closeBtn);
@@ -3308,7 +3368,7 @@ public partial class MainWindow : Window
         var zipPath             = SysIO.Path.Combine(projectBackupFolder, zipName);
 
         // ── Progress window ────────────────────────────────────────────────
-        var bgBrush     = (Brush)FindResource("BackgroundBrush");
+        var bgBrush     = (Brush)FindResource("ContentBgBrush");
         var progressWin = new Window
         {
             Title                 = "Creating backup…",
@@ -3331,7 +3391,7 @@ public partial class MainWindow : Window
             FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 12)
         };
-        progressTitle.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        progressTitle.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
 
         var progressBar = new ProgressBar
         {
@@ -3350,7 +3410,7 @@ public partial class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Right,
             Margin     = new Thickness(0, 0, 0, 6)
         };
-        pctLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        pctLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         var fileLabel = new TextBlock
         {
@@ -3360,7 +3420,7 @@ public partial class MainWindow : Window
             TextWrapping = TextWrapping.NoWrap,
             TextTrimming = TextTrimming.CharacterEllipsis
         };
-        fileLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        fileLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         progressPanel.Children.Add(progressTitle);
         progressPanel.Children.Add(progressBar);
@@ -3458,8 +3518,19 @@ public partial class MainWindow : Window
         else if (entry.SenderType == "AI")
             _sharedHistory.Add(new CloudAIMessage("assistant", entry.Message, entry.DisplayName));
 
+        // Guard against legacy log entries that pre-date BubbleKey / AccentKey storage.
+        // An empty key causes SetResourceReference to resolve nothing → WPF falls back to
+        // SystemColors.ControlTextBrush (black) on a transparent bubble — readable in light
+        // themes but invisible / broken in dark ones.
+        var bubbleKey = string.IsNullOrEmpty(entry.BubbleKey)
+            ? (entry.IsUser ? "TertiaryBubbleBrush" : "PrimaryBubbleBrush")
+            : entry.BubbleKey;
+        var accentKey = string.IsNullOrEmpty(entry.AccentKey)
+            ? (entry.IsUser ? "TertiaryAccentBrush" : "PrimaryAccentBrush")
+            : entry.AccentKey;
+
         var bubble = AddStreamingBubble(entry.DisplayName, entry.AvatarLabel,
-                                         entry.AccentKey, entry.BubbleKey, entry.IsUser);
+                                         accentKey, bubbleKey, entry.IsUser);
         bubble.StopThinking();
         bubble.Content.Text = entry.Message;
     }
@@ -3728,7 +3799,7 @@ public partial class MainWindow : Window
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode            = ResizeMode.NoResize,
             ShowInTaskbar         = false,
-            Background            = (Brush)FindResource("SidebarBrush")
+            Background            = (Brush)FindResource("SidebarBgBrush")
         };
         ApplyThemeToDialog(win);
 
@@ -3737,7 +3808,7 @@ public partial class MainWindow : Window
             Text       = prompt,
             FontSize   = 13,
             FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("TextBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
             Margin     = new Thickness(16, 16, 16, 6)
         };
 
@@ -3751,10 +3822,10 @@ public partial class MainWindow : Window
             BorderThickness          = new Thickness(0),
             Padding                  = new Thickness(10, 0, 0, 0),
             VerticalContentAlignment = VerticalAlignment.Center,
-            Background               = (Brush)FindResource("InputBrush"),
-            Foreground               = (Brush)FindResource("TextBrush"),
-            CaretBrush               = (Brush)FindResource("TextBrush"),
-            SelectionBrush           = (Brush)FindResource("ClaudeBrush")
+            Background               = (Brush)FindResource("ControlBgBrush"),
+            Foreground               = (Brush)FindResource("ContentTextBrush"),
+            CaretBrush               = (Brush)FindResource("InputTextBrush"),
+            SelectionBrush           = (Brush)FindResource("PrimaryAccentBrush")
         };
 
         var okBtn = new Button
@@ -3764,8 +3835,8 @@ public partial class MainWindow : Window
             Height     = 34,
             Margin     = new Thickness(16, 0, 8, 16),
             Style      = (Style)FindResource("ModernButton"),
-            Background = (Brush)FindResource("ClaudeBrush"),
-            Foreground = (Brush)FindResource("SidebarBrush")
+            Background = (Brush)FindResource("PrimaryAccentBrush"),
+            Foreground = (Brush)FindResource("AccentTextBrush")
         };
 
         var cancelBtn = new Button
@@ -3775,8 +3846,8 @@ public partial class MainWindow : Window
             Height     = 34,
             Margin     = new Thickness(0, 0, 16, 16),
             Style      = (Style)FindResource("ModernButton"),
-            Background = (Brush)FindResource("InputBrush"),
-            Foreground = (Brush)FindResource("TextBrush")
+            Background = (Brush)FindResource("ControlBgBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush")
         };
 
         var btnRow = new StackPanel
@@ -3818,17 +3889,19 @@ public partial class MainWindow : Window
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode            = ResizeMode.NoResize,
             ShowInTaskbar         = false,
-            Background            = (Brush)FindResource("SidebarBrush")
+            Background            = (Brush)FindResource("SidebarBgBrush")
         };
         ApplyThemeToDialog(win);
 
         Border MakeInputBorder(UIElement child) => new Border
         {
-            Background    = (Brush)FindResource("InputBrush"),
-            CornerRadius  = new CornerRadius(8),
-            Padding       = new Thickness(0),
-            Margin        = new Thickness(0, 0, 0, 6),
-            Child         = child
+            Background      = (Brush)FindResource("InputBgBrush"),
+            BorderBrush     = (Brush)FindResource("ControlBgBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius    = new CornerRadius(8),
+            Padding         = new Thickness(0),
+            Margin          = new Thickness(0, 0, 0, 6),
+            Child           = child
         };
 
         TextBlock MakeLabel(string text) => new TextBlock
@@ -3836,7 +3909,7 @@ public partial class MainWindow : Window
             Text       = text,
             FontSize   = 11, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("SubtextBrush"),
+            Foreground = (Brush)FindResource("ContentDimBrush"),
             Margin     = new Thickness(0, 0, 0, 5)
         };
 
@@ -3844,7 +3917,7 @@ public partial class MainWindow : Window
         {
             Text         = text,
             FontSize     = 11, FontFamily = new FontFamily("Segoe UI"),
-            Foreground   = (Brush)FindResource("SubtextBrush"),
+            Foreground   = (Brush)FindResource("ContentDimBrush"),
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 0, 0, 16)
         };
@@ -3858,10 +3931,10 @@ public partial class MainWindow : Window
             BorderThickness          = new Thickness(0),
             Padding                  = new Thickness(10, 0, 0, 0),
             VerticalContentAlignment = VerticalAlignment.Center,
-            Background               = (Brush)FindResource("InputBrush"),
-            Foreground               = (Brush)FindResource("TextBrush"),
-            CaretBrush               = (Brush)FindResource("TextBrush"),
-            SelectionBrush           = (Brush)FindResource("ClaudeBrush")
+            Background               = (Brush)FindResource("InputBgBrush"),
+            Foreground               = (Brush)FindResource("ContentTextBrush"),
+            CaretBrush               = (Brush)FindResource("InputTextBrush"),
+            SelectionBrush           = (Brush)FindResource("PrimaryAccentBrush")
         };
 
         // ── Description field ──────────────────────────────────────────────
@@ -3876,10 +3949,10 @@ public partial class MainWindow : Window
             TextWrapping    = TextWrapping.Wrap,
             AcceptsReturn   = true,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Background      = (Brush)FindResource("InputBrush"),
-            Foreground      = (Brush)FindResource("TextBrush"),
-            CaretBrush      = (Brush)FindResource("TextBrush"),
-            SelectionBrush  = (Brush)FindResource("ClaudeBrush"),
+            Background      = (Brush)FindResource("InputBgBrush"),
+            Foreground      = (Brush)FindResource("ContentTextBrush"),
+            CaretBrush      = (Brush)FindResource("InputTextBrush"),
+            SelectionBrush  = (Brush)FindResource("PrimaryAccentBrush"),
             ToolTip         = "Describe what this project is about. The AI participants will read this."
         };
 
@@ -3890,8 +3963,8 @@ public partial class MainWindow : Window
             IsDefault  = true,
             Height     = 34, Margin = new Thickness(0, 0, 8, 0),
             Style      = (Style)FindResource("ModernButton"),
-            Background = (Brush)FindResource("ClaudeBrush"),
-            Foreground = (Brush)FindResource("SidebarBrush")
+            Background = (Brush)FindResource("PrimaryAccentBrush"),
+            Foreground = (Brush)FindResource("AccentTextBrush")
         };
         var cancelBtn = new Button
         {
@@ -3899,8 +3972,8 @@ public partial class MainWindow : Window
             IsCancel   = true,
             Height     = 34,
             Style      = (Style)FindResource("ModernButton"),
-            Background = (Brush)FindResource("InputBrush"),
-            Foreground = (Brush)FindResource("TextBrush")
+            Background = (Brush)FindResource("ControlBgBrush"),
+            Foreground = (Brush)FindResource("SidebarTextBrush")
         };
         var btnRow = new StackPanel
         {
@@ -3990,7 +4063,7 @@ public partial class MainWindow : Window
             ResizeMode            = ResizeMode.NoResize
         };
         ApplyThemeToDialog(win);
-        win.SetResourceReference(Window.BackgroundProperty, "BackgroundBrush");
+        win.SetResourceReference(Window.BackgroundProperty, "ContentBgBrush");
 
         var panel = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
 
@@ -4002,7 +4075,7 @@ public partial class MainWindow : Window
             FontWeight = FontWeights.Bold,
             Margin     = new Thickness(0, 0, 0, 6)
         };
-        heading.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        heading.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         // ── Folder input ───────────────────────────────────────────────────
         var folderTb = new TextBox
@@ -4015,15 +4088,17 @@ public partial class MainWindow : Window
             Background      = Brushes.Transparent,
             Padding         = new Thickness(0, 2, 0, 2)
         };
-        folderTb.SetResourceReference(TextBox.ForegroundProperty,  "TextBrush");
-        folderTb.SetResourceReference(TextBox.CaretBrushProperty,  "TextBrush");
+        folderTb.SetResourceReference(TextBox.ForegroundProperty,  "InputTextBrush");
+        folderTb.SetResourceReference(TextBox.CaretBrushProperty,  "InputTextBrush");
         var folderBorder = new Border
         {
-            CornerRadius = new CornerRadius(8), Height = 34,
-            Padding      = new Thickness(10, 0, 10, 0),
-            Child        = folderTb
+            CornerRadius    = new CornerRadius(8), Height = 34,
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(10, 0, 10, 0),
+            Child           = folderTb
         };
-        folderBorder.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+        folderBorder.SetResourceReference(Border.BackgroundProperty,  "InputBgBrush");
+        folderBorder.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
 
         var browseBtn = new Button
         {
@@ -4033,8 +4108,8 @@ public partial class MainWindow : Window
             ToolTip = "Choose folder"
         };
         browseBtn.Style = (Style)FindResource("ModernButton");
-        browseBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-        browseBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        browseBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        browseBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
         browseBtn.Click += (_, _) =>
         {
             var dlg = new Microsoft.Win32.OpenFolderDialog
@@ -4054,8 +4129,8 @@ public partial class MainWindow : Window
             ToolTip = defaultFolder
         };
         defaultBtn.Style = (Style)FindResource("ModernButton");
-        defaultBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-        defaultBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        defaultBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        defaultBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
         defaultBtn.Click += (_, _) => folderTb.Text = "";
 
         var folderRow = new Grid { Margin = new Thickness(0, 0, 0, 6) };
@@ -4077,7 +4152,7 @@ public partial class MainWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 0, 0, 20)
         };
-        hint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        hint.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         // ── Separator ──────────────────────────────────────────────────────
         var sep = new Rectangle
@@ -4085,7 +4160,7 @@ public partial class MainWindow : Window
             Height  = 1,
             Margin  = new Thickness(0, 0, 0, 16)
         };
-        sep.SetResourceReference(Shape.FillProperty, "InputBrush");
+        sep.SetResourceReference(Shape.FillProperty, "ControlBgBrush");
 
         // ── BACKUP FOLDER ──────────────────────────────────────────────────
         var backupHeading = new TextBlock
@@ -4095,7 +4170,7 @@ public partial class MainWindow : Window
             FontWeight = FontWeights.Bold,
             Margin     = new Thickness(0, 0, 0, 6)
         };
-        backupHeading.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        backupHeading.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         var backupTb = new TextBox
         {
@@ -4106,15 +4181,17 @@ public partial class MainWindow : Window
             Background      = Brushes.Transparent,
             Padding         = new Thickness(0, 2, 0, 2)
         };
-        backupTb.SetResourceReference(TextBox.ForegroundProperty,  "TextBrush");
-        backupTb.SetResourceReference(TextBox.CaretBrushProperty,  "TextBrush");
+        backupTb.SetResourceReference(TextBox.ForegroundProperty,  "InputTextBrush");
+        backupTb.SetResourceReference(TextBox.CaretBrushProperty,  "InputTextBrush");
         var backupBorder = new Border
         {
-            CornerRadius = new CornerRadius(8), Height = 34,
-            Padding      = new Thickness(10, 0, 10, 0),
-            Child        = backupTb
+            CornerRadius    = new CornerRadius(8), Height = 34,
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(10, 0, 10, 0),
+            Child           = backupTb
         };
-        backupBorder.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+        backupBorder.SetResourceReference(Border.BackgroundProperty,  "InputBgBrush");
+        backupBorder.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
 
         var backupBrowseBtn = new Button
         {
@@ -4124,8 +4201,8 @@ public partial class MainWindow : Window
             ToolTip = "Choose backup folder"
         };
         backupBrowseBtn.Style = (Style)FindResource("ModernButton");
-        backupBrowseBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-        backupBrowseBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        backupBrowseBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        backupBrowseBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
         backupBrowseBtn.Click += (_, _) =>
         {
             var dlg = new Microsoft.Win32.OpenFolderDialog
@@ -4145,8 +4222,8 @@ public partial class MainWindow : Window
             ToolTip = "Disable backups (no backup prompt on project close)"
         };
         backupClearBtn.Style = (Style)FindResource("ModernButton");
-        backupClearBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-        backupClearBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        backupClearBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        backupClearBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
         backupClearBtn.Click += (_, _) => backupTb.Text = "";
 
         var backupRow = new Grid { Margin = new Thickness(0, 0, 0, 6) };
@@ -4170,7 +4247,7 @@ public partial class MainWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 0, 0, 20)
         };
-        backupHint.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        backupHint.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         // ── Save ───────────────────────────────────────────────────────────
         var saveBtn = new Button
@@ -4180,8 +4257,8 @@ public partial class MainWindow : Window
             Padding             = new Thickness(20, 8, 20, 8)
         };
         saveBtn.Style = (Style)FindResource("ModernButton");
-        saveBtn.SetResourceReference(Button.BackgroundProperty, "ClaudeBrush");
-        saveBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+        saveBtn.SetResourceReference(Button.BackgroundProperty, "PrimaryAccentBrush");
+        saveBtn.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
         saveBtn.Click += (_, _) =>
         {
             var s = SettingsService.Load();
@@ -4267,13 +4344,13 @@ public partial class MainWindow : Window
     {
         if (_aiDialogueEnabled)
         {
-            AiDialogueButton.SetResourceReference(Button.BackgroundProperty, "AccentBrush");
-            AiDialogueButton.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+            AiDialogueButton.SetResourceReference(Button.BackgroundProperty, "AccentBgBrush");
+            AiDialogueButton.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
         }
         else
         {
-            AiDialogueButton.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-            AiDialogueButton.SetResourceReference(Button.ForegroundProperty, "SubtextBrush");
+            AiDialogueButton.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+            AiDialogueButton.SetResourceReference(Button.ForegroundProperty, "ContentDimBrush");
         }
     }
 
@@ -4298,7 +4375,7 @@ public partial class MainWindow : Window
             ResizeMode            = ResizeMode.NoResize
         };
         ApplyThemeToDialog(win);
-        win.SetResourceReference(Window.BackgroundProperty, "BackgroundBrush");
+        win.SetResourceReference(Window.BackgroundProperty, "ContentBgBrush");
 
         var panel = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
 
@@ -4317,8 +4394,8 @@ public partial class MainWindow : Window
                 Padding         = new Thickness(4, 2, 4, 2),
                 VerticalContentAlignment = VerticalAlignment.Center
             };
-            tb.SetResourceReference(TextBox.ForegroundProperty,  "TextBrush");
-            tb.SetResourceReference(TextBox.CaretBrushProperty,  "TextBrush");
+            tb.SetResourceReference(TextBox.ForegroundProperty,  "InputTextBrush");
+            tb.SetResourceReference(TextBox.CaretBrushProperty,  "InputTextBrush");
             return tb;
         }
         Border WrapNumBox(TextBox tb)
@@ -4331,7 +4408,7 @@ public partial class MainWindow : Window
                 Height       = 28,
                 Child        = tb
             };
-            b.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+            b.SetResourceReference(Border.BackgroundProperty, "ControlBgBrush");
             return b;
         }
         TextBlock MakeSectionLabel(string text)
@@ -4343,7 +4420,7 @@ public partial class MainWindow : Window
                 FontWeight = FontWeights.SemiBold,
                 Margin     = new Thickness(0, 0, 0, 6)
             };
-            lbl.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+            lbl.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
             return lbl;
         }
 
@@ -4359,16 +4436,18 @@ public partial class MainWindow : Window
             Background      = Brushes.Transparent,
             Padding         = new Thickness(0, 2, 0, 2)
         };
-        searchBox.SetResourceReference(TextBox.ForegroundProperty, "TextBrush");
-        searchBox.SetResourceReference(TextBox.CaretBrushProperty, "TextBrush");
+        searchBox.SetResourceReference(TextBox.ForegroundProperty, "InputTextBrush");
+        searchBox.SetResourceReference(TextBox.CaretBrushProperty, "InputTextBrush");
         var searchBorder = new Border
         {
-            CornerRadius = new CornerRadius(8), Height = 34,
-            Margin       = new Thickness(0, 0, 0, 6),
-            Padding      = new Thickness(10, 0, 10, 0),
-            Child        = searchBox
+            CornerRadius    = new CornerRadius(8), Height = 34,
+            BorderThickness = new Thickness(1),
+            Margin          = new Thickness(0, 0, 0, 6),
+            Padding         = new Thickness(10, 0, 10, 0),
+            Child           = searchBox
         };
-        searchBorder.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+        searchBorder.SetResourceReference(Border.BackgroundProperty,  "InputBgBrush");
+        searchBorder.SetResourceReference(Border.BorderBrushProperty, "InputBorderBrush");
         panel.Children.Add(searchBorder);
 
         var fontList = new ListBox
@@ -4377,8 +4456,8 @@ public partial class MainWindow : Window
             BorderThickness = new Thickness(0),
             Margin          = new Thickness(0, 0, 0, 18)
         };
-        fontList.SetResourceReference(ListBox.BackgroundProperty, "InputBrush");
-        fontList.SetResourceReference(ListBox.ForegroundProperty, "TextBrush");
+        fontList.SetResourceReference(ListBox.BackgroundProperty, "InputBgBrush");
+        fontList.SetResourceReference(ListBox.ForegroundProperty, "ContentTextBrush");
         panel.Children.Add(fontList);
 
         void RefreshFontList(string filter)
@@ -4451,7 +4530,7 @@ public partial class MainWindow : Window
             FontFamily   = new FontFamily(settings.ChatFontFamily),
             FontSize     = settings.ChatFontSize
         };
-        previewTb.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        previewTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
         panel.Children.Add(previewTb);
 
         // ── Live wiring ───────────────────────────────────────────────────
@@ -4525,8 +4604,8 @@ public partial class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Right,
             Padding             = new Thickness(20, 8, 20, 8)
         };
-        closeBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-        closeBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        closeBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        closeBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
         closeBtn.Style = (Style)FindResource("ModernButton");
         closeBtn.Click += (_, _) =>
         {
@@ -4554,7 +4633,7 @@ public partial class MainWindow : Window
             SizeToContent         = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner                 = this,
-            Background            = (Brush)FindResource("BackgroundBrush"),
+            Background            = (Brush)FindResource("ContentBgBrush"),
             ResizeMode            = ResizeMode.NoResize
         };
         ApplyThemeToDialog(win);
@@ -4565,26 +4644,26 @@ public partial class MainWindow : Window
         {
             Text = "ClaudetRelay", FontSize = 22, FontWeight = FontWeights.Bold,
             FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("TextBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
             Margin = new Thickness(0, 0, 0, 4)
         });
         panel.Children.Add(new TextBlock
         {
             Text = "Multi-AI group chat relay",
             FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("SubtextBrush"),
+            Foreground = (Brush)FindResource("ContentDimBrush"),
             Margin = new Thickness(0, 0, 0, 20)
         });
         panel.Children.Add(new Rectangle
         {
-            Height = 1, Fill = (Brush)FindResource("InputBrush"),
+            Height = 1, Fill = (Brush)FindResource("ControlBgBrush"),
             Margin = new Thickness(0, 0, 0, 20)
         });
         panel.Children.Add(new TextBlock
         {
             Text = "by H.-R. Matthes and Claude Code",
             FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("TextBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
             Margin = new Thickness(0, 0, 0, 20)
         });
 
@@ -4593,8 +4672,8 @@ public partial class MainWindow : Window
             Content = "Close", IsDefault = true,
             Height = 34, Padding = new Thickness(20, 0, 20, 0),
             Style = (Style)FindResource("ModernButton"),
-            Background = (Brush)FindResource("ClaudeBrush"),
-            Foreground = (Brush)FindResource("SidebarBrush"),
+            Background = (Brush)FindResource("PrimaryAccentBrush"),
+            Foreground = (Brush)FindResource("AccentTextBrush"),
             FontWeight = FontWeights.SemiBold,
             HorizontalAlignment = HorizontalAlignment.Right
         };
@@ -4621,7 +4700,7 @@ public partial class MainWindow : Window
             SizeToContent         = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner                 = this,
-            Background            = (Brush)FindResource("BackgroundBrush"),
+            Background            = (Brush)FindResource("ContentBgBrush"),
             ResizeMode            = ResizeMode.NoResize
         };
         ApplyThemeToDialog(win);
@@ -4632,21 +4711,21 @@ public partial class MainWindow : Window
         {
             Text = "ClaudetRelay", FontSize = 16, FontWeight = FontWeights.Bold,
             FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("TextBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
             Margin = new Thickness(0, 0, 0, 10)
         });
         panel.Children.Add(new TextBlock
         {
             Text = $"Version {verStr}",
             FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("TextBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
             Margin = new Thickness(0, 0, 0, 4)
         });
         panel.Children.Add(new TextBlock
         {
             Text = $"Build  {built:yyyy-MM-dd}",
             FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("SubtextBrush"),
+            Foreground = (Brush)FindResource("ContentDimBrush"),
             Margin = new Thickness(0, 0, 0, 18)
         });
 
@@ -4655,8 +4734,8 @@ public partial class MainWindow : Window
             Content = "Close", IsDefault = true,
             Height = 32, Padding = new Thickness(16, 0, 16, 0),
             Style = (Style)FindResource("ModernButton"),
-            Background = (Brush)FindResource("InputBrush"),
-            Foreground = (Brush)FindResource("TextBrush"),
+            Background = (Brush)FindResource("ControlBgBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
             HorizontalAlignment = HorizontalAlignment.Right
         };
         closeBtn.Click += (_, _) => win.Close();
@@ -4711,7 +4790,7 @@ public partial class MainWindow : Window
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode            = ResizeMode.NoResize,
             ShowInTaskbar         = false,
-            Background            = (Brush)FindResource("SidebarBrush")
+            Background            = (Brush)FindResource("SidebarBgBrush")
         };
         ApplyThemeToDialog(win);
 
@@ -4724,7 +4803,7 @@ public partial class MainWindow : Window
             FontSize   = 11, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 6),
-            Foreground = (Brush)FindResource("SubtextBrush")
+            Foreground = (Brush)FindResource("ContentDimBrush")
         };
 
         var descBox = new TextBox
@@ -4737,10 +4816,10 @@ public partial class MainWindow : Window
             TextWrapping    = TextWrapping.Wrap,
             AcceptsReturn   = true,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Background      = (Brush)FindResource("InputBrush"),
-            Foreground      = (Brush)FindResource("TextBrush"),
-            CaretBrush      = (Brush)FindResource("TextBrush"),
-            SelectionBrush  = (Brush)FindResource("ClaudeBrush")
+            Background      = (Brush)FindResource("ControlBgBrush"),
+            Foreground      = (Brush)FindResource("ContentTextBrush"),
+            CaretBrush      = (Brush)FindResource("InputTextBrush"),
+            SelectionBrush  = (Brush)FindResource("PrimaryAccentBrush")
         };
 
         var descHint = new TextBlock
@@ -4750,13 +4829,13 @@ public partial class MainWindow : Window
             FontSize     = 11, FontFamily = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 4, 0, 16),
-            Foreground   = (Brush)FindResource("SubtextBrush")
+            Foreground   = (Brush)FindResource("ContentDimBrush")
         };
 
         var descSep = new Rectangle
         {
             Height = 1, Margin = new Thickness(0, 0, 0, 16),
-            Fill   = (Brush)FindResource("InputBrush")
+            Fill   = (Brush)FindResource("ControlBgBrush")
         };
 
         root.Children.Add(descLabel);
@@ -4771,7 +4850,7 @@ public partial class MainWindow : Window
             FontSize   = 11, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 8),
-            Foreground = (Brush)FindResource("SubtextBrush")
+            Foreground = (Brush)FindResource("ContentDimBrush")
         };
 
         RadioButton MakeRadio(string text, string tip, OrchestrationMode mode) => new RadioButton
@@ -4781,7 +4860,7 @@ public partial class MainWindow : Window
             GroupName   = "OrcMode",
             FontSize    = 13, FontFamily = new FontFamily("Segoe UI"),
             Margin      = new Thickness(0, 0, 0, 6),
-            Foreground  = (Brush)FindResource("TextBrush"),
+            Foreground  = (Brush)FindResource("ContentTextBrush"),
             Tag         = mode,
             ToolTip     = tip
         };
@@ -4824,7 +4903,7 @@ public partial class MainWindow : Window
             Visibility  = (_currentProjectType?.HasRoadmap == true && ps.RoadmapInitialized)
                           ? Visibility.Visible : Visibility.Collapsed
         };
-        resetRoadmapTb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        resetRoadmapTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         var resetRoadmapLink = new Hyperlink();
         resetRoadmapLink.Inlines.Add("🗺 Reset roadmap planning (coordinator re-starts conversation on next open)");
         resetRoadmapLink.Click += (_, _) =>
@@ -4850,7 +4929,7 @@ public partial class MainWindow : Window
             FontSize   = 11, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 6),
-            Foreground = (Brush)FindResource("SubtextBrush")
+            Foreground = (Brush)FindResource("ContentDimBrush")
         };
 
         var langCombo = new ComboBox
@@ -4878,7 +4957,7 @@ public partial class MainWindow : Window
             Text       = "Empty = follow the conversation language",
             FontSize   = 11, FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 16),
-            Foreground = (Brush)FindResource("SubtextBrush")
+            Foreground = (Brush)FindResource("ContentDimBrush")
         };
 
         root.Children.Add(langLabel);
@@ -4892,7 +4971,7 @@ public partial class MainWindow : Window
             FontSize   = 11, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 6),
-            Foreground = (Brush)FindResource("SubtextBrush")
+            Foreground = (Brush)FindResource("ContentDimBrush")
         };
 
         var depthBox = new TextBox
@@ -4905,9 +4984,9 @@ public partial class MainWindow : Window
             TextAlignment     = TextAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             Margin            = new Thickness(0, 0, 10, 0),
-            Foreground        = (Brush)FindResource("TextBrush"),
-            Background        = (Brush)FindResource("InputBrush"),
-            BorderBrush       = (Brush)FindResource("InputBrush"),
+            Foreground        = (Brush)FindResource("ContentTextBrush"),
+            Background        = (Brush)FindResource("ControlBgBrush"),
+            BorderBrush       = (Brush)FindResource("ControlBgBrush"),
             ToolTip           = "Positive integer. 1 = only respond to user (no AI-to-AI chaining)."
         };
         // Allow only digits
@@ -4919,7 +4998,7 @@ public partial class MainWindow : Window
             FontSize          = 11, FontFamily = new FontFamily("Segoe UI"),
             TextWrapping      = TextWrapping.Wrap,
             VerticalAlignment = VerticalAlignment.Center,
-            Foreground        = (Brush)FindResource("SubtextBrush")
+            Foreground        = (Brush)FindResource("ContentDimBrush")
         };
 
         var depthRow = new StackPanel
@@ -4940,7 +5019,7 @@ public partial class MainWindow : Window
             FontSize   = 11, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 6),
-            Foreground = (Brush)FindResource("SubtextBrush")
+            Foreground = (Brush)FindResource("ContentDimBrush")
         };
 
         var defLenSlider = new Slider
@@ -4959,7 +5038,7 @@ public partial class MainWindow : Window
             FontSize          = 12, FontFamily = new FontFamily("Segoe UI"),
             Width             = 80,
             VerticalAlignment = VerticalAlignment.Center,
-            Foreground        = (Brush)FindResource("TextBrush")
+            Foreground        = (Brush)FindResource("ContentTextBrush")
         };
 
         string DefLenName(int v) => v switch
@@ -4982,8 +5061,8 @@ public partial class MainWindow : Window
             Content           = "Apply to all",
             Height            = 28, Padding = new Thickness(10, 0, 10, 0),
             Style             = (Style)FindResource("ModernButton"),
-            Background        = (Brush)FindResource("InputBrush"),
-            Foreground        = (Brush)FindResource("TextBrush"),
+            Background        = (Brush)FindResource("ControlBgBrush"),
+            Foreground        = (Brush)FindResource("ContentTextBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             Margin            = new Thickness(10, 0, 0, 0),
             ToolTip           = "Override the response length for every participant in this project"
@@ -5006,7 +5085,7 @@ public partial class MainWindow : Window
         {
             Height  = 1,
             Margin  = new Thickness(0, 0, 0, 14),
-            Fill    = (Brush)FindResource("InputBrush")
+            Fill    = (Brush)FindResource("ControlBgBrush")
         };
         root.Children.Add(sep);
 
@@ -5017,7 +5096,7 @@ public partial class MainWindow : Window
             FontSize   = 11, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 10),
-            Foreground = (Brush)FindResource("SubtextBrush")
+            Foreground = (Brush)FindResource("ContentDimBrush")
         };
         root.Children.Add(rolesLabel);
 
@@ -5044,7 +5123,7 @@ public partial class MainWindow : Window
                 FontSize   = 12, FontFamily = new FontFamily("Segoe UI"),
                 TextWrapping = TextWrapping.Wrap,
                 Margin     = new Thickness(0, 0, 0, 12),
-                Foreground = (Brush)FindResource("SubtextBrush")
+                Foreground = (Brush)FindResource("ContentDimBrush")
             };
             root.Children.Add(noParticipants);
         }
@@ -5100,7 +5179,7 @@ public partial class MainWindow : Window
             var avatarCircle = new Border
             {
                 Width = 34, Height = 34, CornerRadius = new CornerRadius(17),
-                Background          = (Brush)FindResource(available ? "OllamaBrush" : "SubtextBrush"),
+                Background          = (Brush)FindResource(available ? "SecondaryAccentBrush" : "ContentDimBrush"),
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment   = VerticalAlignment.Top
             };
@@ -5111,7 +5190,7 @@ public partial class MainWindow : Window
                 FontFamily = new FontFamily("Segoe UI"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment   = VerticalAlignment.Center,
-                Foreground = (Brush)FindResource("SidebarBrush")
+                Foreground = (Brush)FindResource("AccentTextBrush")
             };
 
             // CO badge — gold, top-right
@@ -5147,7 +5226,7 @@ public partial class MainWindow : Window
                 CornerRadius        = new CornerRadius(3),
                 Padding             = new Thickness(2, 0, 2, 0),
                 Height              = 13,
-                Background          = (Brush)FindResource("SubtextBrush"),
+                Background          = (Brush)FindResource("ContentDimBrush"),
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment   = VerticalAlignment.Center,
                 Visibility          = role.IsReasoner ? Visibility.Visible : Visibility.Collapsed,
@@ -5239,7 +5318,7 @@ public partial class MainWindow : Window
             {
                 Text = displayName, FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
                 FontWeight = FontWeights.SemiBold,
-                Foreground = (Brush)FindResource(available ? "TextBrush" : "SubtextBrush")
+                Foreground = (Brush)FindResource(available ? "ContentTextBrush" : "ContentDimBrush")
             };
             var modelTb = new TextBlock
             {
@@ -5247,7 +5326,7 @@ public partial class MainWindow : Window
                            ? $"{provider}  ·  {model}"
                            : $"{provider}  ·  {model}  ·  🎭 {role.AnswerAsName}",
                 FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
-                Foreground = (Brush)FindResource("SubtextBrush"),
+                Foreground = (Brush)FindResource("ContentDimBrush"),
                 Margin = new Thickness(0, 1, 0, 0)
             };
             var nameStack = new StackPanel();
@@ -5270,8 +5349,8 @@ public partial class MainWindow : Window
                 Content    = "✏ Edit",
                 Height     = 28, Padding = new Thickness(10, 0, 10, 0),
                 Style      = (Style)FindResource("ModernButton"),
-                Background = (Brush)FindResource("InputBrush"),
-                Foreground = (Brush)FindResource("TextBrush"),
+                Background = (Brush)FindResource("ControlBgBrush"),
+                Foreground = (Brush)FindResource("ContentTextBrush"),
                 IsEnabled  = available,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -5283,6 +5362,7 @@ public partial class MainWindow : Window
             var capturedCrBadge = crBadgeBorder;
             var capturedPlBadge = plBadgeBorder;
             var capturedRsBadge = rsBadgeBorder;
+            var capturedWrBadge = wrBadgeBorder;
             editBtn.Click += (_, _) =>
             {
                 if (ShowCharacterEditorDialog(capturedRole, projFolder, displayName))
@@ -5292,11 +5372,12 @@ public partial class MainWindow : Window
                         ? $"{provider}  ·  {model}"
                         : $"{provider}  ·  {model}  ·  🎭 {capturedRole.AnswerAsName}";
                     // Refresh all role badges independently
-                    capturedCoBadge.Visibility = capturedRole.IsCoordinator ? Visibility.Visible : Visibility.Collapsed;
-                    capturedRBadge .Visibility = capturedRole.IsReasoner    ? Visibility.Visible : Visibility.Collapsed;
-                    capturedCrBadge.Visibility = capturedRole.IsCritic      ? Visibility.Visible : Visibility.Collapsed;
-                    capturedPlBadge.Visibility = capturedRole.IsPlanner     ? Visibility.Visible : Visibility.Collapsed;
-                    capturedRsBadge.Visibility = capturedRole.IsResearcher  ? Visibility.Visible : Visibility.Collapsed;
+                    capturedCoBadge.Visibility = capturedRole.IsCoordinator                                    ? Visibility.Visible : Visibility.Collapsed;
+                    capturedRBadge .Visibility = capturedRole.IsReasoner                                       ? Visibility.Visible : Visibility.Collapsed;
+                    capturedCrBadge.Visibility = capturedRole.IsCritic                                         ? Visibility.Visible : Visibility.Collapsed;
+                    capturedPlBadge.Visibility = capturedRole.IsPlanner                                        ? Visibility.Visible : Visibility.Collapsed;
+                    capturedRsBadge.Visibility = capturedRole.IsResearcher                                     ? Visibility.Visible : Visibility.Collapsed;
+                    capturedWrBadge.Visibility = (capturedRole.IsWriteAccess || capturedRole.IsCoordinator)    ? Visibility.Visible : Visibility.Collapsed;
                 }
             };
 
@@ -5349,7 +5430,7 @@ public partial class MainWindow : Window
         var sep2 = new Rectangle
         {
             Height = 1, Margin = new Thickness(0, 4, 0, 12),
-            Fill   = (Brush)FindResource("InputBrush")
+            Fill   = (Brush)FindResource("ControlBgBrush")
         };
         root.Children.Add(sep2);
 
@@ -5359,8 +5440,8 @@ public partial class MainWindow : Window
             IsDefault  = true,
             Height     = 36, Margin = new Thickness(0, 0, 8, 16),
             Style      = (Style)FindResource("ModernButton"),
-            Background = (Brush)FindResource("ClaudeBrush"),
-            Foreground = (Brush)FindResource("SidebarBrush"),
+            Background = (Brush)FindResource("PrimaryAccentBrush"),
+            Foreground = (Brush)FindResource("AccentTextBrush"),
             FontWeight = FontWeights.SemiBold
         };
         var cancelBtn = new Button
@@ -5369,8 +5450,8 @@ public partial class MainWindow : Window
             IsCancel   = true,
             Height     = 36, Margin = new Thickness(0, 0, 0, 16),
             Style      = (Style)FindResource("ModernButton"),
-            Background = (Brush)FindResource("InputBrush"),
-            Foreground = (Brush)FindResource("TextBrush")
+            Background = (Brush)FindResource("ControlBgBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush")
         };
         var btnRow = new StackPanel
         {
@@ -5497,7 +5578,7 @@ public partial class MainWindow : Window
             SizeToContent         = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner                 = this,
-            Background            = (Brush)FindResource("BackgroundBrush"),
+            Background            = (Brush)FindResource("ContentBgBrush"),
             ResizeMode            = ResizeMode.NoResize
         };
         ApplyThemeToDialog(win);
@@ -5511,7 +5592,7 @@ public partial class MainWindow : Window
             FontSize         = 11,
             FontWeight       = FontWeights.SemiBold,
             FontFamily       = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("SubtextBrush"),
+            Foreground = (Brush)FindResource("ContentDimBrush"),
             Margin     = new Thickness(0, 14, 0, 6)
         };
 
@@ -5520,7 +5601,7 @@ public partial class MainWindow : Window
             Text       = text,
             FontSize   = 12,
             FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("TextBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
             Margin     = new Thickness(0, 0, 0, 4)
         };
 
@@ -5529,10 +5610,10 @@ public partial class MainWindow : Window
             Text            = text,
             FontSize        = 13,
             FontFamily      = new FontFamily("Segoe UI"),
-            Background      = (Brush)FindResource("InputBrush"),
-            Foreground      = (Brush)FindResource("TextBrush"),
-            CaretBrush      = (Brush)FindResource("TextBrush"),
-            BorderBrush     = (Brush)FindResource("SubtextBrush"),
+            Background      = (Brush)FindResource("ControlBgBrush"),
+            Foreground      = (Brush)FindResource("ContentTextBrush"),
+            CaretBrush      = (Brush)FindResource("InputTextBrush"),
+            BorderBrush     = (Brush)FindResource("ContentDimBrush"),
             BorderThickness = new Thickness(1),
             Padding         = new Thickness(8, 6, 8, 6),
             Margin          = new Thickness(0, 0, 0, 12),
@@ -5584,7 +5665,7 @@ public partial class MainWindow : Window
             Text                = LengthLabel(role.ResponseLength),
             FontSize            = 12,
             FontFamily          = new FontFamily("Segoe UI"),
-            Foreground          = (Brush)FindResource("SubtextBrush"),
+            Foreground          = (Brush)FindResource("ContentDimBrush"),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin              = new Thickness(0, 0, 0, 4)
         };
@@ -5604,9 +5685,9 @@ public partial class MainWindow : Window
         lengthEndRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         lengthEndRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var shortEndLbl = new TextBlock { Text = "Short", FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("SubtextBrush"), HorizontalAlignment = HorizontalAlignment.Left };
+            Foreground = (Brush)FindResource("ContentDimBrush"), HorizontalAlignment = HorizontalAlignment.Left };
         var longEndLbl  = new TextBlock { Text = "Long",  FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("SubtextBrush"), HorizontalAlignment = HorizontalAlignment.Right };
+            Foreground = (Brush)FindResource("ContentDimBrush"), HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(shortEndLbl, 0); Grid.SetColumn(longEndLbl, 1);
         lengthEndRow.Children.Add(shortEndLbl); lengthEndRow.Children.Add(longEndLbl);
 
@@ -5623,7 +5704,7 @@ public partial class MainWindow : Window
             IsChecked  = role.IsCoordinator,
             FontSize   = 13,
             FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("TextBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
             ToolTip    = "Only one coordinator per project.",
             Margin     = new Thickness(0, 0, 0, 8)
         };
@@ -5635,7 +5716,7 @@ public partial class MainWindow : Window
             IsChecked  = role.IsReasoner,
             FontSize   = 13,
             FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("TextBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
             Margin     = new Thickness(0, 0, 0, 8)
         };
         root.Children.Add(reasonerCheck);
@@ -5651,7 +5732,7 @@ public partial class MainWindow : Window
             Text       = $"Priority: {role.ReasonerPriority}  (1 = lowest, 10 = highest)",
             FontSize   = 12,
             FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("TextBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
             Margin     = new Thickness(0, 0, 0, 4)
         };
         var prioritySlider = new Slider
@@ -5683,7 +5764,7 @@ public partial class MainWindow : Window
             IsChecked  = role.IsCritic,
             FontSize   = 13,
             FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("TextBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
             ToolTip    = "Critic reviews the output of other participants after they respond. Brass badge (CR).",
             Margin     = new Thickness(0, 0, 0, 8)
         };
@@ -5695,7 +5776,7 @@ public partial class MainWindow : Window
             IsChecked  = role.IsPlanner,
             FontSize   = 13,
             FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("TextBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
             ToolTip    = "Planner is called first to produce a work plan. Amber badge (PL).",
             Margin     = new Thickness(0, 0, 0, 8)
         };
@@ -5707,7 +5788,7 @@ public partial class MainWindow : Window
             IsChecked  = role.IsResearcher,
             FontSize   = 13,
             FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("TextBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
             ToolTip    = "Researcher is called second (after Planner) to supply background knowledge. Steel-blue badge (RS).",
             Margin     = new Thickness(0, 0, 0, 8)
         };
@@ -5721,7 +5802,7 @@ public partial class MainWindow : Window
             IsChecked  = role.IsWriteAccess || role.IsCoordinator || role.IsReasoner,
             FontSize   = 13,
             FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("TextBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
             ToolTip    = "Grants this participant file-write access. Coordinators always have write access. " +
                          "All other participants are read-only by default. Green badge (WR).",
             Margin     = new Thickness(0, 0, 0, 8)
@@ -5738,8 +5819,8 @@ public partial class MainWindow : Window
         root.Children.Add(SectionHeader("CHARACTER FILE"));
 
         var fileRow    = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
-        var loadCharBtn = MakeBtn("📂 Load character", (Brush)FindResource("InputBrush"), (Brush)FindResource("TextBrush"));
-        var saveCharBtn = MakeBtn("💾 Save as character", (Brush)FindResource("InputBrush"), (Brush)FindResource("TextBrush"));
+        var loadCharBtn = MakeBtn("📂 Load character", (Brush)FindResource("ControlBgBrush"), (Brush)FindResource("ContentTextBrush"));
+        var saveCharBtn = MakeBtn("💾 Save as character", (Brush)FindResource("ControlBgBrush"), (Brush)FindResource("ContentTextBrush"));
         fileRow.Children.Add(loadCharBtn);
         fileRow.Children.Add(saveCharBtn);
         root.Children.Add(fileRow);
@@ -5762,7 +5843,7 @@ public partial class MainWindow : Window
                 SizeToContent         = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner                 = win,
-                Background            = (Brush)FindResource("BackgroundBrush"),
+                Background            = (Brush)FindResource("ContentBgBrush"),
                 ResizeMode            = ResizeMode.NoResize
             };
             ApplyThemeToDialog(picker);
@@ -5770,12 +5851,12 @@ public partial class MainWindow : Window
             pp.Children.Add(new TextBlock
             {
                 Text = "Select a character:", FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
-                Foreground = (Brush)FindResource("TextBrush"), Margin = new Thickness(0, 0, 0, 8)
+                Foreground = (Brush)FindResource("ContentTextBrush"), Margin = new Thickness(0, 0, 0, 8)
             });
             var lb = new ListBox
             {
-                Background = (Brush)FindResource("InputBrush"), Foreground = (Brush)FindResource("TextBrush"),
-                BorderBrush = (Brush)FindResource("SubtextBrush"), BorderThickness = new Thickness(1),
+                Background = (Brush)FindResource("ControlBgBrush"), Foreground = (Brush)FindResource("ContentTextBrush"),
+                BorderBrush = (Brush)FindResource("ContentDimBrush"), BorderThickness = new Thickness(1),
                 MaxHeight = 200, Margin = new Thickness(0, 0, 0, 12)
             };
             foreach (var c in chars) lb.Items.Add(c);
@@ -5785,11 +5866,11 @@ public partial class MainWindow : Window
             var pRow    = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             var pOk     = new Button { Content = "Load", IsDefault = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
                 Style = (Style)FindResource("ModernButton"),
-                Background = (Brush)FindResource("ClaudeBrush"), Foreground = (Brush)FindResource("SidebarBrush"),
+                Background = (Brush)FindResource("PrimaryAccentBrush"), Foreground = (Brush)FindResource("AccentTextBrush"),
                 FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 8, 0) };
             var pCancel = new Button { Content = "Cancel", IsCancel = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
                 Style = (Style)FindResource("ModernButton"),
-                Background = (Brush)FindResource("InputBrush"), Foreground = (Brush)FindResource("TextBrush") };
+                Background = (Brush)FindResource("ControlBgBrush"), Foreground = (Brush)FindResource("ContentTextBrush") };
             pRow.Children.Add(pOk); pRow.Children.Add(pCancel);
             pp.Children.Add(pRow);
             picker.Content = pp;
@@ -5819,7 +5900,7 @@ public partial class MainWindow : Window
                 SizeToContent         = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner                 = win,
-                Background            = (Brush)FindResource("BackgroundBrush"),
+                Background            = (Brush)FindResource("ContentBgBrush"),
                 ResizeMode            = ResizeMode.NoResize
             };
             ApplyThemeToDialog(nameWin);
@@ -5827,25 +5908,25 @@ public partial class MainWindow : Window
             np.Children.Add(new TextBlock
             {
                 Text = "Save as character name:", FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
-                Foreground = (Brush)FindResource("TextBrush"), Margin = new Thickness(0, 0, 0, 8)
+                Foreground = (Brush)FindResource("ContentTextBrush"), Margin = new Thickness(0, 0, 0, 8)
             });
             var nameBox = new TextBox
             {
                 Text = suggestedName, FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
-                Background = (Brush)FindResource("InputBrush"), Foreground = (Brush)FindResource("TextBrush"),
-                CaretBrush = (Brush)FindResource("TextBrush"),
-                BorderBrush = (Brush)FindResource("SubtextBrush"), BorderThickness = new Thickness(1),
+                Background = (Brush)FindResource("ControlBgBrush"), Foreground = (Brush)FindResource("ContentTextBrush"),
+                CaretBrush = (Brush)FindResource("InputTextBrush"),
+                BorderBrush = (Brush)FindResource("ContentDimBrush"), BorderThickness = new Thickness(1),
                 Padding = new Thickness(8, 6, 8, 6), Margin = new Thickness(0, 0, 0, 12)
             };
             np.Children.Add(nameBox);
             var nRow    = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             var nOk     = new Button { Content = "Save", IsDefault = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
                 Style = (Style)FindResource("ModernButton"),
-                Background = (Brush)FindResource("ClaudeBrush"), Foreground = (Brush)FindResource("SidebarBrush"),
+                Background = (Brush)FindResource("PrimaryAccentBrush"), Foreground = (Brush)FindResource("AccentTextBrush"),
                 FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 8, 0) };
             var nCancel = new Button { Content = "Cancel", IsCancel = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
                 Style = (Style)FindResource("ModernButton"),
-                Background = (Brush)FindResource("InputBrush"), Foreground = (Brush)FindResource("TextBrush") };
+                Background = (Brush)FindResource("ControlBgBrush"), Foreground = (Brush)FindResource("ContentTextBrush") };
             nRow.Children.Add(nOk); nRow.Children.Add(nCancel);
             np.Children.Add(nRow);
             nameWin.Content = np;
@@ -5871,7 +5952,7 @@ public partial class MainWindow : Window
         // ── Separator ─────────────────────────────────────────────────────
         root.Children.Add(new Rectangle
         {
-            Height = 1, Fill = (Brush)FindResource("InputBrush"), Margin = new Thickness(0, 4, 0, 12)
+            Height = 1, Fill = (Brush)FindResource("ControlBgBrush"), Margin = new Thickness(0, 4, 0, 12)
         });
 
         // ── Bottom row: Reset | [spacer] | OK · Cancel ────────────────────
@@ -5885,8 +5966,8 @@ public partial class MainWindow : Window
             Content   = "↩ Reset",
             Height    = 34, Padding = new Thickness(12, 0, 12, 0),
             Style     = (Style)FindResource("ModernButton"),
-            Background = (Brush)FindResource("InputBrush"),
-            Foreground = (Brush)FindResource("TextBrush")
+            Background = (Brush)FindResource("ControlBgBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush")
         };
         Grid.SetColumn(resetBtn, 0);
 
@@ -5897,8 +5978,8 @@ public partial class MainWindow : Window
             IsDefault  = true,
             Height     = 34, Padding = new Thickness(20, 0, 20, 0),
             Style      = (Style)FindResource("ModernButton"),
-            Background = (Brush)FindResource("ClaudeBrush"),
-            Foreground = (Brush)FindResource("SidebarBrush"),
+            Background = (Brush)FindResource("PrimaryAccentBrush"),
+            Foreground = (Brush)FindResource("AccentTextBrush"),
             FontWeight = FontWeights.SemiBold,
             Margin     = new Thickness(0, 0, 8, 0)
         };
@@ -5908,8 +5989,8 @@ public partial class MainWindow : Window
             IsCancel   = true,
             Height     = 34, Padding = new Thickness(14, 0, 14, 0),
             Style      = (Style)FindResource("ModernButton"),
-            Background = (Brush)FindResource("InputBrush"),
-            Foreground = (Brush)FindResource("TextBrush")
+            Background = (Brush)FindResource("ControlBgBrush"),
+            Foreground = (Brush)FindResource("ContentTextBrush")
         };
         rightBtns.Children.Add(okBtn);
         rightBtns.Children.Add(cancelEditorBtn);
@@ -5965,7 +6046,7 @@ public partial class MainWindow : Window
     {
         if (_cloudAIParticipants.Count >= 20) return;
 
-        var apiKey = WindowsCredentialManager.Load(provider);
+        var apiKey = WindowsCredentialManager.Load(provider) ?? "";
         if (string.IsNullOrWhiteSpace(apiKey)) return;
 
         var service = CreateCloudAIService(provider, apiKey);
@@ -6018,7 +6099,7 @@ public partial class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment   = VerticalAlignment.Center
         };
-        avatarText.SetResourceReference(TextBlock.ForegroundProperty, "SidebarBrush");
+        avatarText.SetResourceReference(TextBlock.ForegroundProperty, "AccentTextBrush");
 
         var avatarBorder = new Border
         {
@@ -6028,84 +6109,92 @@ public partial class MainWindow : Window
         };
         avatarBorder.SetResourceReference(Border.BackgroundProperty, participant.ColorKey);
 
+        // ── Role badges — outline-only tags, no fill background ──
         var coBadge = new Border
         {
-            CornerRadius        = new CornerRadius(3),
-            Padding             = new Thickness(2, 0, 2, 0),
-            Height              = 13,
-            Background          = new SolidColorBrush(Color.FromRgb(255, 215, 0)),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment   = VerticalAlignment.Top,
-            Visibility          = Visibility.Collapsed,
-            Child               = new TextBlock { Text = "CO", FontSize = 8, FontWeight = FontWeights.Bold,
-                                      Foreground = Brushes.Black,
-                                      HorizontalAlignment = HorizontalAlignment.Center,
-                                      VerticalAlignment   = VerticalAlignment.Center }
+            CornerRadius    = new CornerRadius(3),
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(4, 1, 4, 1),
+            Margin          = new Thickness(0, 0, 3, 0),
+            Background      = Brushes.Transparent,
+            Visibility      = Visibility.Collapsed,
+            Child           = new TextBlock { Text = "CO", FontSize = 8, FontWeight = FontWeights.Normal,
+                                  VerticalAlignment = VerticalAlignment.Center }
         };
+        coBadge.SetResourceReference(Border.BorderBrushProperty, "AccentBgBrush");
+        ((TextBlock)coBadge.Child).SetResourceReference(TextBlock.ForegroundProperty, "AccentBgBrush");
+
         var rBadge = new Border
         {
-            CornerRadius        = new CornerRadius(3),
-            Padding             = new Thickness(2, 0, 2, 0),
-            Height              = 13,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment   = VerticalAlignment.Center,
-            Visibility          = Visibility.Collapsed,
-            Child               = new TextBlock { Text = "R", FontSize = 8, FontWeight = FontWeights.Bold,
-                                      Foreground = Brushes.Black,
-                                      HorizontalAlignment = HorizontalAlignment.Center,
-                                      VerticalAlignment   = VerticalAlignment.Center }
+            CornerRadius    = new CornerRadius(3),
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(4, 1, 4, 1),
+            Margin          = new Thickness(0, 0, 3, 0),
+            Background      = Brushes.Transparent,
+            Visibility      = Visibility.Collapsed,
+            Child           = new TextBlock { Text = "R", FontSize = 8, FontWeight = FontWeights.Normal,
+                                  VerticalAlignment = VerticalAlignment.Center }
         };
-        rBadge.SetResourceReference(Border.BackgroundProperty, "SubtextBrush");
+        rBadge.SetResourceReference(Border.BorderBrushProperty, "ContentDimBrush");
+        ((TextBlock)rBadge.Child).SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
-        // CR badge — brass, top-left
         var crBadge = new Border
         {
-            CornerRadius        = new CornerRadius(3),
-            Padding             = new Thickness(2, 0, 2, 0),
-            Height              = 13,
-            Background          = new SolidColorBrush(Color.FromRgb(205, 149, 12)),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment   = VerticalAlignment.Top,
-            Visibility          = Visibility.Collapsed,
-            Child               = new TextBlock { Text = "CR", FontSize = 8, FontWeight = FontWeights.Bold,
-                                      Foreground = Brushes.Black,
-                                      HorizontalAlignment = HorizontalAlignment.Center,
-                                      VerticalAlignment   = VerticalAlignment.Center }
+            CornerRadius    = new CornerRadius(3),
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(4, 1, 4, 1),
+            Margin          = new Thickness(0, 0, 3, 0),
+            Background      = Brushes.Transparent,
+            Visibility      = Visibility.Collapsed,
+            Child           = new TextBlock { Text = "CR", FontSize = 8, FontWeight = FontWeights.Normal,
+                                  VerticalAlignment = VerticalAlignment.Center }
         };
+        crBadge.SetResourceReference(Border.BorderBrushProperty, "ContentDimBrush");
+        ((TextBlock)crBadge.Child).SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
-        // PL badge — amber, bottom-left
         var plBadge = new Border
         {
-            CornerRadius        = new CornerRadius(3),
-            Padding             = new Thickness(2, 0, 2, 0),
-            Height              = 13,
-            Background          = new SolidColorBrush(Color.FromRgb(255, 140, 0)),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment   = VerticalAlignment.Bottom,
-            Visibility          = Visibility.Collapsed,
-            Child               = new TextBlock { Text = "PL", FontSize = 8, FontWeight = FontWeights.Bold,
-                                      Foreground = Brushes.Black,
-                                      HorizontalAlignment = HorizontalAlignment.Center,
-                                      VerticalAlignment   = VerticalAlignment.Center }
+            CornerRadius    = new CornerRadius(3),
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(4, 1, 4, 1),
+            Margin          = new Thickness(0, 0, 3, 0),
+            Background      = Brushes.Transparent,
+            Visibility      = Visibility.Collapsed,
+            Child           = new TextBlock { Text = "PL", FontSize = 8, FontWeight = FontWeights.Normal,
+                                  VerticalAlignment = VerticalAlignment.Center }
         };
+        plBadge.SetResourceReference(Border.BorderBrushProperty, "ContentDimBrush");
+        ((TextBlock)plBadge.Child).SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
-        // RS badge — steel blue, bottom-right
         var rsBadge = new Border
         {
-            CornerRadius        = new CornerRadius(3),
-            Padding             = new Thickness(2, 0, 2, 0),
-            Height              = 13,
-            Background          = new SolidColorBrush(Color.FromRgb(70, 130, 180)),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment   = VerticalAlignment.Bottom,
-            Visibility          = Visibility.Collapsed,
-            Child               = new TextBlock { Text = "RS", FontSize = 8, FontWeight = FontWeights.Bold,
-                                      Foreground = Brushes.White,
-                                      HorizontalAlignment = HorizontalAlignment.Center,
-                                      VerticalAlignment   = VerticalAlignment.Center }
+            CornerRadius    = new CornerRadius(3),
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(4, 1, 4, 1),
+            Margin          = new Thickness(0, 0, 3, 0),
+            Background      = Brushes.Transparent,
+            Visibility      = Visibility.Collapsed,
+            Child           = new TextBlock { Text = "RS", FontSize = 8, FontWeight = FontWeights.Normal,
+                                  VerticalAlignment = VerticalAlignment.Center }
         };
+        rsBadge.SetResourceReference(Border.BorderBrushProperty, "ContentDimBrush");
+        ((TextBlock)rsBadge.Child).SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
-        // Error badge — black background, yellow !, bottom-center of avatar
+        var wrBadge = new Border
+        {
+            CornerRadius    = new CornerRadius(3),
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(4, 1, 4, 1),
+            Margin          = new Thickness(0, 0, 3, 0),
+            Background      = Brushes.Transparent,
+            Visibility      = Visibility.Collapsed,
+            Child           = new TextBlock { Text = "WR", FontSize = 8, FontWeight = FontWeights.Normal,
+                                  VerticalAlignment = VerticalAlignment.Center }
+        };
+        wrBadge.SetResourceReference(Border.BorderBrushProperty, "SecondaryAccentBrush");
+        ((TextBlock)wrBadge.Child).SetResourceReference(TextBlock.ForegroundProperty, "SecondaryAccentBrush");
+
+        // Error badge — stays on the avatar (status indicator, not a role)
         var errorBadgeCloud = new Border
         {
             CornerRadius        = new CornerRadius(3),
@@ -6126,6 +6215,7 @@ public partial class MainWindow : Window
                                   }
         };
 
+        // Avatar only holds the circle and the error indicator — role badges moved to row below
         var avatarContainer = new Grid
         {
             Width             = 38, Height = 38,
@@ -6133,16 +6223,11 @@ public partial class MainWindow : Window
             VerticalAlignment = VerticalAlignment.Center
         };
         avatarContainer.Children.Add(avatarBorder);
-        avatarContainer.Children.Add(coBadge);
-        avatarContainer.Children.Add(rBadge);
-        avatarContainer.Children.Add(crBadge);
-        avatarContainer.Children.Add(plBadge);
-        avatarContainer.Children.Add(rsBadge);
         avatarContainer.Children.Add(errorBadgeCloud);
 
         // ── Status dot ────────────────────────────────────────────────────
         var statusDot = new Ellipse { Width = 8, Height = 8, VerticalAlignment = VerticalAlignment.Center };
-        statusDot.SetResourceReference(Ellipse.FillProperty, "SubtextBrush");
+        statusDot.SetResourceReference(Ellipse.FillProperty, "ContentDimBrush");
 
         // ── Labels ────────────────────────────────────────────────────────
         var nameLabel = new TextBlock
@@ -6151,17 +6236,17 @@ public partial class MainWindow : Window
             FontSize   = 13,
             FontWeight = FontWeights.SemiBold
         };
-        nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "CardTextBrush");
+        nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
 
         var modelLabel = new TextBlock
         {
             Text    = FormatModelDisplayName(participant.Service.CurrentModel),
             FontSize = 10
         };
-        modelLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        modelLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         var offlineLabel = new TextBlock { Text = "Offline", FontSize = 10, Visibility = Visibility.Collapsed };
-        offlineLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+        offlineLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBgBrush");
 
         var statusLabelCloud = new TextBlock { FontSize = 10, Visibility = Visibility.Collapsed };
 
@@ -6179,8 +6264,8 @@ public partial class MainWindow : Window
             ToolTip           = "Remove participant",
             Style             = (Style)FindResource("ModernButton")
         };
-        removeButton.SetResourceReference(Button.BackgroundProperty, "SurfaceBrush");
-        removeButton.SetResourceReference(Button.ForegroundProperty, "SubtextBrush");
+        removeButton.SetResourceReference(Button.BackgroundProperty, "ControlHoverBrush");
+        removeButton.SetResourceReference(Button.ForegroundProperty, "ContentDimBrush");
 
         // ── Layout ────────────────────────────────────────────────────────
         var labelPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -6205,15 +6290,35 @@ public partial class MainWindow : Window
         grid.Children.Add(statusDot);
         grid.Children.Add(removeButton);
 
+        // ── Badge row — themed pills in a horizontal strip below the main row ──
+        var badgeRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin      = new Thickness(0, 5, 0, 0),
+            Visibility  = Visibility.Collapsed
+        };
+        badgeRow.Children.Add(coBadge);
+        badgeRow.Children.Add(rBadge);
+        badgeRow.Children.Add(crBadge);
+        badgeRow.Children.Add(plBadge);
+        badgeRow.Children.Add(rsBadge);
+        badgeRow.Children.Add(wrBadge);
+
+        var cardContent = new StackPanel();
+        cardContent.Children.Add(grid);
+        cardContent.Children.Add(badgeRow);
+
         var card = new Border
         {
             CornerRadius = new CornerRadius(10),
             Padding      = new Thickness(10),
             Margin       = new Thickness(0, 0, 0, 7),
             Cursor       = Cursors.Hand,
-            Child        = grid
+            Child        = cardContent
         };
-        card.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+        card.SetResourceReference(Border.BackgroundProperty,   "ControlBgBrush");
+        card.BorderThickness = new Thickness(1);
+        card.SetResourceReference(Border.BorderBrushProperty,  "ControlBorderBrush");
 
         // ── Popup ─────────────────────────────────────────────────────────
         var popupTitle = new TextBlock
@@ -6226,7 +6331,7 @@ public partial class MainWindow : Window
         popupTitle.SetResourceReference(TextBlock.ForegroundProperty, participant.ColorKey);
 
         var separator = new Rectangle { Height = 1, Margin = new Thickness(0, 0, 0, 10) };
-        separator.SetResourceReference(Rectangle.FillProperty, "InputBrush");
+        separator.SetResourceReference(Rectangle.FillProperty, "ControlBgBrush");
 
         var enabledToggle = new CheckBox
         {
@@ -6237,14 +6342,14 @@ public partial class MainWindow : Window
         };
 
         var infoProviderKey = new TextBlock { Text = "PROVIDER", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) };
-        infoProviderKey.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        infoProviderKey.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         var infoProviderVal = new TextBlock { Text = participant.ProviderName, FontSize = 12, Margin = new Thickness(0, 0, 0, 10) };
-        infoProviderVal.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        infoProviderVal.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
 
         var infoModelKey = new TextBlock { Text = "MODEL", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) };
-        infoModelKey.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        infoModelKey.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         var infoModelVal = new TextBlock { Text = FormatModelDisplayName(participant.Service.CurrentModel), FontSize = 12, TextWrapping = TextWrapping.Wrap };
-        infoModelVal.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        infoModelVal.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
 
         var popupContent = new StackPanel();
         popupContent.Children.Add(popupTitle);
@@ -6264,8 +6369,8 @@ public partial class MainWindow : Window
             Child           = popupContent,
             Effect          = new DropShadowEffect { Color = Colors.Black, Opacity = 0.45, BlurRadius = 22, ShadowDepth = 4 }
         };
-        popupBorder.SetResourceReference(Border.BackgroundProperty,  "SidebarBrush");
-        popupBorder.SetResourceReference(Border.BorderBrushProperty, "SurfaceBrush");
+        popupBorder.SetResourceReference(Border.BackgroundProperty,  "SidebarBgBrush");
+        popupBorder.SetResourceReference(Border.BorderBrushProperty, "ControlHoverBrush");
 
         var popup = new Popup
         {
@@ -6289,6 +6394,8 @@ public partial class MainWindow : Window
             CrBadge       = crBadge,
             PlBadge       = plBadge,
             RsBadge       = rsBadge,
+            WrBadge       = wrBadge,
+            BadgeRow      = badgeRow,
             NameLabel     = nameLabel,
             StatusDot     = statusDot,
             ModelLabel    = modelLabel,
@@ -6394,7 +6501,7 @@ public partial class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment   = VerticalAlignment.Center
         };
-        avatarText.SetResourceReference(TextBlock.ForegroundProperty, "SidebarBrush");
+        avatarText.SetResourceReference(TextBlock.ForegroundProperty, "AccentTextBrush");
 
         var avatarBorder = new Border
         {
@@ -6404,83 +6511,92 @@ public partial class MainWindow : Window
         };
         avatarBorder.SetResourceReference(Border.BackgroundProperty, participant.ColorKey);
 
+        // ── Role badges — outline-only tags, no fill background ──
         var coBadge = new Border
         {
-            CornerRadius        = new CornerRadius(3),
-            Padding             = new Thickness(2, 0, 2, 0),
-            Height              = 13,
-            Background          = new SolidColorBrush(Color.FromRgb(255, 215, 0)),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment   = VerticalAlignment.Top,
-            Visibility          = Visibility.Collapsed,
-            Child               = new TextBlock { Text = "CO", FontSize = 8, FontWeight = FontWeights.Bold,
-                                      Foreground = Brushes.Black,
-                                      HorizontalAlignment = HorizontalAlignment.Center,
-                                      VerticalAlignment   = VerticalAlignment.Center }
+            CornerRadius    = new CornerRadius(3),
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(4, 1, 4, 1),
+            Margin          = new Thickness(0, 0, 3, 0),
+            Background      = Brushes.Transparent,
+            Visibility      = Visibility.Collapsed,
+            Child           = new TextBlock { Text = "CO", FontSize = 8, FontWeight = FontWeights.Normal,
+                                  VerticalAlignment = VerticalAlignment.Center }
         };
+        coBadge.SetResourceReference(Border.BorderBrushProperty, "AccentBgBrush");
+        ((TextBlock)coBadge.Child).SetResourceReference(TextBlock.ForegroundProperty, "AccentBgBrush");
+
         var rBadge = new Border
         {
-            CornerRadius        = new CornerRadius(3),
-            Padding             = new Thickness(2, 0, 2, 0),
-            Height              = 13,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment   = VerticalAlignment.Center,
-            Visibility          = Visibility.Collapsed,
-            Child               = new TextBlock { Text = "R", FontSize = 8, FontWeight = FontWeights.Bold,
-                                      Foreground = Brushes.Black,
-                                      HorizontalAlignment = HorizontalAlignment.Center,
-                                      VerticalAlignment   = VerticalAlignment.Center }
+            CornerRadius    = new CornerRadius(3),
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(4, 1, 4, 1),
+            Margin          = new Thickness(0, 0, 3, 0),
+            Background      = Brushes.Transparent,
+            Visibility      = Visibility.Collapsed,
+            Child           = new TextBlock { Text = "R", FontSize = 8, FontWeight = FontWeights.Normal,
+                                  VerticalAlignment = VerticalAlignment.Center }
         };
-        rBadge.SetResourceReference(Border.BackgroundProperty, "SubtextBrush");
+        rBadge.SetResourceReference(Border.BorderBrushProperty, "ContentDimBrush");
+        ((TextBlock)rBadge.Child).SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
-        // CR badge — brass, top-left
         var crBadge = new Border
         {
-            CornerRadius        = new CornerRadius(3),
-            Padding             = new Thickness(2, 0, 2, 0),
-            Height              = 13,
-            Background          = new SolidColorBrush(Color.FromRgb(205, 149, 12)),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment   = VerticalAlignment.Top,
-            Visibility          = Visibility.Collapsed,
-            Child               = new TextBlock { Text = "CR", FontSize = 8, FontWeight = FontWeights.Bold,
-                                      Foreground = Brushes.Black,
-                                      HorizontalAlignment = HorizontalAlignment.Center,
-                                      VerticalAlignment   = VerticalAlignment.Center }
+            CornerRadius    = new CornerRadius(3),
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(4, 1, 4, 1),
+            Margin          = new Thickness(0, 0, 3, 0),
+            Background      = Brushes.Transparent,
+            Visibility      = Visibility.Collapsed,
+            Child           = new TextBlock { Text = "CR", FontSize = 8, FontWeight = FontWeights.Normal,
+                                  VerticalAlignment = VerticalAlignment.Center }
         };
+        crBadge.SetResourceReference(Border.BorderBrushProperty, "ContentDimBrush");
+        ((TextBlock)crBadge.Child).SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
-        // PL badge — amber, bottom-left
         var plBadge = new Border
         {
-            CornerRadius        = new CornerRadius(3),
-            Padding             = new Thickness(2, 0, 2, 0),
-            Height              = 13,
-            Background          = new SolidColorBrush(Color.FromRgb(255, 140, 0)),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment   = VerticalAlignment.Bottom,
-            Visibility          = Visibility.Collapsed,
-            Child               = new TextBlock { Text = "PL", FontSize = 8, FontWeight = FontWeights.Bold,
-                                      Foreground = Brushes.Black,
-                                      HorizontalAlignment = HorizontalAlignment.Center,
-                                      VerticalAlignment   = VerticalAlignment.Center }
+            CornerRadius    = new CornerRadius(3),
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(4, 1, 4, 1),
+            Margin          = new Thickness(0, 0, 3, 0),
+            Background      = Brushes.Transparent,
+            Visibility      = Visibility.Collapsed,
+            Child           = new TextBlock { Text = "PL", FontSize = 8, FontWeight = FontWeights.Normal,
+                                  VerticalAlignment = VerticalAlignment.Center }
         };
+        plBadge.SetResourceReference(Border.BorderBrushProperty, "ContentDimBrush");
+        ((TextBlock)plBadge.Child).SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
-        // RS badge — steel blue, bottom-right
         var rsBadge = new Border
         {
-            CornerRadius        = new CornerRadius(3),
-            Padding             = new Thickness(2, 0, 2, 0),
-            Height              = 13,
-            Background          = new SolidColorBrush(Color.FromRgb(70, 130, 180)),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment   = VerticalAlignment.Bottom,
-            Visibility          = Visibility.Collapsed,
-            Child               = new TextBlock { Text = "RS", FontSize = 8, FontWeight = FontWeights.Bold,
-                                      Foreground = Brushes.White,
-                                      HorizontalAlignment = HorizontalAlignment.Center,
-                                      VerticalAlignment   = VerticalAlignment.Center }
+            CornerRadius    = new CornerRadius(3),
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(4, 1, 4, 1),
+            Margin          = new Thickness(0, 0, 3, 0),
+            Background      = Brushes.Transparent,
+            Visibility      = Visibility.Collapsed,
+            Child           = new TextBlock { Text = "RS", FontSize = 8, FontWeight = FontWeights.Normal,
+                                  VerticalAlignment = VerticalAlignment.Center }
         };
+        rsBadge.SetResourceReference(Border.BorderBrushProperty, "ContentDimBrush");
+        ((TextBlock)rsBadge.Child).SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
+        var wrBadge = new Border
+        {
+            CornerRadius    = new CornerRadius(3),
+            BorderThickness = new Thickness(1),
+            Padding         = new Thickness(4, 1, 4, 1),
+            Margin          = new Thickness(0, 0, 3, 0),
+            Background      = Brushes.Transparent,
+            Visibility      = Visibility.Collapsed,
+            Child           = new TextBlock { Text = "WR", FontSize = 8, FontWeight = FontWeights.Normal,
+                                  VerticalAlignment = VerticalAlignment.Center }
+        };
+        wrBadge.SetResourceReference(Border.BorderBrushProperty, "SecondaryAccentBrush");
+        ((TextBlock)wrBadge.Child).SetResourceReference(TextBlock.ForegroundProperty, "SecondaryAccentBrush");
+
+        // Avatar only holds the circle and the error indicator — role badges moved to row below
         var avatarContainer = new Grid
         {
             Width             = 38, Height = 38,
@@ -6488,11 +6604,6 @@ public partial class MainWindow : Window
             VerticalAlignment = VerticalAlignment.Center
         };
         avatarContainer.Children.Add(avatarBorder);
-        avatarContainer.Children.Add(coBadge);
-        avatarContainer.Children.Add(rBadge);
-        avatarContainer.Children.Add(crBadge);
-        avatarContainer.Children.Add(plBadge);
-        avatarContainer.Children.Add(rsBadge);
 
         // Error badge — black background, yellow !, bottom-center of avatar
         var errorBadgeOllama = new Border
@@ -6517,16 +6628,16 @@ public partial class MainWindow : Window
         avatarContainer.Children.Add(errorBadgeOllama);
 
         var statusDot = new Ellipse { Width = 8, Height = 8, VerticalAlignment = VerticalAlignment.Center };
-        statusDot.SetResourceReference(Ellipse.FillProperty, "SubtextBrush");
+        statusDot.SetResourceReference(Ellipse.FillProperty, "ContentDimBrush");
 
         var nameLabel = new TextBlock { Text = displayName, FontSize = 13, FontWeight = FontWeights.SemiBold };
-        nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "CardTextBrush");
+        nameLabel.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
 
         var modelLabel = new TextBlock { Text = "checking...", FontSize = 10 };
-        modelLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        modelLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         var offlineLabel = new TextBlock { Text = "Offline", FontSize = 10, Visibility = Visibility.Collapsed };
-        offlineLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+        offlineLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBgBrush");
 
         var statusLabelOllama = new TextBlock { FontSize = 10, Visibility = Visibility.Collapsed };
 
@@ -6543,8 +6654,8 @@ public partial class MainWindow : Window
             ToolTip           = "Remove participant",
             Style             = (Style)FindResource("ModernButton")
         };
-        removeButton.SetResourceReference(Button.BackgroundProperty, "SurfaceBrush");
-        removeButton.SetResourceReference(Button.ForegroundProperty, "SubtextBrush");
+        removeButton.SetResourceReference(Button.BackgroundProperty, "ControlHoverBrush");
+        removeButton.SetResourceReference(Button.ForegroundProperty, "ContentDimBrush");
 
         var labelPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         labelPanel.Children.Add(nameLabel);
@@ -6568,15 +6679,35 @@ public partial class MainWindow : Window
         grid.Children.Add(statusDot);
         grid.Children.Add(removeButton);
 
+        // ── Badge row — themed pills in a horizontal strip below the main row ──
+        var badgeRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin      = new Thickness(0, 5, 0, 0),
+            Visibility  = Visibility.Collapsed
+        };
+        badgeRow.Children.Add(coBadge);
+        badgeRow.Children.Add(rBadge);
+        badgeRow.Children.Add(crBadge);
+        badgeRow.Children.Add(plBadge);
+        badgeRow.Children.Add(rsBadge);
+        badgeRow.Children.Add(wrBadge);
+
+        var cardContent = new StackPanel();
+        cardContent.Children.Add(grid);
+        cardContent.Children.Add(badgeRow);
+
         var card = new Border
         {
             CornerRadius = new CornerRadius(10),
             Padding      = new Thickness(10),
             Margin       = new Thickness(0, 0, 0, 7),
             Cursor       = Cursors.Hand,
-            Child        = grid
+            Child        = cardContent
         };
-        card.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+        card.SetResourceReference(Border.BackgroundProperty,   "ControlBgBrush");
+        card.BorderThickness = new Thickness(1);
+        card.SetResourceReference(Border.BorderBrushProperty,  "ControlBorderBrush");
 
         // Popup
         var popupTitle = new TextBlock
@@ -6589,7 +6720,7 @@ public partial class MainWindow : Window
         popupTitle.SetResourceReference(TextBlock.ForegroundProperty, participant.ColorKey);
 
         var separator = new Rectangle { Height = 1, Margin = new Thickness(0, 0, 0, 10) };
-        separator.SetResourceReference(Rectangle.FillProperty, "InputBrush");
+        separator.SetResourceReference(Rectangle.FillProperty, "ControlBgBrush");
 
         var enabledToggle = new CheckBox
         {
@@ -6600,14 +6731,14 @@ public partial class MainWindow : Window
         };
 
         var infoServerKey = new TextBlock { Text = "SERVER", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) };
-        infoServerKey.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        infoServerKey.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         var infoServerVal = new TextBlock { Text = participant.Service.BaseUrl, FontSize = 12, Margin = new Thickness(0, 0, 0, 10), TextWrapping = TextWrapping.Wrap };
-        infoServerVal.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        infoServerVal.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
 
         var infoModelKey = new TextBlock { Text = "MODEL", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) };
-        infoModelKey.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        infoModelKey.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         var infoModelVal = new TextBlock { Text = FormatModelDisplayName(participant.Service.CurrentModel), FontSize = 12, TextWrapping = TextWrapping.Wrap };
-        infoModelVal.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        infoModelVal.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
 
         var popupContent = new StackPanel();
         popupContent.Children.Add(popupTitle);
@@ -6627,8 +6758,8 @@ public partial class MainWindow : Window
             Child           = popupContent,
             Effect          = new DropShadowEffect { Color = Colors.Black, Opacity = 0.45, BlurRadius = 22, ShadowDepth = 4 }
         };
-        popupBorder.SetResourceReference(Border.BackgroundProperty,  "SidebarBrush");
-        popupBorder.SetResourceReference(Border.BorderBrushProperty, "SurfaceBrush");
+        popupBorder.SetResourceReference(Border.BackgroundProperty,  "SidebarBgBrush");
+        popupBorder.SetResourceReference(Border.BorderBrushProperty, "ControlHoverBrush");
 
         var popup = new Popup
         {
@@ -6652,6 +6783,8 @@ public partial class MainWindow : Window
             CrBadge       = crBadge,
             PlBadge       = plBadge,
             RsBadge       = rsBadge,
+            WrBadge       = wrBadge,
+            BadgeRow      = badgeRow,
             NameLabel     = nameLabel,
             StatusDot     = statusDot,
             ModelLabel    = modelLabel,
@@ -6699,19 +6832,25 @@ public partial class MainWindow : Window
 
     private async Task CheckAllStatusAsync()
     {
-        if (_ollamaParticipants.Count > 0)
-        {
-            bool wasOnlineBefore = _ollamaParticipants[0].Data.IsOnline == true;
-            var  ollamaOnline    = await _ollamaParticipants[0].Data.Service.IsAvailableAsync();
+        // Take snapshots before any await — ReInitializeParticipantsFrom may clear these
+        // collections while we are mid-iteration (e.g. user closes project during calibration),
+        // which would cause "Collection was modified; enumeration operation may not execute."
+        var ollamaSnapshot  = _ollamaParticipants .ToList();
+        var cloudAISnapshot = _cloudAIParticipants.ToList();
 
-            foreach (var ui in _ollamaParticipants)
+        if (ollamaSnapshot.Count > 0)
+        {
+            bool wasOnlineBefore = ollamaSnapshot[0].Data.IsOnline == true;
+            var  ollamaOnline    = await ollamaSnapshot[0].Data.Service.IsAvailableAsync();
+
+            foreach (var ui in ollamaSnapshot)
                 ApplyOllamaParticipantStatus(ui, ollamaOnline);
 
             if (ollamaOnline && !wasOnlineBefore)
                 await LoadOllamaModelsAsync();
         }
 
-        foreach (var ui in _cloudAIParticipants)
+        foreach (var ui in cloudAISnapshot)
         {
             var online = await ui.Data.Service.IsAvailableAsync();
             ApplyCloudAIParticipantStatus(ui, online);
@@ -6723,7 +6862,7 @@ public partial class MainWindow : Window
         bool changed = ui.Data.IsOnline != online;
         ui.Data.IsOnline = online;
 
-        ui.StatusDot.SetResourceReference(Ellipse.FillProperty, online ? "OllamaBrush" : "AccentBrush");
+        ui.StatusDot.SetResourceReference(Ellipse.FillProperty, online ? "SecondaryAccentBrush" : "AccentBgBrush");
         ui.OfflineLabel.Visibility = online ? Visibility.Collapsed : Visibility.Visible;
         ui.ModelLabel.Visibility   = online ? Visibility.Visible   : Visibility.Collapsed;
 
@@ -6763,7 +6902,7 @@ public partial class MainWindow : Window
         bool changed = ui.Data.IsOnline != online;
         ui.Data.IsOnline = online;
 
-        ui.StatusDot.SetResourceReference(Ellipse.FillProperty, online ? "OllamaBrush" : "AccentBrush");
+        ui.StatusDot.SetResourceReference(Ellipse.FillProperty, online ? "SecondaryAccentBrush" : "AccentBgBrush");
         ui.OfflineLabel.Visibility = online ? Visibility.Collapsed : Visibility.Visible;
         ui.ModelLabel.Visibility   = online ? Visibility.Visible   : Visibility.Collapsed;
 
@@ -6932,29 +7071,27 @@ public partial class MainWindow : Window
 
         foreach (var p in enabled)
         {
-            // Count-based duplicate check: allow re-adding a removed participant, and
-            // support multiple settings entries for the same model/provider.
+            // Name-based duplicate check: each settings entry has a unique display name,
+            // so we look for an exact name+model+provider match in the live participant list.
+            // This correctly handles multiple entries with the same model but different names.
+            var effectiveName = string.IsNullOrEmpty(p.Name)
+                ? FormatModelDisplayName(p.Model)
+                : p.Name;
+
             bool alreadyAdded;
             if (p.Type == "Ollama")
             {
-                int liveCount     = _ollamaParticipants.Count(ui =>
+                alreadyAdded = _ollamaParticipants.Any(ui =>
                     ui.Data.Service.CurrentModel == p.Model &&
-                    ui.Data.Service.BaseUrl      == p.ServerUrl);
-                int settingsCount = enabled.Count(s =>
-                    s.Type      == "Ollama" &&
-                    s.Model     == p.Model  &&
-                    s.ServerUrl == p.ServerUrl);
-                alreadyAdded = liveCount >= settingsCount;
+                    ui.Data.Service.BaseUrl      == p.ServerUrl &&
+                    ui.Data.DisplayName          == effectiveName);
             }
             else
             {
-                int liveCount     = _cloudAIParticipants.Count(ui =>
+                alreadyAdded = _cloudAIParticipants.Any(ui =>
                     ui.Data.Service.ProviderName == p.Type &&
-                    ui.Data.Service.CurrentModel == p.Model);
-                int settingsCount = enabled.Count(s =>
-                    s.Type  == p.Type &&
-                    s.Model == p.Model);
-                alreadyAdded = liveCount >= settingsCount;
+                    ui.Data.Service.CurrentModel == p.Model &&
+                    ui.Data.DisplayName          == effectiveName);
             }
 
             bool hasKey = p.Type == "Ollama"
@@ -7124,7 +7261,7 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(text)) return;
 
         var avatar = _userName.Length >= 2 ? _userName[..2].ToUpper() : _userName.ToUpper();
-        AddMessage(_userName, avatar, "UserBrush", "UserBubbleBrush", text, isUser: true);
+        AddMessage(_userName, avatar, "TertiaryAccentBrush", "TertiaryBubbleBrush", text, isUser: true);
 
         var entry = new ChatLogEntry
         {
@@ -7132,8 +7269,8 @@ public partial class MainWindow : Window
             SenderType  = "User",
             DisplayName = _userName,
             AvatarLabel = avatar,
-            AccentKey   = "UserBrush",
-            BubbleKey   = "UserBubbleBrush",
+            AccentKey   = "TertiaryAccentBrush",
+            BubbleKey   = "TertiaryBubbleBrush",
             IsUser      = true,
             Message     = text
         };
@@ -7926,6 +8063,22 @@ public partial class MainWindow : Window
                     // Build the display name list so the coordinator can reference exact names in the file
                     var participantNameList = string.Join(", ", profiles.Select(p => p.Name));
 
+                    // Build a "what still needs doing" hint so the coordinator can suggest
+                    // the right next step rather than diving into content.
+                    var nextStepHint = new System.Text.StringBuilder();
+                    bool needsRoadmap = _currentProjectType?.HasRoadmap == true
+                                        && !(_projectSettings?.RoadmapInitialized == true)
+                                        && (_currentRoadmap is null || _currentRoadmap.Milestones.Count == 0);
+                    bool needsWorldBuilding = _currentProjectType?.HasWorldBuilding == true;
+                    var  worldFolders       = _currentProjectType?.GetWorldFolderList() ?? [];
+
+                    if (needsRoadmap)
+                        nextStepHint.AppendLine("• No roadmap has been built yet — suggesting to build one together with the user would be the ideal next step.");
+                    if (needsWorldBuilding && worldFolders.Length > 0)
+                        nextStepHint.AppendLine($"• This project type uses world-building folders ({string.Join(", ", worldFolders)}) — if those don't exist yet, suggest creating them before writing any content.");
+                    if (nextStepHint.Length == 0)
+                        nextStepHint.AppendLine("• The project appears to have its setup in place — ask the user what they would like to work on next.");
+
                     _sharedHistory.Add(new CloudAIMessage("user",
                         "The team capability profile has been saved. " +
                         roleSummary.ToString() +
@@ -7951,8 +8104,15 @@ public partial class MainWindow : Window
                         "</ParticipantSuperRoles>\n" +
                         "</output>\n\n" +
                         "Write the <output> block first (it will be processed silently), then present your " +
-                        "summary, role evaluation, and Write Access recommendations to the user. " +
-                        "Finally ask whether any adjustments are needed."));
+                        "summary, role evaluation, and Write Access recommendations to the user.\n\n" +
+                        "CRITICAL — after presenting the above:\n" +
+                        "• DO NOT start writing any project content (scenes, chapters, code, designs, etc.).\n" +
+                        "• DO NOT run a work session or task sequence on your own.\n" +
+                        "• Based on the project state below, end your response with ONE clear suggestion " +
+                        "for the logical next step, then ask the user whether they agree or want something different.\n" +
+                        "• Stop after that question. Wait for the user to reply.\n\n" +
+                        "Project state:\n" +
+                        nextStepHint.ToString()));
 
                     if (coordCloud is not null)
                         await RunCloudAIStreamAsync(coordCloud, ct);
@@ -7978,8 +8138,13 @@ public partial class MainWindow : Window
             SendButton.IsEnabled      = true;
         }
 
-        // After SuperPowers, start roadmap building if project needs it
-        await CheckAndTriggerRoadmapBuildingAsync();
+        // Calibration already ends with a visible coordinator message that includes a
+        // "next step" suggestion.  Firing CheckAndTriggerRoadmapBuildingAsync right after
+        // would stack a second automatic AI exchange on top — overwhelming the user before
+        // they have a chance to reply.  Mark the work session as fired so neither the
+        // work-session greeting nor the roadmap-building intro fires automatically;
+        // both chains are resumable once the user sends their first reply.
+        _workSessionFired = true;
     }
 
     /// <summary>
@@ -8670,20 +8835,30 @@ public partial class MainWindow : Window
         foreach (var ui in _ollamaParticipants)
         {
             var role = GetRoleForParticipant(ui);
-            ui.CoBadge.Visibility = role?.IsCoordinator == true ? Visibility.Visible : Visibility.Collapsed;
-            ui.RBadge .Visibility = role?.IsReasoner    == true ? Visibility.Visible : Visibility.Collapsed;
-            ui.CrBadge.Visibility = role?.IsCritic      == true ? Visibility.Visible : Visibility.Collapsed;
-            ui.PlBadge.Visibility = role?.IsPlanner     == true ? Visibility.Visible : Visibility.Collapsed;
-            ui.RsBadge.Visibility = role?.IsResearcher  == true ? Visibility.Visible : Visibility.Collapsed;
+            ui.CoBadge.Visibility = role?.IsCoordinator == true                                  ? Visibility.Visible : Visibility.Collapsed;
+            ui.RBadge .Visibility = role?.IsReasoner    == true                                  ? Visibility.Visible : Visibility.Collapsed;
+            ui.CrBadge.Visibility = role?.IsCritic      == true                                  ? Visibility.Visible : Visibility.Collapsed;
+            ui.PlBadge.Visibility = role?.IsPlanner     == true                                  ? Visibility.Visible : Visibility.Collapsed;
+            ui.RsBadge.Visibility = role?.IsResearcher  == true                                  ? Visibility.Visible : Visibility.Collapsed;
+            ui.WrBadge.Visibility = (role?.IsWriteAccess == true || role?.IsCoordinator == true) ? Visibility.Visible : Visibility.Collapsed;
+            ui.BadgeRow.Visibility = (role?.IsCoordinator == true || role?.IsReasoner == true ||
+                                      role?.IsCritic      == true || role?.IsPlanner  == true ||
+                                      role?.IsResearcher  == true || role?.IsWriteAccess == true)
+                                      ? Visibility.Visible : Visibility.Collapsed;
         }
         foreach (var ui in _cloudAIParticipants)
         {
             var role = GetRoleForParticipant(ui);
-            ui.CoBadge.Visibility = role?.IsCoordinator == true ? Visibility.Visible : Visibility.Collapsed;
-            ui.RBadge .Visibility = role?.IsReasoner    == true ? Visibility.Visible : Visibility.Collapsed;
-            ui.CrBadge.Visibility = role?.IsCritic      == true ? Visibility.Visible : Visibility.Collapsed;
-            ui.PlBadge.Visibility = role?.IsPlanner     == true ? Visibility.Visible : Visibility.Collapsed;
-            ui.RsBadge.Visibility = role?.IsResearcher  == true ? Visibility.Visible : Visibility.Collapsed;
+            ui.CoBadge.Visibility = role?.IsCoordinator == true                                  ? Visibility.Visible : Visibility.Collapsed;
+            ui.RBadge .Visibility = role?.IsReasoner    == true                                  ? Visibility.Visible : Visibility.Collapsed;
+            ui.CrBadge.Visibility = role?.IsCritic      == true                                  ? Visibility.Visible : Visibility.Collapsed;
+            ui.PlBadge.Visibility = role?.IsPlanner     == true                                  ? Visibility.Visible : Visibility.Collapsed;
+            ui.RsBadge.Visibility = role?.IsResearcher  == true                                  ? Visibility.Visible : Visibility.Collapsed;
+            ui.WrBadge.Visibility = (role?.IsWriteAccess == true || role?.IsCoordinator == true) ? Visibility.Visible : Visibility.Collapsed;
+            ui.BadgeRow.Visibility = (role?.IsCoordinator == true || role?.IsReasoner == true ||
+                                      role?.IsCritic      == true || role?.IsPlanner  == true ||
+                                      role?.IsResearcher  == true || role?.IsWriteAccess == true)
+                                      ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 
@@ -8723,7 +8898,8 @@ public partial class MainWindow : Window
     private async Task<bool> RunOllamaStreamAsync(OllamaParticipantUI ui, CancellationToken ct,
                                                    string? systemHint = null,
                                                    bool skipLatestUserMessage = false,
-                                                   bool hidden = false)
+                                                   bool hidden = false,
+                                                   int _loopDepth = 0)
     {
         var modelName = ui.Data.Service.CurrentModel;
         var display   = string.IsNullOrEmpty(ui.Data.CustomName)
@@ -8733,7 +8909,7 @@ public partial class MainWindow : Window
         var colorKey    = ui.Data.ColorKey;
 
         StreamBubble? bubble = hidden ? null
-            : AddStreamingBubble(display, avatarLabel, colorKey, "OllamaBubbleBrush", false);
+            : AddStreamingBubble(display, avatarLabel, colorKey, "SecondaryBubbleBrush", false);
         var sb         = new StringBuilder();
         bool firstToken = true;
 
@@ -8768,10 +8944,13 @@ public partial class MainWindow : Window
             }
             if (firstToken && !hidden) bubble!.StopThinking(); // empty response
             // Hidden streams are internal assessments — never write files or mutate roadmap.
-            var ollamaFinalText = (!hidden && _currentProjectFolder is not null)
-                ? ProcessAIFileOperationTags(sb.ToString(), display, _currentProjectFolder,
-                    HasWriteAccess(ui), GetCoordinatorName())
-                : sb.ToString();
+            bool ollamaHadReadOps = false;
+            string ollamaFinalText;
+            if (!hidden && _currentProjectFolder is not null)
+                (ollamaFinalText, ollamaHadReadOps) = ProcessAIFileOperationTags(
+                    sb.ToString(), display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName());
+            else
+                ollamaFinalText = sb.ToString();
 
             // ── Roadmap commands ──────────────────────────────────────────
             if (!hidden && _currentRoadmap is not null)
@@ -8805,13 +8984,22 @@ public partial class MainWindow : Window
                     DisplayName = display,
                     AvatarLabel = avatarLabel,
                     AccentKey   = colorKey,
-                    BubbleKey   = "OllamaBubbleBrush",
+                    BubbleKey   = "SecondaryBubbleBrush",
                     IsUser      = false,
                     Message     = ollamaFinalText
                 };
                 AppendToProjectLog(ollamaLogEntry);
                 AppendToGeneralLog(ollamaLogEntry);
             }
+            // ── Auto-loop: re-invoke after file reads so AI can act on the results ─────
+            if (ollamaHadReadOps && !hidden && _loopDepth < MaxToolLoopDepth)
+            {
+                AddSystemMessage($"🔄  {display} received file results — continuing " +
+                                 $"(step {_loopDepth + 2} of {MaxToolLoopDepth + 1} max)…");
+                return await RunOllamaStreamAsync(ui, ct, systemHint,
+                    skipLatestUserMessage: false, hidden: false, _loopDepth: _loopDepth + 1);
+            }
+            // ─────────────────────────────────────────────────────────────────────────
             return true;
         }
         catch (OperationCanceledException)
@@ -8860,7 +9048,8 @@ public partial class MainWindow : Window
     private async Task<bool> RunCloudAIStreamAsync(CloudAIParticipantUI ui, CancellationToken ct,
                                                     string? systemHint = null,
                                                     bool skipLatestUserMessage = false,
-                                                    bool hidden = false)
+                                                    bool hidden = false,
+                                                    int _loopDepth = 0)
     {
         var model       = ui.Data.Service.CurrentModel;
         var display     = string.IsNullOrEmpty(ui.Data.CustomName)
@@ -8870,7 +9059,7 @@ public partial class MainWindow : Window
         var colorKey    = ui.Data.ColorKey;
 
         StreamBubble? bubble = hidden ? null
-            : AddStreamingBubble(display, avatarLabel, colorKey, "ClaudeBubbleBrush", false);
+            : AddStreamingBubble(display, avatarLabel, colorKey, "PrimaryBubbleBrush", false);
         var sb         = new StringBuilder();
         bool firstToken = true;
 
@@ -8907,10 +9096,13 @@ public partial class MainWindow : Window
             }
             if (firstToken && !hidden) bubble!.StopThinking();
             // Hidden streams are internal assessments — never write files or mutate roadmap.
-            var cloudFinalText = (!hidden && _currentProjectFolder is not null)
-                ? ProcessAIFileOperationTags(sb.ToString(), display, _currentProjectFolder,
-                    HasWriteAccess(ui), GetCoordinatorName())
-                : sb.ToString();
+            bool cloudHadReadOps = false;
+            string cloudFinalText;
+            if (!hidden && _currentProjectFolder is not null)
+                (cloudFinalText, cloudHadReadOps) = ProcessAIFileOperationTags(
+                    sb.ToString(), display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName());
+            else
+                cloudFinalText = sb.ToString();
 
             // ── Roadmap commands ──────────────────────────────────────────
             if (!hidden && _currentRoadmap is not null)
@@ -8944,13 +9136,22 @@ public partial class MainWindow : Window
                     DisplayName = display,
                     AvatarLabel = avatarLabel,
                     AccentKey   = colorKey,
-                    BubbleKey   = "ClaudeBubbleBrush",
+                    BubbleKey   = "PrimaryBubbleBrush",
                     IsUser      = false,
                     Message     = cloudFinalText
                 };
                 AppendToProjectLog(cloudLogEntry);
                 AppendToGeneralLog(cloudLogEntry);
             }
+            // ── Auto-loop: re-invoke after file reads so AI can act on the results ─────
+            if (cloudHadReadOps && !hidden && _loopDepth < MaxToolLoopDepth)
+            {
+                AddSystemMessage($"🔄  {display} received file results — continuing " +
+                                 $"(step {_loopDepth + 2} of {MaxToolLoopDepth + 1} max)…");
+                return await RunCloudAIStreamAsync(ui, ct, systemHint,
+                    skipLatestUserMessage: false, hidden: false, _loopDepth: _loopDepth + 1);
+            }
+            // ─────────────────────────────────────────────────────────────────────────
             return true;
         }
         catch (OperationCanceledException)
@@ -9264,7 +9465,7 @@ public partial class MainWindow : Window
 
     private void ShowClaudetteChoiceDialog(OllamaService? ollamaSvc, ICloudAIService? cloudSvc, string aiName)
     {
-        var bgBrush = (Brush)FindResource("BackgroundBrush");
+        var bgBrush = (Brush)FindResource("ContentBgBrush");
         var dlg = new Window
         {
             Title                 = "Claudette 🐙",
@@ -9304,7 +9505,7 @@ public partial class MainWindow : Window
             TextWrapping = TextWrapping.Wrap,
             VerticalAlignment = VerticalAlignment.Center
         };
-        qBlock.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        qBlock.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
         Grid.SetColumn(img,    0);
         Grid.SetColumn(qBlock, 1);
         row.Children.Add(img);
@@ -9324,8 +9525,8 @@ public partial class MainWindow : Window
             Margin    = new Thickness(0, 0, 10, 0),
             Padding   = new Thickness(18, 9, 18, 9)
         };
-        guideBtn.SetResourceReference(Button.BackgroundProperty, "InputBrush");
-        guideBtn.SetResourceReference(Button.ForegroundProperty, "TextBrush");
+        guideBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        guideBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
 
         var chatBtn = new Button
         {
@@ -9334,8 +9535,8 @@ public partial class MainWindow : Window
             Padding   = new Thickness(18, 9, 18, 9),
             IsDefault = true
         };
-        chatBtn.SetResourceReference(Button.BackgroundProperty, "ClaudeBrush");
-        chatBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+        chatBtn.SetResourceReference(Button.BackgroundProperty, "PrimaryAccentBrush");
+        chatBtn.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
 
         btnRow.Children.Add(guideBtn);
         btnRow.Children.Add(chatBtn);
@@ -9349,7 +9550,7 @@ public partial class MainWindow : Window
 
     private void ShowClaudetteChatWindow(OllamaService? ollamaSvc, ICloudAIService? cloudSvc, string aiName)
     {
-        var bgBrush      = (Brush)FindResource("BackgroundBrush");
+        var bgBrush      = (Brush)FindResource("ContentBgBrush");
         var systemPrompt = BuildClaudetteSystemPrompt();
         var convHistory  = new List<CloudAIMessage>();   // user+assistant turns
         var cts          = new CancellationTokenSource();
@@ -9377,7 +9578,7 @@ public partial class MainWindow : Window
 
         // Header
         var headerBorder = new Border { Padding = new Thickness(16, 12, 16, 12) };
-        headerBorder.SetResourceReference(Border.BackgroundProperty, "SidebarBrush");
+        headerBorder.SetResourceReference(Border.BackgroundProperty, "SidebarBgBrush");
         var headerRow = new StackPanel { Orientation = Orientation.Horizontal };
         var headerImg = new System.Windows.Controls.Image
         {
@@ -9394,13 +9595,13 @@ public partial class MainWindow : Window
             Text = "Claudette", FontFamily = new FontFamily("Segoe UI"),
             FontSize = 15, FontWeight = FontWeights.SemiBold
         };
-        headerTitle.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        headerTitle.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
         var headerSub = new TextBlock
         {
             Text = $"powered by {aiName}",
             FontFamily = new FontFamily("Segoe UI"), FontSize = 11
         };
-        headerSub.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        headerSub.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         headerText.Children.Add(headerTitle);
         headerText.Children.Add(headerSub);
         headerRow.Children.Add(headerImg);
@@ -9423,38 +9624,45 @@ public partial class MainWindow : Window
 
         // Input area
         var inputBorder = new Border { Padding = new Thickness(14, 10, 14, 14) };
-        inputBorder.SetResourceReference(Border.BackgroundProperty, "SidebarBrush");
+        inputBorder.SetResourceReference(Border.BackgroundProperty, "SidebarBgBrush");
         var inputGrid = new Grid();
         inputGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         inputGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var inputOuter = new Border
         {
-            Height = 38, CornerRadius = new CornerRadius(8),
-            Margin = new Thickness(0, 0, 8, 0)
+            MaxHeight    = 160,
+            CornerRadius = new CornerRadius(8),
+            Margin       = new Thickness(0, 0, 8, 0)
         };
-        inputOuter.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+        inputOuter.SetResourceReference(Border.BackgroundProperty, "ControlBgBrush");
         var inputBox = new TextBox
         {
-            FontSize   = 13,
-            FontFamily = new FontFamily("Segoe UI"),
-            BorderThickness = new Thickness(0),
-            Background      = Brushes.Transparent,
-            VerticalContentAlignment = VerticalAlignment.Center,
-            Padding  = new Thickness(10, 0, 10, 0)
+            FontSize                    = 13,
+            FontFamily                  = new FontFamily("Segoe UI"),
+            BorderThickness             = new Thickness(0),
+            Background                  = Brushes.Transparent,
+            TextWrapping                = TextWrapping.Wrap,
+            AcceptsReturn               = true,
+            MaxLines                    = 8,
+            VerticalContentAlignment    = VerticalAlignment.Top,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Padding                     = new Thickness(10, 8, 10, 8)
         };
-        inputBox.SetResourceReference(Control.ForegroundProperty, "TextBrush");
-        inputBox.SetResourceReference(TextBox.CaretBrushProperty, "TextBrush");
+        inputBox.SetResourceReference(Control.ForegroundProperty, "ContentTextBrush");
+        inputBox.SetResourceReference(TextBox.CaretBrushProperty, "InputTextBrush");
         inputOuter.Child = inputBox;
 
         var sendBtn = new Button
         {
-            Content = "Send", Height = 38,
-            Style   = (Style)FindResource("ModernButton"),
-            Padding = new Thickness(18, 0, 18, 0)
+            Content             = "Send",
+            Height              = 38,
+            VerticalAlignment   = VerticalAlignment.Bottom,
+            Style               = (Style)FindResource("ModernButton"),
+            Padding             = new Thickness(18, 0, 18, 0)
         };
-        sendBtn.SetResourceReference(Button.BackgroundProperty, "ClaudeBrush");
-        sendBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+        sendBtn.SetResourceReference(Button.BackgroundProperty, "PrimaryAccentBrush");
+        sendBtn.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
 
         Grid.SetColumn(inputOuter, 0);
         Grid.SetColumn(sendBtn,    1);
@@ -9475,13 +9683,13 @@ public partial class MainWindow : Window
                 Padding      = new Thickness(12, 8, 12, 8),
                 Margin       = new Thickness(50, 0, 0, 10)
             };
-            bubble.SetResourceReference(Border.BackgroundProperty, "ClaudeBrush");
+            bubble.SetResourceReference(Border.BackgroundProperty, "PrimaryAccentBrush");
             var tb = new TextBlock
             {
                 Text = text, FontFamily = new FontFamily("Segoe UI"),
                 FontSize = 13, TextWrapping = TextWrapping.Wrap
             };
-            tb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarBrush");
+            tb.SetResourceReference(TextBlock.ForegroundProperty, "AccentTextBrush");
             bubble.Child = tb;
             chatPanel.Children.Add(bubble);
             chatScroll.ScrollToBottom();
@@ -9509,14 +9717,14 @@ public partial class MainWindow : Window
                 Padding      = new Thickness(12, 8, 12, 8),
                 HorizontalAlignment = HorizontalAlignment.Left
             };
-            bubble.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+            bubble.SetResourceReference(Border.BackgroundProperty, "ControlBgBrush");
 
             var tb = new TextBlock
             {
                 Text = "…", FontFamily = new FontFamily("Segoe UI"),
                 FontSize = 13, TextWrapping = TextWrapping.Wrap
             };
-            tb.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+            tb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
             bubble.Child = tb;
 
             Grid.SetColumn(avatar, 0);
@@ -9625,7 +9833,7 @@ public partial class MainWindow : Window
 
     private void ShowStaticHelpDialog()
     {
-        var bgBrush   = (Brush)FindResource("BackgroundBrush");
+        var bgBrush   = (Brush)FindResource("ContentBgBrush");
         var win = new Window
         {
             Title                 = "Hi, I'm Claudette! 🐙",
@@ -9676,7 +9884,7 @@ public partial class MainWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 0, 0, 6)
         };
-        greetingTitle.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        greetingTitle.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
 
         var greetingSub = new TextBlock
         {
@@ -9685,7 +9893,7 @@ public partial class MainWindow : Window
             FontSize     = 13,
             TextWrapping = TextWrapping.Wrap
         };
-        greetingSub.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        greetingSub.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         greetingPanel.Children.Add(greetingTitle);
         greetingPanel.Children.Add(greetingSub);
@@ -9703,7 +9911,7 @@ public partial class MainWindow : Window
                 Height = 1,
                 Margin = new Thickness(0, 4, 0, 16)
             };
-            sep.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "InputBrush");
+            sep.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "ControlBgBrush");
             root.Children.Add(sep);
         }
 
@@ -9730,7 +9938,7 @@ public partial class MainWindow : Window
                 FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            titleBlock.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+            titleBlock.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
             heading.Children.Add(emojiBlock);
             heading.Children.Add(titleBlock);
             root.Children.Add(heading);
@@ -9744,7 +9952,7 @@ public partial class MainWindow : Window
                 LineHeight   = 22,
                 Margin       = new Thickness(0, 0, 0, 4)
             };
-            bodyBlock.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+            bodyBlock.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
             root.Children.Add(bodyBlock);
         }
 
@@ -9756,7 +9964,7 @@ public partial class MainWindow : Window
                 Padding      = new Thickness(14, 10, 14, 10),
                 Margin       = new Thickness(0, 8, 0, 4)
             };
-            border.SetResourceReference(Border.BackgroundProperty, "InputBrush");
+            border.SetResourceReference(Border.BackgroundProperty, "ControlBgBrush");
             var tb = new TextBlock
             {
                 Text         = text,
@@ -9765,7 +9973,7 @@ public partial class MainWindow : Window
                 TextWrapping = TextWrapping.Wrap,
                 LineHeight   = 20
             };
-            tb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+            tb.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
             border.Child = tb;
             root.Children.Add(border);
         }
@@ -9834,8 +10042,8 @@ public partial class MainWindow : Window
             IsCancel            = true,
             Cursor              = Cursors.Hand
         };
-        closeBtn.SetResourceReference(Button.BackgroundProperty, "ClaudeBrush");
-        closeBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBrush");
+        closeBtn.SetResourceReference(Button.BackgroundProperty, "PrimaryAccentBrush");
+        closeBtn.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
         closeBtn.Style = (Style)FindResource("ModernButton");
         closeBtn.Click += (_, _) => win.Close();
         root.Children.Add(closeBtn);
@@ -10044,7 +10252,7 @@ public partial class MainWindow : Window
         var themesDir = SysIO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Themes");
         if (!SysIO.Directory.Exists(themesDir)) return;
 
-        var files = SysIO.Directory.GetFiles(themesDir, "*.xaml")
+        var files = SysIO.Directory.GetFiles(themesDir, "*.oxsuit")
                              .OrderBy(SysIO.Path.GetFileNameWithoutExtension,
                                       StringComparer.OrdinalIgnoreCase)
                              .ToList();
@@ -10089,15 +10297,9 @@ public partial class MainWindow : Window
     {
         try
         {
-            var dict = new ResourceDictionary { Source = new Uri(absolutePath) };
-
-            // Inject fallback keys that older themes may not define.
-            // CardTextBrush: gold on Leatherbound themes; copy of TextBrush everywhere else.
-            if (!dict.Contains("CardTextBrush") && dict.Contains("TextBrush"))
-                dict["CardTextBrush"] = dict["TextBrush"];
-            // InputBackgroundBrush: parchment on Leatherbound themes; copy of InputBrush everywhere else.
-            if (!dict.Contains("InputBackgroundBrush") && dict.Contains("InputBrush"))
-                dict["InputBackgroundBrush"] = dict["InputBrush"];
+            var dict = OxsuitLoader.Load(absolutePath)
+                ?? throw new InvalidOperationException(
+                       "File is not a valid OXSUIT theme (no recognisable colour entries).");
 
             Resources.MergedDictionaries.Clear();
             Resources.MergedDictionaries.Add(dict);
@@ -10119,13 +10321,17 @@ public partial class MainWindow : Window
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
 
+            // Revert to the previously working theme
             if (_currentThemePath is not null && _currentThemePath != absolutePath)
             {
                 try
                 {
-                    var prev = new ResourceDictionary { Source = new Uri(_currentThemePath) };
-                    Resources.MergedDictionaries.Clear();
-                    Resources.MergedDictionaries.Add(prev);
+                    var prev = OxsuitLoader.Load(_currentThemePath);
+                    if (prev is not null)
+                    {
+                        Resources.MergedDictionaries.Clear();
+                        Resources.MergedDictionaries.Add(prev);
+                    }
                 }
                 catch { /* silent */ }
             }
@@ -10160,8 +10366,8 @@ public partial class MainWindow : Window
             var hwnd = hwndSource.Handle;
 
             // ── Resolve colours from the target window's resource tree ────
-            var bgColor   = w.TryFindResource("SidebarBrush") is SolidColorBrush sb ? sb.Color : Color.FromRgb(24, 24, 37);
-            var textColor = w.TryFindResource("TextBrush")    is SolidColorBrush tb ? tb.Color : Color.FromRgb(205, 214, 244);
+            var bgColor   = w.TryFindResource("SidebarBgBrush") is SolidColorBrush sb ? sb.Color : Color.FromRgb(24, 24, 37);
+            var textColor = w.TryFindResource("SidebarTextBrush") is SolidColorBrush tb ? tb.Color : Color.FromRgb(205, 214, 244);
 
             // ── Dark mode flag (Windows 10 2004+) ─────────────────────────
             int isDark = RelativeLuminance(bgColor) < 0.5 ? 1 : 0;
@@ -10188,8 +10394,15 @@ public partial class MainWindow : Window
     private void ApplyThemeToDialog(Window win)
     {
         if (_currentThemePath is not null)
-            try { win.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri(_currentThemePath) }); }
+        {
+            try
+            {
+                var dict = OxsuitLoader.Load(_currentThemePath);
+                if (dict is not null)
+                    win.Resources.MergedDictionaries.Add(dict);
+            }
             catch { /* silent — dialog will fall back to defaults */ }
+        }
 
         win.SourceInitialized += (_, _) => ApplyTitleBarTheme(win);
     }
@@ -10235,6 +10448,7 @@ public partial class MainWindow : Window
     private static ICloudAIService CreateCloudAIService(string provider, string apiKey) =>
         provider switch
         {
+            "Ollama ☁"       => new OllamaOpenAIService(apiKey),
             "Google AI"      => new GoogleAIService(apiKey),
             "Groq"           => new GroqService(apiKey),
             "OpenRouter"     => new OpenRouterService(apiKey),
@@ -10253,6 +10467,7 @@ public partial class MainWindow : Window
         "Mistral"        => MistralService.DefaultModels,
         "xAI Grok"       => XAIGrokService.DefaultModels,
         "OpenAI ChatGPT" => OpenAIService.DefaultModels,
+        "Ollama ☁"       => OllamaOpenAIService.DefaultModels,
         _                => AnthropicService.DefaultModels
     };
 
@@ -10353,7 +10568,7 @@ public partial class MainWindow : Window
             FontFamily    = new FontFamily("Segoe UI"),
             Margin        = new Thickness(0, 10, 0, 10)
         };
-        tb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        tb.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         ChatPanel.Children.Add(tb);
     }
 
@@ -10371,7 +10586,7 @@ public partial class MainWindow : Window
             FontFamily    = new FontFamily("Segoe UI"),
             Margin        = new Thickness(0, 10, 0, 10)
         };
-        tb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        tb.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         ChatPanel.Children.Add(tb);
         return tb;
     }
@@ -10393,7 +10608,7 @@ public partial class MainWindow : Window
             FontFamily    = new FontFamily("Segoe UI"),
             Margin        = new Thickness(0)
         };
-        tb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        tb.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         var pill = new Border
         {
@@ -10404,7 +10619,7 @@ public partial class MainWindow : Window
             BorderThickness     = new Thickness(1),
             Child               = tb
         };
-        pill.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
+        pill.SetResourceReference(Border.BackgroundProperty, "ControlHoverBrush");
         pill.SetResourceReference(Border.BorderBrushProperty, colorKey);
 
         ChatPanel.Children.Add(pill);
@@ -10942,7 +11157,15 @@ public partial class MainWindow : Window
         }
 
         sb.Append("\nAll paths are sandboxed within the project folder. " +
-                  "You may include multiple file operation tags in a single response.");
+                  "You may include multiple file operation tags in a single response.\n\n" +
+                  "**Multi-step file processing workflow:**\n" +
+                  "When you need to process files, use multiple turns automatically:\n" +
+                  "1. First response: use <listfiles> to discover what files exist.\n" +
+                  "2. Second response: use one or more <readfile> tags to load the files you need.\n" +
+                  "   (ClaudetRelay will automatically re-invoke you once file contents are available.)\n" +
+                  "3. Third response: process the content and write your results using <output> tags.\n" +
+                  "You can include multiple <readfile> tags in a single response to load several files at once.\n" +
+                  "You can include multiple <output> tags in a single response to write several files at once.");
 
         return sb.ToString();
     }
@@ -10955,10 +11178,12 @@ public partial class MainWindow : Window
     /// When <paramref name="hasWriteAccess"/> is false, write tags are blocked and a system
     /// message names the coordinator so the team can route the request correctly.
     /// </summary>
-    private string ProcessAIFileOperationTags(string response, string senderName, string projFolder,
-                                               bool hasWriteAccess = true, string? coordinatorName = null)
+    private (string Text, bool HadReadOps) ProcessAIFileOperationTags(
+        string response, string senderName, string projFolder,
+        bool hasWriteAccess = true, string? coordinatorName = null)
     {
-        var coName = coordinatorName ?? "the Coordinator";
+        var coName     = coordinatorName ?? "the Coordinator";
+        bool hadReadOps = false;
 
         // ── Write to PROJECTPLAN ───────────────────────────────────────────
         response = new Regex(
@@ -10993,6 +11218,24 @@ public partial class MainWindow : Window
             else
                 AddSystemMessage($"⚠  Could not write PROJECTPLAN/{fileName} (path rejected).");
             return $"*(→ PROJECTPLAN/{fileName})*";
+        });
+
+        // ── Write to PROJECTSETTINGS (path= form, used by SuperRoles prompt) ─
+        // The coordinator is prompted with <output path="PROJECTSETTINGS/ParticipantSuperRoles.xml">
+        // which must be handled before the generic <output file="..."> handler below.
+        response = new Regex(
+            @"<output\s+path=""(PROJECTSETTINGS/[^""]+)"">\s*([\s\S]*?)\s*</output>",
+            RegexOptions.IgnoreCase).Replace(response, m =>
+        {
+            var relPath = m.Groups[1].Value.Trim();
+            if (ProjectService.SafeWriteFile(projFolder, relPath, m.Groups[2].Value))
+            {
+                AddSystemMessage($"📝  {senderName} → {relPath}");
+                _superRoles = null;     // invalidate cache so the new file is picked up immediately
+            }
+            else
+                AddSystemMessage($"⚠  Could not write {relPath} (path rejected).");
+            return $"*(→ {relPath})*";
         });
 
         // ── Write to OUTPUT ────────────────────────────────────────────────
@@ -11046,6 +11289,7 @@ public partial class MainWindow : Window
             // Inject into shared history so all subsequent AI responses can see the content
             _sharedHistory.Add(new CloudAIMessage("user",
                 $"[File content: {path}]\n\n{content}", "System"));
+            hadReadOps = true;
             return $"*(→ read: {path})*";
         });
 
@@ -11077,6 +11321,7 @@ public partial class MainWindow : Window
             AddSystemMessage($"📁  {senderName} listed {canonical}/");
             _sharedHistory.Add(new CloudAIMessage("user",
                 $"[Directory listing: {canonical}/]\n\n{summary}", "System"));
+            hadReadOps = true;
             return $"*(→ listed {canonical}/)*";
         });
 
@@ -11111,7 +11356,7 @@ public partial class MainWindow : Window
             return $"*(→ deleted: {path})*";
         });
 
-        return response;
+        return (response, hadReadOps);
     }
 
     /// <summary>Strips invalid filename characters and trims separators. Returns fallback if empty.</summary>
@@ -11127,6 +11372,7 @@ public partial class MainWindow : Window
 
     private const int HistoryCompressThreshold = 50;  // messages before compression runs
     private const int HistoryKeepRecent        = 16;  // most-recent messages kept verbatim
+    private const int MaxToolLoopDepth         = 5;   // max auto-iterations per readfile/listfiles loop
 
     /// <summary>Returns the first active coordinator, preferring Cloud AI over Ollama
     /// (cloud models usually have larger context windows for summarisation).</summary>
@@ -11244,6 +11490,19 @@ public partial class MainWindow : Window
     private StreamBubble AddStreamingBubble(string senderName, string avatarText, string accentKey,
                                              string bubbleKey, bool isUser)
     {
+        // Defensive fallbacks — an empty key causes SetResourceReference to find nothing,
+        // which falls back to SystemColors.ControlTextBrush (black) — invisible in dark themes.
+        if (string.IsNullOrEmpty(bubbleKey))
+            bubbleKey = isUser ? "TertiaryBubbleBrush" : "PrimaryBubbleBrush";
+        if (string.IsNullOrEmpty(accentKey))
+            accentKey = isUser ? "TertiaryAccentBrush" : "PrimaryAccentBrush";
+
+        // Derive per-surface text keys from bubbleKey:
+        //   "PrimaryBubbleBrush" → prefix "Primary" → PrimaryTextBrush / PrimaryDimBrush / PrimaryHighBrush / PrimaryBubbleBorderBrush
+        var bubblePrefix = bubbleKey.Replace("BubbleBrush", "");   // "Primary" | "Secondary" | "Tertiary"
+        var bubbleTextKey   = bubblePrefix + "TextBrush";
+        var bubbleDimKey    = bubblePrefix + "DimBrush";
+        var bubbleBorderKey = bubblePrefix + "BubbleBorderBrush";
         // ── Avatar ────────────────────────────────────────────────────────
         var avatarInner = new TextBlock
         {
@@ -11253,7 +11512,7 @@ public partial class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment   = VerticalAlignment.Center
         };
-        avatarInner.SetResourceReference(TextBlock.ForegroundProperty, "SidebarBrush");
+        avatarInner.SetResourceReference(TextBlock.ForegroundProperty, "AccentTextBrush");
 
         var avatar = new Border
         {
@@ -11277,8 +11536,8 @@ public partial class MainWindow : Window
         };
         contentTb.SetResourceReference(TextBox.FontFamilyProperty,    "ChatFontFamily");
         contentTb.SetResourceReference(TextBox.FontSizeProperty,      "ChatFontSize");
-        contentTb.SetResourceReference(TextBox.ForegroundProperty,    "TextBrush");
-        contentTb.SetResourceReference(TextBox.CaretBrushProperty,    "TextBrush");
+        contentTb.SetResourceReference(TextBox.ForegroundProperty,    bubbleTextKey);
+        contentTb.SetResourceReference(TextBox.CaretBrushProperty,    bubbleTextKey);
         contentTb.SetResourceReference(TextBox.SelectionBrushProperty, accentKey);
 
         // ── Thinking animation (AI only) ──────────────────────────────────
@@ -11291,7 +11550,7 @@ public partial class MainWindow : Window
             Margin    = new Thickness(0, 2, 0, 4),
             Visibility = isUser ? Visibility.Collapsed : Visibility.Visible
         };
-        thinkingTb.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        thinkingTb.SetResourceReference(TextBlock.ForegroundProperty, bubbleDimKey);
 
         var thinkingTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(420) };
         thinkingTimer.Tick += (_, _) =>
@@ -11308,11 +11567,13 @@ public partial class MainWindow : Window
 
         var bubble = new Border
         {
-            CornerRadius = isUser ? new CornerRadius(12, 3, 12, 12) : new CornerRadius(3, 12, 12, 12),
-            Padding      = new Thickness(13, 9, 13, 9),
-            Child        = bubbleInner
+            CornerRadius    = isUser ? new CornerRadius(12, 3, 12, 12) : new CornerRadius(3, 12, 12, 12),
+            Padding         = new Thickness(13, 9, 13, 9),
+            BorderThickness = new Thickness(1),
+            Child           = bubbleInner
         };
-        bubble.SetResourceReference(Border.BackgroundProperty, bubbleKey);
+        bubble.SetResourceReference(Border.BackgroundProperty,   bubbleKey);
+        bubble.SetResourceReference(Border.BorderBrushProperty,  bubbleBorderKey);
 
         // ── Copy button (appears on hover) ────────────────────────────────
         var copyBtn = new Button
@@ -11329,8 +11590,8 @@ public partial class MainWindow : Window
             ToolTip             = "Copy message",
             Style               = (Style)FindResource("ModernButton")
         };
-        copyBtn.SetResourceReference(Button.BackgroundProperty, "SurfaceBrush");
-        copyBtn.SetResourceReference(Button.ForegroundProperty, "SubtextBrush");
+        copyBtn.SetResourceReference(Button.BackgroundProperty, "ControlHoverBrush");
+        copyBtn.SetResourceReference(Button.ForegroundProperty, "ContentDimBrush");
 
         copyBtn.Click += async (_, _) =>
         {
@@ -11364,7 +11625,7 @@ public partial class MainWindow : Window
             Margin              = new Thickness(3, 4, 3, 0),
             HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left
         };
-        timeLabel.SetResourceReference(TextBlock.ForegroundProperty, "SubtextBrush");
+        timeLabel.SetResourceReference(TextBlock.ForegroundProperty, bubbleDimKey);
 
         // ── Content column ─────────────────────────────────────────────────
         // MaxWidth is driven by ChatBubbleMaxWidth dynamic resource (% of chat panel width).

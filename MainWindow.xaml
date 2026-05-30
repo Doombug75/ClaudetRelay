@@ -4,7 +4,7 @@
         Title="ClaudetRelay" Height="820" Width="1220"
         MinHeight="600" MinWidth="900"
         WindowStartupLocation="CenterScreen"
-        Background="{DynamicResource BackgroundBrush}"
+        Background="{DynamicResource ContentBgBrush}"
         Icon="pack://application:,,,/Assets/Claudette.ico"
         AllowDrop="True"
         DragEnter="Window_DragEnter"
@@ -18,16 +18,19 @@
 
             <!-- Base button -->
             <Style x:Key="ModernButton" TargetType="Button">
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="FontFamily" Value="Segoe UI"/>
-                <Setter Property="FontSize" Value="13"/>
-                <Setter Property="Padding" Value="14,9"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="BorderBrush"     Value="{DynamicResource ControlBorderBrush}"/>
+                <Setter Property="Cursor"          Value="Hand"/>
+                <Setter Property="FontFamily"      Value="Segoe UI"/>
+                <Setter Property="FontSize"        Value="13"/>
+                <Setter Property="Padding"         Value="14,9"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="Bd"
                                     Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
                                     CornerRadius="8"
                                     Padding="{TemplateBinding Padding}">
                                 <ContentPresenter HorizontalAlignment="Center"
@@ -47,14 +50,14 @@
             </Style>
 
             <Style x:Key="SendButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
-                <Setter Property="Background" Value="{DynamicResource ClaudeBrush}"/>
-                <Setter Property="Foreground" Value="{DynamicResource SidebarBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource PrimaryAccentBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}"/>
                 <Setter Property="FontWeight" Value="Bold"/>
             </Style>
 
             <Style x:Key="SidebarButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
-                <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource ControlBgBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource SidebarTextBrush}"/>
                 <Setter Property="HorizontalAlignment" Value="Stretch"/>
                 <Setter Property="Padding" Value="12,9"/>
             </Style>
@@ -89,9 +92,10 @@
 
             <!-- ComboBox — full custom template for theme-safe readability -->
             <Style x:Key="ModernComboBox" TargetType="ComboBox">
-                <Setter Property="Background"      Value="{DynamicResource InputBrush}"/>
-                <Setter Property="Foreground"      Value="{DynamicResource TextBrush}"/>
-                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Background"      Value="{DynamicResource ControlBgBrush}"/>
+                <Setter Property="Foreground"      Value="{DynamicResource SidebarTextBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="BorderBrush"     Value="{DynamicResource ControlBorderBrush}"/>
                 <Setter Property="Height"          Value="36"/>
                 <Setter Property="FontSize"        Value="13"/>
                 <Setter Property="FontFamily"      Value="Segoe UI"/>
@@ -108,10 +112,12 @@
                                     <ToggleButton.Template>
                                         <ControlTemplate TargetType="ToggleButton">
                                             <Border x:Name="Bd"
-                                                    Background="{DynamicResource InputBrush}"
+                                                    Background="{DynamicResource ControlBgBrush}"
+                                                    BorderBrush="{DynamicResource ControlBorderBrush}"
+                                                    BorderThickness="1"
                                                     CornerRadius="8">
                                                 <TextBlock Text="▾" FontSize="11"
-                                                           Foreground="{DynamicResource SubtextBrush}"
+                                                           Foreground="{DynamicResource SidebarDimBrush}"
                                                            HorizontalAlignment="Right"
                                                            VerticalAlignment="Center"
                                                            Margin="0,0,10,0"/>
@@ -143,8 +149,8 @@
                                        PopupAnimation="Slide">
                                     <Border MinWidth="{TemplateBinding ActualWidth}"
                                             MaxHeight="320"
-                                            Background="{DynamicResource SurfaceBrush}"
-                                            BorderBrush="{DynamicResource InputBrush}"
+                                            Background="{DynamicResource ControlHoverBrush}"
+                                            BorderBrush="{DynamicResource ControlBgBrush}"
                                             BorderThickness="1"
                                             CornerRadius="8"
                                             Margin="0,3,0,0"
@@ -167,7 +173,7 @@
                 <Setter Property="ItemContainerStyle">
                     <Setter.Value>
                         <Style TargetType="ComboBoxItem">
-                            <Setter Property="Foreground"  Value="{DynamicResource TextBrush}"/>
+                            <Setter Property="Foreground"  Value="{DynamicResource SidebarTextBrush}"/>
                             <Setter Property="Background"  Value="Transparent"/>
                             <Setter Property="Padding"     Value="10,7"/>
                             <Setter Property="FontSize"    Value="13"/>
@@ -185,11 +191,11 @@
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsHighlighted" Value="True">
                                                 <Setter TargetName="Bd" Property="Background"
-                                                        Value="{DynamicResource InputBrush}"/>
+                                                        Value="{DynamicResource ControlBgBrush}"/>
                                             </Trigger>
                                             <Trigger Property="IsSelected" Value="True">
                                                 <Setter TargetName="Bd" Property="Background"
-                                                        Value="{DynamicResource InputBrush}"/>
+                                                        Value="{DynamicResource ControlBgBrush}"/>
                                                 <Setter Property="FontWeight" Value="SemiBold"/>
                                             </Trigger>
                                         </ControlTemplate.Triggers>
@@ -204,7 +210,7 @@
             <!-- Popup model list: ListBoxItem style -->
             <Style x:Key="ModelListItem" TargetType="ListBoxItem">
                 <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource SidebarTextBrush}"/>
                 <Setter Property="Padding" Value="8,6"/>
                 <Setter Property="Cursor" Value="Hand"/>
                 <Setter Property="FontFamily" Value="Segoe UI"/>
@@ -219,11 +225,11 @@
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="Bd" Property="Background"
-                                            Value="{DynamicResource SurfaceBrush}"/>
+                                            Value="{DynamicResource ControlHoverBrush}"/>
                                 </Trigger>
                                 <Trigger Property="IsSelected" Value="True">
                                     <Setter TargetName="Bd" Property="Background"
-                                            Value="{DynamicResource InputBrush}"/>
+                                            Value="{DynamicResource ControlBgBrush}"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -233,7 +239,7 @@
 
             <!-- Toggle switch (CheckBox used as enable/disable toggle) -->
             <Style x:Key="ToggleSwitch" TargetType="CheckBox">
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource ContentTextBrush}"/>
                 <Setter Property="FontSize" Value="12"/>
                 <Setter Property="FontFamily" Value="Segoe UI"/>
                 <Setter Property="Cursor" Value="Hand"/>
@@ -250,12 +256,15 @@
         </Grid.ColumnDefinitions>
 
         <!-- ══════════════════════════ SIDEBAR ══════════════════════════ -->
-        <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}">
+        <Border Grid.Column="0"
+                Background="{DynamicResource SidebarBgBrush}"
+                BorderBrush="{DynamicResource SidebarBorderBrush}"
+                BorderThickness="0,0,1,0">
             <DockPanel>
 
                 <!-- Footer -->
                 <StackPanel DockPanel.Dock="Bottom" Margin="14,0,14,16">
-                    <Rectangle Height="1" Fill="{DynamicResource InputBrush}" Margin="0,0,0,12"/>
+                    <Rectangle Height="1" Fill="{DynamicResource ControlBgBrush}" Margin="0,0,0,12"/>
                     <Button Content="👤  Config"
                             Style="{StaticResource SidebarButton}"
                             Margin="0,0,0,7"
@@ -286,19 +295,19 @@
                             </Button>
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock FontSize="17" FontWeight="Bold" FontFamily="Segoe UI">
-                                    <Run Text="Claudet" Foreground="{DynamicResource ClaudeBrush}"/>
-                                    <Run Text=" "/><Run Text="Relay" Foreground="{DynamicResource UserBrush}"/>
+                                    <Run Text="Claudet" Foreground="{DynamicResource PrimaryAccentBrush}"/>
+                                    <Run Text=" "/><Run Text="Relay" Foreground="{DynamicResource TertiaryAccentBrush}"/>
                                 </TextBlock>
                                 <TextBlock Text="Multi-AI Chat" FontSize="10"
-                                           Foreground="{DynamicResource SubtextBrush}"/>
+                                           Foreground="{DynamicResource SidebarDimBrush}"/>
                             </StackPanel>
                         </StackPanel>
 
                         <!-- ── Claudette speech bubble (shown while log summarisation runs) ── -->
                         <Border x:Name="ClaudetteSpeechBubble"
                                 Visibility="Collapsed"
-                                Background="{DynamicResource SurfaceBrush}"
-                                BorderBrush="{DynamicResource AccentBrush}"
+                                Background="{DynamicResource ControlHoverBrush}"
+                                BorderBrush="{DynamicResource AccentHighlightBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8"
                                 Padding="8,6"
@@ -307,12 +316,12 @@
                                        FontSize="11"
                                        FontFamily="Segoe UI"
                                        TextWrapping="Wrap"
-                                       Foreground="{DynamicResource TextBrush}"/>
+                                       Foreground="{DynamicResource SidebarTextBrush}"/>
                         </Border>
 
                         <!-- ── Participants ── -->
                         <TextBlock Text="PARTICIPANTS" FontSize="10" FontWeight="Bold"
-                                   Foreground="{DynamicResource SubtextBrush}" Margin="2,0,0,10"/>
+                                   Foreground="{DynamicResource SidebarDimBrush}" Margin="2,0,0,10"/>
 
                         <!-- ── Participant cards (dynamic, ordered by slot 1–20) ── -->
                         <StackPanel x:Name="ParticipantsPanel"/>
@@ -320,13 +329,13 @@
                         <Button x:Name="AddParticipantButton"
                                 Content="+ Add Participant"
                                 Style="{StaticResource SidebarButton}"
-                                Foreground="{DynamicResource TextBrush}"
+                                Foreground="{DynamicResource SidebarTextBrush}"
                                 Margin="0,0,0,7"
                                 Click="AddParticipantButton_Click"/>
 
                         <!-- ── Theme ── -->
                         <TextBlock Text="THEME" FontSize="10" FontWeight="Bold"
-                                   Foreground="{DynamicResource SubtextBrush}" Margin="2,0,0,10"/>
+                                   Foreground="{DynamicResource SidebarDimBrush}" Margin="2,0,0,10"/>
                         <ComboBox x:Name="ThemeComboBox"
                                   Style="{StaticResource ModernComboBox}"
                                   SelectionChanged="ThemeComboBox_SelectionChanged"/>
@@ -347,7 +356,7 @@
             </Grid.RowDefinitions>
 
             <!-- ── Tab bar (Row 0) ── -->
-            <Border Grid.Row="0" Background="{DynamicResource SidebarBrush}"
+            <Border Grid.Row="0" Background="{DynamicResource SidebarBgBrush}"
                     Padding="12,6,22,0">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -361,10 +370,10 @@
                                 FontWeight="SemiBold"
                                 Click="ChatTabButton_Click">
                             <Button.Foreground>
-                                <DynamicResource ResourceKey="TextBrush"/>
+                                <DynamicResource ResourceKey="SidebarTextBrush"/>
                             </Button.Foreground>
                             <Button.Background>
-                                <DynamicResource ResourceKey="InputBrush"/>
+                                <DynamicResource ResourceKey="ControlBgBrush"/>
                             </Button.Background>
                         </Button>
                         <Button x:Name="ProjectsTabButton"
@@ -372,7 +381,7 @@
                                 Style="{StaticResource TabButton}"
                                 Click="ProjectsTabButton_Click">
                             <Button.Foreground>
-                                <DynamicResource ResourceKey="SubtextBrush"/>
+                                <DynamicResource ResourceKey="SidebarDimBrush"/>
                             </Button.Foreground>
                         </Button>
                     </StackPanel>
@@ -384,9 +393,9 @@
                             ToolTip="Options"
                             Click="OptionsMenuButton_Click">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse Width="9" Height="9" Fill="{DynamicResource ClaudeBrush}" Margin="0,0,5,0"/>
-                            <Ellipse Width="9" Height="9" Fill="{DynamicResource OllamaBrush}" Margin="0,0,5,0"/>
-                            <Ellipse Width="9" Height="9" Fill="{DynamicResource UserBrush}"/>
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource PrimaryAccentBrush}" Margin="0,0,5,0"/>
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource SecondaryAccentBrush}" Margin="0,0,5,0"/>
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource TertiaryAccentBrush}"/>
                         </StackPanel>
                     </Button>
                 </Grid>
@@ -394,21 +403,21 @@
 
             <!-- ── Chat header (Row 1) ── -->
             <Border x:Name="ChatHeader" Grid.Row="1"
-                    Background="{DynamicResource SidebarBrush}" Padding="22,10,16,10">
+                    Background="{DynamicResource SidebarBgBrush}" Padding="22,10,16,10">
                 <Grid>
                     <TextBlock x:Name="ChatHeaderTitle"
                                Text="Chat"
                                FontSize="15" FontWeight="SemiBold"
                                FontFamily="Segoe UI"
-                               Foreground="{DynamicResource TextBrush}"
+                               Foreground="{DynamicResource SidebarTextBrush}"
                                VerticalAlignment="Center"/>
                     <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center"
                                 Orientation="Horizontal">
                         <Button x:Name="ExportChatButton"
                                 Content="📄"
                                 Style="{StaticResource ModernButton}"
-                                Background="{DynamicResource InputBrush}"
-                                Foreground="{DynamicResource SubtextBrush}"
+                                Background="{DynamicResource ControlBgBrush}"
+                                Foreground="{DynamicResource SidebarDimBrush}"
                                 FontSize="13" Padding="10,5"
                                 Margin="0,0,6,0"
                                 Click="ExportChatButton_Click"
@@ -416,8 +425,8 @@
                         <Button x:Name="ChatFontButton"
                                 Content="Aa"
                                 Style="{StaticResource ModernButton}"
-                                Background="{DynamicResource InputBrush}"
-                                Foreground="{DynamicResource SubtextBrush}"
+                                Background="{DynamicResource ControlBgBrush}"
+                                Foreground="{DynamicResource SidebarDimBrush}"
                                 FontSize="12" Padding="10,5"
                                 Margin="0,0,6,0"
                                 Click="ChatFontButton_Click"
@@ -425,8 +434,8 @@
                         <Button x:Name="AiDialogueButton"
                                 Content="💬"
                                 Style="{StaticResource ModernButton}"
-                                Background="{DynamicResource InputBrush}"
-                                Foreground="{DynamicResource SubtextBrush}"
+                                Background="{DynamicResource ControlBgBrush}"
+                                Foreground="{DynamicResource SidebarDimBrush}"
                                 FontSize="13" Padding="10,5"
                                 Margin="0,0,6,0"
                                 Click="AiDialogueButton_Click"
@@ -435,8 +444,8 @@
                                 Content="🌍 Welt"
                                 Visibility="Collapsed"
                                 Style="{StaticResource ModernButton}"
-                                Background="{DynamicResource InputBrush}"
-                                Foreground="{DynamicResource TextBrush}"
+                                Background="{DynamicResource ControlBgBrush}"
+                                Foreground="{DynamicResource SidebarTextBrush}"
                                 FontSize="12" Padding="10,5"
                                 Margin="0,0,6,0"
                                 Click="WorldButton_Click"
@@ -445,8 +454,8 @@
                                 Content="📊 Roadmap"
                                 Visibility="Collapsed"
                                 Style="{StaticResource ModernButton}"
-                                Background="{DynamicResource InputBrush}"
-                                Foreground="{DynamicResource TextBrush}"
+                                Background="{DynamicResource ControlBgBrush}"
+                                Foreground="{DynamicResource SidebarTextBrush}"
                                 FontSize="12" Padding="10,5"
                                 Margin="0,0,6,0"
                                 Click="RoadmapButton_Click"
@@ -455,8 +464,8 @@
                                 Content="💾 Backup"
                                 Visibility="Collapsed"
                                 Style="{StaticResource ModernButton}"
-                                Background="{DynamicResource InputBrush}"
-                                Foreground="{DynamicResource TextBrush}"
+                                Background="{DynamicResource ControlBgBrush}"
+                                Foreground="{DynamicResource SidebarTextBrush}"
                                 FontSize="12" Padding="10,5"
                                 Margin="0,0,6,0"
                                 Click="BackupButton_Click"
@@ -465,8 +474,8 @@
                                 Content="✕ Close Project"
                                 Visibility="Collapsed"
                                 Style="{StaticResource ModernButton}"
-                                Background="{DynamicResource InputBrush}"
-                                Foreground="{DynamicResource TextBrush}"
+                                Background="{DynamicResource ControlBgBrush}"
+                                Foreground="{DynamicResource SidebarTextBrush}"
                                 FontSize="12" Padding="10,5"
                                 Margin="0,0,6,0"
                                 Click="CloseProjectButton_Click"
@@ -475,8 +484,8 @@
                                 Content="⚙ Settings"
                                 Visibility="Collapsed"
                                 Style="{StaticResource ModernButton}"
-                                Background="{DynamicResource InputBrush}"
-                                Foreground="{DynamicResource TextBrush}"
+                                Background="{DynamicResource ControlBgBrush}"
+                                Foreground="{DynamicResource SidebarTextBrush}"
                                 FontSize="12" Padding="10,5"
                                 Click="ProjectSettingsButton_Click"
                                 ToolTip="Open project settings (roles, orchestration mode)"/>
@@ -484,7 +493,7 @@
                 </Grid>
             </Border>
             <Rectangle x:Name="ChatHeaderSep" Grid.Row="1" Height="1" VerticalAlignment="Bottom"
-                       Fill="{DynamicResource InputBrush}"/>
+                       Fill="{DynamicResource ControlBgBrush}"/>
 
             <!-- ── Content area (Row 2) — Chat and Projects layered ── -->
 
@@ -508,12 +517,12 @@
                 </Grid.RowDefinitions>
 
                 <!-- Projects subheader -->
-                <Border Grid.Row="0" Background="{DynamicResource SidebarBrush}" Padding="22,13">
+                <Border Grid.Row="0" Background="{DynamicResource SidebarBgBrush}" Padding="22,13">
                     <TextBlock Text="Projects" FontSize="15" FontWeight="SemiBold"
-                               FontFamily="Segoe UI" Foreground="{DynamicResource TextBrush}"/>
+                               FontFamily="Segoe UI" Foreground="{DynamicResource SidebarTextBrush}"/>
                 </Border>
                 <Rectangle Grid.Row="0" Height="1" VerticalAlignment="Bottom"
-                           Fill="{DynamicResource InputBrush}"/>
+                           Fill="{DynamicResource ControlBgBrush}"/>
 
                 <!-- Project list -->
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
@@ -523,30 +532,30 @@
                 </ScrollViewer>
 
                 <!-- Project action bar -->
-                <Border Grid.Row="2" Background="{DynamicResource SidebarBrush}" Padding="16,12,16,16">
+                <Border Grid.Row="2" Background="{DynamicResource SidebarBgBrush}" Padding="16,12,16,16">
                     <StackPanel>
-                        <Rectangle Height="1" Fill="{DynamicResource InputBrush}" Margin="0,0,0,12"/>
+                        <Rectangle Height="1" Fill="{DynamicResource ControlBgBrush}" Margin="0,0,0,12"/>
                         <StackPanel Orientation="Horizontal">
                             <Button Content="+ New Project"
                                     x:Name="NewProjectButton"
                                     Style="{StaticResource ModernButton}"
-                                    Background="{DynamicResource InputBrush}"
-                                    Foreground="{DynamicResource ClaudeBrush}"
+                                    Background="{DynamicResource ControlBgBrush}"
+                                    Foreground="{DynamicResource PrimaryAccentBrush}"
                                     Margin="0,0,8,0"
                                     Click="NewProject_Click"/>
                             <Button Content="Open"
                                     x:Name="OpenProjectButton"
                                     Style="{StaticResource ModernButton}"
-                                    Background="{DynamicResource InputBrush}"
-                                    Foreground="{DynamicResource TextBrush}"
+                                    Background="{DynamicResource ControlBgBrush}"
+                                    Foreground="{DynamicResource SidebarTextBrush}"
                                     IsEnabled="False"
                                     Margin="0,0,8,0"
                                     Click="OpenProject_Click"/>
                             <Button Content="Delete"
                                     x:Name="DeleteProjectButton"
                                     Style="{StaticResource ModernButton}"
-                                    Background="{DynamicResource InputBrush}"
-                                    Foreground="{DynamicResource AccentBrush}"
+                                    Background="{DynamicResource ControlBgBrush}"
+                                    Foreground="{DynamicResource AccentHighlightBrush}"
                                     IsEnabled="False"
                                     Click="DeleteProject_Click"/>
                         </StackPanel>
@@ -556,32 +565,34 @@
 
             <!-- ── Input (Row 3) ── -->
             <Border x:Name="InputArea" Grid.Row="3"
-                    Background="{DynamicResource SidebarBrush}" Padding="16,12,16,16">
+                    Background="{DynamicResource SidebarBgBrush}" Padding="16,12,16,16">
                 <StackPanel>
-                    <Rectangle Height="1" Fill="{DynamicResource InputBrush}" Margin="0,0,0,12"/>
+                    <Rectangle Height="1" Fill="{DynamicResource ControlBgBrush}" Margin="0,0,0,12"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" Background="{DynamicResource InputBackgroundBrush}"
+                        <Border Grid.Column="0" Background="{DynamicResource InputBgBrush}"
+                                BorderBrush="{DynamicResource InputBorderBrush}"
+                                BorderThickness="1"
                                 CornerRadius="12" Margin="0,0,10,0">
                             <Grid Margin="14,10,14,10">
                                 <TextBox x:Name="InputTextBox"
                                          Background="Transparent"
-                                         Foreground="{DynamicResource TextBrush}"
+                                         Foreground="{DynamicResource InputTextBrush}"
                                          BorderThickness="0" FontSize="13" FontFamily="Segoe UI"
-                                         TextWrapping="Wrap" AcceptsReturn="False" MaxLines="8"
+                                         TextWrapping="Wrap" AcceptsReturn="True" MaxLines="8"
                                          VerticalContentAlignment="Top"
-                                         VerticalScrollBarVisibility="Disabled"
+                                         VerticalScrollBarVisibility="Auto"
                                          Padding="0,2,0,2"
-                                         CaretBrush="{DynamicResource TextBrush}"
-                                         SelectionBrush="{DynamicResource ClaudeBrush}"
+                                         CaretBrush="{DynamicResource InputTextBrush}"
+                                         SelectionBrush="{DynamicResource PrimaryAccentBrush}"
                                          KeyDown="InputTextBox_KeyDown"
                                          TextChanged="InputTextBox_TextChanged"/>
                                 <TextBlock x:Name="PlaceholderText"
                                            Text="Type a message...  (Enter ↵ send  •  Shift+Enter for new line)"
-                                           Foreground="{DynamicResource SubtextBrush}"
+                                           Foreground="{DynamicResource SidebarDimBrush}"
                                            FontSize="13" FontFamily="Segoe UI"
                                            VerticalAlignment="Top" Margin="0,2,0,0"
                                            IsHitTestVisible="False"/>
@@ -594,8 +605,8 @@
                                     Click="SendButton_Click"/>
                             <Button x:Name="AIRespondButton" Content="↺ Re-Send"
                                     Style="{StaticResource ModernButton}"
-                                    Background="{DynamicResource OllamaBrush}"
-                                    Foreground="{DynamicResource SidebarBrush}"
+                                    Background="{DynamicResource SecondaryAccentBrush}"
+                                    Foreground="{DynamicResource AccentTextBrush}"
                                     FontWeight="Bold" MinWidth="62"
                                     Click="AIRespond_Click"/>
                         </StackPanel>

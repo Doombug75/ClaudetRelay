@@ -6,7 +6,7 @@
         MinWidth="560" MinHeight="640"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize"
-        Background="{DynamicResource SidebarBrush}">
+        Background="{DynamicResource SidebarBgBrush}">
 
     <Window.Resources>
 
@@ -14,7 +14,7 @@
         <Style x:Key="SLabel" TargetType="TextBlock">
             <Setter Property="FontSize"   Value="10"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="{DynamicResource SubtextBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SidebarDimBrush}"/>
             <Setter Property="Margin"     Value="0,0,0,5"/>
         </Style>
 
@@ -27,9 +27,9 @@
             <Setter Property="FontFamily"                Value="Segoe UI"/>
             <Setter Property="BorderThickness"           Value="0"/>
             <Setter Property="Background"                Value="Transparent"/>
-            <Setter Property="Foreground"                Value="{DynamicResource TextBrush}"/>
-            <Setter Property="CaretBrush"                Value="{DynamicResource TextBrush}"/>
-            <Setter Property="SelectionBrush"            Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Foreground"                Value="{DynamicResource InputTextBrush}"/>
+            <Setter Property="CaretBrush"                Value="{DynamicResource InputTextBrush}"/>
+            <Setter Property="SelectionBrush"            Value="{DynamicResource AccentBgBrush}"/>
             <Setter Property="VerticalAlignment"         Value="Center"/>
             <Setter Property="VerticalContentAlignment"  Value="Center"/>
         </Style>
@@ -41,7 +41,7 @@
             <Setter Property="FontFamily"                Value="Segoe UI"/>
             <Setter Property="BorderThickness"           Value="0"/>
             <Setter Property="Background"                Value="Transparent"/>
-            <Setter Property="Foreground"                Value="{DynamicResource TextBrush}"/>
+            <Setter Property="Foreground"                Value="{DynamicResource InputTextBrush}"/>
             <Setter Property="VerticalAlignment"         Value="Center"/>
             <Setter Property="VerticalContentAlignment"  Value="Center"/>
         </Style>
@@ -54,8 +54,8 @@
             <Setter Property="FontFamily"      Value="Segoe UI"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor"          Value="Hand"/>
-            <Setter Property="Background"      Value="{DynamicResource AccentBrush}"/>
-            <Setter Property="Foreground"      Value="{DynamicResource SidebarBrush}"/>
+            <Setter Property="Background"      Value="{DynamicResource AccentBgBrush}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource AccentTextBrush}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -83,22 +83,23 @@
 
         <!-- Secondary button -->
         <Style x:Key="SButtonSecondary" TargetType="Button" BasedOn="{StaticResource SButton}">
-            <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource ControlBgBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ControlTextBrush}"/>
         </Style>
 
         <!-- Separator line -->
         <Style x:Key="SSep" TargetType="Rectangle">
             <Setter Property="Height" Value="1"/>
-            <Setter Property="Fill"   Value="{DynamicResource InputBrush}"/>
+            <Setter Property="Fill"   Value="{DynamicResource ControlBgBrush}"/>
             <Setter Property="Margin" Value="0,10,0,14"/>
         </Style>
 
         <!-- ComboBox with full template for theme-safe readability -->
         <Style x:Key="SComboBox" TargetType="ComboBox">
-            <Setter Property="Background"      Value="{DynamicResource InputBrush}"/>
-            <Setter Property="Foreground"      Value="{DynamicResource TextBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background"      Value="{DynamicResource ControlBgBrush}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource SidebarTextBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource ControlBorderBrush}"/>
             <Setter Property="Height"          Value="36"/>
             <Setter Property="FontSize"        Value="13"/>
             <Setter Property="FontFamily"      Value="Segoe UI"/>
@@ -115,10 +116,12 @@
                                 <ToggleButton.Template>
                                     <ControlTemplate TargetType="ToggleButton">
                                         <Border x:Name="Bd"
-                                                Background="{DynamicResource InputBrush}"
+                                                Background="{DynamicResource ControlBgBrush}"
+                                                BorderBrush="{DynamicResource ControlBorderBrush}"
+                                                BorderThickness="1"
                                                 CornerRadius="8">
                                             <TextBlock Text="▾" FontSize="11"
-                                                       Foreground="{DynamicResource SubtextBrush}"
+                                                       Foreground="{DynamicResource SidebarDimBrush}"
                                                        HorizontalAlignment="Right"
                                                        VerticalAlignment="Center"
                                                        Margin="0,0,10,0"/>
@@ -144,8 +147,8 @@
                                    PopupAnimation="Slide">
                                 <Border MinWidth="{TemplateBinding ActualWidth}"
                                         MaxHeight="280"
-                                        Background="{DynamicResource SurfaceBrush}"
-                                        BorderBrush="{DynamicResource InputBrush}"
+                                        Background="{DynamicResource ControlHoverBrush}"
+                                        BorderBrush="{DynamicResource ControlBgBrush}"
                                         BorderThickness="1" CornerRadius="8"
                                         Margin="0,3,0,0" SnapsToDevicePixels="True">
                                     <Border.Effect>
@@ -164,7 +167,7 @@
             <Setter Property="ItemContainerStyle">
                 <Setter.Value>
                     <Style TargetType="ComboBoxItem">
-                        <Setter Property="Foreground"  Value="{DynamicResource TextBrush}"/>
+                        <Setter Property="Foreground"  Value="{DynamicResource SidebarTextBrush}"/>
                         <Setter Property="Background"  Value="Transparent"/>
                         <Setter Property="Padding"     Value="10,7"/>
                         <Setter Property="FontSize"    Value="13"/>
@@ -181,11 +184,11 @@
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsHighlighted" Value="True">
                                             <Setter TargetName="Bd" Property="Background"
-                                                    Value="{DynamicResource InputBrush}"/>
+                                                    Value="{DynamicResource ControlHoverBrush}"/>
                                         </Trigger>
                                         <Trigger Property="IsSelected" Value="True">
                                             <Setter TargetName="Bd" Property="Background"
-                                                    Value="{DynamicResource InputBrush}"/>
+                                                    Value="{DynamicResource ControlHoverBrush}"/>
                                             <Setter Property="FontWeight" Value="SemiBold"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
@@ -199,7 +202,7 @@
 
         <!-- Toggle switch -->
         <Style x:Key="SToggle" TargetType="CheckBox">
-            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SidebarTextBrush}"/>
             <Setter Property="FontSize"   Value="13"/>
             <Setter Property="FontFamily" Value="Segoe UI"/>
             <Setter Property="Cursor"     Value="Hand"/>
@@ -212,17 +215,17 @@
 
         <!-- ── Title bar ── -->
         <Border DockPanel.Dock="Top"
-                Background="{DynamicResource SurfaceBrush}"
+                Background="{DynamicResource ControlHoverBrush}"
                 Padding="22,15,22,14">
             <TextBlock x:Name="WindowTitleBlock"
                        Text="Participants Configuration"
                        FontSize="18" FontWeight="Bold" FontFamily="Segoe UI"
-                       Foreground="{DynamicResource TextBrush}"/>
+                       Foreground="{DynamicResource SidebarTextBrush}"/>
         </Border>
 
         <!-- ── Save All bar (bottom) ── -->
         <Border DockPanel.Dock="Bottom"
-                Background="{DynamicResource SurfaceBrush}"
+                Background="{DynamicResource ControlHoverBrush}"
                 Padding="22,12">
             <StackPanel Orientation="Horizontal">
                 <Button Content="Save All  ✓"
@@ -233,24 +236,24 @@
                            FontSize="13" FontFamily="Segoe UI"
                            VerticalAlignment="Center"
                            Margin="14,0,0,0"
-                           Foreground="{DynamicResource SubtextBrush}"/>
+                           Foreground="{DynamicResource SidebarDimBrush}"/>
             </StackPanel>
         </Border>
 
         <!-- ── Participant tabs (populated programmatically) ── -->
         <TabControl x:Name="ParticipantsTabControl"
-                    Background="{DynamicResource SidebarBrush}"
+                    Background="{DynamicResource SidebarBgBrush}"
                     BorderThickness="0">
 
             <TabControl.Template>
                 <ControlTemplate TargetType="TabControl">
                     <DockPanel>
                         <Border DockPanel.Dock="Top"
-                                Background="{DynamicResource SurfaceBrush}"
+                                Background="{DynamicResource ControlHoverBrush}"
                                 Padding="10,4,10,0">
                             <TabPanel IsItemsHost="True"/>
                         </Border>
-                        <Border Background="{DynamicResource SidebarBrush}" Padding="22,16,22,16">
+                        <Border Background="{DynamicResource SidebarBgBrush}" Padding="22,16,22,16">
                             <ContentPresenter ContentSource="SelectedContent"/>
                         </Border>
                     </DockPanel>
@@ -262,7 +265,7 @@
                     <Setter Property="FontSize"   Value="13"/>
                     <Setter Property="FontFamily" Value="Segoe UI"/>
                     <Setter Property="Padding"    Value="8,6"/>
-                    <Setter Property="Foreground" Value="{DynamicResource SubtextBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SidebarDimBrush}"/>
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="TabItem">
@@ -280,9 +283,9 @@
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsSelected" Value="True">
                                         <Setter TargetName="Bd" Property="Background"
-                                                Value="{DynamicResource SidebarBrush}"/>
+                                                Value="{DynamicResource SidebarBgBrush}"/>
                                         <Setter TargetName="Tb" Property="Foreground"
-                                                Value="{DynamicResource TextBrush}"/>
+                                                Value="{DynamicResource SidebarTextBrush}"/>
                                     </Trigger>
                                     <MultiTrigger>
                                         <MultiTrigger.Conditions>
@@ -290,7 +293,7 @@
                                             <Condition Property="IsSelected"  Value="False"/>
                                         </MultiTrigger.Conditions>
                                         <Setter TargetName="Bd" Property="Background"
-                                                Value="{DynamicResource InputBrush}"/>
+                                                Value="{DynamicResource ControlHoverBrush}"/>
                                     </MultiTrigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
