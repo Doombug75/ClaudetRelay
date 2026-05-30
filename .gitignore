@@ -405,3 +405,4 @@ secrets.json
 
 # Build output — distributed as a zip, not committed to the repo
 publish/
+.claude/
