@@ -58,13 +58,17 @@ public class OllamaService : IDisposable
         response.EnsureSuccessStatusCode();
 
         var body = await response.Content.ReadAsStringAsync(ct);
+#if DEBUG
         Debug.WriteLine($"[OllamaService.SendAsync] Raw response: {body}");
+#endif
 
         using var doc = JsonDocument.Parse(body);
         var result = ExtractContent(doc.RootElement);
 
+#if DEBUG
         if (string.IsNullOrEmpty(result))
             Debug.WriteLine($"[OllamaService.SendAsync] WARNING: No content extracted from response.");
+#endif
 
         return result;
     }
@@ -104,7 +108,9 @@ public class OllamaService : IDisposable
                 var thinking = thinkingEl.GetString();
                 if (!string.IsNullOrEmpty(thinking))
                 {
+#if DEBUG
                     Debug.WriteLine($"[OllamaService.StreamAsync] <thinking> {thinking}");
+#endif
                     // Keep the last non-empty line as the tooltip hint
                     var lines = thinking.Split('\n', StringSplitOptions.RemoveEmptyEntries);
                     if (lines.Length > 0)
@@ -132,7 +138,9 @@ public class OllamaService : IDisposable
                 }
                 else
                 {
+#if DEBUG
                     Debug.WriteLine($"[OllamaService.StreamAsync] No content in line: {line}");
+#endif
                 }
             }
 

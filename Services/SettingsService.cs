@@ -3,6 +3,45 @@ using System.Text.Json;
 
 namespace ClaudetRelay.Services;
 
+// ── Bridge / MCP agent model ───────────────────────────────────────────────
+
+public enum BridgeAgentMode { McpServer = 0, ModelController = 1 }
+
+/// <summary>
+/// A folder accessible to Bridge agents, with optional write permission.
+/// Read access is always granted; write access must be explicitly enabled.
+/// </summary>
+public class BridgeFolder
+{
+    public string Id         { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string Path       { get; set; } = "";
+    public bool   AllowWrite { get; set; } = false;   // read-only by default
+
+    /// <summary>Short display label — last two path segments.</summary>
+    public string Label => System.IO.Path.GetFileName(Path.TrimEnd('\\', '/')) is { Length: > 0 } n ? n : Path;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// One AI model registered as a Bridge agent.
+/// Stored in AppSettings and exposed as an MCP tool when the Bridge is running.
+/// </summary>
+public class BridgeAgent
+{
+    public string Id          { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string Provider    { get; set; } = "Ollama";   // "Ollama" or cloud provider name
+    public string Model       { get; set; } = "";
+    public string ServerUrl   { get; set; } = "http://localhost:11434";
+    public string DisplayName { get; set; } = "";
+    public bool   IsEnabled   { get; set; } = true;
+
+    public string Label => string.IsNullOrWhiteSpace(DisplayName) ? Model : DisplayName;
+    public bool   IsLocal => string.Equals(Provider, "Ollama", StringComparison.OrdinalIgnoreCase);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /// <summary>Rate-limit settings for one cloud API provider.</summary>
 public class ProviderThrottleSettings
 {
@@ -112,6 +151,72 @@ public class AppSettings
     /// Project per-participant settings always take priority over this.
     /// </summary>
     public int GlobalResponseLength { get; set; } = 50;
+
+    /// <summary>
+    /// Port the built-in MCP server listens on. Default 3333.
+    /// Change if another service is already using that port.
+    /// </summary>
+    public int McpPort { get; set; } = 3333;
+
+    /// <summary>
+    /// When true the MCP server starts automatically when ClaudetRelay launches.
+    /// </summary>
+    public bool McpAutoStart { get; set; } = false;
+
+    // ── Bridge / MCP ──────────────────────────────────────────────────────────
+    public BridgeAgentMode   BridgeMode               { get; set; } = BridgeAgentMode.McpServer;
+    public string            BridgeControllerProvider { get; set; } = "";
+    public string            BridgeControllerModel    { get; set; } = "";
+    public List<BridgeAgent>  BridgeAgents            { get; set; } = [];
+    public List<BridgeFolder> BridgeFolders           { get; set; } = [];
+
+    /// <summary>Tools disabled in MCP Server mode (Claude Desktop / Claude Code connects).</summary>
+    public List<string> DisabledMcpServerTools   { get; set; } = [];
+
+    /// <summary>Tools disabled in Model Controller mode (built-in agentic loop).</summary>
+    public List<string> DisabledControllerTools  { get; set; } = [];
+
+    /// <summary>Legacy — migrated to the two lists above on first load.</summary>
+    public List<string> DisabledBridgeTools { get; set; } = [];
+
+    /// <summary>
+    /// Path to the shared temp workspace folder used by parallel agent tasks.
+    /// Must be inside a write-enabled Bridge folder. Empty = feature disabled.
+    /// </summary>
+    public string BridgeTempFolder { get; set; } = "";
+
+    // ── MCP Server limits (external client connects — always cloud) ──────────
+    /// <summary>Max bytes for bridge_read_file in MCP Server mode. Default 200 KB.</summary>
+    public int McpServerMaxTextFileBytes   { get; set; } = 200_000;
+
+    /// <summary>Max bytes for bridge_read_file_binary in MCP Server mode. Default 10 MB.</summary>
+    public int McpServerMaxBinaryFileBytes { get; set; } = 10_000_000;
+
+    // ── Model Controller limits (local Ollama or cloud API controller) ────────
+    /// <summary>Max bytes for bridge_read_file when Controller uses a local Ollama model. Default 1 MB.</summary>
+    public int BridgeLocalMaxTextFileBytes   { get; set; } = 1_000_000;
+
+    /// <summary>Max bytes for bridge_read_file when Controller uses a cloud API model. Default 200 KB.</summary>
+    public int BridgeCloudMaxTextFileBytes   { get; set; } = 200_000;
+
+    /// <summary>Max bytes for bridge_read_file_binary when Controller uses a local Ollama model. Default 50 MB.</summary>
+    public int BridgeLocalMaxBinaryFileBytes { get; set; } = 50_000_000;
+
+    /// <summary>Max bytes for bridge_read_file_binary when Controller uses a cloud API model. Default 10 MB.</summary>
+    public int BridgeCloudMaxBinaryFileBytes { get; set; } = 10_000_000;
+
+    /// <summary>Font size for the Controller chat output panel. Default 12.</summary>
+    public double BridgeControllerFontSize { get; set; } = 12;
+
+    /// <summary>
+    /// Optional path to an external world-editor executable.
+    /// When set and the file exists, the 🌍 World button launches this program
+    /// instead of opening the built-in world editor.
+    /// The project folder is passed as the first command-line argument so the
+    /// external tool can locate PROJECTPLAN/{EntityType}/*.json directly.
+    /// Leave empty to use the built-in editor.
+    /// </summary>
+    public string ExternalWorldEditorPath { get; set; } = "";
 }
 
 public static class SettingsService
@@ -154,6 +259,26 @@ public static class SettingsService
         if (settings.Participants.Count == 0)
             MigrateToParticipants(settings);
 
+        // Migrate legacy single DisabledBridgeTools list to per-mode lists
+        if (settings.DisabledBridgeTools.Count > 0 &&
+            settings.DisabledMcpServerTools.Count == 0 &&
+            settings.DisabledControllerTools.Count == 0)
+        {
+            settings.DisabledMcpServerTools  = [..settings.DisabledBridgeTools];
+            settings.DisabledControllerTools = [..settings.DisabledBridgeTools];
+            settings.DisabledBridgeTools.Clear();
+            Save(settings);
+        }
+
+        // Default temp workspace — Documents\ClaudetRelay\Workspace
+        if (string.IsNullOrWhiteSpace(settings.BridgeTempFolder))
+        {
+            settings.BridgeTempFolder = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "ClaudetRelay", "Workspace");
+            Save(settings);   // persist so the user sees it in the UI on first open
+        }
+
         return settings;
     }
 
@@ -175,24 +300,25 @@ public static class SettingsService
     {
         s.Participants = [];
 
-        // P1 → first Ollama participant
+        // All slots start disabled. MigrateToParticipants only runs when Participants.Count == 0,
+        // which on a clean install means no one has configured anything yet.
+        // Existing users already have a saved Participants list and never hit this path.
         s.Participants.Add(new ParticipantConfig
         {
             Name      = "",
             Type      = "Ollama",
             Model     = string.IsNullOrEmpty(s.OllamaModel) ? "llama3.2" : s.OllamaModel,
             ServerUrl = string.IsNullOrEmpty(s.OllamaBaseUrl) ? "http://localhost:11434" : s.OllamaBaseUrl,
-            Enabled   = true
+            Enabled   = false
         });
 
-        // P2 → Cloud AI participant (use previously configured provider)
         s.Participants.Add(new ParticipantConfig
         {
             Name      = "",
             Type      = string.IsNullOrEmpty(s.SelectedProvider) ? "Anthropic" : s.SelectedProvider,
             Model     = s.SelectedCloudModel ?? "",
             ServerUrl = "http://localhost:11434",
-            Enabled   = s.CloudAIEnabled
+            Enabled   = false
         });
 
         // P3–P8 → disabled defaults

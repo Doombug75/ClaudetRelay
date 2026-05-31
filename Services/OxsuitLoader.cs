@@ -171,6 +171,10 @@ public static class OxsuitLoader
             dict["SidebarTextBrush"] = dict["ContentTextBrush"];
         if (!dict.Contains("InputBgBrush") && dict.Contains("ControlBgBrush"))
             dict["InputBgBrush"] = dict["ControlBgBrush"];
+        // InputText is the semantic brush for text inside input fields.
+        // Fall back to ContentText so themes that omit it still render legibly.
+        if (!dict.Contains("InputTextBrush") && dict.Contains("ContentTextBrush"))
+            dict["InputTextBrush"] = dict["ContentTextBrush"];
         return dict;
     }
 

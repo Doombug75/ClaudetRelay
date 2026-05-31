@@ -90,6 +90,87 @@
                 </Setter>
             </Style>
 
+            <!-- Flat button — same as ModernButton but CornerRadius=0, for underline-tab style -->
+            <Style x:Key="FlatButton" TargetType="Button">
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Cursor"          Value="Hand"/>
+                <Setter Property="FontFamily"      Value="Segoe UI"/>
+                <Setter Property="FontSize"        Value="12"/>
+                <Setter Property="Padding"         Value="0,8"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.82"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.65"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- TextBox with fully custom template so WPF's Aero2 default
+                 (white background, black text) never overrides our OXSUIT theme. -->
+            <Style x:Key="ModernTextBox" TargetType="TextBox">
+                <Setter Property="Background"        Value="{DynamicResource ControlBgBrush}"/>
+                <Setter Property="Foreground"        Value="{DynamicResource InputTextBrush}"/>
+                <Setter Property="BorderBrush"       Value="{DynamicResource ControlBorderBrush}"/>
+                <Setter Property="CaretBrush"        Value="{DynamicResource InputTextBrush}"/>
+                <Setter Property="SelectionBrush"    Value="{DynamicResource AccentHighlightBrush}"/>
+                <Setter Property="SelectionOpacity"  Value="0.35"/>
+                <Setter Property="BorderThickness"   Value="1"/>
+                <Setter Property="Padding"           Value="8,6"/>
+                <Setter Property="FontFamily"        Value="Segoe UI"/>
+                <Setter Property="FontSize"          Value="13"/>
+                <Setter Property="AllowDrop"         Value="True"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="TextBox">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6"
+                                    SnapsToDevicePixels="True">
+                                <!-- Background="Transparent" prevents the inner ScrollViewer
+                                     from showing a system-white background in WPF Aero2. -->
+                                <ScrollViewer x:Name="PART_ContentHost"
+                                              Background="Transparent"
+                                              Focusable="false"
+                                              Padding="{TemplateBinding Padding}"
+                                              HorizontalScrollBarVisibility="Hidden"
+                                              VerticalScrollBarVisibility="Hidden"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush"
+                                            Value="{DynamicResource AccentHighlightBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsFocused" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush"
+                                            Value="{DynamicResource AccentHighlightBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <!-- ComboBox — full custom template for theme-safe readability -->
             <Style x:Key="ModernComboBox" TargetType="ComboBox">
                 <Setter Property="Background"      Value="{DynamicResource ControlBgBrush}"/>
@@ -323,6 +404,38 @@
                         <TextBlock Text="PARTICIPANTS" FontSize="10" FontWeight="Bold"
                                    Foreground="{DynamicResource SidebarDimBrush}" Margin="2,0,0,10"/>
 
+                        <!-- ── Welcome hint (visible when no participants are configured) ── -->
+                        <Border x:Name="WelcomeHint"
+                                Visibility="Collapsed"
+                                Background="{DynamicResource ControlBgBrush}"
+                                BorderBrush="{DynamicResource ControlBorderBrush}"
+                                BorderThickness="1" CornerRadius="8"
+                                Padding="13,12,13,13" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="No participants yet 🐙"
+                                           FontSize="16" FontWeight="SemiBold"
+                                           FontFamily="Segoe UI"
+                                           Foreground="{DynamicResource ContentTextBrush}"
+                                           TextWrapping="Wrap" Margin="0,0,0,12"/>
+                                <TextBlock FontSize="13" FontFamily="Segoe UI"
+                                           Foreground="{DynamicResource SidebarDimBrush}"
+                                           TextWrapping="Wrap" LineHeight="21">
+                                    <Run Text="1. "/>
+                                    <Run Text="● ● ●" FontWeight="Bold" Foreground="{DynamicResource PrimaryAccentBrush}"/>
+                                    <Run Text=" top-right menu"/>
+                                    <Run Text="&#x0a;"/>
+                                    <Run Text="     → Providers — enter API keys&#x0a;"/>
+                                    <Run Text="2. "/>
+                                    <Run Text="👤 Config" FontWeight="Bold" Foreground="{DynamicResource ContentTextBrush}"/>
+                                    <Run Text=" button below&#x0a;"/>
+                                    <Run Text="     → configure models&#x0a;"/>
+                                    <Run Text="3. Click "/>
+                                    <Run Text="Claudette" FontWeight="Bold" Foreground="{DynamicResource PrimaryAccentBrush}"/>
+                                    <Run Text=" above for help 🐙"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
                         <!-- ── Participant cards (dynamic, ordered by slot 1–20) ── -->
                         <StackPanel x:Name="ParticipantsPanel"/>
 
@@ -384,6 +497,14 @@
                                 <DynamicResource ResourceKey="SidebarDimBrush"/>
                             </Button.Foreground>
                         </Button>
+                        <Button x:Name="BridgeTabButton"
+                                Content="🔌  Bridge"
+                                Style="{StaticResource TabButton}"
+                                Click="BridgeTabButton_Click">
+                            <Button.Foreground>
+                                <DynamicResource ResourceKey="SidebarDimBrush"/>
+                            </Button.Foreground>
+                        </Button>
                     </StackPanel>
                     <Button x:Name="OptionsMenuButton"
                             Grid.Column="1" VerticalAlignment="Bottom"
@@ -393,7 +514,7 @@
                             ToolTip="Options"
                             Click="OptionsMenuButton_Click">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse Width="9" Height="9" Fill="{DynamicResource PrimaryAccentBrush}" Margin="0,0,5,0"/>
+                            <Ellipse Width="9" Height="9" Fill="{DynamicResource PrimaryAccentBrush}"   Margin="0,0,5,0"/>
                             <Ellipse Width="9" Height="9" Fill="{DynamicResource SecondaryAccentBrush}" Margin="0,0,5,0"/>
                             <Ellipse Width="9" Height="9" Fill="{DynamicResource TertiaryAccentBrush}"/>
                         </StackPanel>
@@ -441,7 +562,7 @@
                                 Click="AiDialogueButton_Click"
                                 ToolTip="Multi-round AI dialogue — participants read and reply to each other (AllRespond mode)"/>
                         <Button x:Name="WorldButton"
-                                Content="🌍 Welt"
+                                Content="🌍 World"
                                 Visibility="Collapsed"
                                 Style="{StaticResource ModernButton}"
                                 Background="{DynamicResource ControlBgBrush}"
@@ -460,6 +581,16 @@
                                 Margin="0,0,6,0"
                                 Click="RoadmapButton_Click"
                                 ToolTip="Projekt-Roadmap anzeigen (coming soon)"/>
+                        <Button x:Name="FilesButton"
+                                Content="📂 Files"
+                                Visibility="Collapsed"
+                                Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource ControlBgBrush}"
+                                Foreground="{DynamicResource SidebarTextBrush}"
+                                FontSize="12" Padding="10,5"
+                                Margin="0,0,6,0"
+                                Click="FilesButton_Click"
+                                ToolTip="Browse and manage project files"/>
                         <Button x:Name="BackupButton"
                                 Content="💾 Backup"
                                 Visibility="Collapsed"
@@ -508,9 +639,19 @@
             <!-- Roadmap panel (shown when RoadmapButton is active) -->
             <Grid x:Name="RoadmapContent" Grid.Row="2" Visibility="Collapsed"/>
 
+            <!-- Files panel (shown when FilesButton is active) -->
+            <Grid x:Name="FilesContent" Grid.Row="2" Visibility="Collapsed"/>
+
+            <!-- World editor panel (shown when WorldButton is active) -->
+            <Grid x:Name="WorldContent" Grid.Row="2" Visibility="Collapsed"/>
+
+            <!-- Bridge / MCP panel (shown when BridgeTabButton is active) -->
+            <Grid x:Name="BridgeContent" Grid.Row="2" Visibility="Collapsed"/>
+
             <!-- Projects panel (hidden in Chat mode) -->
             <Grid x:Name="ProjectsContent" Grid.Row="2" Visibility="Collapsed">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
@@ -524,15 +665,44 @@
                 <Rectangle Grid.Row="0" Height="1" VerticalAlignment="Bottom"
                            Fill="{DynamicResource ControlBgBrush}"/>
 
-                <!-- Project list -->
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                <!-- Sort toolbar -->
+                <Border Grid.Row="1" Background="{DynamicResource SidebarBgBrush}" Padding="16,10,16,10">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Sort:" FontSize="12" FontFamily="Segoe UI"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"
+                                   Foreground="{DynamicResource SidebarDimBrush}"/>
+                        <Button x:Name="SortAlphabetButton" Content="A–Z" FontSize="11"
+                                Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource ControlBgBrush}"
+                                Foreground="{DynamicResource SidebarTextBrush}"
+                                Padding="10,6,10,6" Margin="0,0,6,0" Click="SortProjects_Click"
+                                ToolTip="Sort alphabetically"/>
+                        <Button x:Name="SortLastOpenedButton" Content="Last Opened" FontSize="11"
+                                Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource ControlBgBrush}"
+                                Foreground="{DynamicResource SidebarDimBrush}"
+                                Padding="10,6,10,6" Click="SortProjects_Click"
+                                ToolTip="Sort by last opened date"/>
+                        <Button x:Name="RefreshProjectsButton" Content="🔄 Refresh" FontSize="11"
+                                Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource ControlBgBrush}"
+                                Foreground="{DynamicResource SidebarDimBrush}"
+                                Padding="10,6,10,6" Margin="8,0,0,0" Click="RefreshProjectsButton_Click"
+                                ToolTip="Refresh project list (reload from disk)"/>
+                    </StackPanel>
+                </Border>
+                <Rectangle Grid.Row="1" Height="1" VerticalAlignment="Bottom"
+                           Fill="{DynamicResource ControlBgBrush}"/>
+
+                <!-- Project list (card grid) -->
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
                               Padding="20,16,20,16">
-                    <StackPanel x:Name="ProjectListPanel"/>
+                    <WrapPanel x:Name="ProjectListPanel" ItemWidth="232"/>
                 </ScrollViewer>
 
                 <!-- Project action bar -->
-                <Border Grid.Row="2" Background="{DynamicResource SidebarBgBrush}" Padding="16,12,16,16">
+                <Border Grid.Row="3" Background="{DynamicResource SidebarBgBrush}" Padding="16,12,16,16">
                     <StackPanel>
                         <Rectangle Height="1" Fill="{DynamicResource ControlBgBrush}" Margin="0,0,0,12"/>
                         <StackPanel Orientation="Horizontal">
@@ -588,7 +758,7 @@
                                          Padding="0,2,0,2"
                                          CaretBrush="{DynamicResource InputTextBrush}"
                                          SelectionBrush="{DynamicResource PrimaryAccentBrush}"
-                                         KeyDown="InputTextBox_KeyDown"
+                                         PreviewKeyDown="InputTextBox_KeyDown"
                                          TextChanged="InputTextBox_TextChanged"/>
                                 <TextBlock x:Name="PlaceholderText"
                                            Text="Type a message...  (Enter ↵ send  •  Shift+Enter for new line)"

@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <Version>0.9.4</Version>
-    <AssemblyVersion>0.9.4</AssemblyVersion>
+    <Version>0.9.6</Version>
+    <AssemblyVersion>0.9.6</AssemblyVersion>
     <ApplicationIcon>Assets\Claudette.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -19,14 +19,8 @@
 
   <ItemGroup>
     <!-- Claudette mascot — embedded as WPF resources (pack URI access) -->
-    <Resource Include="Assets\Claudette.ico"/>
-    <Resource Include="Assets\Claudette.png"/>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="Settings\settings.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <Resource Include="Assets\Claudette.ico" />
+    <Resource Include="Assets\Claudette.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -46,6 +40,10 @@
     <!-- ProjectTypes loaded at runtime like Themes -->
     <Page Remove="ProjectTypes\*.xaml" />
     <Content Include="ProjectTypes\*.xaml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- Seed template files live in ProjectTypes/{TypeName}/ and ProjectTypes/_common/ -->
+    <Content Include="ProjectTypes\**\*.*" Exclude="ProjectTypes\*.xaml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

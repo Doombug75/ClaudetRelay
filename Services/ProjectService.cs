@@ -251,7 +251,9 @@ public static class ProjectService
                                      .OrderByDescending(Directory.GetLastWriteTime))
         {
             var ps = LoadProject(dir);
-            if (ps is not null) result.Add((dir, ps));
+            if (ps is not null)
+                result.Add((dir, ps));
+            // Silently skip projects that fail to load (corrupted, missing fields, etc.)
         }
         return result;
     }
@@ -265,12 +267,36 @@ public static class ProjectService
     public static ProjectSettings? LoadProject(string projectFolder)
     {
         var path = ProjectFilePath(projectFolder);
-        if (!File.Exists(path)) return null;
+        if (!File.Exists(path))
+        {
+#if DEBUG
+            System.Diagnostics.Debug.WriteLine($"🔍 [LoadProject] No project.json at: {path}");
+#endif
+            return null;
+        }
         try
         {
-            return JsonSerializer.Deserialize<ProjectSettings>(File.ReadAllText(path), ReadOpts);
+            var content = File.ReadAllText(path);
+            var result = JsonSerializer.Deserialize<ProjectSettings>(content, ReadOpts);
+#if DEBUG
+            if (result is null)
+                System.Diagnostics.Debug.WriteLine($"🔍 [LoadProject] Deserialization returned null for: {Path.GetFileName(projectFolder)}");
+            else
+                System.Diagnostics.Debug.WriteLine($"✓ [LoadProject] Loaded: {result.ProjectName}");
+#endif
+            return result;
         }
-        catch { return null; }
+        catch (Exception
+#if DEBUG
+            ex
+#endif
+            )
+        {
+#if DEBUG
+            System.Diagnostics.Debug.WriteLine($"✗ [LoadProject] ERROR loading {Path.GetFileName(projectFolder)}: {ex.Message}");
+#endif
+            return null;
+        }
     }
 
     /// <summary>

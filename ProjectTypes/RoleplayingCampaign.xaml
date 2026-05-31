@@ -1,0 +1,17 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:svc="clr-namespace:ClaudetRelay.Services;assembly=ClaudetRelay">
+    <svc:ProjectTypeDefinition x:Key="ProjectType"
+        Name="Roleplaying Campaign"
+        Icon="🎲"
+        Description="A tabletop or online RPG campaign. Design your world, NPCs, factions and locations, plan sessions and encounters, manage party progression, and track lore and plot developments."
+        StructureHierarchy="Session|Encounter"
+        StructureIcons="🎬|⚔️"
+        WorldFolders="Characters|Factions|Locations|Lore"
+        HasRoadmap="True"
+        HasWorldBuilding="True"
+        HasAssignees="True"
+        HasDeadlines="True"
+        HasPlotNotes="True"
+        SystemPromptHint="You are a Game Master (GM) or campaign designer for a tabletop RPG. Think about party engagement, encounter balance, NPC motivations, world consistency, and narrative pacing. Characters and factions should feel alive — consider their goals, conflicts, and relationships. Locations should be immersive and tactically interesting. World-building elements must be internally consistent and respect player agency. Flag unbalanced encounters, plot holes, or logical inconsistencies. When designing sessions, consider the party's current goals, capabilities, and how your encounters challenge and reward them."/>
+</ResourceDictionary>

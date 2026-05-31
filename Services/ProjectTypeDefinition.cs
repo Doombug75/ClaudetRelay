@@ -35,20 +35,23 @@ public class ProjectTypeDefinition
     public string SystemPromptHint { get; set; } = "";
 
     // ── Helpers ────────────────────────────────────────────────────────────
+    // Accepts both the legacy '|' separator and the current ',' separator.
+    private static readonly char[] _sep = ['|', ','];
+
     public string[] GetStructureLevels() =>
         string.IsNullOrWhiteSpace(StructureHierarchy)
             ? []
-            : StructureHierarchy.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            : StructureHierarchy.Split(_sep, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     public string[] GetStructureIconList() =>
         string.IsNullOrWhiteSpace(StructureIcons)
             ? []
-            : StructureIcons.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            : StructureIcons.Split(_sep, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     public string[] GetWorldFolderList() =>
         string.IsNullOrWhiteSpace(WorldFolders)
             ? []
-            : WorldFolders.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            : WorldFolders.Split(_sep, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     public override string ToString() => $"{Icon}  {Name}";
 }
