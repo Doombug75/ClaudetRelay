@@ -111,9 +111,9 @@ public partial class MainWindow : Window
 
         public string ProviderName => Service.ProviderName;
 
-        public string DisplayName => string.IsNullOrEmpty(CustomName)
-            ? Service.ProviderName
-            : CustomName;
+        public string DisplayName => !string.IsNullOrEmpty(CustomName)  ? CustomName
+                                  : !string.IsNullOrEmpty(Service.CurrentModel) ? Service.CurrentModel
+                                  : Service.ProviderName;
     }
 
     private sealed class CloudAIParticipantUI
@@ -284,10 +284,15 @@ public partial class MainWindow : Window
     private void ApplyThrottleSettings(AppSettings settings)
     {
         _rateLimiters.Clear();
-        foreach (var (provider, throttle) in settings.ProviderThrottle)
+
+        // Per-participant rate limits keyed by "type|model".
+        // When two participants share the same type+model the most permissive limit wins
+        // (they share an API budget anyway — the tighter one would block both).
+        foreach (var p in settings.Participants.Where(p => p.RpmEnabled && p.Rpm >= 1))
         {
-            if (throttle.Enabled && throttle.Rpm >= 1)
-                _rateLimiters[provider] = new ProviderRateLimiter(throttle.Rpm);
+            var key = $"{p.Type}|{p.Model}";
+            if (!_rateLimiters.TryGetValue(key, out var existing) || existing.Rpm < p.Rpm)
+                _rateLimiters[key] = new ProviderRateLimiter(p.Rpm);
         }
     }
 
@@ -3991,7 +3996,9 @@ public partial class MainWindow : Window
     // ── Bridge / MCP panel ────────────────────────────────────────────────
 
     private McpServer?    _mcpServer;
-    private bool          _controllerRunning = false;
+    private bool                   _controllerRunning     = false;
+    private string                 _controllerChatHistory = "";   // display text — survives panel rebuilds
+    private ModelControllerRunner? _controllerRunner;             // kept alive to preserve API conversation history
     private static readonly System.Net.Http.HttpClient _httpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(20),
@@ -4397,7 +4404,7 @@ public partial class MainWindow : Window
         sep.SetResourceReference(Rectangle.FillProperty, "ControlBgBrush");
         chatPanel.Children.Add(sep);
 
-        // Chat header row: label + font size controls
+        // Chat header row: label + clear button + font size controls
         var chatHeaderRow = new Grid { Margin = new Thickness(0, 0, 0, 6) };
         chatHeaderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         chatHeaderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -4415,6 +4422,14 @@ public partial class MainWindow : Window
         var fontRow = new StackPanel { Orientation = Orientation.Horizontal };
         Grid.SetColumn(fontRow, 1);
         chatHeaderRow.Children.Add(fontRow);
+
+        // Clear history button
+        var clearBtn = MakeBridgeSmallBtn("🗑");
+        clearBtn.FontSize = 10;
+        clearBtn.ToolTip  = "Clear chat history";
+        clearBtn.Margin   = new Thickness(0, 0, 8, 0);
+        // wired up below, after outputBox is created
+        fontRow.Children.Add(clearBtn);
 
         double ctrlFontSize = cfg.BridgeControllerFontSize;
 
@@ -4455,7 +4470,20 @@ public partial class MainWindow : Window
         outputBox.SetResourceReference(TextBox.ForegroundProperty, "ContentTextBrush");
         outputBox.SetResourceReference(TextBox.BorderBrushProperty, "ControlBorderBrush");
         outputBox.MinHeight = 320;
+        // Restore conversation history so switching tabs / rebuilding the panel
+        // doesn't wipe the chat log.
+        outputBox.Text = _controllerChatHistory;
+        outputBox.ScrollToEnd();
         chatPanel.Children.Add(outputBox);
+
+        // Wire up clear button now that outputBox is in scope.
+        // Clears both the display text AND the runner's API-level conversation history.
+        clearBtn.Click += (_, _) =>
+        {
+            outputBox.Text         = "";
+            _controllerChatHistory = "";
+            _controllerRunner?.ClearHistory();
+        };
 
         // Font size buttons wire-up
         fontSmallBtn.Click += (_, _) =>
@@ -4531,7 +4559,10 @@ public partial class MainWindow : Window
             sendBtn.Content    = "⏳";
             inputBox.Text      = "";
 
-            outputBox.Text = $"You: {prompt}\n\n";
+            // Append the new turn (don't overwrite — history must survive rebuilds).
+            if (outputBox.Text.Length > 0) outputBox.AppendText("\n");
+            outputBox.AppendText($"You: {prompt}\n\n");
+            outputBox.ScrollToEnd();
             statusLbl.Text = "Running…";
 
             try
@@ -4541,14 +4572,23 @@ public partial class MainWindow : Window
                     .FirstOrDefault(p => string.Equals(p.Type, s.BridgeControllerProvider,
                         StringComparison.OrdinalIgnoreCase))?.ServerUrl ?? "http://localhost:11434";
 
-                var runner = new ModelControllerRunner(
+                // Reuse the runner when provider/model/url are unchanged so that
+                // the API-level conversation history (messages array) is preserved.
+                // Recreate — and implicitly clear history — only when the model changes.
+                var newRunner = new ModelControllerRunner(
                     s.BridgeControllerProvider, s.BridgeControllerModel,
                     apiKey, svcUrl,
                     BuildMcpTools(BridgeAgentMode.ModelController),
                     ExecuteToolByNameAndArgs,
                     line => Dispatcher.Invoke(() => BridgeLog(line)));
 
-                await runner.RunAsync(prompt, chunk =>
+                if (_controllerRunner is null ||
+                    _controllerRunner.ConfigKey != newRunner.ConfigKey)
+                {
+                    _controllerRunner = newRunner;
+                }
+
+                await _controllerRunner.RunAsync(prompt, chunk =>
                     Dispatcher.Invoke(() =>
                     {
                         outputBox.AppendText(chunk);
@@ -4565,10 +4605,11 @@ public partial class MainWindow : Window
             }
             finally
             {
-                _controllerRunning = false;
-                sendBtn.IsEnabled  = true;
-                inputBox.IsEnabled = true;
-                sendBtn.Content    = "▶ Run";
+                _controllerRunning         = false;
+                _controllerChatHistory     = outputBox.Text;   // persist across panel rebuilds
+                sendBtn.IsEnabled          = true;
+                inputBox.IsEnabled         = true;
+                sendBtn.Content            = "▶ Run";
             }
         }
 
@@ -5394,112 +5435,19 @@ public partial class MainWindow : Window
             }
         }
 
-        // ── Custom model expander ──────────────────────────────────────────
-        bool hasParticipants = available.Count > 0;
-        var customHeader = new Button
+        // If no participants are available, prompt the user to configure them first.
+        if (available.Count == 0)
         {
-            Content = hasParticipants ? "▸  Add a custom model not in participants" : "Enter model details",
-            FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
-            Background = Brushes.Transparent, BorderThickness = new Thickness(0),
-            Cursor = Cursors.Hand, HorizontalContentAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(0, hasParticipants ? 10 : 0, 0, 6)
-        };
-        customHeader.SetResourceReference(Button.ForegroundProperty, "SidebarDimBrush");
-        root.Children.Add(customHeader);
-
-        var customForm = new StackPanel { Visibility = hasParticipants ? Visibility.Collapsed : Visibility.Visible };
-        root.Children.Add(customForm);
-
-        customHeader.Click += (_, _) =>
-        {
-            var opening = customForm.Visibility != Visibility.Visible;
-            customForm.Visibility = opening ? Visibility.Visible : Visibility.Collapsed;
-            customHeader.Content  = opening
-                ? "▾  Add a custom model not in participants"
-                : "▸  Add a custom model not in participants";
-            win.SizeToContent = SizeToContent.Height; // reflow window height
-        };
-
-        void AddFormLbl(string t) => customForm.Children.Add(new TextBlock
-        {
-            Text = t, FontSize = 10, FontWeight = FontWeights.Bold,
-            FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("ContentDimBrush"),
-            Margin = new Thickness(0, 8, 0, 4)
-        });
-
-        TextBox MakeFormInput(string val = "") => new()
-        {
-            Text = val, FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
-            Foreground = (Brush)FindResource("ContentTextBrush"),
-            Background = (Brush)FindResource("ControlBgBrush"),
-            BorderBrush = (Brush)FindResource("ControlBorderBrush"),
-            BorderThickness = new Thickness(1), Padding = new Thickness(8, 6, 8, 6),
-            Height = 34, VerticalContentAlignment = VerticalAlignment.Center
-        };
-
-        ComboBox? providerCombo = null;
-        TextBox?  serverUrlBox  = null;
-
-        if (isCloud)
-        {
-            AddFormLbl("PROVIDER");
-            providerCombo = new ComboBox { FontSize = 12, FontFamily = new FontFamily("Segoe UI"), Height = 34 };
-            providerCombo.SetResourceReference(ComboBox.BackgroundProperty, "ControlBgBrush");
-            providerCombo.SetResourceReference(ComboBox.ForegroundProperty, "SidebarTextBrush");
-            providerCombo.SetResourceReference(ComboBox.BorderBrushProperty, "ControlBorderBrush");
-            foreach (var p in CloudProviders) providerCombo.Items.Add(p);
-            providerCombo.SelectedIndex = 0;
-            customForm.Children.Add(providerCombo);
-        }
-        else
-        {
-            AddFormLbl("SERVER URL");
-            serverUrlBox = MakeFormInput("http://localhost:11434");
-            customForm.Children.Add(serverUrlBox);
-        }
-
-        AddFormLbl("MODEL");
-        var modelBox = MakeFormInput();
-        modelBox.ToolTip = isCloud ? "e.g. claude-opus-4-5, gemini-1.5-pro" : "e.g. llama3.2, mistral, phi3";
-        customForm.Children.Add(modelBox);
-
-        AddFormLbl("DISPLAY NAME  (optional)");
-        var nameBox = MakeFormInput();
-        customForm.Children.Add(nameBox);
-
-        var customBtnRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 12, 0, 0)
-        };
-        customForm.Children.Add(customBtnRow);
-
-        var customAddBtn = MakeBridgeActionBtn("Add Custom Agent", true);
-        customAddBtn.Click += (_, _) =>
-        {
-            var model = modelBox.Text.Trim();
-            if (string.IsNullOrWhiteSpace(model))
+            var noAvail = new TextBlock
             {
-                MessageBox.Show("Please enter a model name.", "Missing Model",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-            var agent = new BridgeAgent
-            {
-                Provider    = isCloud ? (providerCombo!.SelectedItem as string ?? "Anthropic") : "Ollama",
-                Model       = model,
-                ServerUrl   = serverUrlBox?.Text.Trim() ?? "http://localhost:11434",
-                DisplayName = nameBox.Text.Trim(),
-                IsEnabled   = true
+                Text         = "No eligible participants found.\n\n" +
+                               "Add and enable participants in the sidebar first, then return here to add them as agents.",
+                FontSize     = 12, FontFamily = new FontFamily("Segoe UI"),
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0)
             };
-            var s = SettingsService.Load();
-            s.BridgeAgents.Add(agent);
-            SettingsService.Save(s);
-            added = true;
-            win.DialogResult = true;
-        };
-        customBtnRow.Children.Add(customAddBtn);
+            noAvail.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+            root.Children.Add(noAvail);
+        }
 
         // ── Cancel row ─────────────────────────────────────────────────────
         var bottomRow = new StackPanel
@@ -11223,15 +11171,24 @@ public partial class MainWindow : Window
     private void StartStatusTimer()
     {
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-        timer.Tick += async (_, _) => await CheckAllStatusAsync();
+        timer.Tick += async (_, _) =>
+        {
+            try { await CheckAllStatusAsync(); }
+            catch { /* status check must never crash the app via async void */ }
+        };
         timer.Start();
     }
 
     private async Task CheckAllStatusAsync()
     {
-        // Take snapshots before any await - ReInitializeParticipantsFrom may clear these
-        // collections while we are mid-iteration (e.g. user closes project during calibration),
-        // which would cause "Collection was modified; enumeration operation may not execute."
+        // Snapshots taken before any await so that ReInitializeParticipants (which removes
+        // and recreates participant objects) can't cause "collection was modified" exceptions.
+        // The try-catch protects against the race where the old UI objects are removed from
+        // the visual tree between the snapshot and the status-update continuation — e.g. when
+        // the user closes ParticipantsWindow while the timer's status check is in flight.
+        try
+        {
+
         var ollamaSnapshot  = _ollamaParticipants .ToList();
         var cloudAISnapshot = _cloudAIParticipants.ToList();
 
@@ -11252,6 +11209,9 @@ public partial class MainWindow : Window
             var online = await ui.Data.Service.IsAvailableAsync();
             ApplyCloudAIParticipantStatus(ui, online);
         }
+
+        } catch { /* UI objects from a previous participant set may have been removed;
+                     swallow silently — next timer tick will use the fresh snapshot */ }
     }
 
     private void ApplyOllamaParticipantStatus(OllamaParticipantUI ui, bool online)
@@ -13461,8 +13421,10 @@ public partial class MainWindow : Window
         bool firstToken = true;
 
         // ── Rate limiting ─────────────────────────────────────────────────
-        var providerName = ui.Data.Service.ProviderName;
-        if (_rateLimiters.TryGetValue(providerName, out var rateLimiter))
+        // Key is "provider|model" so each model can have its own rpm budget.
+        var providerName  = ui.Data.Service.ProviderName;
+        var limiterKey    = $"{providerName}|{ui.Data.Service.CurrentModel}";
+        if (_rateLimiters.TryGetValue(limiterKey, out var rateLimiter))
         {
             if (!hidden)
                 bubble!.UpdateThinkingTooltip($"⏳ Waiting - rate limit {rateLimiter.Rpm} req/min");
@@ -14471,21 +14433,43 @@ public partial class MainWindow : Window
         AddSystemMessage("Chat cleared.");
     }
 
+    /// <summary>
+    /// Returns the live status string ("Ready" / "Offline") for a participant that is
+    /// currently running in the chat panel, or <c>null</c> if it is not active there.
+    /// Called from ParticipantsWindow to populate status badges on the card grid.
+    /// </summary>
+    public string? GetLiveParticipantStatus(string type, string model, string serverUrl)
+    {
+        if (type == "Ollama")
+        {
+            var m = _ollamaParticipants.FirstOrDefault(ui =>
+                string.Equals(ui.Data.Service.CurrentModel, model, StringComparison.OrdinalIgnoreCase));
+            return m is null ? null : m.Data.IsOnline == true ? "Ready" : "Offline";
+        }
+        var c = _cloudAIParticipants.FirstOrDefault(ui =>
+            string.Equals(ui.Data.Service.ProviderName, type,  StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(ui.Data.Service.CurrentModel, model, StringComparison.OrdinalIgnoreCase));
+        return c is null ? null : c.Data.IsOnline == true ? "Ready" : "Offline";
+    }
+
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        // Snapshot enabled-state BEFORE the window opens so we can diff on save.
+        // Snapshot the participants list BEFORE the window opens so we can diff on close.
         var settingsBefore = SettingsService.Load();
 
-        // Opens on the General tab (User Name + Tone + Mockingbird), then P1-P20 tabs alongside
-        var win = new SettingsWindow(_currentThemePath, initialTabIndex: 0) { Owner = this };
-        win.SourceInitialized += (_, _) => ApplyTitleBarTheme(win);
-        if (win.ShowDialog() == true)
+        // Open the new card-grid participants window.
+        // General settings (User Name, Tone, Providers) are accessible from inside it.
+        var win = new ParticipantsWindow(_currentThemePath, this);
+        win.Closed += (_, _) =>
         {
+            // Full rebuild — index-based delta is unreliable when participants are
+            // added, deleted or reordered; a clean reinit is simpler and always correct.
+            ReInitializeParticipants();
             var settingsAfter = SettingsService.Load();
-            ApplyParticipantDelta(settingsBefore.Participants, settingsAfter.Participants, settingsAfter);
             ApplyThrottleSettings(settingsAfter);
             ApplyChatFont(settingsAfter);
-        }
+        };
+        win.Show();
     }
 
     /// <summary>

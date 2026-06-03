@@ -52,7 +52,7 @@ public class ProviderThrottleSettings
     public int  Rpm     { get; set; } = 15;
 }
 
-/// <summary>Configuration for one chat participant slot (P1–P8).</summary>
+/// <summary>Configuration for one chat participant.</summary>
 public class ParticipantConfig
 {
     /// <summary>Custom display name shown in chat bubbles. Empty = auto-generated.</summary>
@@ -60,7 +60,7 @@ public class ParticipantConfig
 
     /// <summary>
     /// "Ollama" for a local Ollama instance, or a Cloud AI provider name:
-    /// "Anthropic", "Google AI", "Groq", "OpenRouter", "Mistral".
+    /// "Anthropic", "Google AI", "Groq", "OpenRouter", "Mistral", "xAI Grok", "OpenAI ChatGPT".
     /// </summary>
     public string Type { get; set; } = "Ollama";
 
@@ -70,8 +70,46 @@ public class ParticipantConfig
     /// <summary>Ollama server base URL. Ignored for Cloud AI types.</summary>
     public string ServerUrl { get; set; } = "http://localhost:11434";
 
-    /// <summary>Whether this participant slot is active at startup.</summary>
+    /// <summary>Whether this participant is active (participates in conversations).</summary>
     public bool Enabled { get; set; } = false;
+
+    /// <summary>UTC timestamp when this participant was created. Used for sort-by-date.</summary>
+    public DateTime DateAdded { get; set; } = DateTime.UtcNow;
+
+    // ── Per-participant rate limiting ──────────────────────────────────────
+    // Stored here (not in AppSettings.ProviderThrottle) so each model can have
+    // its own budget — e.g. haiku at 60 rpm, opus at 5 rpm on the same account.
+
+    /// <summary>Whether request-rate throttling is active for this participant.</summary>
+    public bool RpmEnabled { get; set; } = false;
+
+    /// <summary>Maximum requests per minute for this participant. Must be ≥ 1.</summary>
+    public int  Rpm        { get; set; } = 15;
+
+    /// <summary>
+    /// Short role label shown on the participant card header (e.g. "Coder", "Analyst").
+    /// Set manually or fetched by asking the model itself.
+    /// </summary>
+    public string Role { get; set; } = "";
+
+    /// <summary>
+    /// One-sentence self-description fetched from the model.
+    /// Shown in the model-info dialog instead of the static knowledge-base description.
+    /// </summary>
+    public string SelfDescription { get; set; } = "";
+
+    /// <summary>What the model says it enjoys most (free-temperature follow-up question).</summary>
+    public string Likes { get; set; } = "";
+
+    /// <summary>What the model says it dislikes most (free-temperature follow-up question).</summary>
+    public string Dislikes { get; set; } = "";
+
+    /// <summary>
+    /// Last HTTP error code from a self-description or API test, e.g. "ERROR:401".
+    /// Shown on the participant card instead of "Ready" so the user knows something is wrong.
+    /// Cleared on next successful API response.
+    /// </summary>
+    public string LastApiError { get; set; } = "";
 }
 
 public class AppSettings
@@ -112,7 +150,7 @@ public class AppSettings
     /// </summary>
     public bool MockingbirdMode { get; set; } = false;
 
-    /// <summary>Per-participant configuration (P1–P8). Populated on first load via migration.</summary>
+    /// <summary>Configured participants shown in the card grid.</summary>
     public List<ParticipantConfig> Participants { get; set; } = [];
 
     /// <summary>Font family used in the chat window and HTML exports. Default "Segoe UI".</summary>
@@ -255,9 +293,23 @@ public static class SettingsService
             }
         }
 
-        // One-time migration from pre-participant-config settings
-        if (settings.Participants.Count == 0)
-            MigrateToParticipants(settings);
+
+        // One-time migration: copy ProviderThrottle → per-participant RpmEnabled/Rpm.
+        // Runs once when ProviderThrottle still has data but no participant has RpmEnabled set.
+        if (settings.ProviderThrottle.Count > 0 &&
+            settings.Participants.All(p => !p.RpmEnabled))
+        {
+            foreach (var p in settings.Participants)
+            {
+                if (settings.ProviderThrottle.TryGetValue(p.Type, out var t) && t.Enabled)
+                {
+                    p.RpmEnabled = true;
+                    p.Rpm        = t.Rpm;
+                }
+            }
+            settings.ProviderThrottle.Clear();   // no longer needed
+            Save(settings);
+        }
 
         // Migrate legacy single DisabledBridgeTools list to per-mode lists
         if (settings.DisabledBridgeTools.Count > 0 &&
@@ -294,39 +346,4 @@ public static class SettingsService
         catch { /* silent – missing save should not crash the app */ }
     }
 
-    // ── Migration ──────────────────────────────────────────────────────────
-
-    private static void MigrateToParticipants(AppSettings s)
-    {
-        s.Participants = [];
-
-        // All slots start disabled. MigrateToParticipants only runs when Participants.Count == 0,
-        // which on a clean install means no one has configured anything yet.
-        // Existing users already have a saved Participants list and never hit this path.
-        s.Participants.Add(new ParticipantConfig
-        {
-            Name      = "",
-            Type      = "Ollama",
-            Model     = string.IsNullOrEmpty(s.OllamaModel) ? "llama3.2" : s.OllamaModel,
-            ServerUrl = string.IsNullOrEmpty(s.OllamaBaseUrl) ? "http://localhost:11434" : s.OllamaBaseUrl,
-            Enabled   = false
-        });
-
-        s.Participants.Add(new ParticipantConfig
-        {
-            Name      = "",
-            Type      = string.IsNullOrEmpty(s.SelectedProvider) ? "Anthropic" : s.SelectedProvider,
-            Model     = s.SelectedCloudModel ?? "",
-            ServerUrl = "http://localhost:11434",
-            Enabled   = false
-        });
-
-        // P3–P8 → disabled defaults
-        s.Participants.Add(new ParticipantConfig { Type = "Ollama",     Enabled = false });
-        s.Participants.Add(new ParticipantConfig { Type = "Anthropic",  Enabled = false });
-        s.Participants.Add(new ParticipantConfig { Type = "Groq",       Enabled = false });
-        s.Participants.Add(new ParticipantConfig { Type = "Google AI",  Enabled = false });
-        s.Participants.Add(new ParticipantConfig { Type = "Mistral",    Enabled = false });
-        s.Participants.Add(new ParticipantConfig { Type = "OpenRouter", Enabled = false });
-    }
 }

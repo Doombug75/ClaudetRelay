@@ -98,21 +98,8 @@ public partial class SettingsWindow : Window
         }
         else
         {
-            // Participants view: General settings + all participant slots
+            // General settings only — participants are now managed in the card-grid window
             BuildGeneralTab(settings);
-            for (int i = 0; i < 20; i++)
-            {
-                var config = i < settings.Participants.Count
-                    ? settings.Participants[i]
-                    : new ParticipantConfig();
-                BuildTab(i, config, settings);
-            }
-
-            if (initialTabIndex > 0 && initialTabIndex < ParticipantsTabControl.Items.Count)
-                ParticipantsTabControl.SelectedIndex = initialTabIndex;
-
-            // Auto-test all participants once the window is fully rendered
-            Loaded += async (_, _) => await AutoTestAllAsync();
         }
     }
 

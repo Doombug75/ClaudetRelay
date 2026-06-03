@@ -1,0 +1,1172 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Shapes;
+using ClaudetRelay.Services;
+
+namespace ClaudetRelay;
+
+/// <summary>
+/// Card-grid window for managing all participants.
+/// Unlimited participant count — replaces the old P1–P20 tab approach.
+/// </summary>
+public class ParticipantsWindow : Window
+{
+    // ── State ──────────────────────────────────────────────────────────────
+
+    private readonly string?      _themePath;
+    private readonly MainWindow?  _mainWindow;
+    private          string       _sortMode = "slot";
+    private          WrapPanel?   _cards;
+
+    // Temp storage for rate-limit controls shared between RebuildRpmSection and saveBtn.Click
+    private CheckBox? _editRpmChk;
+    private TextBox?  _editRpmValueBox;
+
+    // Provider types shown in the dropdown.
+    // "Ollama ☁" is the internal type name used by OllamaOpenAIService / CreateCloudAIService.
+    private static readonly string[] AllProviders =
+    [
+        "Ollama",         // Local Ollama — native API, server URL required
+        "Ollama ☁",       // Ollama Cloud (api.ollama.com) — API key required, no custom URL
+        "Anthropic",
+        "Google AI",
+        "Groq",
+        "OpenRouter",
+        "Mistral",
+        "xAI Grok",
+        "OpenAI ChatGPT"
+    ];
+
+    // ── Provider colour palette ────────────────────────────────────────────
+
+    private static Color ProviderColor(string type) => type switch
+    {
+        "Anthropic"       => Color.FromRgb(212,  89,  42),
+        "Google AI"       => Color.FromRgb( 66, 133, 244),
+        "Groq"            => Color.FromRgb(249, 115,  22),
+        "OpenRouter"      => Color.FromRgb( 99, 102, 241),
+        "Mistral"         => Color.FromRgb(100, 116, 139),
+        "xAI Grok"        => Color.FromRgb(147,  51, 234),
+        "OpenAI ChatGPT"  => Color.FromRgb( 16, 185, 129),
+        "Ollama ☁"        => Color.FromRgb( 20, 184, 166),   // teal
+        _                 => Color.FromRgb( 37,  99, 235),   // blue = Ollama / unknown
+    };
+
+    // ── Cloud vs local helpers ─────────────────────────────────────────────
+
+    // "Ollama ☁" is a cloud provider (API key, fixed endpoint at api.ollama.com).
+    // Plain "Ollama" is local (server URL required, no API key).
+    private static bool IsCloud(string provider) =>
+        provider is not "Ollama";
+
+    private static string RpmHint(string provider) => provider switch
+    {
+        "Google AI"      => "Free tier: 2–15 rpm (Pro) · 15–30 rpm (Flash) — aistudio.google.com",
+        "Groq"           => "Free tier varies by model — check console.groq.com",
+        "Anthropic"      => "Rate limits depend on your usage tier — console.anthropic.com",
+        "OpenRouter"     => "Free models have per-model limits — openrouter.ai",
+        "Mistral"        => "Free tier is limited — console.mistral.ai",
+        "xAI Grok"       => "Rate limits depend on your plan — console.x.ai",
+        "OpenAI ChatGPT" => "Rate limits depend on your usage tier — platform.openai.com",
+        _                => ""
+    };
+
+    // ── Default model lists per provider (populated immediately in the edit dialog) ──
+
+    private static string[] DefaultModels(string provider) => provider switch
+    {
+        "Anthropic"       => AnthropicService.DefaultModels,
+        "Google AI"       => GoogleAIService.DefaultModels,
+        "Groq"            => GroqService.DefaultModels,
+        "OpenRouter"      => OpenRouterService.DefaultModels,
+        "Mistral"         => MistralService.DefaultModels,
+        "xAI Grok"        => XAIGrokService.DefaultModels,
+        "OpenAI ChatGPT"  => OpenAIService.DefaultModels,
+        _                 => []    // Ollama variants: fetched live
+    };
+
+    // ── Constructor ────────────────────────────────────────────────────────
+
+    public ParticipantsWindow(string? themePath, MainWindow owner)
+    {
+        _themePath  = themePath;
+        _mainWindow = owner;
+        Owner       = owner;
+
+        if (themePath is not null)
+        {
+            try
+            {
+                var dict = OxsuitLoader.Load(themePath);
+                if (dict is not null) Resources.MergedDictionaries.Add(dict);
+            }
+            catch { }
+        }
+
+        Title                 = "Participants";
+        Width                 = 860;
+        Height                = 680;
+        MinWidth              = 600;
+        MinHeight             = 400;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ShowInTaskbar         = false;
+        ResizeMode            = ResizeMode.CanResize;
+        SetResourceReference(BackgroundProperty, "ContentBgBrush");
+        SourceInitialized += (_, _) => TryApplyTitleBar();
+
+        BuildUI();
+    }
+
+    // ── UI construction ────────────────────────────────────────────────────
+
+    private void BuildUI()
+    {
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        Content = root;
+
+        // ── Toolbar ────────────────────────────────────────────────────────
+        var toolBorder = new Border { Padding = new Thickness(16, 10, 16, 10) };
+        toolBorder.SetResourceReference(Border.BackgroundProperty, "SidebarBgBrush");
+        Grid.SetRow(toolBorder, 0);
+        root.Children.Add(toolBorder);
+
+        var toolbar = new Grid();
+        toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        toolBorder.Child = toolbar;
+
+        var addBtn = MakeBtn("＋ Add Participant", isPrimary: true);
+        addBtn.Click += (_, _) =>
+        {
+            var p = new ParticipantConfig { DateAdded = DateTime.UtcNow };
+            if (ShowEditDialog(p, isNew: true))
+            {
+                var s = SettingsService.Load();
+                s.Participants.Add(p);
+                SettingsService.Save(s);
+                RebuildCards();
+            }
+        };
+        Grid.SetColumn(addBtn, 0);
+        toolbar.Children.Add(addBtn);
+
+        // Sort controls
+        var sortPanel = new StackPanel
+            { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(sortPanel, 2);
+        toolbar.Children.Add(sortPanel);
+
+        var sortLbl = new TextBlock
+        {
+            Text = "Sort:", FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0)
+        };
+        sortLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+        sortPanel.Children.Add(sortLbl);
+
+        void AddSort(string label, string mode)
+        {
+            var b = MakeSortBtn(label);
+            b.Click += (_, _) =>
+            {
+                _sortMode = mode == "slot" && _sortMode == "slot" ? "slot_desc"
+                          : mode == "slot" && _sortMode == "slot_desc" ? "slot"
+                          : mode;
+                RebuildCards();
+            };
+            sortPanel.Children.Add(b);
+        }
+        AddSort("Slot #", "slot");
+        AddSort("Name",   "name");
+        AddSort("Provider", "provider");
+        AddSort("Date",   "date");
+
+        // General settings button
+        var genBtn = MakeBtn("⚙  General Settings", isPrimary: false);
+        genBtn.Margin = new Thickness(16, 0, 0, 0);
+        genBtn.Click += (_, _) =>
+            new SettingsWindow(_themePath, initialTabIndex: 0) { Owner = this }.ShowDialog();
+        Grid.SetColumn(genBtn, 3);
+        toolbar.Children.Add(genBtn);
+
+        // Separator
+        var sep = new Rectangle { Height = 1 };
+        sep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
+        Grid.SetRow(sep, 0);
+        root.Children.Add(sep);
+
+        // ── Cards scroll area ──────────────────────────────────────────────
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Padding = new Thickness(16, 14, 16, 16)
+        };
+        scroll.SetResourceReference(ScrollViewer.BackgroundProperty, "ContentBgBrush");
+        Grid.SetRow(scroll, 1);
+        root.Children.Add(scroll);
+
+        _cards = new WrapPanel { Orientation = Orientation.Horizontal, ItemWidth = 240 };
+        scroll.Content = _cards;
+
+        RebuildCards();
+    }
+
+    // ── Card grid ──────────────────────────────────────────────────────────
+
+    private void RebuildCards()
+    {
+        if (_cards is null) return;
+        _cards.Children.Clear();
+
+        var settings     = SettingsService.Load();
+        var participants = settings.Participants;
+
+        // Build display list: preserve original index for all mutations.
+        var indexed = participants.Select((p, i) => (p, slot: i + 1, origIdx: i)).ToList();
+
+        var sorted = _sortMode switch
+        {
+            "name"      => indexed.OrderBy(x => !string.IsNullOrEmpty(x.p.Name) ? x.p.Name : x.p.Type,
+                               StringComparer.OrdinalIgnoreCase).ToList(),
+            "provider"  => indexed.OrderBy(x => x.p.Type, StringComparer.OrdinalIgnoreCase)
+                               .ThenBy(x => x.p.Name, StringComparer.OrdinalIgnoreCase).ToList(),
+            "date"      => indexed.OrderBy(x => x.p.DateAdded).ToList(),
+            "slot_desc" => indexed.OrderByDescending(x => x.slot).ToList(),
+            _           => indexed
+        };
+
+        foreach (var (p, slot, origIdx) in sorted)
+        {
+            _cards.Children.Add(BuildCard(p, slot, origIdx));
+
+            // Ask the model to describe itself if we have no description and no prior error.
+            // (Error = user needs to fix their API key first; don't hammer the API on every rebuild.)
+            // On completion, dispatch RebuildCards() back to the UI thread so the card updates
+            // immediately without requiring the user to close and reopen the window.
+            if ((string.IsNullOrEmpty(p.SelfDescription) || string.IsNullOrEmpty(p.Likes)) &&
+                string.IsNullOrEmpty(p.LastApiError) &&
+                !string.IsNullOrEmpty(p.Model))
+            {
+                SelfDescriptionService
+                    .FetchAndSaveAsync(p.Type, p.Model, p.ServerUrl)
+                    .ContinueWith(_ => Dispatcher.InvokeAsync(() =>
+                    {
+                        if (IsLoaded) RebuildCards();
+                    }), TaskScheduler.Default);
+            }
+        }
+
+        if (participants.Count == 0)
+        {
+            var hint = new TextBlock
+            {
+                Text = "No participants yet.\nClick '＋ Add Participant' to create one.",
+                FontSize = 14, FontFamily = new FontFamily("Segoe UI"),
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 20, 0, 0)
+            };
+            hint.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+            _cards.Children.Add(hint);
+        }
+    }
+
+    private Border BuildCard(ParticipantConfig p, int slot, int origIdx)
+    {
+        var card = new Border
+        {
+            Width = 228, Margin = new Thickness(0, 0, 12, 12),
+            Padding = new Thickness(14, 12, 14, 12),
+            CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1)
+        };
+        card.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
+        card.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+
+        // ── Inactive dimming ───────────────────────────────────────────────
+        card.Opacity = p.Enabled ? 1.0 : 0.45;
+
+        var inner = new StackPanel();
+        card.Child = inner;
+
+        // ── Header: #slot | role tag | Active checkbox ─────────────────────
+        var headerRow = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        inner.Children.Add(headerRow);
+
+        var slotBadge = new Border
+        {
+            CornerRadius = new CornerRadius(4), Padding = new Thickness(5, 2, 5, 2),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        slotBadge.SetResourceReference(Border.BackgroundProperty, "ControlHoverBrush");
+        var slotText = new TextBlock
+        {
+            Text = $"#{slot}", FontSize = 10, FontWeight = FontWeights.Bold,
+            FontFamily = new FontFamily("Segoe UI")
+        };
+        slotText.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
+        slotBadge.Child = slotText;
+        Grid.SetColumn(slotBadge, 0);
+        headerRow.Children.Add(slotBadge);
+
+        // Role tag — shown only when explicitly set (never auto-inferred from name)
+        var roleText = p.Role;
+        if (!string.IsNullOrWhiteSpace(roleText))
+        {
+            var roleTb = new TextBlock
+            {
+                Text = roleText, FontSize = 10, FontWeight = FontWeights.SemiBold,
+                FontFamily = new FontFamily("Segoe UI"),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(4, 0, 4, 0)
+            };
+            roleTb.SetResourceReference(TextBlock.ForegroundProperty, "AccentHighlightBrush");
+            Grid.SetColumn(roleTb, 1);
+            headerRow.Children.Add(roleTb);
+        }
+
+        // Active checkbox
+        var toggle = new CheckBox
+        {
+            Content = "Active", IsChecked = p.Enabled,
+            FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Cursor = Cursors.Hand
+        };
+        toggle.SetResourceReference(CheckBox.ForegroundProperty,
+            p.Enabled ? "AccentHighlightBrush" : "SidebarDimBrush");
+        toggle.Checked   += (_, _) =>
+        {
+            if (IsCloud(p.Type) && string.IsNullOrWhiteSpace(WindowsCredentialManager.Load(p.Type)))
+            {
+                toggle.IsChecked = false;
+                MessageBox.Show(
+                    $"No API key is stored for {p.Type}.\n\nOpen General Settings and add your key before activating this participant.",
+                    "API Key Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            card.Opacity = 1.0;
+            toggle.SetResourceReference(CheckBox.ForegroundProperty, "AccentHighlightBrush");
+            var s = SettingsService.Load();
+            if (origIdx < s.Participants.Count) s.Participants[origIdx].Enabled = true;
+            SettingsService.Save(s);
+        };
+        toggle.Unchecked += (_, _) =>
+        {
+            card.Opacity = 0.45;
+            toggle.SetResourceReference(CheckBox.ForegroundProperty, "SidebarDimBrush");
+            var s = SettingsService.Load();
+            if (origIdx < s.Participants.Count) s.Participants[origIdx].Enabled = false;
+            SettingsService.Save(s);
+        };
+        Grid.SetColumn(toggle, 2);
+        headerRow.Children.Add(toggle);
+
+        // ── Name ────────────────────────────────────────────────────────────
+        var displayName = !string.IsNullOrWhiteSpace(p.Name) ? p.Name
+                        : !string.IsNullOrWhiteSpace(p.Model) ? p.Model
+                        : $"{p.Type} ({slot})";
+        var nameTb = new TextBlock
+        {
+            Text = displayName, FontSize = 13, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+        nameTb.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
+        inner.Children.Add(nameTb);
+
+        // ── Provider row: colour dot + name ─────────────────────────────────
+        var provRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 3) };
+        var dot = new Ellipse
+        {
+            Width = 8, Height = 8, Fill = new SolidColorBrush(ProviderColor(p.Type)),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0)
+        };
+        provRow.Children.Add(dot);
+        var provTb = new TextBlock { Text = p.Type, FontSize = 11, FontFamily = new FontFamily("Segoe UI") };
+        provTb.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
+        provRow.Children.Add(provTb);
+        inner.Children.Add(provRow);
+
+        // ── Model ────────────────────────────────────────────────────────────
+        if (!string.IsNullOrWhiteSpace(p.Model))
+        {
+            var modelTb = new TextBlock
+            {
+                Text = p.Model, FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 0, 2)
+            };
+            modelTb.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
+            inner.Children.Add(modelTb);
+        }
+
+        // Ollama server URL — only show if non-default
+        if (p.Type == "Ollama"
+            && !string.IsNullOrWhiteSpace(p.ServerUrl)
+            && p.ServerUrl != "http://localhost:11434")
+        {
+            var urlTb = new TextBlock
+            {
+                Text = p.ServerUrl, FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+                TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 0, 2)
+            };
+            urlTb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+            inner.Children.Add(urlTb);
+        }
+
+        // ── Status + rate-limit row (same line) ───────────────────────────
+        var statusText = GetCardStatus(p);
+        var hasRpm     = IsCloud(p.Type) && p.RpmEnabled && p.Rpm >= 1;
+
+        if (statusText is not null || hasRpm)
+        {
+            var row = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            inner.Children.Add(row);
+
+            if (statusText is not null)
+            {
+                var (label, color) = statusText switch
+                {
+                    "Ready"      => ("● Ready",      Color.FromRgb( 80, 190,  80)),
+                    "Offline"    => ("○ Offline",    Color.FromRgb(180, 100,  60)),
+                    "No API key" => ("⚠ No API key", Color.FromRgb(200, 140,  40)),
+                    var e when e.StartsWith("ERROR:") => (e, Color.FromRgb(210,  80,  60)),
+                    _            => (statusText,      Color.FromRgb(150, 150, 150))
+                };
+                var sTb = new TextBlock
+                {
+                    Text = label, FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+                    Foreground = new SolidColorBrush(color),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(sTb, 0);
+                row.Children.Add(sTb);
+            }
+
+            if (hasRpm)
+            {
+                var rpmTb = new TextBlock
+                {
+                    Text = $"⏱ {p.Rpm} rpm", FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Right
+                };
+                rpmTb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+                Grid.SetColumn(rpmTb, 1);
+                row.Children.Add(rpmTb);
+            }
+        }
+
+        // ── Left-click = model info, right-click = edit / delete ─────────
+        card.Cursor = Cursors.Hand;
+        card.MouseLeftButtonDown += (_, _) => ShowModelInfo(p);
+
+        var ctxMenu = new ContextMenu();
+        var editItem = new MenuItem { Header = "✏  Edit" };
+        editItem.Click += (_, _) =>
+        {
+            var s = SettingsService.Load();
+            if (origIdx >= s.Participants.Count) return;
+            var live = s.Participants[origIdx];
+            if (ShowEditDialog(live, isNew: false)) { SettingsService.Save(s); RebuildCards(); }
+        };
+        var delItem = new MenuItem { Header = "🗑  Remove" };
+        delItem.Click += (_, _) =>
+        {
+            if (MessageBox.Show($"Remove participant '{displayName}'?",
+                    "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+                != MessageBoxResult.Yes) return;
+            var s = SettingsService.Load();
+            if (origIdx < s.Participants.Count) s.Participants.RemoveAt(origIdx);
+            SettingsService.Save(s);
+            RebuildCards();
+        };
+        ctxMenu.Items.Add(editItem);
+        ctxMenu.Items.Add(new Separator());
+        ctxMenu.Items.Add(delItem);
+        card.ContextMenu = ctxMenu;
+
+        return card;
+    }
+
+    // ── Edit dialog ────────────────────────────────────────────────────────
+
+    private bool ShowEditDialog(ParticipantConfig p, bool isNew)
+    {
+        var win = new Window
+        {
+            Title = isNew ? "Add Participant" : "Edit Participant",
+            Width = 460, SizeToContent = SizeToContent.Height, MinHeight = 300,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = this, ShowInTaskbar = false, ResizeMode = ResizeMode.NoResize
+        };
+        // Inherit the exact same resource dictionaries that are loaded in this window
+        // (works for both .oxsuit and .xaml themes without re-reading the file)
+        foreach (var rd in Resources.MergedDictionaries)
+            win.Resources.MergedDictionaries.Add(rd);
+        win.SetResourceReference(BackgroundProperty, "ContentBgBrush");
+
+        var scroll = new ScrollViewer
+            { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(24, 20, 24, 20) };
+        win.Content = scroll;
+
+        var root = new StackPanel();
+        scroll.Content = root;
+
+        // ── Helpers ────────────────────────────────────────────────────────
+
+        TextBlock Lbl(string t)
+        {
+            var lbl = new TextBlock
+            {
+                Text = t, FontSize = 11, FontWeight = FontWeights.SemiBold,
+                FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 12, 0, 4)
+            };
+            lbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+            return lbl;
+        }
+
+        TextBox Tb(string val)
+        {
+            var tb = new TextBox { Text = val };
+            if (win.TryFindResource("ModernTextBox") is Style s) tb.Style = s;
+            return tb;
+        }
+
+        // ── Name ────────────────────────────────────────────────────────────
+        root.Children.Add(Lbl("DISPLAY NAME  (optional — leave blank to auto-generate)"));
+        var nameBox = Tb(p.Name);
+        nameBox.ToolTip = "Shown in chat bubbles. Blank = provider + slot number.";
+        root.Children.Add(nameBox);
+
+        // ── Provider ────────────────────────────────────────────────────────
+        root.Children.Add(Lbl("PROVIDER"));
+        var provCombo = new ComboBox { Margin = new Thickness(0, 0, 0, 0) };
+        if (win.TryFindResource("ModernComboBox") is Style cs) provCombo.Style = cs;
+        foreach (var prov in AllProviders) provCombo.Items.Add(prov);
+        provCombo.SelectedItem = AllProviders.FirstOrDefault(x =>
+            string.Equals(x, p.Type, StringComparison.OrdinalIgnoreCase)) ?? AllProviders[0];
+        root.Children.Add(provCombo);
+
+        // ── Model (ComboBox + fetch button) ─────────────────────────────────
+        root.Children.Add(Lbl("MODEL"));
+        var modelRow = new Grid();
+        modelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        modelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        root.Children.Add(modelRow);
+
+        // Editable ComboBox so user can type anything OR pick from fetched list
+        var modelCombo = new ComboBox
+        {
+            IsEditable = true, Text = p.Model,
+            ToolTip = "Type a model name or click ↻ to fetch available models from the provider"
+        };
+        if (win.TryFindResource("ModernComboBox") is Style mcs) modelCombo.Style = mcs;
+        Grid.SetColumn(modelCombo, 0);
+        modelRow.Children.Add(modelCombo);
+
+        var fetchBtn = MakeBtn("↻", isPrimary: false);
+        fetchBtn.FontSize = 13; fetchBtn.Padding = new Thickness(10, 6, 10, 6);
+        fetchBtn.Margin   = new Thickness(6, 0, 0, 0);
+        fetchBtn.ToolTip  = "Fetch available models from the provider";
+        Grid.SetColumn(fetchBtn, 1);
+        modelRow.Children.Add(fetchBtn);
+
+        // Fetch status label
+        var fetchStatus = new TextBlock
+        {
+            FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+            Margin = new Thickness(0, 3, 0, 0)
+        };
+        fetchStatus.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+        root.Children.Add(fetchStatus);
+
+        // Populate default models for cloud providers immediately
+        void PopulateDefaults(string provider)
+        {
+            var defaults = DefaultModels(provider);
+            modelCombo.Items.Clear();
+            foreach (var m in defaults) modelCombo.Items.Add(m);
+            if (defaults.Length > 0 && string.IsNullOrEmpty(modelCombo.Text))
+                modelCombo.Text = defaults[0];
+        }
+        PopulateDefaults((provCombo.SelectedItem as string) ?? "");
+
+        // Re-populate when provider changes; auto-fetch for providers with no static defaults
+        provCombo.SelectionChanged += (_, _) =>
+        {
+            fetchStatus.Text = "";
+            var prov = (provCombo.SelectedItem as string) ?? "";
+            PopulateDefaults(prov);
+            // Both Ollama variants have no static model list — kick off a live fetch automatically
+            if (prov is "Ollama" or "Ollama ☁")
+                fetchBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        };
+
+        // ── Server URL (Ollama variants only) — declared before fetchBtn.Click ──
+        var urlLbl = Lbl("SERVER URL");
+        bool NeedsUrl() => (provCombo.SelectedItem as string) == "Ollama";
+        // "Ollama ☁" is always api.ollama.com — no custom URL field needed
+
+        urlLbl.Visibility = NeedsUrl() ? Visibility.Visible : Visibility.Collapsed;
+        root.Children.Add(urlLbl);
+
+        var urlBox = Tb(!string.IsNullOrWhiteSpace(p.ServerUrl) ? p.ServerUrl : "http://localhost:11434");
+        urlBox.ToolTip    = "Base URL of the Ollama server  (e.g. http://localhost:11434)";
+        urlBox.Visibility = NeedsUrl() ? Visibility.Visible : Visibility.Collapsed;
+        root.Children.Add(urlBox);
+
+        provCombo.SelectionChanged += (_, _) =>
+        {
+            var vis = NeedsUrl() ? Visibility.Visible : Visibility.Collapsed;
+            urlLbl.Visibility = vis; urlBox.Visibility = vis;
+        };
+
+        // CancellationTokenSource tied to the dialog lifetime.
+        // Cancels any in-flight fetch when the dialog closes so the async void
+        // handler never touches UI elements that belong to a dead window.
+        var dialogCts = new CancellationTokenSource();
+        win.Closed += (_, _) => dialogCts.Cancel();
+
+        // Fetch button: live API call (wired here so urlBox is in scope)
+        fetchBtn.Click += async (_, _) =>
+        {
+            var prov      = (provCombo.SelectedItem as string) ?? "";
+            var serverUrl = urlBox.Text.Trim();
+            if (string.IsNullOrEmpty(serverUrl)) serverUrl = "http://localhost:11434";
+
+            fetchBtn.IsEnabled = false;
+            fetchStatus.Text   = "Fetching models…";
+
+            try
+            {
+                var ct = dialogCts.Token;
+                List<string> models;
+                if (prov == "Ollama")
+                {
+                    models = await new OllamaService(serverUrl).GetModelsAsync(ct);
+                }
+                else
+                {
+                    var apiKey = WindowsCredentialManager.Load(prov) ?? "";
+                    models = prov switch
+                    {
+                        "Ollama ☁"  => await new OllamaOpenAIService(apiKey).GetModelsAsync(ct),
+                        "Anthropic"      => await new AnthropicService(apiKey).GetModelsAsync(ct),
+                        "Google AI"      => await new GoogleAIService(apiKey).GetModelsAsync(ct),
+                        "OpenRouter"     => await new OpenRouterService(apiKey).GetModelsAsync(ct),
+                        _                => [.. DefaultModels(prov)]
+                    };
+                }
+
+                ct.ThrowIfCancellationRequested();   // dialog may have closed during the await
+
+                var current = modelCombo.Text;
+                modelCombo.Items.Clear();
+                foreach (var m in models) modelCombo.Items.Add(m);
+                modelCombo.Text  = current.Length > 0 ? current : models.Count > 0 ? models[0] : "";
+                fetchStatus.Text = $"✓  {models.Count} model{(models.Count == 1 ? "" : "s")} found";
+            }
+            catch (OperationCanceledException) { /* dialog closed — discard results silently */ }
+            catch (Exception ex)               { fetchStatus.Text = $"⚠  {ex.Message}"; }
+            finally                            { fetchBtn.IsEnabled = true; }
+        };
+
+        // Auto-fetch on dialog open for providers that have no static model list
+        var initialProv = (provCombo.SelectedItem as string) ?? "";
+        if (initialProv is "Ollama" or "Ollama ☁")
+            fetchBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        // ── Rate limiting (cloud providers only) ─────────────────────────────
+        // Stored per-provider in AppSettings.ProviderThrottle, not per-participant.
+        // Read the current throttle for whichever provider is selected.
+        var rpmSection = new StackPanel();
+        root.Children.Add(rpmSection);
+
+        void RebuildRpmSection()
+        {
+            rpmSection.Children.Clear();
+            var prov = (provCombo.SelectedItem as string) ?? "";
+            if (!IsCloud(prov)) return;
+
+            rpmSection.Children.Add(Lbl("RATE LIMITING"));
+
+            var rpmRow = new StackPanel
+                { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+            rpmSection.Children.Add(rpmRow);
+
+            var rpmChk = new CheckBox
+            {
+                Content   = "Limit requests per minute",
+                IsChecked = p.RpmEnabled,
+                FontSize  = 12, FontFamily = new FontFamily("Segoe UI"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            rpmChk.SetResourceReference(CheckBox.ForegroundProperty, "ControlTextBrush");
+            rpmRow.Children.Add(rpmChk);
+
+            var rpmValueBox = new TextBox
+            {
+                Text  = p.Rpm.ToString(),
+                Width = 50, Margin = new Thickness(10, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            if (win.TryFindResource("ModernTextBox") is Style rs) rpmValueBox.Style = rs;
+            rpmValueBox.PreviewTextInput += (_, e) =>
+                e.Handled = !e.Text.All(char.IsAsciiDigit);
+            rpmRow.Children.Add(rpmValueBox);
+
+            var rpmSuffix = new TextBlock
+            {
+                Text = " rpm  —  this model only",
+                FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(4, 0, 0, 0)
+            };
+            rpmSuffix.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
+            rpmRow.Children.Add(rpmSuffix);
+
+            var hint = RpmHint(prov);
+            if (!string.IsNullOrEmpty(hint))
+            {
+                var hintTb = new TextBlock
+                {
+                    Text = hint, FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+                    TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0)
+                };
+                hintTb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+                rpmSection.Children.Add(hintTb);
+            }
+
+            // Store refs so saveBtn.Click can read them
+            _editRpmChk      = rpmChk;
+            _editRpmValueBox = rpmValueBox;
+        }
+
+        RebuildRpmSection();
+        provCombo.SelectionChanged += (_, _) => RebuildRpmSection();
+
+        // ── Active ─────────────────────────────────────────────────────────
+        root.Children.Add(Lbl("STATUS"));
+        var enabledChk = new CheckBox
+        {
+            Content    = "Active — participates in conversations",
+            IsChecked  = p.Enabled,
+            FontSize   = 12, FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(0, 4, 0, 0)
+        };
+        enabledChk.SetResourceReference(CheckBox.ForegroundProperty, "ControlTextBrush");
+        root.Children.Add(enabledChk);
+
+        // ── Buttons ────────────────────────────────────────────────────────
+        var btnRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 20, 0, 0)
+        };
+        root.Children.Add(btnRow);
+
+        var cancelBtn = MakeBtn("Cancel", isPrimary: false);
+        cancelBtn.Padding = new Thickness(16, 8, 16, 8);
+        cancelBtn.Click  += (_, _) => win.DialogResult = false;
+        btnRow.Children.Add(cancelBtn);
+
+        var saveBtn = MakeBtn(isNew ? "Add" : "Save", isPrimary: true);
+        saveBtn.Padding = new Thickness(16, 8, 16, 8);
+        saveBtn.Margin  = new Thickness(8, 0, 0, 0);
+        saveBtn.Click  += (_, _) =>
+        {
+            if (string.IsNullOrWhiteSpace(modelCombo.Text))
+            {
+                MessageBox.Show("Please enter or select a model.", "Missing Model",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            var savingType = (provCombo.SelectedItem as string) ?? "";
+            if (enabledChk.IsChecked == true && IsCloud(savingType)
+                && string.IsNullOrWhiteSpace(WindowsCredentialManager.Load(savingType)))
+            {
+                MessageBox.Show(
+                    $"No API key is stored for {savingType}.\n\nOpen General Settings and add your key, or save this participant as inactive.",
+                    "API Key Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            p.Name      = nameBox.Text.Trim();
+            p.Type      = (provCombo.SelectedItem as string) ?? "Ollama";
+            p.Model     = modelCombo.Text.Trim();
+            p.ServerUrl = NeedsUrl() ? (urlBox?.Text.Trim() ?? "http://localhost:11434")
+                                     : "http://localhost:11434";
+            p.Enabled      = enabledChk.IsChecked == true;
+            p.LastApiError = "";   // allow a fresh fetch attempt after save
+
+            // Write rate-limit values directly into the participant (per-model budget)
+            if (IsCloud(p.Type) && _editRpmChk is not null && _editRpmValueBox is not null)
+            {
+                if (!int.TryParse(_editRpmValueBox.Text.Trim(), out var rpm) || rpm < 1) rpm = 15;
+                p.RpmEnabled = _editRpmChk.IsChecked == true;
+                p.Rpm        = rpm;
+            }
+            else
+            {
+                p.RpmEnabled = false;   // Ollama — no throttle
+            }
+
+            win.DialogResult = true;
+        };
+        btnRow.Children.Add(saveBtn);
+
+        return win.ShowDialog() == true;
+    }
+
+    // ── Button helpers ─────────────────────────────────────────────────────
+
+    private Button MakeBtn(string label, bool isPrimary)
+    {
+        var btn = new Button
+        {
+            Content = label, FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
+            Padding = new Thickness(12, 6, 12, 6), Cursor = Cursors.Hand
+        };
+        if (TryFindResource("ModernButton") is Style s) btn.Style = s;
+        if (isPrimary)
+        {
+            btn.SetResourceReference(Button.BackgroundProperty, "AccentBgBrush");
+            btn.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
+        }
+        else
+        {
+            btn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+            btn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
+        }
+        return btn;
+    }
+
+    private Button MakeSortBtn(string label)
+    {
+        var btn = new Button
+        {
+            Content = label, FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+            Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 4, 0), Cursor = Cursors.Hand
+        };
+        if (TryFindResource("ModernButton") is Style s) btn.Style = s;
+        btn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        btn.SetResourceReference(Button.ForegroundProperty, "ControlDimBrush");
+        return btn;
+    }
+
+    // ── Status helper ─────────────────────────────────────────────────────
+
+    private string? GetCardStatus(ParticipantConfig p)
+    {
+        // API error beats everything — shows even on inactive cards
+        if (!string.IsNullOrEmpty(p.LastApiError)) return p.LastApiError;
+
+        if (p.Enabled)
+            return _mainWindow?.GetLiveParticipantStatus(p.Type, p.Model, p.ServerUrl);
+        if (IsCloud(p.Type) && string.IsNullOrWhiteSpace(WindowsCredentialManager.Load(p.Type)))
+            return "No API key";
+        return null;
+    }
+
+    // ── Model info dialog ──────────────────────────────────────────────────
+
+    private void ShowModelInfo(ParticipantConfig p)
+    {
+        var isOllama = p.Type == "Ollama";
+        var win = new Window
+        {
+            Title  = "Model Info",
+            Width  = 400, SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner  = this, ShowInTaskbar = false, ResizeMode = ResizeMode.NoResize
+        };
+        if (_themePath is not null)
+            try { var d = OxsuitLoader.Load(_themePath); if (d is not null) win.Resources.MergedDictionaries.Add(d); } catch { }
+        win.SetResourceReference(BackgroundProperty, "ContentBgBrush");
+
+        var root = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
+        win.Content = root;
+
+        // Header
+        var provDot = new Ellipse { Width = 10, Height = 10, Fill = new SolidColorBrush(ProviderColor(p.Type)), Margin = new Thickness(0,0,8,0), VerticalAlignment = VerticalAlignment.Center };
+        var headerSp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,0,4) };
+        headerSp.Children.Add(provDot);
+        var modelTb = new TextBlock { Text = string.IsNullOrWhiteSpace(p.Model) ? p.Type : p.Model, FontSize = 15, FontWeight = FontWeights.SemiBold, FontFamily = new FontFamily("Segoe UI") };
+        modelTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+        headerSp.Children.Add(modelTb);
+        root.Children.Add(headerSp);
+
+        var provTb = new TextBlock { Text = isOllama ? $"Ollama · {p.ServerUrl}" : p.Type, FontSize = 11, FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0,0,0,16) };
+        provTb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+        root.Children.Add(provTb);
+
+        // Specialty — use the model's own words if available, fall back to knowledge base
+        var specialty = !string.IsNullOrWhiteSpace(p.SelfDescription)
+            ? p.SelfDescription
+            : ModelKnowledge.GetDescription(p.Type, p.Model);
+        AddInfoSection(root, "SPECIALTY", specialty);
+
+        // Technical section
+        var ctx = ModelKnowledge.GetContextWindow(p.Type, p.Model);
+        var techLines = new List<(string, string)>();
+        if (ctx is not null) techLines.Add(("Context window", ctx));
+        if (!isOllama)
+        {
+            techLines.Add(("Cost tier", ModelKnowledge.GetCostTier(p.Type, p.Model)));
+        }
+        else
+        {
+            var vram = ModelKnowledge.EstimateVram(p.Model);
+            if (vram != "Unknown") techLines.Add(("Est. VRAM", vram));
+        }
+        if (techLines.Count > 0)
+            AddInfoTable(root, "SPECS", techLines);
+
+        // For Ollama: async-populate live details from /api/show
+        if (isOllama)
+        {
+            var livePanel = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
+            root.Children.Add(livePanel);
+            var loadingTb = new TextBlock { Text = "Fetching live model details…", FontSize = 11, FontFamily = new FontFamily("Segoe UI") };
+            loadingTb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+            livePanel.Children.Add(loadingTb);
+
+            win.Loaded += async (_, _) =>
+            {
+                try
+                {
+                    var info = await new OllamaService(p.ServerUrl).GetModelInfoAsync(p.Model);
+                    livePanel.Children.Clear();
+                    if (info is null) return;
+                    var liveLines = new List<(string, string)>();
+                    if (!string.IsNullOrEmpty(info.Family))            liveLines.Add(("Family",        info.Family));
+                    if (!string.IsNullOrEmpty(info.ParameterSize))     liveLines.Add(("Parameters",    info.ParameterSize));
+                    if (!string.IsNullOrEmpty(info.QuantizationLevel)) liveLines.Add(("Quantization",  info.QuantizationLevel));
+                    if (!string.IsNullOrEmpty(info.Format))            liveLines.Add(("Format",        info.Format));
+                    if (liveLines.Count > 0) AddInfoTable(livePanel, "LIVE DETAILS", liveLines);
+                }
+                catch { /* ignore — Ollama might not be running */ }
+            };
+        }
+
+        // ── Likes / Dislikes ───────────────────────────────────────────────
+        if (!string.IsNullOrWhiteSpace(p.Likes) || !string.IsNullOrWhiteSpace(p.Dislikes))
+        {
+            if (!string.IsNullOrWhiteSpace(p.Likes))
+            {
+                var likesTb = new TextBlock
+                {
+                    FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                    TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0)
+                };
+                var likesRun = new System.Windows.Documents.Run(p.Likes);
+                likesTb.Inlines.Add(new System.Windows.Documents.Run("likes:  ")
+                    { FontWeight = FontWeights.SemiBold });
+                likesTb.Inlines.Add(likesRun);
+                likesTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+                root.Children.Add(likesTb);
+            }
+
+            if (!string.IsNullOrWhiteSpace(p.Dislikes))
+            {
+                var dislikesTb = new TextBlock
+                {
+                    FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                    TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0)
+                };
+                dislikesTb.Inlines.Add(new System.Windows.Documents.Run("dislikes:  ")
+                    { FontWeight = FontWeights.SemiBold });
+                dislikesTb.Inlines.Add(new System.Windows.Documents.Run(p.Dislikes));
+                dislikesTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+                root.Children.Add(dislikesTb);
+            }
+        }
+
+        // Close button
+        var closeBtn = MakeBtn("Close", isPrimary: false);
+        closeBtn.Margin  = new Thickness(0, 20, 0, 0);
+        closeBtn.Padding = new Thickness(20, 8, 20, 8);
+        closeBtn.HorizontalAlignment = HorizontalAlignment.Right;
+        closeBtn.Click  += (_, _) => win.Close();
+        root.Children.Add(closeBtn);
+
+        win.ShowDialog();
+    }
+
+    private void AddInfoSection(StackPanel root, string label, string text)
+    {
+        var lbl = new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeights.SemiBold, FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 0, 0, 4) };
+        lbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+        root.Children.Add(lbl);
+        var tb = new TextBlock { Text = text, FontSize = 12, FontFamily = new FontFamily("Segoe UI"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) };
+        tb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+        root.Children.Add(tb);
+    }
+
+    private void AddInfoTable(Panel root, string label, List<(string Key, string Val)> rows)
+    {
+        var lbl = new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeights.SemiBold, FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 0, 0, 4) };
+        lbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+        root.Children.Add(lbl);
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        foreach (var (i, row) in rows.Select((r, i) => (i, r)))
+        {
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var keyTb = new TextBlock { Text = row.Key, FontSize = 11, FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 2, 16, 2) };
+            keyTb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+            Grid.SetRow(keyTb, i); Grid.SetColumn(keyTb, 0);
+            grid.Children.Add(keyTb);
+            var valTb = new TextBlock { Text = row.Val, FontSize = 11, FontFamily = new FontFamily("Segoe UI"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 2, 0, 2) };
+            valTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+            Grid.SetRow(valTb, i); Grid.SetColumn(valTb, 1);
+            grid.Children.Add(valTb);
+        }
+        root.Children.Add(grid);
+    }
+
+    // ── Model knowledge base ───────────────────────────────────────────────
+
+    private static class ModelKnowledge
+    {
+        public static string GetDescription(string provider, string model)
+        {
+            var m = model.ToLowerInvariant();
+            return provider switch
+            {
+                "Anthropic" when m.Contains("opus")    => "Exceptional reasoning, analysis, and nuanced writing. Anthropic's most capable model — best when quality matters most.",
+                "Anthropic" when m.Contains("sonnet")  => "Excellent balance of intelligence and speed. Great for coding, writing, and complex tasks at a reasonable cost.",
+                "Anthropic" when m.Contains("haiku")   => "Fast and lightweight. Great for simple tasks, classification, and high-volume use cases.",
+                "Anthropic"                             => "Claude — Anthropic's AI assistant. Helpful, harmless, and honest.",
+                "Google AI" when m.Contains("ultra")   => "Google's most capable Gemini model. Best for advanced research, complex reasoning, and multimodal tasks.",
+                "Google AI" when m.Contains("pro")     => "Strong coding, reasoning, and long-context understanding. A solid all-rounder.",
+                "Google AI" when m.Contains("flash")   => "Fast and efficient with a massive context window. Great for summarisation and document analysis.",
+                "Google AI" when m.Contains("nano")    => "Ultra-fast and lightweight. Designed for quick responses and on-device tasks.",
+                "Google AI"                             => "Gemini — Google's AI assistant family.",
+                "OpenAI ChatGPT" when m.Contains("o3") || m.Contains("o1") => "Advanced reasoning with extended thinking time. Top pick for math, logic, and hard science problems.",
+                "OpenAI ChatGPT" when m.Contains("gpt-4o")                 => "OpenAI's multimodal flagship. Excellent at coding, analysis, image understanding, and natural conversation.",
+                "OpenAI ChatGPT" when m.Contains("gpt-4")                  => "Strong instruction following and reasoning. A reliable workhorse for complex tasks.",
+                "OpenAI ChatGPT" when m.Contains("gpt-3.5")                => "Fast and affordable. Good for straightforward everyday tasks.",
+                "OpenAI ChatGPT"                                            => "OpenAI GPT — versatile AI assistant.",
+                "Groq"      => "Hosted on Groq's ultra-fast LPU inference hardware. Great when response speed is critical.",
+                "OpenRouter" => "Routed via OpenRouter, giving access to hundreds of models from many providers.",
+                "Mistral"   => "Mistral AI — efficient, high-performance European models. Good balance of quality and cost.",
+                "xAI Grok"  => "Grok by xAI — real-time knowledge access and a direct conversational style.",
+                "Ollama ☁"  => "Ollama Cloud — open models hosted via the Ollama API at api.ollama.com.",
+                _ when m.Contains("code") || m.Contains("coder") || m.Contains("codestral") => "Specialised coding model — excels at code generation, debugging, refactoring, and code review.",
+                _ when m.Contains("deepseek") => "DeepSeek — strong at coding and mathematical reasoning. Competitive with frontier models.",
+                _ when m.Contains("llama")    => "Meta LLaMA — capable open-source general-purpose model. Widely used and well-supported.",
+                _ when m.Contains("mistral")  => "Mistral — efficient European model. Good reasoning and instruction following.",
+                _ when m.Contains("phi")      => "Microsoft Phi — small but surprisingly capable. Good for resource-constrained setups.",
+                _ when m.Contains("gemma")    => "Google Gemma — lightweight open model. Good for conversation and general tasks.",
+                _ when m.Contains("qwen")     => "Alibaba Qwen — strong multilingual capabilities and coding performance.",
+                _ when m.Contains("nomic") || m.Contains("embed") => "Embedding model — optimised for semantic search, RAG pipelines, and vector similarity.",
+                _                             => "Local open-source model running via Ollama."
+            };
+        }
+
+        public static string? GetContextWindow(string provider, string model)
+        {
+            var m = model.ToLowerInvariant();
+            return provider switch
+            {
+                "Anthropic"      => "200,000 tokens",
+                "Google AI" when m.Contains("1.5") || m.Contains("2.0") || m.Contains("2.5") => "1,000,000+ tokens",
+                "Google AI"      => "32,000 tokens",
+                "OpenAI ChatGPT" when m.Contains("o3") || m.Contains("o1") || m.Contains("gpt-4o") || m.Contains("gpt-4") => "128,000 tokens",
+                "OpenAI ChatGPT" when m.Contains("gpt-3.5") => "16,000 tokens",
+                "Groq" when m.Contains("llama-3") || m.Contains("llama3") => "128,000 tokens",
+                "Mistral" when m.Contains("large") || m.Contains("medium") => "128,000 tokens",
+                "Mistral"        => "32,000 tokens",
+                _ when m.Contains("llama3.2") || m.Contains("llama-3.2") || m.Contains("llama3.1") || m.Contains("llama-3.1") => "128,000 tokens",
+                _ when m.Contains("llama3")   || m.Contains("llama-3")    => "8,000 tokens",
+                _ when m.Contains("qwen2.5")  || m.Contains("phi-3") || m.Contains("phi3") || m.Contains("phi4") => "128,000 tokens",
+                _ when m.Contains("mistral")  => "32,000 tokens",
+                _ => null
+            };
+        }
+
+        public static string EstimateVram(string model)
+        {
+            var m = model.ToLowerInvariant();
+            if (m.Contains("405b") || m.Contains("180b")) return "200+ GB  (multi-GPU)";
+            if (m.Contains("70b")  || m.Contains("72b"))  return "40–80 GB";
+            if (m.Contains("34b")  || m.Contains("32b"))  return "20–40 GB";
+            if (m.Contains("30b"))                        return "20–35 GB";
+            if (m.Contains("13b")  || m.Contains("14b"))  return "8–16 GB";
+            if (m.Contains("11b"))                        return "7–12 GB";
+            if (m.Contains("7b")   || m.Contains("8b"))   return "4–8 GB";
+            if (m.Contains("3b")   || m.Contains("4b"))   return "2–4 GB";
+            if (m.Contains("1.5b") || m.Contains("2b"))   return "1–3 GB";
+            if (m.Contains("0.5b") || m.Contains("1b"))   return "1–2 GB";
+            return "Unknown";
+        }
+
+        public static string GetCostTier(string provider, string model)
+        {
+            var m = model.ToLowerInvariant();
+            return provider switch
+            {
+                "Anthropic" when m.Contains("opus")   => "High",
+                "Anthropic" when m.Contains("sonnet") => "Medium",
+                "Anthropic" when m.Contains("haiku")  => "Low",
+                "Anthropic"                            => "Medium",
+                "Google AI" when m.Contains("ultra")  => "High",
+                "Google AI" when m.Contains("pro")    => "Medium",
+                "Google AI" when m.Contains("flash")  => "Low",
+                "Google AI" when m.Contains("nano")   => "Free / very low",
+                "OpenAI ChatGPT" when m.Contains("o3")        => "Very high",
+                "OpenAI ChatGPT" when m.Contains("o1")        => "High",
+                "OpenAI ChatGPT" when m.Contains("gpt-4o") || m.Contains("gpt-4") => "Medium–high",
+                "OpenAI ChatGPT" when m.Contains("gpt-3.5")  => "Low",
+                "Groq"      => "Free tier available",
+                "OpenRouter" => "Varies by model",
+                "Mistral"   => "Low–medium",
+                "xAI Grok"  => "Medium",
+                "Ollama ☁"  => "Varies by model",
+                "Ollama"    => "Free  (runs locally)",
+                _           => "—"
+            };
+        }
+    }
+
+    // ── DWM title-bar theming ──────────────────────────────────────────────
+
+    private void TryApplyTitleBar()
+    {
+        try
+        {
+            if (TryFindResource("SidebarBgBrush") is not SolidColorBrush bg) return;
+            var hwnd   = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            var isDark = RelLum(bg.Color) < 0.5 ? 1 : 0;
+            DwmSetWindowAttribute(hwnd, 20, ref isDark, 4);          // dark/light mode (Win 10+)
+            var cr = bg.Color.R | (bg.Color.G << 8) | (bg.Color.B << 16);
+            DwmSetWindowAttribute(hwnd, 35, ref cr, 4);              // caption colour (Win 11+)
+        }
+        catch { }
+    }
+
+    // Correct entry point name — the function is DwmSetWindowAttribute, not DwmSet.
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll", EntryPoint = "DwmSetWindowAttribute")]
+    private static extern int DwmSetWindowAttribute(nint hwnd, int attr, ref int val, int sz);
+
+    private static double RelLum(Color c)
+    {
+        static double L(double v) => v <= 0.04045 ? v / 12.92 : Math.Pow((v + 0.055) / 1.055, 2.4);
+        return 0.2126 * L(c.R / 255.0) + 0.7152 * L(c.G / 255.0) + 0.0722 * L(c.B / 255.0);
+    }
+}

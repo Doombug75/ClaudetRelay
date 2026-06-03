@@ -33,6 +33,49 @@ public class OllamaService : IDisposable
 
     // ── Available Models ───────────────────────────────────────────────────
 
+    // ── Model metadata (/api/show) ─────────────────────────────────────────
+
+    public record OllamaModelInfo(
+        string Family, string ParameterSize, string QuantizationLevel, string Format,
+        long   SizeBytes = 0)
+    {
+        /// <summary>Human-readable file size, e.g. "3.8 GB".</summary>
+        public string SizeDisplay => SizeBytes <= 0 ? "" :
+            SizeBytes >= 1_073_741_824 ? $"{SizeBytes / 1_073_741_824.0:F1} GB" :
+            SizeBytes >= 1_048_576     ? $"{SizeBytes / 1_048_576.0:F0} MB"     :
+                                         $"{SizeBytes / 1024.0:F0} KB";
+    }
+
+    /// <summary>
+    /// Calls /api/show to get structured metadata for a specific model.
+    /// Returns null if the server is unreachable or the model is not found.
+    /// </summary>
+    public async Task<OllamaModelInfo?> GetModelInfoAsync(string modelName, CancellationToken ct = default)
+    {
+        try
+        {
+            var payload = System.Text.Json.JsonSerializer.Serialize(new { name = modelName });
+            using var body = new StringContent(payload, Encoding.UTF8, "application/json");
+            using var resp = await _http.PostAsync($"{_base}/api/show", body, ct);
+            if (!resp.IsSuccessStatusCode) return null;
+            var json = await resp.Content.ReadAsStringAsync(ct);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("details", out var d)) return null;
+            // Size appears at root level in newer Ollama builds
+        long size = doc.RootElement.TryGetProperty("size", out var sz) ? sz.GetInt64() : 0;
+
+        return new OllamaModelInfo(
+                Family:            d.TryGetProperty("family",             out var f)  ? f.GetString()  ?? "" : "",
+                ParameterSize:     d.TryGetProperty("parameter_size",     out var ps) ? ps.GetString() ?? "" : "",
+                QuantizationLevel: d.TryGetProperty("quantization_level", out var ql) ? ql.GetString() ?? "" : "",
+                Format:            d.TryGetProperty("format",             out var fmt)? fmt.GetString()?? "" : "",
+                SizeBytes:         size);
+        }
+        catch { return null; }
+    }
+
+    // ── Available Models ───────────────────────────────────────────────────
+
     public async Task<List<string>> GetModelsAsync(CancellationToken ct = default)
     {
         var json = await _http.GetStringAsync($"{_base}/api/tags", ct);
