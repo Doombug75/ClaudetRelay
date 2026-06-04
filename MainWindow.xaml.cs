@@ -7960,22 +7960,27 @@ public partial class MainWindow : Window
                           "The message appears as a chat bubble, is saved to the chat log, " +
                           "and will be visible to all AI participants on their next turn. " +
                           "For project chats, MCP Client must be enabled (add via + participant button). " +
-                          "Use participant_name to set the sender label (e.g. 'Claude Code', 'External Review').",
+                          "Use participant_name to set the sender label (e.g. 'Claude Code', 'External Review'). " +
+                          "Set trigger_responses to false when the message is directed at the human user " +
+                          "(e.g. a question, clarification, or summary) and you do NOT want the other AI " +
+                          "participants to automatically reply — default is true (responses are triggered).",
             Provider    = "Bridge",
             InputSchemaOverride = """
                 {
                   "type": "object",
                   "properties": {
-                    "participant_name": { "type": "string", "description": "Display name shown on the chat bubble" },
-                    "message":          { "type": "string", "description": "The message to post" }
+                    "participant_name":   { "type": "string",  "description": "Display name shown on the chat bubble" },
+                    "message":            { "type": "string",  "description": "The message to post" },
+                    "trigger_responses":  { "type": "boolean", "description": "If false, other AI participants will NOT be triggered to respond. Use false for messages directed at the human user. Default: true." }
                   },
                   "required": ["participant_name", "message"]
                 }
                 """,
             ExecuteAsync = async (args, _) =>
             {
-                var name    = args["participant_name"]?.GetValue<string>()?.Trim() ?? "MCP Client";
-                var message = args["message"]?.GetValue<string>()?.Trim() ?? "";
+                var name            = args["participant_name"]?.GetValue<string>()?.Trim() ?? "MCP Client";
+                var message         = args["message"]?.GetValue<string>()?.Trim() ?? "";
+                var triggerResponses = args["trigger_responses"]?.GetValue<bool>() ?? true;
 
                 if (string.IsNullOrEmpty(message))
                     return "Error: message cannot be empty.";
@@ -8010,8 +8015,14 @@ public partial class MainWindow : Window
                     _sharedHistory.Add(new CloudAIMessage("assistant", message, name));
                 });
 
+                // Only trigger the AI response round when the caller wants other participants to react.
+                // Set trigger_responses=false for messages directed at the human user (questions,
+                // clarifications, summaries) to avoid other AIs piling on uninvited.
+                if (triggerResponses)
+                    Dispatcher.InvokeAsync(async () => await TriggerAiResponsesAsync());
+
                 var preview = message.Length > 80 ? message[..80] + "…" : message;
-                return $"✓ Posted as '{name}': \"{preview}\"";
+                return $"✓ Posted as '{name}': \"{preview}\"{(triggerResponses ? "" : " (no AI responses triggered)")}";
             }
         });
 
