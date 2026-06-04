@@ -468,8 +468,8 @@
                 <RowDefinition Height="Auto"/>  <!-- Row 3: Input (hidden in Projects tab) -->
             </Grid.RowDefinitions>
 
-            <!-- ── Tab bar (Row 0) ── -->
-            <Border Grid.Row="0" Background="{DynamicResource SidebarBgBrush}"
+            <!-- ── Tab bar (Row 0) — hidden when a project is open ── -->
+            <Border x:Name="MainTabBar" Grid.Row="0" Background="{DynamicResource SidebarBgBrush}"
                     Padding="12,6,22,0">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -534,33 +534,50 @@
                                VerticalAlignment="Center"/>
                     <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center"
                                 Orientation="Horizontal">
-                        <Button x:Name="ExportChatButton"
-                                Content="📄"
+
+                        <!-- Chat-only utility buttons — hidden when a project sub-panel is active -->
+                        <StackPanel x:Name="ChatOnlyButtonsPanel" Orientation="Horizontal">
+                            <Button x:Name="ExportChatButton"
+                                    Content="📄"
+                                    Style="{StaticResource ModernButton}"
+                                    Background="{DynamicResource ControlBgBrush}"
+                                    Foreground="{DynamicResource SidebarDimBrush}"
+                                    FontSize="13" Padding="10,5"
+                                    Margin="0,0,6,0"
+                                    Click="ExportChatButton_Click"
+                                    ToolTip="Export chat history as HTML or Markdown…"/>
+                            <Button x:Name="ChatFontButton"
+                                    Content="Aa"
+                                    Style="{StaticResource ModernButton}"
+                                    Background="{DynamicResource ControlBgBrush}"
+                                    Foreground="{DynamicResource SidebarDimBrush}"
+                                    FontSize="12" Padding="10,5"
+                                    Margin="0,0,6,0"
+                                    Click="ChatFontButton_Click"
+                                    ToolTip="Chat font and size"/>
+                            <Button x:Name="AiDialogueButton"
+                                    Content="💬"
+                                    Style="{StaticResource ModernButton}"
+                                    Background="{DynamicResource ControlBgBrush}"
+                                    Foreground="{DynamicResource SidebarDimBrush}"
+                                    FontSize="13" Padding="10,5"
+                                    Margin="0,0,18,0"
+                                    Click="AiDialogueButton_Click"
+                                    ToolTip="Multi-round AI dialogue — participants read and reply to each other (AllRespond mode)"/>
+                        </StackPanel>
+
+                        <!-- Project sub-view tab row — visible when a project is open -->
+                        <Button x:Name="ChatViewButton"
+                                Content="💬 Chat"
+                                Visibility="Collapsed"
                                 Style="{StaticResource ModernButton}"
                                 Background="{DynamicResource ControlBgBrush}"
-                                Foreground="{DynamicResource SidebarDimBrush}"
-                                FontSize="13" Padding="10,5"
-                                Margin="0,0,6,0"
-                                Click="ExportChatButton_Click"
-                                ToolTip="Export chat history as HTML or Markdown…"/>
-                        <Button x:Name="ChatFontButton"
-                                Content="Aa"
-                                Style="{StaticResource ModernButton}"
-                                Background="{DynamicResource ControlBgBrush}"
-                                Foreground="{DynamicResource SidebarDimBrush}"
+                                Foreground="{DynamicResource SidebarTextBrush}"
+                                FontWeight="SemiBold"
                                 FontSize="12" Padding="10,5"
                                 Margin="0,0,6,0"
-                                Click="ChatFontButton_Click"
-                                ToolTip="Chat font and size"/>
-                        <Button x:Name="AiDialogueButton"
-                                Content="💬"
-                                Style="{StaticResource ModernButton}"
-                                Background="{DynamicResource ControlBgBrush}"
-                                Foreground="{DynamicResource SidebarDimBrush}"
-                                FontSize="13" Padding="10,5"
-                                Margin="0,0,6,0"
-                                Click="AiDialogueButton_Click"
-                                ToolTip="Multi-round AI dialogue — participants read and reply to each other (AllRespond mode)"/>
+                                Click="ChatViewButton_Click"
+                                ToolTip="Show project chat"/>
                         <Button x:Name="WorldButton"
                                 Content="🌍 World"
                                 Visibility="Collapsed"
@@ -570,7 +587,7 @@
                                 FontSize="12" Padding="10,5"
                                 Margin="0,0,6,0"
                                 Click="WorldButton_Click"
-                                ToolTip="Charaktere, Fraktionen, Orte und Weltbeschreibung (coming soon)"/>
+                                ToolTip="Characters, Factions, Locations and World Lore"/>
                         <Button x:Name="RoadmapButton"
                                 Content="📊 Roadmap"
                                 Visibility="Collapsed"
@@ -580,7 +597,7 @@
                                 FontSize="12" Padding="10,5"
                                 Margin="0,0,6,0"
                                 Click="RoadmapButton_Click"
-                                ToolTip="Projekt-Roadmap anzeigen (coming soon)"/>
+                                ToolTip="Project roadmap"/>
                         <Button x:Name="FilesButton"
                                 Content="📂 Files"
                                 Visibility="Collapsed"
@@ -588,11 +605,13 @@
                                 Background="{DynamicResource ControlBgBrush}"
                                 Foreground="{DynamicResource SidebarTextBrush}"
                                 FontSize="12" Padding="10,5"
-                                Margin="0,0,6,0"
+                                Margin="0,0,18,0"
                                 Click="FilesButton_Click"
                                 ToolTip="Browse and manage project files"/>
+
+                        <!-- Project management buttons -->
                         <Button x:Name="BackupButton"
-                                Content="💾 Backup"
+                                Content="💾"
                                 Visibility="Collapsed"
                                 Style="{StaticResource ModernButton}"
                                 Background="{DynamicResource ControlBgBrush}"
@@ -602,7 +621,7 @@
                                 Click="BackupButton_Click"
                                 ToolTip="Create a ZIP backup of this project now"/>
                         <Button x:Name="CloseProjectButton"
-                                Content="✕ Close Project"
+                                Content="✕ Close"
                                 Visibility="Collapsed"
                                 Style="{StaticResource ModernButton}"
                                 Background="{DynamicResource ControlBgBrush}"
@@ -612,7 +631,7 @@
                                 Click="CloseProjectButton_Click"
                                 ToolTip="Save and close the current project"/>
                         <Button x:Name="ProjectSettingsButton"
-                                Content="⚙ Settings"
+                                Content="⚙"
                                 Visibility="Collapsed"
                                 Style="{StaticResource ModernButton}"
                                 Background="{DynamicResource ControlBgBrush}"

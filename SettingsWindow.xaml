@@ -1,7 +1,7 @@
 <Window x:Class="ClaudetRelay.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Participants Configuration · ClaudetRelay"
+        Title="General Settings · ClaudetRelay"
         Width="680" Height="720"
         MinWidth="560" MinHeight="640"
         WindowStartupLocation="CenterOwner"
@@ -218,7 +218,7 @@
                 Background="{DynamicResource ControlHoverBrush}"
                 Padding="22,15,22,14">
             <TextBlock x:Name="WindowTitleBlock"
-                       Text="Participants Configuration"
+                       Text="General Settings"
                        FontSize="18" FontWeight="Bold" FontFamily="Segoe UI"
                        Foreground="{DynamicResource SidebarTextBrush}"/>
         </Border>

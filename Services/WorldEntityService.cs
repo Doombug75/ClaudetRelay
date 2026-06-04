@@ -23,6 +23,19 @@ public class WorldEntity
     /// <summary>Freeform notes not covered by the schema.</summary>
     public string Notes { get; set; } = "";
 
+    /// <summary>
+    /// Filename (not full path) of the portrait image stored in PROJECTPLAN/_portraits/.
+    /// Empty = no portrait. Use <see cref="WorldEntityService.GetPortraitPath"/> to resolve.
+    /// </summary>
+    public string PortraitFileName { get; set; } = "";
+
+    /// <summary>
+    /// Filename (not full path) of an attached reference image stored in PROJECTPLAN/_images/.
+    /// Used for locations, lore, etc. — image is kept at full resolution.
+    /// Empty = none. Use <see cref="WorldEntityService.GetImagePath"/> to resolve.
+    /// </summary>
+    public string ImageFileName { get; set; } = "";
+
     // ── Faction-specific ──────────────────────────────────────────────────
 
     /// <summary>
@@ -162,12 +175,46 @@ public static class WorldEntityService
                           JsonSerializer.Serialize(entity, WriteOpts));
     }
 
-    /// <summary>Renames an entity: deletes the old file and writes a new one.</summary>
+    /// <summary>
+    /// Renames an entity: deletes the old JSON, renames the portrait file if present, then saves.
+    /// </summary>
     public static void Rename(string projFolder, WorldEntity entity, string oldName)
     {
+        // Remove old entity JSON
         var oldPath = Path.Combine(GetEntityFolder(projFolder, entity.EntityType),
                                    MakeSafeName(oldName) + ".json");
         if (File.Exists(oldPath)) File.Delete(oldPath);
+
+        string newSafeName = MakeSafeName(entity.Name);
+
+        // Rename portrait file
+        if (!string.IsNullOrWhiteSpace(entity.PortraitFileName))
+        {
+            var oldPath2 = GetPortraitPath(projFolder, entity.PortraitFileName);
+            if (File.Exists(oldPath2))
+            {
+                var ext2        = Path.GetExtension(entity.PortraitFileName);
+                var newFileName = $"{newSafeName}_{entity.Id}{ext2}";
+                var newPath2    = GetPortraitPath(projFolder, newFileName);
+                try { File.Move(oldPath2, newPath2, overwrite: true); entity.PortraitFileName = newFileName; }
+                catch { }
+            }
+        }
+
+        // Rename attached reference image
+        if (!string.IsNullOrWhiteSpace(entity.ImageFileName))
+        {
+            var oldPath3 = GetImagePath(projFolder, entity.ImageFileName);
+            if (File.Exists(oldPath3))
+            {
+                var ext3        = Path.GetExtension(entity.ImageFileName);
+                var newFileName = $"{newSafeName}_{entity.Id}{ext3}";
+                var newPath3    = GetImagePath(projFolder, newFileName);
+                try { File.Move(oldPath3, newPath3, overwrite: true); entity.ImageFileName = newFileName; }
+                catch { }
+            }
+        }
+
         Save(projFolder, entity);
     }
 
@@ -188,14 +235,53 @@ public static class WorldEntityService
             .ToList()!;
     }
 
-    /// <summary>Deletes the entity file. Silent if file does not exist.</summary>
+    /// <summary>Deletes the entity file and any associated portrait. Silent if files do not exist.</summary>
     public static void Delete(string projFolder, WorldEntity entity)
     {
+        // Delete entity JSON
         var path = EntityFilePath(projFolder, entity);
         if (File.Exists(path)) File.Delete(path);
+
+        // Delete portrait
+        var portraitsDir = GetPortraitsFolder(projFolder);
+        if (Directory.Exists(portraitsDir))
+        {
+            var toDelete = Directory.GetFiles(portraitsDir, $"*_{entity.Id}.*")
+                           .Concat(Directory.GetFiles(portraitsDir, entity.Id + ".*"));
+            if (!string.IsNullOrWhiteSpace(entity.PortraitFileName))
+                toDelete = toDelete.Append(GetPortraitPath(projFolder, entity.PortraitFileName));
+            foreach (var f in toDelete.Distinct())
+                try { if (File.Exists(f)) File.Delete(f); } catch { }
+        }
+
+        // Delete attached reference image
+        var imagesDir = GetImagesFolder(projFolder);
+        if (Directory.Exists(imagesDir))
+        {
+            var toDelete = Directory.GetFiles(imagesDir, $"*_{entity.Id}.*")
+                           .Concat(Directory.GetFiles(imagesDir, entity.Id + ".*"));
+            if (!string.IsNullOrWhiteSpace(entity.ImageFileName))
+                toDelete = toDelete.Append(GetImagePath(projFolder, entity.ImageFileName));
+            foreach (var f in toDelete.Distinct())
+                try { if (File.Exists(f)) File.Delete(f); } catch { }
+        }
     }
 
     // ── Helper ─────────────────────────────────────────────────────────────
+
+    public static string GetPortraitsFolder(string projFolder) =>
+        Path.Combine(projFolder, "PROJECTPLAN", "_portraits");
+
+    /// <summary>Returns the full path to an entity's portrait file (may not exist yet).</summary>
+    public static string GetPortraitPath(string projFolder, string fileName) =>
+        Path.Combine(GetPortraitsFolder(projFolder), fileName);
+
+    public static string GetImagesFolder(string projFolder) =>
+        Path.Combine(projFolder, "PROJECTPLAN", "_images");
+
+    /// <summary>Returns the full path to an entity's attached reference image (may not exist yet).</summary>
+    public static string GetImagePath(string projFolder, string fileName) =>
+        Path.Combine(GetImagesFolder(projFolder), fileName);
 
     public static string MakeSafeName(string name)
     {
@@ -211,8 +297,12 @@ public static class WorldEntityService
 /// <summary>Stored canvas position of one entity card on the board view.</summary>
 public class BoardPosition
 {
-    public double X { get; set; } = 60;
-    public double Y { get; set; } = 60;
+    public double X          { get; set; } = 60;
+    public double Y          { get; set; } = 60;
+    /// <summary>User-resized card width. 0 = use default.</summary>
+    public double CardWidth  { get; set; } = 0;
+    /// <summary>User-resized card height. 0 = auto.</summary>
+    public double CardHeight { get; set; } = 0;
 }
 
 /// <summary>Visual style of a relation line on the board.</summary>
@@ -240,8 +330,8 @@ public class BoardRelation
 }
 
 /// <summary>
-/// Board layout + relation graph for all entity types in a project.
-/// Stored as a single _board_world.json file.
+/// Board layout + relation graph stored per board ID.
+/// File: PROJECTPLAN/_board_{boardId}.json
 /// </summary>
 public class EntityBoardData
 {
@@ -256,38 +346,109 @@ public static class EntityBoardService
     private static readonly JsonSerializerOptions WriteOpts = new() { WriteIndented = true };
     private static readonly JsonSerializerOptions ReadOpts  = new() { PropertyNameCaseInsensitive = true };
 
-    /// <summary>
-    /// The board now uses a single combined file for all entity types.
-    /// Pass "_world" as entityType for the global board.
-    /// Legacy per-type keys still work for reading old data.
-    /// </summary>
-    private static string BoardFilePath(string projFolder, string entityType)
-    {
-        var folderName = entityType.TrimEnd('s');
-        if (string.IsNullOrEmpty(folderName)) folderName = entityType;
-        return Path.Combine(projFolder, "PROJECTPLAN", $"_board_{folderName}.json");
-    }
+    private static string BoardFilePath(string projFolder, string boardId) =>
+        Path.Combine(projFolder, "PROJECTPLAN", $"_board_{boardId}.json");
 
-    public static EntityBoardData Load(string projFolder, string entityType)
+    /// <summary>Loads board data by board ID. Migrates legacy _board__world.json for the default board.</summary>
+    public static EntityBoardData Load(string projFolder, string boardId)
     {
-        var path = BoardFilePath(projFolder, entityType);
-        if (!File.Exists(path)) return new EntityBoardData();
-        try
+        var path = BoardFilePath(projFolder, boardId);
+        if (File.Exists(path))
         {
-            return JsonSerializer.Deserialize<EntityBoardData>(File.ReadAllText(path), ReadOpts)
-                   ?? new EntityBoardData();
+            try { return JsonSerializer.Deserialize<EntityBoardData>(File.ReadAllText(path), ReadOpts) ?? new EntityBoardData(); }
+            catch { return new EntityBoardData(); }
         }
-        catch { return new EntityBoardData(); }
+
+        // Legacy migration: the original board was written as _board__world.json
+        if (boardId == WorldBoardRegistryService.DefaultBoardId)
+        {
+            var legacy = Path.Combine(projFolder, "PROJECTPLAN", "_board__world.json");
+            if (File.Exists(legacy))
+            {
+                try
+                {
+                    var data = JsonSerializer.Deserialize<EntityBoardData>(File.ReadAllText(legacy), ReadOpts)
+                               ?? new EntityBoardData();
+                    Save(projFolder, boardId, data);   // migrate to new path
+                    File.Delete(legacy);
+                    return data;
+                }
+                catch { }
+            }
+        }
+        return new EntityBoardData();
     }
 
-    public static void Save(string projFolder, string entityType, EntityBoardData data)
+    public static void Save(string projFolder, string boardId, EntityBoardData data)
     {
         try
         {
             Directory.CreateDirectory(Path.Combine(projFolder, "PROJECTPLAN"));
-            File.WriteAllText(BoardFilePath(projFolder, entityType),
+            File.WriteAllText(BoardFilePath(projFolder, boardId),
                               JsonSerializer.Serialize(data, WriteOpts));
         }
         catch { }
     }
+}
+
+// ── World board registry ───────────────────────────────────────────────────
+
+/// <summary>A named canvas board showing a configurable set of entity types.</summary>
+public class WorldBoard
+{
+    public string       Id          { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string       Name        { get; set; } = "Board";
+    public string       Symbol      { get; set; } = "🗺";
+    /// <summary>Singular entity type names shown on this board (e.g. "Character", "Location").</summary>
+    public List<string> EntityTypes { get; set; } = ["Character", "Location", "Faction"];
+    public DateTime     CreatedAt   { get; set; } = DateTime.UtcNow;
+    public DateTime     UpdatedAt   { get; set; } = DateTime.UtcNow;
+}
+
+public static class WorldBoardRegistryService
+{
+    /// <summary>Fixed ID used by the default "Main Board" (enables legacy data migration).</summary>
+    public const string DefaultBoardId = "world001";
+
+    private static readonly JsonSerializerOptions WriteOpts = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions ReadOpts  = new() { PropertyNameCaseInsensitive = true };
+
+    private static string RegistryPath(string projFolder) =>
+        Path.Combine(projFolder, "PROJECTPLAN", "_boards.json");
+
+    public static List<WorldBoard> Load(string projFolder)
+    {
+        var path = RegistryPath(projFolder);
+        if (File.Exists(path))
+        {
+            try
+            {
+                var list = JsonSerializer.Deserialize<List<WorldBoard>>(File.ReadAllText(path), ReadOpts);
+                if (list is not null) return list;   // may be empty — that's fine
+            }
+            catch { }
+        }
+
+        // No boards file — return empty list; gallery shows the "create first board" prompt
+        return [];
+    }
+
+    public static void Save(string projFolder, List<WorldBoard> boards)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(projFolder, "PROJECTPLAN"));
+            File.WriteAllText(RegistryPath(projFolder),
+                JsonSerializer.Serialize(boards, WriteOpts));
+        }
+        catch { }
+    }
+
+    public static readonly string[] SymbolPalette =
+    [
+        "🗺", "🌍", "🌿", "⚔️", "👥", "🏰",
+        "🔮", "📜", "🐉", "💀", "⭐", "🌙",
+        "☀️", "🌊", "🔥", "🏔️", "❄️", "🌸",
+        "🗡️", "🛡️", "🏛️", "🧙", "👑", "🗝️"
+    ];
 }

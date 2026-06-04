@@ -43,6 +43,8 @@ public partial class MainWindow : Window
         public bool     Enabled    { get; set; } = true;
         public bool?    IsOnline   { get; set; }
         public string?  CustomName { get; set; }
+        public string?  Mood       { get; set; }          // one-word mood, updated every 5 responses
+        public int      ResponseCount { get; set; }       // counts completed visible responses
 
         public string ColorKey    => Position switch { 2 => "AccentBgBrush", 3 => "PrimaryAccentBrush", _ => "SecondaryAccentBrush" };
 
@@ -89,6 +91,8 @@ public partial class MainWindow : Window
         public bool     Enabled    { get; set; } = true;
         public bool?    IsOnline   { get; set; }
         public string?  CustomName { get; set; }
+        public string?  Mood       { get; set; }          // one-word mood, updated every 5 responses
+        public int      ResponseCount { get; set; }       // counts completed visible responses
 
         public string ColorKey => Position switch { 2 => "AccentBgBrush", 3 => "SecondaryAccentBrush", _ => "PrimaryAccentBrush" };
 
@@ -169,6 +173,7 @@ public partial class MainWindow : Window
     private int                                  _aiDialogueMaxTurns    = 10;
     private int                                  _globalResponseLength  = 50;
     private ProjectSettings?                     _projectSettings;
+    private ParticipantsWindow?                  _participantsWindow;
 
     // ── Project state ──────────────────────────────────────────────────────
     private string?                    _currentProjectFolder;
@@ -201,6 +206,7 @@ public partial class MainWindow : Window
             _chatBubbleWidthPct = s.ChatBubbleWidthPercent;
             ApplyChatFont(s);                        // seed font resources before first bubble
             UpdateChatBubbleWidth();                 // seed bubble-width resource
+            ApplyUiZoom(s.UiZoom);                   // scale all UI elements
 
             // ── Restore general chat history ──────────────────────────────
             var savedLog = GeneralChatLogService.LoadRecentLog();
@@ -480,14 +486,56 @@ public partial class MainWindow : Window
     private void ChatTabButton_Click(object sender, RoutedEventArgs e)
         => ActivateTab(Tab.Chat);
 
+    private void ChatViewButton_Click(object sender, RoutedEventArgs e)
+    {
+        // Collapse all project sub-panels and return to the chat view
+        ShowWorldPanel(false);
+        ShowRoadmapPanel(false);
+        ShowFilesPanel(false);
+    }
+
     private void ProjectsTabButton_Click(object sender, RoutedEventArgs e)
     {
+        // Warn if a bridge project is loaded — concurrent roadmap writes could conflict.
+        if (_bridgeProjectFolder is not null)
+        {
+            var name = _bridgeProject?.ProjectName ?? System.IO.Path.GetFileName(_bridgeProjectFolder);
+            var result = MessageBox.Show(
+                $"Bridge mode has \"{name}\" loaded.\n\n" +
+                "Opening the same project here could cause conflicting roadmap writes.\n\n" +
+                "Open a different project, or unload the bridge project first (Bridge → ✕).\n\n" +
+                "Continue to Projects anyway?",
+                "Bridge Project Active",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (result != MessageBoxResult.Yes) return;
+        }
         RefreshProjectList();
         ActivateTab(Tab.Projects);
     }
 
     private void BridgeTabButton_Click(object sender, RoutedEventArgs e)
     {
+        // Warn if a project is already open in Chat/Project mode —
+        // Bridge runs its own independent MCP session and a simultaneously
+        // open project here can cause conflicting saves to the same files.
+        if (_currentProjectFolder is not null)
+        {
+            var name   = _currentProject?.ProjectName ?? System.IO.Path.GetFileName(_currentProjectFolder);
+            var result = MessageBox.Show(
+                $"Project \"{name}\" is currently open in Chat mode.\n\n" +
+                "Bridge mode connects external AI clients (Claude Code, Claude Desktop) to " +
+                "their own independent project session. Running both on the same project " +
+                "at the same time can cause conflicting saves to roadmap and chat files.\n\n" +
+                "Consider closing the project first (✕ Close in the header), or use " +
+                "Bridge with a different project.\n\n" +
+                "Open Bridge anyway?",
+                "Project Already Open",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (result != MessageBoxResult.Yes) return;
+        }
+
         ActivateTab(Tab.Bridge);
         BuildBridgeContent();
     }
@@ -524,6 +572,19 @@ public partial class MainWindow : Window
         SetTab(ChatTabButton,     isChat);
         SetTab(ProjectsTabButton, isProjects);
         SetTab(BridgeTabButton,   isBridge);
+
+        // Dim the Projects button and show a tooltip while a bridge project is loaded
+        if (_bridgeProjectFolder is not null && !isProjects)
+        {
+            var name = _bridgeProject?.ProjectName ?? "project";
+            ProjectsTabButton.Opacity = 0.45;
+            ProjectsTabButton.ToolTip = $"Bridge has \"{name}\" loaded — open with care to avoid roadmap conflicts.";
+        }
+        else
+        {
+            ProjectsTabButton.Opacity = 1.0;
+            ProjectsTabButton.ToolTip = null;
+        }
 
         // Refresh sort button states when projects tab is shown
         if (isProjects) UpdateProjectSortButtons();
@@ -742,12 +803,43 @@ public partial class MainWindow : Window
         buttonsRow.Children.Add(btnBackup);
         buttonsRow.Children.Add(btnSettings);
 
+        // ── Bridge-active badge (shown when this project is the current Bridge project) ──
+        bool isBridgeProject = _bridgeProjectFolder is not null &&
+            string.Equals(System.IO.Path.GetFullPath(projFolder),
+                          System.IO.Path.GetFullPath(_bridgeProjectFolder),
+                          StringComparison.OrdinalIgnoreCase);
+
         // ── Main card content (vertical stack) ────────────────────────────────
         var contentStack = new StackPanel();
         contentStack.Children.Add(titleRow);
         contentStack.Children.Add(dateLabel);
         if (!string.IsNullOrEmpty(participantsLabel.Text))
             contentStack.Children.Add(participantsLabel);
+
+        if (isBridgeProject)
+        {
+            var bridgeBadge = new Border
+            {
+                CornerRadius        = new CornerRadius(4),
+                Padding             = new Thickness(6, 2, 6, 2),
+                Margin              = new Thickness(0, 6, 0, 0),
+                BorderThickness     = new Thickness(2),
+                Background          = Brushes.Transparent,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            bridgeBadge.SetResourceReference(Border.BorderBrushProperty, "AccentHighlightBrush");
+            var bridgeText = new TextBlock
+            {
+                Text       = "🔌 Bridge active",
+                FontSize   = 10,
+                FontFamily = new FontFamily("Segoe UI"),
+                FontWeight = FontWeights.SemiBold
+            };
+            bridgeText.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+            bridgeBadge.Child = bridgeText;
+            contentStack.Children.Add(bridgeBadge);
+        }
+
         contentStack.Children.Add(buttonsRow);
 
         // ── Card border ──────────────────────────────────────────────────────
@@ -762,9 +854,18 @@ public partial class MainWindow : Window
             Width        = 220,
             MinHeight    = 130
         };
-        card.SetResourceReference(Border.BackgroundProperty,   "ControlBgBrush");
-        card.BorderThickness = new Thickness(1);
-        card.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+        card.SetResourceReference(Border.BackgroundProperty, "ControlBgBrush");
+        if (isBridgeProject)
+        {
+            // Accent border to make the whole card stand out
+            card.BorderThickness = new Thickness(2);
+            card.SetResourceReference(Border.BorderBrushProperty, "AccentHighlightBrush");
+        }
+        else
+        {
+            card.BorderThickness = new Thickness(1);
+            card.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+        }
 
         card.MouseLeftButtonDown += (_, _) => SelectProjectCard(card, projFolder);
         card.MouseLeftButtonUp   += (_, e) =>
@@ -1378,12 +1479,18 @@ public partial class MainWindow : Window
         // Reflect CO / R roles on all sidebar cards for this project
         RefreshParticipantBadges();
 
+        // Hide the top tab bar — project mode is self-contained.
+        // The only way out is ✕ Close, which restores the tab bar.
+        MainTabBar.Visibility = Visibility.Collapsed;
+
         // Update header
         ChatHeaderTitle.Text              = loaded.ProjectName;
         ProjectSettingsButton.Visibility  = Visibility.Visible;
         CloseProjectButton   .Visibility  = Visibility.Visible;
         BackupButton         .Visibility  = Visibility.Visible;
         FilesButton          .Visibility  = Visibility.Visible;
+        ChatViewButton       .Visibility  = Visibility.Visible;
+        ChatViewButton.FontWeight         = FontWeights.SemiBold;  // chat is active by default
         RoadmapButton        .Visibility  = _currentProjectType.HasRoadmap
                                             ? Visibility.Visible : Visibility.Collapsed;
         WorldButton          .Visibility  = _currentProjectType.HasWorldBuilding
@@ -1485,15 +1592,20 @@ public partial class MainWindow : Window
         _maxDialogDepth                  = 1;
         _sessionStartTime                = null;
         _workSessionFired                = false;
+        // Restore top tab bar — back to general (no-project) mode.
+        MainTabBar.Visibility = Visibility.Visible;
+
         ChatHeaderTitle.Text             = "Chat";
         ProjectSettingsButton.Visibility = Visibility.Collapsed;
         CloseProjectButton   .Visibility = Visibility.Collapsed;
         BackupButton         .Visibility = Visibility.Collapsed;
+        ChatViewButton       .Visibility = Visibility.Collapsed;
         FilesButton          .Visibility = Visibility.Collapsed;
         FilesContent         .Visibility = Visibility.Collapsed;
         RoadmapButton        .Visibility = Visibility.Collapsed;
         WorldButton          .Visibility = Visibility.Collapsed;
         WorldContent         .Visibility = Visibility.Collapsed;
+        ChatOnlyButtonsPanel .Visibility = Visibility.Visible;
 
         // Clear CO/R badges - no project is active
         RefreshParticipantBadges();
@@ -1971,9 +2083,17 @@ public partial class MainWindow : Window
     {
         if (show && _currentRoadmap is not null)
         {
-            BuildRoadmapContent();
+            // Collapse all other project panels first
+            WorldContent     .Visibility = Visibility.Collapsed;
+            WorldButton.FontWeight       = FontWeights.Normal;
             FilesContent     .Visibility = Visibility.Collapsed;
             FilesButton.FontWeight       = FontWeights.Normal;
+
+            // Hide chat-only buttons and deactivate Chat sub-tab
+            ChatOnlyButtonsPanel .Visibility = Visibility.Collapsed;
+            ChatViewButton.FontWeight         = FontWeights.Normal;
+
+            BuildRoadmapContent();
             RoadmapContent   .Visibility = Visibility.Visible;
             ChatScrollViewer .Visibility = Visibility.Collapsed;
             InputArea        .Visibility = Visibility.Collapsed;
@@ -1985,6 +2105,11 @@ public partial class MainWindow : Window
             ChatScrollViewer .Visibility = Visibility.Visible;
             InputArea        .Visibility = Visibility.Visible;
             RoadmapButton.FontWeight     = FontWeights.Normal;
+
+            // Restore chat-only buttons and mark Chat sub-tab active
+            ChatOnlyButtonsPanel .Visibility = Visibility.Visible;
+            ChatViewButton.FontWeight         = _currentProjectFolder is not null
+                                               ? FontWeights.SemiBold : FontWeights.Normal;
         }
     }
 
@@ -1997,7 +2122,16 @@ public partial class MainWindow : Window
     {
         if (show && _currentProjectFolder is not null)
         {
-            ShowRoadmapPanel(false);      // collapse roadmap if open
+            // Collapse all other project panels first
+            WorldContent     .Visibility = Visibility.Collapsed;
+            WorldButton.FontWeight       = FontWeights.Normal;
+            RoadmapContent   .Visibility = Visibility.Collapsed;
+            RoadmapButton.FontWeight     = FontWeights.Normal;
+
+            // Hide chat-only buttons and deactivate Chat sub-tab
+            ChatOnlyButtonsPanel .Visibility = Visibility.Collapsed;
+            ChatViewButton.FontWeight         = FontWeights.Normal;
+
             BuildFilesContent();
             FilesContent     .Visibility = Visibility.Visible;
             ChatScrollViewer .Visibility = Visibility.Collapsed;
@@ -2010,6 +2144,11 @@ public partial class MainWindow : Window
             ChatScrollViewer .Visibility = Visibility.Visible;
             InputArea        .Visibility = Visibility.Visible;
             FilesButton.FontWeight       = FontWeights.Normal;
+
+            // Restore chat-only buttons and mark Chat sub-tab active
+            ChatOnlyButtonsPanel .Visibility = Visibility.Visible;
+            ChatViewButton.FontWeight         = _currentProjectFolder is not null
+                                               ? FontWeights.SemiBold : FontWeights.Normal;
         }
     }
 
@@ -2633,12 +2772,32 @@ public partial class MainWindow : Window
             var r = ShowMilestoneDialog();
             if (r is null) return;
             _currentRoadmap!.Milestones.Add(new RoadmapMilestone
-                { Title = r.Value.title, Description = r.Value.desc, CreatedBy = "User" });
+            {
+                Title         = r.Value.title,
+                Description   = r.Value.desc,
+                DateNote      = r.Value.dateNote,
+                ImageFileName = r.Value.imageFileName,
+                CreatedBy     = "User"
+            });
             SaveRoadmap();
             BuildRoadmapContent();
         };
 
+        var exportBtn = new Button
+        {
+            Content    = "⬇ Export HTML5",
+            Style      = btnStyle,
+            Background = inputBrush,
+            Foreground = subtextBrush,
+            FontSize   = 12,
+            Padding    = new Thickness(10, 5, 10, 5),
+            Margin     = new Thickness(0, 0, 8, 0),
+            ToolTip    = "Export roadmap as interactive HTML5 document"
+        };
+        exportBtn.Click += (_, _) => ExportRoadmapToHtml();
+
         var tbBtns = new StackPanel { Orientation = Orientation.Horizontal };
+        tbBtns.Children.Add(exportBtn);
         tbBtns.Children.Add(addMsBtn);
         Grid.SetColumn(tbBtns, 1);
 
@@ -2753,13 +2912,15 @@ public partial class MainWindow : Window
                 if (r is null) return;
                 capturedMs.Items.Add(new RoadmapItem
                 {
-                    Title       = r.Value.title,
-                    Description = r.Value.desc,
-                    Progress    = r.Value.progress,
-                    Status      = r.Value.progress >= 100 ? ItemStatus.Done
-                                : r.Value.progress > 0    ? ItemStatus.InProgress
-                                : ItemStatus.Todo,
-                    CreatedBy   = "User"
+                    Title         = r.Value.title,
+                    Description   = r.Value.desc,
+                    Progress      = r.Value.progress,
+                    DateNote      = r.Value.dateNote,
+                    ImageFileName = r.Value.imageFileName,
+                    Status        = r.Value.progress >= 100 ? ItemStatus.Done
+                                  : r.Value.progress > 0    ? ItemStatus.InProgress
+                                  : ItemStatus.Todo,
+                    CreatedBy     = "User"
                 });
                 UpdateMilestoneStatus(capturedMs);
                 SaveRoadmap();
@@ -2779,10 +2940,22 @@ public partial class MainWindow : Window
             };
             editMsBtn.Click += (_, _) =>
             {
-                var r = ShowMilestoneDialog(capturedMs.Title, capturedMs.Description);
+                var r = ShowMilestoneDialog(capturedMs.Title, capturedMs.Description,
+                                            capturedMs.DateNote, capturedMs.ImageFileName);
                 if (r is null) return;
                 capturedMs.Title       = r.Value.title;
                 capturedMs.Description = r.Value.desc;
+                capturedMs.DateNote    = r.Value.dateNote;
+                // Handle image change
+                if (r.Value.imageFileName != capturedMs.ImageFileName)
+                {
+                    if (!string.IsNullOrEmpty(capturedMs.ImageFileName))
+                    {
+                        var oldPath = RoadmapService.GetImagePath(_currentProjectFolder!, capturedMs.ImageFileName);
+                        try { if (System.IO.File.Exists(oldPath)) System.IO.File.Delete(oldPath); } catch { }
+                    }
+                    capturedMs.ImageFileName = r.Value.imageFileName;
+                }
                 SaveRoadmap();
                 BuildRoadmapContent();
             };
@@ -2828,6 +3001,44 @@ public partial class MainWindow : Window
                 Child      = msHeaderGrid
             };
 
+            // ── Milestone date note + image thumbnail ─────────────────────
+            Border? msExtraBorderToAdd = null;
+            if (!string.IsNullOrWhiteSpace(ms.DateNote) || !string.IsNullOrWhiteSpace(ms.ImageFileName))
+            {
+                var msExtraRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(14, 4, 10, 4) };
+
+                if (!string.IsNullOrWhiteSpace(ms.DateNote))
+                {
+                    var chip = new Border { CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(1), Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(0, 0, 8, 0) };
+                    chip.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+                    chip.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
+                    var chipText = new TextBlock { Text = "🗓 " + ms.DateNote, FontSize = 10, FontFamily = new FontFamily("Segoe UI") };
+                    chipText.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+                    chip.Child = chipText;
+                    msExtraRow.Children.Add(chip);
+                }
+
+                if (!string.IsNullOrWhiteSpace(ms.ImageFileName))
+                {
+                    var imgPath = RoadmapService.GetImagePath(_currentProjectFolder!, ms.ImageFileName);
+                    if (System.IO.File.Exists(imgPath))
+                    {
+                        try
+                        {
+                            var bmp = new System.Windows.Media.Imaging.BitmapImage();
+                            bmp.BeginInit(); bmp.UriSource = new Uri(imgPath); bmp.DecodePixelHeight = 48; bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; bmp.EndInit(); bmp.Freeze();
+                            var img = new System.Windows.Controls.Image { Source = bmp, Height = 36, Stretch = Stretch.Uniform, Cursor = Cursors.Hand, ToolTip = "Click to open image" };
+                            img.MouseLeftButtonDown += (_, _) => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(imgPath) { UseShellExecute = true });
+                            var imgBorder = new Border { Child = img, CornerRadius = new CornerRadius(3), ClipToBounds = true };
+                            msExtraRow.Children.Add(imgBorder);
+                        }
+                        catch { }
+                    }
+                }
+
+                msExtraBorderToAdd = new Border { Background = surfaceBrush, Child = msExtraRow };
+            }
+
             // ── Milestone progress bar ────────────────────────────────────
             var msPbFill = ms.Status == ItemStatus.Done ? ollamaBrush : accentBrush;
             var msPb     = MakeProgressBar(ms.Progress, msPbFill, bgBrush, 4);
@@ -2867,9 +3078,10 @@ public partial class MainWindow : Window
                 }
             }
 
-            // ── Combine header + items in a rounded card ──────────────────
+            // ── Combine header + optional extra row + items in a rounded card ──
             var inner = new StackPanel();
             inner.Children.Add(msHeaderBorder);
+            if (msExtraBorderToAdd is not null) inner.Children.Add(msExtraBorderToAdd);
             inner.Children.Add(itemsStack);
 
             var card = new Border
@@ -3020,11 +3232,22 @@ public partial class MainWindow : Window
         };
         editBtn.Click += (_, _) =>
         {
-            var r = ShowItemDialog(capturedItem.Title, capturedItem.Description, capturedItem.Progress);
+            var r = ShowItemDialog(capturedItem.Title, capturedItem.Description,
+                                   capturedItem.Progress, capturedItem.DateNote, capturedItem.ImageFileName);
             if (r is null) return;
             capturedItem.Title       = r.Value.title;
             capturedItem.Description = r.Value.desc;
             capturedItem.Progress    = r.Value.progress;
+            capturedItem.DateNote    = r.Value.dateNote;
+            if (r.Value.imageFileName != capturedItem.ImageFileName)
+            {
+                if (!string.IsNullOrEmpty(capturedItem.ImageFileName))
+                {
+                    var oldPath = RoadmapService.GetImagePath(_currentProjectFolder!, capturedItem.ImageFileName);
+                    try { if (System.IO.File.Exists(oldPath)) System.IO.File.Delete(oldPath); } catch { }
+                }
+                capturedItem.ImageFileName = r.Value.imageFileName;
+            }
             capturedItem.Status      = r.Value.progress >= 100 ? ItemStatus.Done
                                      : r.Value.progress > 0    ? ItemStatus.InProgress
                                      : ItemStatus.Todo;
@@ -3094,7 +3317,131 @@ public partial class MainWindow : Window
         rowGrid.Children.Add(pctTb);
         rowGrid.Children.Add(btns);
 
+        // DateNote chip + image thumbnail inline with the item row
+        if (!string.IsNullOrWhiteSpace(item.DateNote) || !string.IsNullOrWhiteSpace(item.ImageFileName))
+        {
+            var extraRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(34, 0, 10, 4) };
+
+            if (!string.IsNullOrWhiteSpace(item.DateNote))
+            {
+                var chip = new Border { CornerRadius = new CornerRadius(3), BorderThickness = new Thickness(1), Padding = new Thickness(5, 1, 5, 1), Margin = new Thickness(0, 0, 6, 0) };
+                chip.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+                chip.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
+                var chipTxt = new TextBlock { Text = "🗓 " + item.DateNote, FontSize = 9, FontFamily = new FontFamily("Segoe UI") };
+                chipTxt.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+                chip.Child = chipTxt;
+                extraRow.Children.Add(chip);
+            }
+
+            if (!string.IsNullOrWhiteSpace(item.ImageFileName))
+            {
+                var imgPath = RoadmapService.GetImagePath(_currentProjectFolder!, item.ImageFileName);
+                if (System.IO.File.Exists(imgPath))
+                {
+                    try
+                    {
+                        var bmp = new System.Windows.Media.Imaging.BitmapImage();
+                        bmp.BeginInit(); bmp.UriSource = new Uri(imgPath); bmp.DecodePixelHeight = 40; bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; bmp.EndInit(); bmp.Freeze();
+                        var img = new System.Windows.Controls.Image { Source = bmp, Height = 28, Stretch = Stretch.Uniform, Cursor = Cursors.Hand, ToolTip = "Click to open image" };
+                        img.MouseLeftButtonDown += (_, _) => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(imgPath) { UseShellExecute = true });
+                        var imgBdr = new Border { Child = img, CornerRadius = new CornerRadius(2), ClipToBounds = true };
+                        extraRow.Children.Add(imgBdr);
+                    }
+                    catch { }
+                }
+            }
+
+            var wrapper = new StackPanel();
+            wrapper.Children.Add(new Border { Padding = new Thickness(14, 8, 10, 2), Child = rowGrid });
+            wrapper.Children.Add(extraRow);
+            return wrapper;
+        }
+
         return new Border { Padding = new Thickness(14, 8, 10, 8), Child = rowGrid };
+    }
+
+    // ── Roadmap image zone ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds a compact image attachment zone for milestone/item dialogs.
+    /// <paramref name="imageFileName"/> is updated in place via the ref.
+    /// Returns the panel UIElement to embed in the dialog layout.
+    /// </summary>
+    private FrameworkElement BuildRoadmapImageZone(
+        string imageFileName, Action<string> setImageFileName,
+        Brush inputBrush, Brush textBrush, Brush subBrush, Style btnStyle)
+    {
+        string currentFile = imageFileName;
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(16, 0, 16, 0) };
+
+        Border thumbBorder;
+        System.Windows.Controls.Image? thumbImg = null;
+
+        void Refresh()
+        {
+            panel.Children.Clear();
+            if (!string.IsNullOrEmpty(currentFile))
+            {
+                var fullPath = RoadmapService.GetImagePath(_currentProjectFolder!, currentFile);
+                if (System.IO.File.Exists(fullPath))
+                {
+                    try
+                    {
+                        var bmp = new System.Windows.Media.Imaging.BitmapImage();
+                        bmp.BeginInit();
+                        bmp.UriSource       = new Uri(fullPath);
+                        bmp.DecodePixelHeight = 80;
+                        bmp.CacheOption     = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                        bmp.EndInit(); bmp.Freeze();
+                        thumbImg = new System.Windows.Controls.Image { Source = bmp, Height = 60, Stretch = Stretch.Uniform };
+                        var tb = new Border { Child = thumbImg, Margin = new Thickness(0, 0, 8, 0), Cursor = Cursors.Hand, ToolTip = "Click to open" };
+                        tb.MouseLeftButtonDown += (_, _) =>
+                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(fullPath) { UseShellExecute = true });
+                        panel.Children.Add(tb);
+                    }
+                    catch { }
+                }
+                var removeBtn = new Button { Content = "✕ Remove", Style = btnStyle, Background = Brushes.Transparent, Foreground = subBrush, FontSize = 10, Padding = new Thickness(6, 3, 6, 3), Margin = new Thickness(0, 0, 6, 0) };
+                removeBtn.Click += (_, _) =>
+                {
+                    var old = RoadmapService.GetImagePath(_currentProjectFolder!, currentFile);
+                    try { if (System.IO.File.Exists(old)) System.IO.File.Delete(old); } catch { }
+                    currentFile = "";
+                    setImageFileName("");
+                    Refresh();
+                };
+                panel.Children.Add(removeBtn);
+            }
+            else
+            {
+                var attachBtn = new Button { Content = "🖼 Attach image…", Style = btnStyle, Background = inputBrush, Foreground = textBrush, FontSize = 11, Padding = new Thickness(8, 4, 8, 4) };
+                attachBtn.Click += (_, _) =>
+                {
+                    var ofd = new Microsoft.Win32.OpenFileDialog
+                    {
+                        Title  = "Attach image",
+                        Filter = "Images|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp|All files|*.*"
+                    };
+                    if (ofd.ShowDialog() != true) return;
+                    var folder = RoadmapService.GetImagesFolder(_currentProjectFolder!);
+                    System.IO.Directory.CreateDirectory(folder);
+                    var ext      = System.IO.Path.GetExtension(ofd.FileName);
+                    var newName  = $"roadmap_{Guid.NewGuid():N8}{ext}";
+                    var destPath = System.IO.Path.Combine(folder, newName);
+                    System.IO.File.Copy(ofd.FileName, destPath, overwrite: true);
+                    currentFile = newName;
+                    setImageFileName(newName);
+                    Refresh();
+                };
+                panel.Children.Add(attachBtn);
+            }
+        }
+
+        Refresh();
+        // Return a wrapper that exposes the final value after dialog closes
+        // by reading imageFileName via the ref — but since C# ref can't be captured,
+        // we wire it through the Refresh closure instead.
+        return panel;
     }
 
     // ── Roadmap rich-text helpers ─────────────────────────────────────────
@@ -3249,8 +3596,8 @@ public partial class MainWindow : Window
 
     // ── Roadmap dialogs ───────────────────────────────────────────────────
 
-    private (string title, string desc)? ShowMilestoneDialog(
-        string title = "", string desc = "")
+    private (string title, string desc, string dateNote, string imageFileName)? ShowMilestoneDialog(
+        string title = "", string desc = "", string dateNote = "", string imageFileName = "")
     {
         var isEdit     = !string.IsNullOrEmpty(title);
         var bgBrush    = (Brush)FindResource("SidebarBgBrush");
@@ -3261,15 +3608,16 @@ public partial class MainWindow : Window
         var claudeBrush= (Brush)FindResource("PrimaryAccentBrush");
         var btnStyle   = (Style)FindResource("ModernButton");
 
-        (string, string)? result = null;
+        (string, string, string, string)? result = null;
+        string currentImageFileName = imageFileName;
 
         var dlg = new Window
         {
             Title                 = isEdit ? "Edit Milestone" : "Add Milestone",
             Width                 = 560,
-            Height                = 500,
+            Height                = 560,
             MinWidth              = 420,
-            MinHeight             = 360,
+            MinHeight             = 420,
             Owner                 = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode            = ResizeMode.CanResize,
@@ -3323,6 +3671,30 @@ public partial class MainWindow : Window
             Child        = descRtb
         };
 
+        // Date note
+        MakeDialogLabel("When / Timing (optional)", textBrush, out var dateLbl);
+        dateLbl.Margin = new Thickness(16, 10, 16, 4);
+        var dateBox = new TextBox
+        {
+            Text                     = dateNote,
+            FontSize                 = 13,
+            FontFamily               = new FontFamily("Segoe UI"),
+            Margin                   = new Thickness(16, 0, 16, 0),
+            Height                   = 32,
+            Padding                  = new Thickness(8, 0, 0, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            BorderThickness          = new Thickness(0),
+            Background               = inputBrush,
+            Foreground               = textBrush,
+            CaretBrush               = textBrush,
+            ToolTip                  = "e.g. \"sometime in September\", \"Q1 2027\", \"when I get to it\""
+        };
+
+        // Image attachment
+        MakeDialogLabel("Image (optional)", textBrush, out var imgLbl);
+        imgLbl.Margin = new Thickness(16, 10, 16, 4);
+        var imgPanel = BuildRoadmapImageZone(currentImageFileName, v => currentImageFileName = v, inputBrush, textBrush, subBrush, btnStyle);
+
         // Buttons
         var okBtn = new Button
         {
@@ -3338,7 +3710,7 @@ public partial class MainWindow : Window
         okBtn.Click += (_, _) =>
         {
             if (string.IsNullOrWhiteSpace(titleBox.Text)) return;
-            result = (titleBox.Text.Trim(), RtbToXaml(descRtb));
+            result = (titleBox.Text.Trim(), RtbToXaml(descRtb), dateBox.Text.Trim(), currentImageFileName);
             dlg.Close();
         };
 
@@ -3368,10 +3740,14 @@ public partial class MainWindow : Window
         MakeDialogLabel("Description (optional)", textBrush, out var descLbl);
         descLbl.Margin = new Thickness(16, 10, 16, 4);
 
-        // Layout: DockPanel - buttons bottom, title+toolbar top, RTB fills
+        // Layout: DockPanel — buttons bottom, title+date+image+toolbar top, RTB fills
         var topSection = new StackPanel();
         topSection.Children.Add(titleLbl);
         topSection.Children.Add(titleBox);
+        topSection.Children.Add(dateLbl);
+        topSection.Children.Add(dateBox);
+        topSection.Children.Add(imgLbl);
+        topSection.Children.Add(imgPanel);
         topSection.Children.Add(descLbl);
         topSection.Children.Add(toolbar);
 
@@ -3380,7 +3756,7 @@ public partial class MainWindow : Window
         outerDock.Children.Add(btnRow);
         DockPanel.SetDock(topSection, Dock.Top);
         outerDock.Children.Add(topSection);
-        outerDock.Children.Add(descBorder);   // fills remaining height
+        outerDock.Children.Add(descBorder);
 
         dlg.Content = outerDock;
         dlg.Loaded += (_, _) => { titleBox.Focus(); titleBox.SelectAll(); };
@@ -3388,8 +3764,8 @@ public partial class MainWindow : Window
         return result;
     }
 
-    private (string title, string desc, int progress)? ShowItemDialog(
-        string title = "", string desc = "", int progress = 0)
+    private (string title, string desc, int progress, string dateNote, string imageFileName)? ShowItemDialog(
+        string title = "", string desc = "", int progress = 0, string dateNote = "", string imageFileName = "")
     {
         var isEdit      = !string.IsNullOrEmpty(title);
         var bgBrush     = (Brush)FindResource("SidebarBgBrush");
@@ -3400,7 +3776,8 @@ public partial class MainWindow : Window
         var accentBrush = (Brush)FindResource("AccentBgBrush");
         var btnStyle    = (Style)FindResource("ModernButton");
 
-        (string, string, int)? result = null;
+        (string, string, int, string, string)? result = null;
+        string currentImageFileName = imageFileName;
 
         var dlg = new Window
         {
@@ -3462,6 +3839,30 @@ public partial class MainWindow : Window
             Child        = descRtb
         };
 
+        // Date note
+        MakeDialogLabel("When / Timing (optional)", textBrush, out var dateLbl2);
+        dateLbl2.Margin = new Thickness(16, 8, 16, 4);
+        var dateBox2 = new TextBox
+        {
+            Text                     = dateNote,
+            FontSize                 = 13,
+            FontFamily               = new FontFamily("Segoe UI"),
+            Margin                   = new Thickness(16, 0, 16, 0),
+            Height                   = 32,
+            Padding                  = new Thickness(8, 0, 0, 0),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            BorderThickness          = new Thickness(0),
+            Background               = inputBrush,
+            Foreground               = textBrush,
+            CaretBrush               = textBrush,
+            ToolTip                  = "e.g. \"by end of October\", \"when chapter 3 is done\""
+        };
+
+        // Image attachment
+        MakeDialogLabel("Image (optional)", textBrush, out var imgLbl2);
+        imgLbl2.Margin = new Thickness(16, 8, 16, 4);
+        var imgPanel2 = BuildRoadmapImageZone(currentImageFileName, v => currentImageFileName = v, inputBrush, textBrush, subBrush, btnStyle);
+
         // Progress
         var pctLabel = new TextBlock
         {
@@ -3498,7 +3899,8 @@ public partial class MainWindow : Window
         okBtn.Click += (_, _) =>
         {
             if (string.IsNullOrWhiteSpace(titleBox.Text)) return;
-            result = (titleBox.Text.Trim(), RtbToXaml(descRtb), (int)slider.Value);
+            result = (titleBox.Text.Trim(), RtbToXaml(descRtb), (int)slider.Value,
+                      dateBox2.Text.Trim(), currentImageFileName);
             dlg.Close();
         };
 
@@ -3534,10 +3936,14 @@ public partial class MainWindow : Window
         bottomSection.Children.Add(slider);
         bottomSection.Children.Add(btnRow);
 
-        // Top section: title + desc label + toolbar
+        // Top section: title + date + image + desc label + toolbar
         var topSection = new StackPanel();
         topSection.Children.Add(titleLbl);
         topSection.Children.Add(titleBox);
+        topSection.Children.Add(dateLbl2);
+        topSection.Children.Add(dateBox2);
+        topSection.Children.Add(imgLbl2);
+        topSection.Children.Add(imgPanel2);
         topSection.Children.Add(descLbl);
         topSection.Children.Add(toolbar);
 
@@ -3663,6 +4069,324 @@ public partial class MainWindow : Window
         if (_currentRoadmap is not null && _currentProjectFolder is not null)
             RoadmapService.Save(_currentProjectFolder, _currentRoadmap);
     }
+
+    // ── HTML5 Roadmap Export ──────────────────────────────────────────────
+
+    private void ExportRoadmapToHtml()
+    {
+        if (_currentRoadmap is null || _currentProjectFolder is null) return;
+
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title            = "Export Roadmap as HTML5",
+            Filter           = "HTML file|*.html",
+            FileName         = $"{_currentProject?.ProjectName ?? "Roadmap"}_roadmap.html",
+            DefaultExt       = "html",
+            InitialDirectory = _currentProjectFolder
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        var html = BuildRoadmapHtml(_currentProject?.ProjectName ?? "Roadmap",
+                                    _currentRoadmap, _currentProjectFolder);
+        System.IO.File.WriteAllText(dlg.FileName, html, System.Text.Encoding.UTF8);
+
+        // Open in default browser
+        System.Diagnostics.Process.Start(
+            new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true });
+    }
+
+    private static string BuildRoadmapHtml(string projectName, Roadmap roadmap, string projFolder)
+    {
+        // Inline images as base64 so the HTML is fully self-contained
+        static string InlineImage(string path)
+        {
+            if (!System.IO.File.Exists(path)) return "";
+            try
+            {
+                var bytes  = System.IO.File.ReadAllBytes(path);
+                var b64    = Convert.ToBase64String(bytes);
+                var ext    = System.IO.Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
+                var mime   = ext switch { "png" => "image/png", "gif" => "image/gif",
+                                          "webp" => "image/webp", _ => "image/jpeg" };
+                return $"data:{mime};base64,{b64}";
+            }
+            catch { return ""; }
+        }
+
+        static string H(string s) => System.Net.WebUtility.HtmlEncode(s);
+
+        static string StatusClass(ItemStatus s) => s switch
+        {
+            ItemStatus.Done       => "done",
+            ItemStatus.InProgress => "progress",
+            _                     => "todo"
+        };
+
+        static string StatusLabel(ItemStatus s) => s switch
+        {
+            ItemStatus.Done       => "Done",
+            ItemStatus.InProgress => "In Progress",
+            _                     => "To Do"
+        };
+
+        var totalItems    = roadmap.Milestones.Sum(m => m.Items.Count);
+        var doneItems     = roadmap.Milestones.Sum(m => m.Items.Count(i => i.Status == ItemStatus.Done));
+        var overallPct    = totalItems > 0 ? doneItems * 100 / totalItems : 0;
+        var exported      = DateTime.Now.ToString("MMMM d, yyyy");
+
+        // ── Build milestone HTML ──────────────────────────────────────────
+        var msHtml = new System.Text.StringBuilder();
+        foreach (var ms in roadmap.Milestones)
+        {
+            var msImgTag = "";
+            if (!string.IsNullOrWhiteSpace(ms.ImageFileName))
+            {
+                var src = InlineImage(RoadmapService.GetImagePath(projFolder, ms.ImageFileName));
+                if (src.Length > 0) msImgTag = $"""<img class="ms-img" src="{src}" alt="milestone image">""";
+            }
+            var msDateChip = string.IsNullOrWhiteSpace(ms.DateNote) ? ""
+                : $"""<span class="date-chip">🗓 {H(ms.DateNote)}</span>""";
+            var msDescHtml = string.IsNullOrWhiteSpace(ms.Description) ? ""
+                : $"""<p class="ms-desc">{H(RoadmapService.DescToPlainText(ms.Description))}</p>""";
+
+            // Items
+            var itemsHtml = new System.Text.StringBuilder();
+            foreach (var it in ms.Items)
+            {
+                var itImgTag = "";
+                if (!string.IsNullOrWhiteSpace(it.ImageFileName))
+                {
+                    var src = InlineImage(RoadmapService.GetImagePath(projFolder, it.ImageFileName));
+                    if (src.Length > 0) itImgTag = $"""<img class="it-img" src="{src}" alt="item image">""";
+                }
+                var itDateChip = string.IsNullOrWhiteSpace(it.DateNote) ? ""
+                    : $"""<span class="date-chip small">🗓 {H(it.DateNote)}</span>""";
+                var itDesc = string.IsNullOrWhiteSpace(it.Description) ? ""
+                    : $"""<p class="it-desc">{H(RoadmapService.DescToPlainText(it.Description))}</p>""";
+                var doneBy = it.Status == ItemStatus.Done && !string.IsNullOrWhiteSpace(it.CompletedBy)
+                    ? $"""<span class="completed-by">✓ {H(it.CompletedBy)}</span>""" : "";
+
+                itemsHtml.Append($"""
+                    <li class="item {StatusClass(it.Status)}">
+                      <div class="item-header">
+                        <span class="status-dot {StatusClass(it.Status)}" title="{StatusLabel(it.Status)}"></span>
+                        <span class="item-title">{H(it.Title)}</span>
+                        {itDateChip}
+                        {doneBy}
+                        <span class="item-pct">{it.Progress}%</span>
+                      </div>
+                      <div class="item-bar-wrap"><div class="item-bar {StatusClass(it.Status)}" style="width:{it.Progress}%"></div></div>
+                      {itDesc}
+                      {itImgTag}
+                    </li>
+                """);
+            }
+
+            msHtml.Append($"""
+                <div class="milestone {StatusClass(ms.Status)}" data-id="{H(ms.Id)}">
+                  <div class="ms-header" onclick="toggleMs(this)">
+                    <div class="ms-header-left">
+                      <span class="ms-chevron">▼</span>
+                      <span class="ms-status {StatusClass(ms.Status)}">{StatusLabel(ms.Status)}</span>
+                      <span class="ms-title">{H(ms.Title)}</span>
+                      {msDateChip}
+                    </div>
+                    <div class="ms-header-right">
+                      <span class="ms-pct">{ms.Progress}%</span>
+                      <div class="ms-bar-wrap"><div class="ms-bar {StatusClass(ms.Status)}" style="width:{ms.Progress}%"></div></div>
+                    </div>
+                  </div>
+                  <div class="ms-body">
+                    {msDescHtml}
+                    {msImgTag}
+                    <ul class="items">{itemsHtml}</ul>
+                  </div>
+                </div>
+            """);
+        }
+
+        // CSS and JS are appended as verbatim strings to avoid C# interpolation
+        // brace-escaping issues with nested CSS/JS curly braces.
+        const string CSS = @"
+  :root {
+    --bg:#1a1a2e;--surface:#16213e;--card:#0f3460;--accent:#e94560;--accent2:#533483;
+    --done:#2e7d32;--progress:#1565c0;--todo:#37474f;--text:#e0e0e0;--subtext:#90a4ae;
+    --border:rgba(255,255,255,0.08);--radius:10px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+  .hero{background:linear-gradient(135deg,var(--surface)0%,var(--card)100%);padding:40px 32px 32px;border-bottom:1px solid var(--border);}
+  .hero h1{font-size:2rem;font-weight:700;margin-bottom:4px;}
+  .hero .subtitle{color:var(--subtext);font-size:.9rem;margin-bottom:24px;}
+  .hero .stats{display:flex;gap:32px;flex-wrap:wrap;}
+  .stat{display:flex;flex-direction:column;}
+  .stat .val{font-size:1.6rem;font-weight:700;color:var(--accent);}
+  .stat .lbl{font-size:.75rem;color:var(--subtext);text-transform:uppercase;letter-spacing:.05em;}
+  .overall-bar-wrap{margin-top:20px;background:rgba(255,255,255,0.07);border-radius:6px;height:8px;}
+  .overall-bar{height:8px;border-radius:6px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .6s ease;}
+  .controls{padding:16px 32px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--border);background:var(--surface);}
+  .btn{padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;font-size:.82rem;transition:opacity .15s;}
+  .btn:hover{opacity:.8;}
+  .btn.active{border-color:var(--accent);color:var(--accent);}
+  .search{flex:1;min-width:180px;max-width:320px;padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:.85rem;}
+  .search:focus{outline:none;border-color:var(--accent);}
+  .roadmap{padding:24px 32px;max-width:960px;margin:0 auto;}
+  .milestone{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px;overflow:hidden;transition:box-shadow .2s;}
+  .milestone:hover{box-shadow:0 4px 20px rgba(0,0,0,.35);}
+  .milestone.done>.ms-header{opacity:.7;}
+  .ms-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;cursor:pointer;user-select:none;background:var(--card);gap:12px;}
+  .ms-header:hover{background:rgba(255,255,255,.04);}
+  .ms-header-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0;flex-wrap:wrap;}
+  .ms-header-right{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .ms-chevron{font-size:.75rem;transition:transform .25s;color:var(--subtext);}
+  .ms-chevron.collapsed{transform:rotate(-90deg);}
+  .ms-title{font-weight:600;font-size:1rem;}
+  .ms-pct{font-size:.85rem;color:var(--subtext);min-width:36px;text-align:right;}
+  .ms-bar-wrap{width:100px;height:6px;background:rgba(255,255,255,.1);border-radius:3px;}
+  .ms-bar{height:6px;border-radius:3px;transition:width .4s ease;}
+  .ms-bar.done{background:var(--done);}
+  .ms-bar.progress{background:var(--progress);}
+  .ms-bar.todo{background:var(--todo);}
+  .ms-status{font-size:.68rem;padding:2px 8px;border-radius:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0;}
+  .ms-status.done{background:var(--done);}
+  .ms-status.progress{background:var(--progress);}
+  .ms-status.todo{background:var(--todo);}
+  .ms-body{padding:0 18px 14px;}
+  .ms-body.hidden{display:none;}
+  .ms-desc{color:var(--subtext);font-size:.87rem;margin:12px 0 8px;line-height:1.5;}
+  .ms-img{max-width:100%;max-height:280px;border-radius:6px;margin:10px 0;object-fit:contain;cursor:pointer;}
+  .ms-img:hover{opacity:.9;}
+  .items{list-style:none;margin-top:8px;}
+  .item{padding:10px 12px;border-radius:7px;margin-bottom:6px;background:rgba(255,255,255,.03);border:1px solid var(--border);transition:background .15s;}
+  .item:hover{background:rgba(255,255,255,.06);}
+  .item.done .item-title{text-decoration:line-through;opacity:.55;}
+  .item-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .status-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .status-dot.done{background:var(--done);}
+  .status-dot.progress{background:var(--progress);}
+  .status-dot.todo{background:var(--todo);}
+  .item-title{font-size:.9rem;flex:1;min-width:0;}
+  .item-pct{font-size:.75rem;color:var(--subtext);margin-left:auto;}
+  .item-bar-wrap{height:3px;background:rgba(255,255,255,.08);border-radius:2px;margin:6px 0;}
+  .item-bar{height:3px;border-radius:2px;}
+  .item-bar.done{background:var(--done);}
+  .item-bar.progress{background:var(--progress);}
+  .item-bar.todo{background:var(--todo);}
+  .it-desc{font-size:.82rem;color:var(--subtext);margin-top:5px;line-height:1.45;}
+  .it-img{max-width:100%;max-height:200px;border-radius:5px;margin-top:8px;object-fit:contain;cursor:pointer;}
+  .it-img:hover{opacity:.9;}
+  .completed-by{font-size:.72rem;color:#66bb6a;}
+  .date-chip{font-size:.72rem;background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:4px;padding:1px 7px;color:var(--subtext);white-space:nowrap;}
+  .date-chip.small{font-size:.68rem;}
+  #lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;align-items:center;justify-content:center;cursor:zoom-out;}
+  #lightbox.open{display:flex;}
+  #lightbox img{max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.7);}
+  footer{text-align:center;padding:28px;color:var(--subtext);font-size:.78rem;border-top:1px solid var(--border);margin-top:16px;}
+  @media(max-width:600px){.hero{padding:24px 16px 20px;}.roadmap{padding:16px;}.controls{padding:12px 16px;}.ms-bar-wrap{width:60px;}}";
+
+        const string JS = @"
+  function toggleMs(header){
+    var body=header.nextElementSibling;
+    var chev=header.querySelector('.ms-chevron');
+    body.classList.toggle('hidden');
+    chev.classList.toggle('collapsed');
+  }
+  function expandAll(){
+    document.querySelectorAll('.ms-body').forEach(function(b){
+      b.classList.remove('hidden');
+      b.previousElementSibling.querySelector('.ms-chevron').classList.remove('collapsed');
+    });
+  }
+  function collapseAll(){
+    document.querySelectorAll('.ms-body').forEach(function(b){
+      b.classList.add('hidden');
+      b.previousElementSibling.querySelector('.ms-chevron').classList.add('collapsed');
+    });
+  }
+  var _statusFilter='all', _searchTerm='';
+  function filterAll(btn){_statusFilter='all';setActiveBtn(btn);applyFilter();}
+  function filterStatus(s,b){_statusFilter=s;setActiveBtn(b);applyFilter();}
+  function setActiveBtn(btn){
+    document.querySelectorAll('.controls .btn').forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+  }
+  function applyFilter(){
+    _searchTerm=document.querySelector('.search').value.toLowerCase();
+    document.querySelectorAll('.milestone').forEach(function(ms){
+      var msTitle=ms.querySelector('.ms-title').textContent.toLowerCase();
+      var items=ms.querySelectorAll('.item');
+      var statusOk=_statusFilter==='all'||ms.classList.contains(_statusFilter);
+      var textOk=!_searchTerm||msTitle.includes(_searchTerm);
+      var anyMatch=false;
+      items.forEach(function(it){
+        var itTitle=it.querySelector('.item-title').textContent.toLowerCase();
+        var ok=(_statusFilter==='all'||it.classList.contains(_statusFilter))&&
+               (!_searchTerm||itTitle.includes(_searchTerm)||msTitle.includes(_searchTerm));
+        it.style.display=ok?'':'none';
+        if(ok)anyMatch=true;
+      });
+      ms.style.display=((statusOk&&textOk)||anyMatch)?'':'none';
+      if(_searchTerm&&anyMatch){
+        ms.querySelector('.ms-body').classList.remove('hidden');
+        ms.querySelector('.ms-chevron').classList.remove('collapsed');
+      }
+    });
+  }
+  document.querySelectorAll('.ms-img,.it-img').forEach(function(img){
+    img.addEventListener('click',function(e){
+      e.stopPropagation();
+      document.getElementById('lb-img').src=img.src;
+      document.getElementById('lightbox').classList.add('open');
+    });
+  });
+  function closeLightbox(){document.getElementById('lightbox').classList.remove('open');}
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeLightbox();});
+  document.querySelectorAll('.milestone.done').forEach(function(ms){
+    var body=ms.querySelector('.ms-body');
+    var chev=ms.querySelector('.ms-chevron');
+    if(body)body.classList.add('hidden');
+    if(chev)chev.classList.add('collapsed');
+  });";
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("<!DOCTYPE html>");
+        sb.AppendLine("<html lang=\"en\">");
+        sb.AppendLine("<head>");
+        sb.AppendLine("<meta charset=\"UTF-8\">");
+        sb.AppendLine("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+        sb.AppendLine($"<title>{H(projectName)} — Roadmap</title>");
+        sb.AppendLine("<style>"); sb.AppendLine(CSS); sb.AppendLine("</style>");
+        sb.AppendLine("</head><body>");
+        sb.AppendLine($@"<div class=""hero"">
+  <h1>&#128202; {H(projectName)}</h1>
+  <p class=""subtitle"">Roadmap &middot; Exported {H(exported)}</p>
+  <div class=""stats"">
+    <div class=""stat""><span class=""val"">{roadmap.Milestones.Count}</span><span class=""lbl"">Milestones</span></div>
+    <div class=""stat""><span class=""val"">{totalItems}</span><span class=""lbl"">Items</span></div>
+    <div class=""stat""><span class=""val"">{doneItems}</span><span class=""lbl"">Done</span></div>
+    <div class=""stat""><span class=""val"">{overallPct}%</span><span class=""lbl"">Overall</span></div>
+  </div>
+  <div class=""overall-bar-wrap""><div class=""overall-bar"" style=""width:{overallPct}%""></div></div>
+</div>
+<div class=""controls"">
+  <input class=""search"" type=""text"" placeholder=""&#128269;  Search milestones &amp; items&hellip;"" oninput=""applyFilter()"">
+  <button class=""btn active"" onclick=""filterAll(this)"">All</button>
+  <button class=""btn"" onclick=""filterStatus('todo',this)"">To Do</button>
+  <button class=""btn"" onclick=""filterStatus('progress',this)"">In Progress</button>
+  <button class=""btn"" onclick=""filterStatus('done',this)"">Done</button>
+  <button class=""btn"" onclick=""expandAll()"">Expand all</button>
+  <button class=""btn"" onclick=""collapseAll()"">Collapse all</button>
+</div>
+<div class=""roadmap"" id=""roadmap"">
+{msHtml}
+</div>
+<footer>Generated by ClaudetRelay &middot; {H(projectName)} &middot; {H(exported)}</footer>
+<div id=""lightbox"" onclick=""closeLightbox()""><img id=""lb-img"" src="""" alt=""""></div>");
+        sb.AppendLine("<script>"); sb.AppendLine(JS); sb.AppendLine("</script>");
+        sb.AppendLine("</body></html>");
+        return sb.ToString();
+    }
+
 
     private static void UpdateMilestoneStatus(RoadmapMilestone ms)
     {
@@ -3999,6 +4723,21 @@ public partial class MainWindow : Window
     private bool                   _controllerRunning     = false;
     private string                 _controllerChatHistory = "";   // display text — survives panel rebuilds
     private ModelControllerRunner? _controllerRunner;             // kept alive to preserve API conversation history
+
+    // ── Bridge project state ───────────────────────────────────────────────
+    // Independent of the main chat's open project (_currentProjectFolder).
+    // Set by bridge_open_project; external MCP clients work with this context.
+    private string?          _bridgeProjectFolder;
+    private ProjectSettings? _bridgeProject;
+    private Roadmap?         _bridgeRoadmap;
+
+    /// <summary>
+    /// The project folder visible to Bridge tools — bridge-specific if explicitly opened,
+    /// otherwise falls back to the main chat's open project (if any).
+    /// </summary>
+    private string?          BridgeProjectFolder => _bridgeProjectFolder ?? _currentProjectFolder;
+    private ProjectSettings? BridgeProject       => _bridgeProject       ?? _currentProject;
+    private Roadmap?         BridgeRoadmap       => _bridgeRoadmap       ?? _currentRoadmap;
     private static readonly System.Net.Http.HttpClient _httpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(20),
@@ -4236,6 +4975,205 @@ public partial class MainWindow : Window
         };
         Grid.SetColumn(toggleBtn, 1);
         statusRow.Children.Add(toggleBtn);
+
+        // ── Bridge project ─────────────────────────────────────────────────
+        var projSectionLabel = new TextBlock
+        {
+            Text = "PROJECT", FontSize = 10, FontWeight = FontWeights.Bold,
+            FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 10, 0, 4)
+        };
+        projSectionLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+        serverPanel.Children.Add(projSectionLabel);
+
+        var projRow = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+        projRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        projRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        projRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        serverPanel.Children.Add(projRow);
+
+        var projNameTb = new TextBlock
+        {
+            FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        if (BridgeProject is not null)
+        {
+            projNameTb.Text = $"📂  {BridgeProject.ProjectName}  [{BridgeProject.ProjectTypeName}]";
+            projNameTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+        }
+        else
+        {
+            projNameTb.Text = "No project loaded";
+            projNameTb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+        }
+        Grid.SetColumn(projNameTb, 0);
+        projRow.Children.Add(projNameTb);
+
+        var loadProjBtn = MakeBridgeSmallBtn("📂  Load Project…");
+        loadProjBtn.Margin = new Thickness(8, 0, 0, 0);
+        loadProjBtn.Click += (_, _) =>
+        {
+            var s          = SettingsService.Load();
+            var rootFolder = Services.ProjectService.ResolveFolder(s.ProjectsFolder);
+            var projects   = Services.ProjectService.ListProjects(rootFolder)
+                                 .OrderByDescending(p => p.Settings.LastOpened)
+                                 .ToList();
+
+            if (projects.Count == 0)
+            {
+                MessageBox.Show("No projects found.\nCreate a project in Project mode first.",
+                    "No Projects", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // Simple picker dialog
+            var win = new Window
+            {
+                Title = "Load Bridge Project", Width = 500,
+                SizeToContent = SizeToContent.Height, MaxHeight = 600,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this, ResizeMode = ResizeMode.NoResize
+            };
+            ApplyThemeToDialog(win);
+            win.SetResourceReference(Window.BackgroundProperty, "ContentBgBrush");
+
+            var panel = new StackPanel { Margin = new Thickness(20, 16, 20, 20) };
+            win.Content = panel;
+
+            var hdr = new TextBlock
+            {
+                Text = "Select a project to load into Bridge mode:",
+                FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+            hdr.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+            panel.Children.Add(hdr);
+
+            var listBox = new ListBox
+            {
+                MaxHeight = 400, FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
+                BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 0, 14)
+            };
+            listBox.SetResourceReference(ListBox.BackgroundProperty, "ControlBgBrush");
+            listBox.SetResourceReference(ListBox.ForegroundProperty, "ContentTextBrush");
+            listBox.SetResourceReference(ListBox.BorderBrushProperty, "ControlBorderBrush");
+
+            foreach (var (folder, proj) in projects)
+            {
+                var item = new ListBoxItem
+                {
+                    Tag     = folder,
+                    Padding = new Thickness(8, 6, 8, 6)
+                };
+                var itemPanel = new StackPanel();
+                var nameTb = new TextBlock
+                {
+                    Text = $"{proj.ProjectName}  [{proj.ProjectTypeName}]",
+                    FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis
+                };
+                var dateTb = new TextBlock
+                {
+                    Text = $"Last opened: {proj.LastOpened:yyyy-MM-dd}  ·  {folder}",
+                    FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis
+                };
+                dateTb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+                itemPanel.Children.Add(nameTb);
+                itemPanel.Children.Add(dateTb);
+                item.Content = itemPanel;
+                listBox.Items.Add(item);
+            }
+            if (listBox.Items.Count > 0) listBox.SelectedIndex = 0;
+            panel.Children.Add(listBox);
+
+            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            panel.Children.Add(btnRow);
+
+            var cancelBtn = new Button
+            {
+                Content = "Cancel", Padding = new Thickness(16, 7, 16, 7),
+                Margin = new Thickness(0, 0, 8, 0), Cursor = Cursors.Hand
+            };
+            if (TryFindResource("ModernButton") is Style mbs) cancelBtn.Style = mbs;
+            cancelBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+            cancelBtn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
+            cancelBtn.Click += (_, _) => win.DialogResult = false;
+            btnRow.Children.Add(cancelBtn);
+
+            var loadBtn = new Button
+            {
+                Content = "Load", Padding = new Thickness(16, 7, 16, 7), Cursor = Cursors.Hand
+            };
+            if (TryFindResource("ModernButton") is Style lbs2) loadBtn.Style = lbs2;
+            loadBtn.SetResourceReference(Button.BackgroundProperty, "AccentBgBrush");
+            loadBtn.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
+            loadBtn.Click += (_, _) =>
+            {
+                if (listBox.SelectedItem is ListBoxItem { Tag: string folder2 })
+                    win.DialogResult = true;
+            };
+            listBox.MouseDoubleClick += (_, _) =>
+            {
+                if (listBox.SelectedItem is ListBoxItem) win.DialogResult = true;
+            };
+            btnRow.Children.Add(loadBtn);
+
+            if (win.ShowDialog() == true &&
+                listBox.SelectedItem is ListBoxItem { Tag: string chosenFolder })
+            {
+                var proj2 = Services.ProjectService.LoadProject(chosenFolder);
+                if (proj2 is not null)
+                {
+                    _bridgeProjectFolder = chosenFolder;
+                    _bridgeProject       = proj2;
+                    _bridgeRoadmap       = RoadmapService.Load(chosenFolder);
+                    BridgeLog($"📂  Bridge project loaded: {proj2.ProjectName}");
+                    BuildBridgeContent();
+                    ActivateTab(Tab.Bridge);   // refresh tab button states (dims Projects)
+                    if (ProjectsContent.Visibility == Visibility.Visible) RefreshProjectList();
+                }
+            }
+        };
+        Grid.SetColumn(loadProjBtn, 1);
+        projRow.Children.Add(loadProjBtn);
+
+        if (BridgeProject is not null)
+        {
+            var clearProjBtn = MakeBridgeSmallBtn("✕");
+            clearProjBtn.Margin  = new Thickness(4, 0, 0, 0);
+            clearProjBtn.ToolTip = "Unload bridge project";
+            clearProjBtn.Click  += (_, _) =>
+            {
+                _bridgeProjectFolder = null;
+                _bridgeProject       = null;
+                _bridgeRoadmap       = null;
+                BridgeLog("  Bridge project unloaded.");
+                BuildBridgeContent();
+                ActivateTab(Tab.Bridge);   // refresh tab button states (restores Projects)
+                if (ProjectsContent.Visibility == Visibility.Visible) RefreshProjectList();
+            };
+            Grid.SetColumn(clearProjBtn, 2);
+            projRow.Children.Add(clearProjBtn);
+        }
+
+        // Show roadmap summary when a project is loaded
+        if (BridgeRoadmap is { } rm && rm.Milestones.Count > 0)
+        {
+            var rmSummary = new TextBlock
+            {
+                FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+                Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap
+            };
+            rmSummary.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+            var parts = rm.Milestones.Select(m =>
+            {
+                var done  = m.Items.Count(i => i.Status == ItemStatus.Done);
+                var total = m.Items.Count;
+                return $"{RoadmapService.StatusIcon(m.Status)} {m.Title} {done}/{total}";
+            });
+            rmSummary.Text = string.Join("   ", parts);
+            serverPanel.Children.Add(rmSummary);
+        }
 
         // Activity log - fills remaining space
         var logHeaderRow = new Grid { Margin = new Thickness(0, 8, 0, 4) };
@@ -5643,30 +6581,435 @@ public partial class MainWindow : Window
         AddTool(new McpTool
         {
             Name        = "bridge_list_agents",
-            Description = "List all currently enabled Bridge agents by name. " +
-                          "Call this first to discover which agents are available, " +
+            Description = "List all currently enabled Bridge agents with their names, roles and specialties. " +
+                          "Call this first to understand what each agent is best at, " +
                           "then use bridge_ask_agent(name, message) to talk to any of them.",
             Provider    = "Bridge",
             InputSchemaOverride = """{ "type": "object", "properties": {} }""",
             ExecuteAsync = (_, _) =>
             {
-                var s  = SettingsService.Load();
-                var sb = new StringBuilder();
+                var s            = SettingsService.Load();
+                var participants = s.Participants;
+                var sb           = new StringBuilder();
                 sb.AppendLine("Available Bridge agents:");
                 sb.AppendLine();
                 var enabled = s.BridgeAgents.Where(a => a.IsEnabled).ToList();
                 if (enabled.Count == 0)
                 {
-                    sb.AppendLine("  (No agents enabled - add and enable agents in the Bridge panel.)");
+                    sb.AppendLine("  (No agents enabled — add and enable agents in the Bridge panel.)");
                 }
                 else
                 {
                     foreach (var a in enabled)
+                    {
+                        // Match to a ParticipantConfig to surface role + self-description
+                        var pc = participants.FirstOrDefault(p =>
+                            string.Equals(p.Type,  a.Provider, StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(p.Model, a.Model,    StringComparison.OrdinalIgnoreCase));
+
                         sb.AppendLine($"  • {a.Label}  ({(a.IsLocal ? "Local Ollama" : a.Provider)} / {a.Model})");
+                        if (!string.IsNullOrWhiteSpace(pc?.Role))
+                            sb.AppendLine($"    Role:      {pc.Role}");
+                        if (!string.IsNullOrWhiteSpace(pc?.SelfDescription))
+                            sb.AppendLine($"    Specialty: {pc.SelfDescription}");
+                        if (!string.IsNullOrWhiteSpace(pc?.Likes))
+                            sb.AppendLine($"    Likes:     {pc.Likes}");
+                        sb.AppendLine();
+                    }
                 }
-                sb.AppendLine();
                 sb.AppendLine("Pass any of these names to bridge_ask_agent.");
                 return Task.FromResult(sb.ToString());
+            }
+        });
+
+        // ── bridge_get_context - full situational picture in one call ─────
+        AddTool(new McpTool
+        {
+            Name        = "bridge_get_context",
+            Description = "Returns a complete situational snapshot: currently open project (name, type, path), " +
+                          "available agents with roles and specialties, configured folders with access levels, " +
+                          "and the temp workspace path. Call this once at the start of a session to orient yourself " +
+                          "before deciding which agents or files to use.",
+            Provider    = "Bridge",
+            InputSchemaOverride = """{ "type": "object", "properties": {} }""",
+            ExecuteAsync = (_, _) =>
+            {
+                var s            = SettingsService.Load();
+                var participants = s.Participants;
+                var sb           = new StringBuilder();
+
+                // ── Project ───────────────────────────────────────────────
+                sb.AppendLine("## Current Project");
+                if (BridgeProject is not null && BridgeProjectFolder is not null)
+                {
+                    sb.AppendLine($"  Name:   {BridgeProject.ProjectName}");
+                    sb.AppendLine($"  Type:   {BridgeProject.ProjectTypeName}");
+                    sb.AppendLine($"  Folder: {BridgeProjectFolder}");
+                    if (_bridgeProjectFolder is not null)
+                        sb.AppendLine("  (loaded via bridge_open_project)");
+                }
+                else
+                {
+                    sb.AppendLine("  No project loaded.");
+                    sb.AppendLine("  → Call bridge_list_projects then bridge_open_project(path) to load one.");
+                }
+                sb.AppendLine();
+
+                // ── Agents ────────────────────────────────────────────────
+                sb.AppendLine("## Available Agents");
+                var enabled = s.BridgeAgents.Where(a => a.IsEnabled).ToList();
+                if (enabled.Count == 0)
+                {
+                    sb.AppendLine("  (No agents enabled)");
+                }
+                else
+                {
+                    foreach (var a in enabled)
+                    {
+                        var pc = participants.FirstOrDefault(p =>
+                            string.Equals(p.Type,  a.Provider, StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(p.Model, a.Model,    StringComparison.OrdinalIgnoreCase));
+                        sb.AppendLine($"  • {a.Label}  ({(a.IsLocal ? "Local Ollama" : a.Provider)} / {a.Model})");
+                        if (!string.IsNullOrWhiteSpace(pc?.Role))
+                            sb.AppendLine($"    Role:      {pc.Role}");
+                        if (!string.IsNullOrWhiteSpace(pc?.SelfDescription))
+                            sb.AppendLine($"    Specialty: {pc.SelfDescription}");
+                        sb.AppendLine();
+                    }
+                }
+
+                // ── Folders ───────────────────────────────────────────────
+                sb.AppendLine("## Accessible Folders");
+                if (s.BridgeFolders.Count == 0)
+                {
+                    sb.AppendLine("  (No folders configured)");
+                }
+                else
+                {
+                    foreach (var f in s.BridgeFolders)
+                        sb.AppendLine($"  • {f.Path}  [{(f.AllowWrite ? "READ + WRITE" : "READ only")}]");
+                }
+                sb.AppendLine();
+
+                // ── Workspace ─────────────────────────────────────────────
+                sb.AppendLine("## Temp Workspace");
+                sb.AppendLine(string.IsNullOrWhiteSpace(s.BridgeTempFolder)
+                    ? "  (Not configured)"
+                    : $"  {s.BridgeTempFolder}");
+                sb.AppendLine();
+                // ── Roadmap summary ───────────────────────────────────────
+                if (BridgeRoadmap is not null && BridgeRoadmap.Milestones.Count > 0)
+                {
+                    sb.AppendLine("## Roadmap Summary");
+                    foreach (var ms in BridgeRoadmap.Milestones)
+                    {
+                        var done  = ms.Items.Count(i => i.Status == ItemStatus.Done);
+                        var total = ms.Items.Count;
+                        sb.AppendLine($"  {RoadmapService.StatusIcon(ms.Status)} {ms.Title}  [{ms.Progress}%  {done}/{total} tasks]");
+                    }
+                    sb.AppendLine();
+                    sb.AppendLine("  Call bridge_get_roadmap for full task details and item IDs.");
+                    sb.AppendLine();
+                }
+
+                sb.AppendLine("Use bridge_ask_agent to talk to agents, bridge_list_folders / bridge_read_file for file access.");
+                sb.AppendLine("Use bridge_get_project_info for detailed project structure, bridge_get_roadmap for full roadmap.");
+
+                return Task.FromResult(sb.ToString());
+            }
+        });
+
+        // ── bridge_list_projects - discover available projects ────────────
+        AddTool(new McpTool
+        {
+            Name        = "bridge_list_projects",
+            Description = "Lists all ClaudetRelay projects available in the configured projects folder. " +
+                          "Returns project names, types, last-opened dates and folder paths. " +
+                          "Use bridge_open_project(path) to load one for bridge_get_project_info / bridge_get_roadmap.",
+            Provider    = "Bridge",
+            InputSchemaOverride = """{ "type": "object", "properties": {} }""",
+            ExecuteAsync = (_, _) =>
+            {
+                var cfg        = SettingsService.Load();
+                var rootFolder = Services.ProjectService.ResolveFolder(cfg.ProjectsFolder);
+                var projects   = Services.ProjectService.ListProjects(rootFolder);
+
+                if (projects.Count == 0)
+                    return Task.FromResult(
+                        $"No projects found in '{rootFolder}'.\n" +
+                        "Create a project in ClaudetRelay first, or check the projects folder in General Settings.");
+
+                var sb = new StringBuilder();
+                sb.AppendLine($"Available projects  ({rootFolder}):");
+                sb.AppendLine();
+                foreach (var (folder, proj) in projects.OrderByDescending(p => p.Settings.LastOpened))
+                {
+                    sb.AppendLine($"  • {proj.ProjectName}  [{proj.ProjectTypeName}]");
+                    sb.AppendLine($"    Last opened: {proj.LastOpened:yyyy-MM-dd}");
+                    sb.AppendLine($"    Path:        {folder}");
+                    sb.AppendLine();
+                }
+                sb.AppendLine("Pass a Path to bridge_open_project to load that project.");
+                return Task.FromResult(sb.ToString());
+            }
+        });
+
+        // ── bridge_open_project - load a project for bridge use ───────────
+        AddTool(new McpTool
+        {
+            Name        = "bridge_open_project",
+            Description = "Loads a ClaudetRelay project by folder path so bridge_get_project_info, " +
+                          "bridge_get_roadmap, bridge_update_roadmap_item and bridge_complete_roadmap_item " +
+                          "have a project to work with. The project stays loaded until bridge_open_project " +
+                          "is called again or the MCP server is restarted. " +
+                          "Get folder paths from bridge_list_projects.",
+            Provider    = "Bridge",
+            InputSchemaOverride = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": { "type": "string", "description": "Absolute path to the project folder" }
+                  },
+                  "required": ["path"]
+                }
+                """,
+            ExecuteAsync = (args, _) =>
+            {
+                var path = args["path"]?.GetValue<string>()?.Trim() ?? "";
+                if (string.IsNullOrWhiteSpace(path))
+                    return Task.FromResult("Error: path is required. Use bridge_list_projects to find valid paths.");
+
+                if (!System.IO.Directory.Exists(path))
+                    return Task.FromResult($"Error: folder not found: '{path}'");
+
+                var proj = Services.ProjectService.LoadProject(path);
+                if (proj is null)
+                    return Task.FromResult(
+                        $"Error: no ClaudetRelay project found at '{path}'. " +
+                        "Make sure the path points to a project folder (contains project.json).");
+
+                _bridgeProjectFolder = path;
+                _bridgeProject       = proj;
+                _bridgeRoadmap       = RoadmapService.Load(path);
+                Dispatcher.InvokeAsync(() => {
+                    if (ProjectsContent.Visibility == Visibility.Visible) RefreshProjectList();
+                });
+
+                var milestoneCount = _bridgeRoadmap.Milestones.Count;
+                var taskCount      = _bridgeRoadmap.Milestones.Sum(m => m.Items.Count);
+                return Task.FromResult(
+                    $"Project loaded: {proj.ProjectName}  [{proj.ProjectTypeName}]\n" +
+                    $"  Folder:     {path}\n" +
+                    $"  Roadmap:    {milestoneCount} milestone(s), {taskCount} task(s)\n\n" +
+                    "You can now call bridge_get_project_info, bridge_get_roadmap, " +
+                    "bridge_update_roadmap_item and bridge_complete_roadmap_item.");
+            }
+        });
+
+        // ── bridge_get_project_info - full project details ────────────────
+        AddTool(new McpTool
+        {
+            Name        = "bridge_get_project_info",
+            Description = "Returns full details about the bridge-loaded project: name, type, description, " +
+                          "language, folder path, participant roles, and a list of project plan files. " +
+                          "Call bridge_open_project first if no project is loaded.",
+            Provider    = "Bridge",
+            InputSchemaOverride = """{ "type": "object", "properties": {} }""",
+            ExecuteAsync = (_, _) =>
+            {
+                if (BridgeProject is null || BridgeProjectFolder is null)
+                    return Task.FromResult(
+                        "No project loaded. Call bridge_list_projects to see available projects, " +
+                        "then bridge_open_project(path) to load one.");
+
+                var sb = new StringBuilder();
+                sb.AppendLine($"## Project: {BridgeProject.ProjectName}");
+                sb.AppendLine($"  Type:        {BridgeProject.ProjectTypeName}");
+                if (!string.IsNullOrWhiteSpace(BridgeProject.Language))
+                    sb.AppendLine($"  Language:    {BridgeProject.Language}");
+                sb.AppendLine($"  Folder:      {BridgeProjectFolder}");
+                sb.AppendLine($"  Created:     {BridgeProject.CreatedAt:yyyy-MM-dd}");
+                sb.AppendLine($"  Last opened: {BridgeProject.LastOpened:yyyy-MM-dd}");
+
+                if (!string.IsNullOrWhiteSpace(BridgeProject.Description))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("### Description");
+                    sb.AppendLine(BridgeProject.Description);
+                }
+
+                if (BridgeProject.Roles.Count > 0)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("### Participant Roles");
+                    foreach (var r in BridgeProject.Roles)
+                    {
+                        sb.AppendLine($"  • {r.DisplayName}  ({r.Provider} / {r.Model})");
+                        if (!string.IsNullOrWhiteSpace(r.RoleInstruction))
+                        {
+                            var snippet = r.RoleInstruction.Trim();
+                            if (snippet.Length > 120) snippet = snippet[..120] + "…";
+                            sb.AppendLine($"    Instruction: {snippet}");
+                        }
+                    }
+                }
+
+                var planDir = System.IO.Path.Combine(BridgeProjectFolder, "PROJECTPLAN");
+                if (System.IO.Directory.Exists(planDir))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("### Project Plan Files  (PROJECTPLAN/)");
+                    foreach (var sub in System.IO.Directory.GetDirectories(planDir).OrderBy(d => d))
+                    {
+                        var subName = System.IO.Path.GetFileName(sub);
+                        var files   = System.IO.Directory.GetFiles(sub).Select(System.IO.Path.GetFileName).OrderBy(f => f).ToList();
+                        if (files.Count > 0)
+                            sb.AppendLine($"  {subName}/  →  {string.Join(", ", files)}");
+                    }
+                    foreach (var f in System.IO.Directory.GetFiles(planDir).OrderBy(f => f))
+                        sb.AppendLine($"  {System.IO.Path.GetFileName(f)}");
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("Use bridge_get_roadmap to see the project roadmap, bridge_read_file to read any listed file.");
+                return Task.FromResult(sb.ToString());
+            }
+        });
+
+        // ── bridge_get_roadmap - full roadmap state ───────────────────────
+        AddTool(new McpTool
+        {
+            Name        = "bridge_get_roadmap",
+            Description = "Returns the full project roadmap: milestones, tasks, progress percentages, " +
+                          "status and item IDs needed for update/complete calls. " +
+                          "Call bridge_open_project first if no project is loaded.",
+            Provider    = "Bridge",
+            InputSchemaOverride = """{ "type": "object", "properties": {} }""",
+            ExecuteAsync = (_, _) =>
+            {
+                if (BridgeProjectFolder is null || BridgeRoadmap is null)
+                    return Task.FromResult(
+                        "No project loaded. Call bridge_list_projects then bridge_open_project(path). " +
+                        "If the project is loaded but has no roadmap, ask a coordinator agent to create one.");
+
+                var text = RoadmapService.GetContextText(BridgeRoadmap, isCoordinator: true);
+                return Task.FromResult(string.IsNullOrWhiteSpace(text)
+                    ? "The project roadmap is empty (no milestones defined yet)."
+                    : text);
+            }
+        });
+
+        // ── bridge_update_roadmap_item - set progress on a task ───────────
+        AddTool(new McpTool
+        {
+            Name        = "bridge_update_roadmap_item",
+            Description = "Set the progress percentage (0–100) on a roadmap task by its item ID. " +
+                          "Setting 100 automatically marks the item as Done. " +
+                          "Get item IDs from bridge_get_roadmap. Call bridge_open_project first.",
+            Provider    = "Bridge",
+            InputSchemaOverride = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "item_id":  { "type": "string",  "description": "8-character hex item ID from bridge_get_roadmap" },
+                    "progress": { "type": "integer", "description": "Progress percentage 0–100" }
+                  },
+                  "required": ["item_id", "progress"]
+                }
+                """,
+            ExecuteAsync = async (args, _) =>
+            {
+                if (BridgeProjectFolder is null || BridgeRoadmap is null)
+                    return "No project loaded. Call bridge_open_project first.";
+
+                var id       = args["item_id"]?.GetValue<string>()?.ToLowerInvariant() ?? "";
+                var progress = Math.Clamp(args["progress"]?.GetValue<int>() ?? 0, 0, 100);
+
+                if (string.IsNullOrWhiteSpace(id))
+                    return "Error: item_id is required. Get item IDs from bridge_get_roadmap.";
+
+                var item = BridgeRoadmap.Milestones
+                    .SelectMany(ms => ms.Items)
+                    .FirstOrDefault(i => i.Id == id);
+
+                if (item is null)
+                    return $"Error: no roadmap item with id '{id}'. Call bridge_get_roadmap to see valid IDs.";
+
+                item.Progress = progress;
+                item.Status   = progress >= 100 ? ItemStatus.Done
+                              : progress > 0    ? ItemStatus.InProgress
+                              : ItemStatus.Todo;
+                var parent = BridgeRoadmap.Milestones.First(ms => ms.Items.Contains(item));
+                UpdateMilestoneStatus(parent);
+
+                // Save to disk; refresh the live UI panel only if this is also the main chat's project
+                RoadmapService.Save(BridgeProjectFolder, BridgeRoadmap);
+                if (BridgeProjectFolder == _currentProjectFolder)
+                {
+                    _currentRoadmap = BridgeRoadmap;
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        if (RoadmapContent.Visibility == Visibility.Visible) BuildRoadmapContent();
+                    });
+                }
+
+                return $"Updated '{item.Title}' → {progress}%  ({item.Status})";
+            }
+        });
+
+        // ── bridge_complete_roadmap_item - mark a task as done ────────────
+        AddTool(new McpTool
+        {
+            Name        = "bridge_complete_roadmap_item",
+            Description = "Mark a roadmap task as fully complete (100% / Done) and record who completed it. " +
+                          "Get item IDs from bridge_get_roadmap. Call bridge_open_project first.",
+            Provider    = "Bridge",
+            InputSchemaOverride = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "item_id":      { "type": "string", "description": "8-character hex item ID from bridge_get_roadmap" },
+                    "completed_by": { "type": "string", "description": "Name of the agent or user completing this item" }
+                  },
+                  "required": ["item_id"]
+                }
+                """,
+            ExecuteAsync = async (args, _) =>
+            {
+                if (BridgeProjectFolder is null || BridgeRoadmap is null)
+                    return "No project loaded. Call bridge_open_project first.";
+
+                var id          = args["item_id"]?.GetValue<string>()?.ToLowerInvariant() ?? "";
+                var completedBy = args["completed_by"]?.GetValue<string>() ?? "Bridge";
+
+                if (string.IsNullOrWhiteSpace(id))
+                    return "Error: item_id is required. Get item IDs from bridge_get_roadmap.";
+
+                var item = BridgeRoadmap.Milestones
+                    .SelectMany(ms => ms.Items)
+                    .FirstOrDefault(i => i.Id == id);
+
+                if (item is null)
+                    return $"Error: no roadmap item with id '{id}'. Call bridge_get_roadmap to see valid IDs.";
+
+                item.Progress    = 100;
+                item.Status      = ItemStatus.Done;
+                item.CompletedBy = completedBy;
+                item.CompletedAt = DateTime.UtcNow;
+                var parent = BridgeRoadmap.Milestones.First(ms => ms.Items.Contains(item));
+                UpdateMilestoneStatus(parent);
+
+                RoadmapService.Save(BridgeProjectFolder, BridgeRoadmap);
+                if (BridgeProjectFolder == _currentProjectFolder)
+                {
+                    _currentRoadmap = BridgeRoadmap;
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        if (RoadmapContent.Visibility == Visibility.Visible) BuildRoadmapContent();
+                    });
+                }
+
+                return $"Completed '{item.Title}' — marked Done by {completedBy}.";
             }
         });
 
@@ -7033,80 +8376,126 @@ public partial class MainWindow : Window
     /// Claude, Claude Code, and API agents know exactly what paths are available
     /// without needing to read any config files.
     /// </summary>
-    private static string BuildBridgeInstructions()
+    private string BuildBridgeInstructions()
     {
-        var cfg     = SettingsService.Load();
-        var folders = cfg.BridgeFolders;
+        var cfg          = SettingsService.Load();
+        var folders      = cfg.BridgeFolders;
+        var participants = cfg.Participants;
 
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("## ClaudetRelay Bridge - File Access");
+        sb.AppendLine("## ClaudetRelay Bridge");
         sb.AppendLine();
-        sb.AppendLine("You are connected to a ClaudetRelay Bridge MCP server.");
-        sb.AppendLine("The following local folders are accessible via the bridge file tools:");
+        sb.AppendLine("You are connected to a ClaudetRelay Bridge MCP server running on the user's machine.");
         sb.AppendLine();
 
+        // ── Current session ───────────────────────────────────────────────
+        sb.AppendLine("### Current Session");
+        if (BridgeProject is not null && BridgeProjectFolder is not null)
+        {
+            sb.AppendLine($"  Project: {BridgeProject.ProjectName}  (type: {BridgeProject.ProjectTypeName})");
+            sb.AppendLine($"  Path:    {BridgeProjectFolder}");
+        }
+        else
+        {
+            sb.AppendLine("  No project loaded.");
+            sb.AppendLine("  → Call bridge_list_projects then bridge_open_project(path) to load one.");
+        }
+        sb.AppendLine();
+
+        // ── Available agents ──────────────────────────────────────────────
+        sb.AppendLine("### Available Agents");
+        var enabledAgents = cfg.BridgeAgents.Where(a => a.IsEnabled).ToList();
+        if (enabledAgents.Count == 0)
+        {
+            sb.AppendLine("  (No agents enabled yet)");
+        }
+        else
+        {
+            foreach (var a in enabledAgents)
+            {
+                var pc = participants.FirstOrDefault(p =>
+                    string.Equals(p.Type,  a.Provider, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(p.Model, a.Model,    StringComparison.OrdinalIgnoreCase));
+                var roleTag = string.IsNullOrWhiteSpace(pc?.Role) ? "" : $"  [{pc.Role}]";
+                sb.AppendLine($"  • {a.Label}{roleTag}  ({(a.IsLocal ? "Local Ollama" : a.Provider)} / {a.Model})");
+                if (!string.IsNullOrWhiteSpace(pc?.SelfDescription))
+                    sb.AppendLine($"    {pc.SelfDescription}");
+            }
+        }
+        sb.AppendLine();
+        sb.AppendLine("  Call bridge_get_context for full agent details including likes/specialties.");
+        sb.AppendLine();
+
+        // ── Accessible folders ────────────────────────────────────────────
+        sb.AppendLine("### Accessible Folders");
         if (folders.Count == 0)
         {
-            sb.AppendLine("  (No folders configured yet - add folders in the Bridge → Folders panel.)");
+            sb.AppendLine("  (No folders configured yet — add folders in Bridge → Folders panel.)");
         }
         else
         {
             foreach (var f in folders)
-            {
-                var access = f.AllowWrite ? "READ + WRITE" : "READ only";
-                sb.AppendLine($"  • {f.Path}  [{access}]");
-            }
+                sb.AppendLine($"  • {f.Path}  [{(f.AllowWrite ? "READ + WRITE" : "READ only")}]");
         }
-
-        sb.AppendLine();
-        sb.AppendLine("Available tools:");
-        sb.AppendLine("  Agents:");
-        sb.AppendLine("    • bridge_list_agents()                        - discover agents and their names");
-        sb.AppendLine("    • bridge_ask_agent(name, message)             - send a message to a named agent");
-        sb.AppendLine("  Folders:");
-        sb.AppendLine("    • bridge_list_folders()                       - discover configured folders + write access");
-        sb.AppendLine("    • bridge_list_folder(path)                    - list files and subfolders at a path");
-        sb.AppendLine("    • bridge_create_folder(path)                  - create a new folder");
-        sb.AppendLine("  Files (text):");
-        sb.AppendLine("    • bridge_file_exists(path)                    - check if a file or folder exists");
-        sb.AppendLine("    • bridge_read_file(path)                      - read text file (max 200 KB)");
-        sb.AppendLine("    • bridge_write_file(path, content)            - write/overwrite a text file");
-        sb.AppendLine("    • bridge_append_file(path, content)           - append text to a file");
-        sb.AppendLine("    • bridge_rename(path, new_name)               - rename a file or folder");
-        sb.AppendLine("    • bridge_move_file(source, destination)       - move a file");
-        sb.AppendLine("    • bridge_delete_file(path)                    - delete a file");
-        sb.AppendLine("  Files (binary):");
-        sb.AppendLine("    • bridge_read_file_binary(path)               - read any file as base64 (max 10 MB)");
-        sb.AppendLine("    • bridge_write_file_binary(path, base64)      - write binary content from base64");
-        sb.AppendLine();
-        sb.AppendLine("  Utility:");
-        sb.AppendLine("    • bridge_get_datetime()                        - current local date, time, day, unix timestamp");
-        sb.AppendLine("    • bridge_web_fetch(url)                        - fetch a URL and return stripped readable text (max 200 KB)");
-        sb.AppendLine("  Parallel tasks:");
-        sb.AppendLine("    • bridge_get_workspace()                        - get the temp workspace path for agent output files");
-        sb.AppendLine("    • bridge_run_agent_task(name, message, output)  - fire an agent async, returns task_id immediately");
-        sb.AppendLine("    • bridge_list_active_tasks()                    - check status of all running/completed tasks");
-        sb.AppendLine("    • bridge_wait_for_tasks(task_ids, timeout_sec)  - wait for tasks; returns errors on timeout/failure");
         sb.AppendLine();
 
-        // Temp workspace
+        // ── Temp workspace ────────────────────────────────────────────────
         if (!string.IsNullOrWhiteSpace(cfg.BridgeTempFolder))
         {
             sb.AppendLine($"Temp workspace: {cfg.BridgeTempFolder}");
-            sb.AppendLine("Use this path as the base for parallel agent task output files.");
+            sb.AppendLine("Use this as the base path for parallel agent task output files.");
             sb.AppendLine();
         }
 
-        sb.AppendLine("Parallel workflow pattern:");
+        // ── Tool reference ────────────────────────────────────────────────
+        sb.AppendLine("### Available Tools");
+        sb.AppendLine("  Context & Project:");
+        sb.AppendLine("    • bridge_get_context()                         - full snapshot: project, agents, folders, roadmap summary");
+        sb.AppendLine("    • bridge_get_project_info()                    - project details, description, roles, plan file list");
+        sb.AppendLine("    • bridge_get_roadmap()                         - full roadmap with milestones, tasks, IDs and progress");
+        sb.AppendLine("    • bridge_update_roadmap_item(item_id, progress) - set task progress % (100 = Done)");
+        sb.AppendLine("    • bridge_complete_roadmap_item(item_id, completed_by) - mark task as fully Done");
+        sb.AppendLine("  Agents:");
+        sb.AppendLine("    • bridge_list_projects()                       - list all available projects");
+        sb.AppendLine("    • bridge_open_project(path)                    - load a project for info/roadmap tools");
+        sb.AppendLine("  Agents:");
+        sb.AppendLine("    • bridge_list_agents()                         - agents with roles and specialties");
+        sb.AppendLine("    • bridge_ask_agent(name, message)              - send a message to a named agent");
+        sb.AppendLine("  Folders:");
+        sb.AppendLine("    • bridge_list_folders()                        - configured folders + write access");
+        sb.AppendLine("    • bridge_list_folder(path)                     - list files and subfolders at a path");
+        sb.AppendLine("    • bridge_create_folder(path)                   - create a new folder");
+        sb.AppendLine("  Files (text):");
+        sb.AppendLine("    • bridge_file_exists(path)                     - check if a file or folder exists");
+        sb.AppendLine("    • bridge_read_file(path)                       - read text file (max 200 KB)");
+        sb.AppendLine("    • bridge_write_file(path, content)             - write/overwrite a text file");
+        sb.AppendLine("    • bridge_append_file(path, content)            - append text to a file");
+        sb.AppendLine("    • bridge_rename(path, new_name)                - rename a file or folder");
+        sb.AppendLine("    • bridge_move_file(source, destination)        - move a file");
+        sb.AppendLine("    • bridge_delete_file(path)                     - delete a file");
+        sb.AppendLine("  Files (binary):");
+        sb.AppendLine("    • bridge_read_file_binary(path)                - read any file as base64 (max 10 MB)");
+        sb.AppendLine("    • bridge_write_file_binary(path, base64)       - write binary content from base64");
+        sb.AppendLine("  Utility:");
+        sb.AppendLine("    • bridge_get_datetime()                        - current local date, time, day, unix timestamp");
+        sb.AppendLine("    • bridge_web_fetch(url)                        - fetch a URL, returns readable text (max 200 KB)");
+        sb.AppendLine("  Parallel tasks:");
+        sb.AppendLine("    • bridge_get_workspace()                       - get temp workspace path");
+        sb.AppendLine("    • bridge_run_agent_task(name, message, output) - fire agent async, returns task_id immediately");
+        sb.AppendLine("    • bridge_list_active_tasks()                   - status of all running/completed tasks");
+        sb.AppendLine("    • bridge_wait_for_tasks(task_ids, timeout_sec) - wait for tasks; errors on timeout/failure");
+        sb.AppendLine();
+
+        sb.AppendLine("### Parallel Workflow Pattern");
         sb.AppendLine("  1. bridge_get_workspace()                            → get temp path");
         sb.AppendLine("  2. bridge_run_agent_task(A, prompt, 'a_out.txt')     → task_id_A");
         sb.AppendLine("  3. bridge_run_agent_task(B, prompt, 'b_out.txt')     → task_id_B  (fires immediately)");
-        sb.AppendLine("  4. bridge_wait_for_tasks([task_id_A, task_id_B])     → results with errors if any failed");
+        sb.AppendLine("  4. bridge_wait_for_tasks([task_id_A, task_id_B])     → waits; errors if any failed");
         sb.AppendLine("  5. bridge_read_file(workspace + 'a_out.txt')         → agent A's response");
         sb.AppendLine("  6. bridge_read_file(workspace + 'b_out.txt')         → agent B's response");
         sb.AppendLine();
-        sb.AppendLine("Tip: start with bridge_list_agents and bridge_list_folders to discover what is available.");
-        sb.AppendLine("Paths outside the listed folders will always be rejected.");
+        sb.AppendLine("Tip: call bridge_get_context first to get your full bearings in one shot.");
+        sb.AppendLine("Paths outside the listed folders are always rejected.");
 
         return sb.ToString();
     }
@@ -8311,16 +9700,20 @@ public partial class MainWindow : Window
     {
         var menu = new ContextMenu();
 
+        var generalItem   = new MenuItem { Header = "⚙  General Settings" };
         var foldersItem   = new MenuItem { Header = "📁  Folders Setup" };
         var providersItem = new MenuItem { Header = "🔑  Providers Setup" };
         var infoItem      = new MenuItem { Header = "ℹ  Info" };
         var versionItem   = new MenuItem { Header = "📋  Version" };
 
+        generalItem  .Click += (_, _) => OpenGeneralSettings();
         foldersItem  .Click += (_, _) => ShowFoldersSetupDialog();
         providersItem.Click += (_, _) => OpenProvidersSetup();
         infoItem     .Click += (_, _) => ShowAboutInfoDialog();
         versionItem  .Click += (_, _) => ShowAboutVersionDialog();
 
+        menu.Items.Add(generalItem);
+        menu.Items.Add(new Separator());
         menu.Items.Add(foldersItem);
         menu.Items.Add(providersItem);
         menu.Items.Add(new Separator());
@@ -8330,6 +9723,24 @@ public partial class MainWindow : Window
         menu.PlacementTarget = (Button)sender;
         menu.Placement       = System.Windows.Controls.Primitives.PlacementMode.Bottom;
         menu.IsOpen          = true;
+    }
+
+    private void OpenGeneralSettings()
+    {
+        var win = new SettingsWindow(_currentThemePath, providerModeOnly: false) { Owner = this };
+        if (win.ShowDialog() == true)
+        {
+            var updated = SettingsService.Load();
+            _userName             = string.IsNullOrWhiteSpace(updated.UserName) ? "You" : updated.UserName.Trim();
+            _toneLevel            = updated.ToneLevel;
+            _mockingbirdMode      = updated.MockingbirdMode;
+            _aiDialogueEnabled    = updated.AiDialogueEnabled;
+            _aiDialogueMaxTurns   = Math.Clamp(updated.AiDialogueMaxTurns, 3, 100);
+            _globalResponseLength = Math.Clamp(updated.GlobalResponseLength, 0, 100);
+            UpdateAiDialogueButton();
+            ApplyChatFont(updated);
+            ApplyUiZoom(updated.UiZoom);
+        }
     }
 
     private void OpenProvidersSetup()
@@ -8583,6 +9994,19 @@ public partial class MainWindow : Window
     {
         Resources["ChatFontFamily"] = new FontFamily(settings.ChatFontFamily);
         Resources["ChatFontSize"]   = settings.ChatFontSize;
+    }
+
+    /// <summary>
+    /// Applies a uniform UI zoom to the main window content.
+    /// The main window itself is not resized (it fills the screen / is user-resized);
+    /// its scroll areas handle any overflow at large zoom levels.
+    /// Also re-applies zoom to the open ParticipantsWindow if it is currently visible.
+    /// </summary>
+    private void ApplyUiZoom(double zoom)
+    {
+        UiZoomHelper.Apply(this, zoom, scaleWindow: false);
+        if (_participantsWindow is { IsVisible: true })
+            UiZoomHelper.Apply(_participantsWindow, zoom, scaleWindow: false);
     }
 
     /// <summary>
@@ -11228,7 +12652,7 @@ public partial class MainWindow : Window
             // Only set "Ready" if there is no active error badge - don't overwrite a live error
             if (ui.ErrorBadge.Visibility == Visibility.Collapsed)
             {
-                ui.StatusLabel.Text       = "Ready";
+                ui.StatusLabel.Text       = !string.IsNullOrWhiteSpace(ui.Data.Mood) ? ui.Data.Mood : "Ready";
                 ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
                 ui.StatusLabel.Visibility = Visibility.Visible;
             }
@@ -11269,7 +12693,7 @@ public partial class MainWindow : Window
             // Only set "Ready" if there is no active error badge - don't overwrite a live error
             if (ui.ErrorBadge.Visibility == Visibility.Collapsed)
             {
-                ui.StatusLabel.Text       = "Ready";
+                ui.StatusLabel.Text       = !string.IsNullOrWhiteSpace(ui.Data.Mood) ? ui.Data.Mood : "Ready";
                 ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
                 ui.StatusLabel.Visibility = Visibility.Visible;
             }
@@ -11335,11 +12759,79 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SetParticipantError(OllamaParticipantUI   ui, string? errorText)
-        => ApplyErrorState(ui.ErrorBadge, ui.StatusLabel, errorText);
+    private void SetParticipantError(OllamaParticipantUI ui, string? errorText)
+    {
+        ApplyErrorState(ui.ErrorBadge, ui.StatusLabel, errorText);
+        // After clearing an error, restore the mood word if we have one
+        if (string.IsNullOrEmpty(errorText) && !string.IsNullOrWhiteSpace(ui.Data.Mood))
+        {
+            ui.StatusLabel.Text = ui.Data.Mood;
+        }
+    }
 
-    private void SetParticipantError(CloudAIParticipantUI  ui, string? errorText)
-        => ApplyErrorState(ui.ErrorBadge, ui.StatusLabel, errorText);
+    private void SetParticipantError(CloudAIParticipantUI ui, string? errorText)
+    {
+        ApplyErrorState(ui.ErrorBadge, ui.StatusLabel, errorText);
+        // After clearing an error, restore the mood word if we have one
+        if (string.IsNullOrEmpty(errorText) && !string.IsNullOrWhiteSpace(ui.Data.Mood))
+        {
+            ui.StatusLabel.Text = ui.Data.Mood;
+        }
+    }
+
+    /// <summary>
+    /// Called once per completed (non-hidden, non-error) response from a participant.
+    /// Increments the response counter; every 5th response fires a background mood fetch
+    /// and updates the participant's status label with the returned word.
+    /// </summary>
+    private void OnParticipantResponded(OllamaParticipantUI ui)
+    {
+        ui.Data.ResponseCount++;
+        if (ui.Data.ResponseCount % 5 != 0) return;
+        var type  = "Ollama";
+        var model = ui.Data.Service.CurrentModel;
+        var url   = ui.Data.Service.BaseUrl;
+        SelfDescriptionService.FetchMoodAsync(type, model, url)
+            .ContinueWith(t =>
+            {
+                var mood = t.Result;
+                if (string.IsNullOrWhiteSpace(mood)) return;
+                ui.Data.Mood = mood;
+                Dispatcher.InvokeAsync(() =>
+                {
+                    if (ui.ErrorBadge.Visibility == Visibility.Collapsed)
+                    {
+                        ui.StatusLabel.Text       = mood;
+                        ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
+                        ui.StatusLabel.Visibility = Visibility.Visible;
+                    }
+                });
+            }, TaskScheduler.Default);
+    }
+
+    private void OnParticipantResponded(CloudAIParticipantUI ui)
+    {
+        ui.Data.ResponseCount++;
+        if (ui.Data.ResponseCount % 5 != 0) return;
+        var type  = ui.Data.Service.ProviderName;
+        var model = ui.Data.Service.CurrentModel;
+        SelfDescriptionService.FetchMoodAsync(type, model, serverUrl: "")
+            .ContinueWith(t =>
+            {
+                var mood = t.Result;
+                if (string.IsNullOrWhiteSpace(mood)) return;
+                ui.Data.Mood = mood;
+                Dispatcher.InvokeAsync(() =>
+                {
+                    if (ui.ErrorBadge.Visibility == Visibility.Collapsed)
+                    {
+                        ui.StatusLabel.Text       = mood;
+                        ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
+                        ui.StatusLabel.Visibility = Visibility.Visible;
+                    }
+                });
+            }, TaskScheduler.Default);
+    }
 
     /// <summary>
     /// Injects a system-level notification into the shared history so the coordinator
@@ -13357,6 +14849,7 @@ public partial class MainWindow : Window
                     skipLatestUserMessage: false, hidden: false, _loopDepth: _loopDepth + 1);
             }
             // ─────────────────────────────────────────────────────────────────────────
+            if (!hidden) OnParticipantResponded(ui);   // moodlet counter
             return true;
         }
         catch (OperationCanceledException)
@@ -13511,6 +15004,7 @@ public partial class MainWindow : Window
                     skipLatestUserMessage: false, hidden: false, _loopDepth: _loopDepth + 1);
             }
             // ─────────────────────────────────────────────────────────────────────────
+            if (!hidden) OnParticipantResponded(ui);   // moodlet counter
             return true;
         }
         catch (OperationCanceledException)
@@ -14454,22 +15948,34 @@ public partial class MainWindow : Window
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
+        // Singleton pattern: only one ParticipantsWindow at a time.
+        if (_participantsWindow is not null && !_participantsWindow.IsLoaded)
+            _participantsWindow = null;   // window was created but never shown, or closed unexpectedly
+
+        if (_participantsWindow is not null && _participantsWindow.IsVisible)
+        {
+            _participantsWindow.Activate();   // already open — bring to foreground
+            return;
+        }
+
         // Snapshot the participants list BEFORE the window opens so we can diff on close.
         var settingsBefore = SettingsService.Load();
 
         // Open the new card-grid participants window.
         // General settings (User Name, Tone, Providers) are accessible from inside it.
-        var win = new ParticipantsWindow(_currentThemePath, this);
-        win.Closed += (_, _) =>
+        _participantsWindow = new ParticipantsWindow(_currentThemePath, this);
+        _participantsWindow.Closed += (_, _) =>
         {
+            _participantsWindow = null;   // clear reference so a new window can be opened
             // Full rebuild — index-based delta is unreliable when participants are
             // added, deleted or reordered; a clean reinit is simpler and always correct.
             ReInitializeParticipants();
             var settingsAfter = SettingsService.Load();
             ApplyThrottleSettings(settingsAfter);
             ApplyChatFont(settingsAfter);
+            ApplyUiZoom(settingsAfter.UiZoom);
         };
-        win.Show();
+        _participantsWindow.Show();
     }
 
     /// <summary>
@@ -15055,6 +16561,20 @@ public partial class MainWindow : Window
 
         if (!string.IsNullOrWhiteSpace(_currentProjectType.SystemPromptHint))
             sb.Append($"\n\n{_currentProjectType.SystemPromptHint}");
+
+        // Passive-mode guard: participants must NOT self-start creative work.
+        // The user controls when and what is produced — agents plan, ask, and wait.
+        sb.Append("""
+
+
+## Behaviour rules for this project session
+- **Do NOT generate story content, write scenes, draft chapters, or create characters / locations / factions autonomously.**
+- Wait for an explicit instruction from the user before producing any creative output.
+- If you are unsure what the user wants, ask a short clarifying question instead of assuming and proceeding.
+- When the user gives a task, confirm your understanding and the scope before starting — especially for writing tasks.
+- Suggestions and brief outlines are welcome; fully written content only when specifically requested.
+- The user may have an existing world, cast of characters, and locations — do not invent or introduce new ones unless asked.
+""");
 
         return sb.ToString();
     }

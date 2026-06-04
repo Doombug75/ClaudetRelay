@@ -1,5 +1,7 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using ClaudetRelay.Services;
@@ -61,6 +63,7 @@ public partial class SettingsWindow : Window
     private CheckBox  _mockingbirdBox       = null!;
     private TextBox   _dialogueTurnsBox     = null!;
     private Slider    _responseLengthSlider = null!;
+    private Slider    _zoomSlider           = null!;
 
     // ── Constructor ────────────────────────────────────────────────────────
 
@@ -86,8 +89,12 @@ public partial class SettingsWindow : Window
         }
 
         InitializeComponent();
+        SourceInitialized += (_, _) => ApplyTitleBarTheme();
 
         var settings = SettingsService.Load();
+
+        // Apply UI zoom so the settings window itself respects the current scale setting
+        UiZoomHelper.Apply(this, Math.Clamp(settings.UiZoom, 0.5, 3.0));
 
         if (providerModeOnly)
         {
@@ -367,6 +374,50 @@ public partial class SettingsWindow : Window
         var responseLengthHint = MakeHintText(
             "50 = model default (no instruction injected)  ·  Only applies in general chat — project settings always take priority.");
 
+        // ── UI Zoom ─────────────────────────────────────────────────────────
+        var zoomSep = new Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 12) };
+        zoomSep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
+
+        var zoomCurrentValue = Math.Clamp(settings.UiZoom, 0.5, 3.0);
+        var zoomValueLabel = new TextBlock
+        {
+            FontSize   = 12, FontFamily = new FontFamily("Segoe UI"),
+            Text       = UiZoomHelper.FormatLabel(zoomCurrentValue),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin     = new Thickness(0, 0, 0, 4)
+        };
+        zoomValueLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+
+        var zoomLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "UI ZOOM" };
+
+        var zoomSlider = new Slider
+        {
+            Minimum             = 50,
+            Maximum             = 300,
+            Value               = zoomCurrentValue * 100,
+            TickFrequency       = 25,
+            IsSnapToTickEnabled = false,
+            Margin              = new Thickness(0, 0, 0, 4)
+        };
+        _zoomSlider = zoomSlider;
+        zoomSlider.ValueChanged += (_, e) =>
+            zoomValueLabel.Text = UiZoomHelper.FormatLabel(e.NewValue / 100.0);
+
+        var zoomRow = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        zoomRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        zoomRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        zoomRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var zLeft  = MakeHintText("50%");
+        var zRight = MakeHintText("300%");
+        Grid.SetColumn(zLeft,       0);
+        Grid.SetColumn(zoomSlider,  1);
+        Grid.SetColumn(zRight,      2);
+        zoomRow.Children.Add(zLeft);
+        zoomRow.Children.Add(zoomSlider);
+        zoomRow.Children.Add(zRight);
+
+        var zoomHint = MakeHintText("Scales all windows uniformly. Main window applies immediately on save; other windows apply when next opened.");
+
         var root = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         root.Children.Add(nameLabel);
         root.Children.Add(userNameOuter);
@@ -385,6 +436,11 @@ public partial class SettingsWindow : Window
         root.Children.Add(responseLengthValueLabel);
         root.Children.Add(responseLengthRow);
         root.Children.Add(responseLengthHint);
+        root.Children.Add(zoomSep);
+        root.Children.Add(zoomLabel);
+        root.Children.Add(zoomValueLabel);
+        root.Children.Add(zoomRow);
+        root.Children.Add(zoomHint);
 
         var scroll = new ScrollViewer
         {
@@ -1190,11 +1246,12 @@ public partial class SettingsWindow : Window
         var userName = _userNameBox.Text.Trim();
         settings.UserName = string.IsNullOrEmpty(userName) ? "You" : userName;
 
-        settings.ToneLevel           = (int)_toneSlider.Value;
-        settings.MockingbirdMode     = _mockingbirdBox.IsChecked == true;
-        settings.AiDialogueMaxTurns  = int.TryParse(_dialogueTurnsBox.Text, out var dTurns)
-                                       && dTurns is >= 3 and <= 100 ? dTurns : 10;
+        settings.ToneLevel            = (int)_toneSlider.Value;
+        settings.MockingbirdMode      = _mockingbirdBox.IsChecked == true;
+        settings.AiDialogueMaxTurns   = int.TryParse(_dialogueTurnsBox.Text, out var dTurns)
+                                        && dTurns is >= 3 and <= 100 ? dTurns : 10;
         settings.GlobalResponseLength = (int)_responseLengthSlider.Value;
+        settings.UiZoom               = Math.Clamp(_zoomSlider.Value / 100.0, 0.5, 3.0);
 
         settings.Participants.Clear();
 
@@ -1405,4 +1462,32 @@ public partial class SettingsWindow : Window
             "OpenAI ChatGPT" => new OpenAIService(apiKey),
             _                => new AnthropicService(apiKey)
         };
+
+    // ── DWM title-bar theming ──────────────────────────────────────────────
+
+    [DllImport("dwmapi.dll", EntryPoint = "DwmSetWindowAttribute")]
+    private static extern int DwmSetWindowAttribute(nint hwnd, int attr, ref int val, int sz);
+
+    private void ApplyTitleBarTheme()
+    {
+        try
+        {
+            if (TryFindResource("SidebarBgBrush")   is not SolidColorBrush bg)   return;
+            if (TryFindResource("SidebarTextBrush") is not SolidColorBrush text) return;
+            var hwnd   = new WindowInteropHelper(this).Handle;
+            var isDark = RelLum(bg.Color) < 0.5 ? 1 : 0;
+            var cr     = bg.Color.R   | (bg.Color.G   << 8) | (bg.Color.B   << 16);
+            var tcr    = text.Color.R | (text.Color.G << 8) | (text.Color.B << 16);
+            DwmSetWindowAttribute(hwnd, 20, ref isDark, 4);   // dark mode flag  (Win 10+)
+            DwmSetWindowAttribute(hwnd, 35, ref cr,    4);   // caption colour  (Win 11+)
+            DwmSetWindowAttribute(hwnd, 36, ref tcr,   4);   // caption text    (Win 11+)
+        }
+        catch { }
+    }
+
+    private static double RelLum(Color c)
+    {
+        static double L(double v) => v <= 0.04045 ? v / 12.92 : Math.Pow((v + 0.055) / 1.055, 2.4);
+        return 0.2126 * L(c.R / 255.0) + 0.7152 * L(c.G / 255.0) + 0.0722 * L(c.B / 255.0);
+    }
 }

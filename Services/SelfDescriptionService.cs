@@ -17,20 +17,22 @@ public static class SelfDescriptionService
     // ── Prompts ────────────────────────────────────────────────────────────
 
     private const string DescriptionPrompt =
-        "Answer with ONLY these two lines. Nothing else.\n" +
-        "TITLE: [your role in 1-3 words]\n" +
-        "DESC: [one sentence — what you do best]\n\n" +
-        "Example:\n" +
+        "IMPORTANT: You MUST reply with EXACTLY these two lines. No greeting, no explanation, no extra text — just these two lines.\n" +
+        "TITLE: [your role in 1–3 words]\n" +
+        "DESC: [one sentence describing what you do best]\n\n" +
+        "Example — your entire reply should look exactly like this:\n" +
         "TITLE: Coding Expert\n" +
-        "DESC: I excel at writing, debugging, and reviewing code in any language.";
+        "DESC: I excel at writing, debugging, and reviewing code in any language.\n\n" +
+        "Now write your two lines:";
 
     private const string LikesPrompt =
-        "Answer with ONLY these two lines. Nothing else.\n" +
+        "IMPORTANT: You MUST reply with EXACTLY these two lines. No greeting, no explanation, no extra text — just these two lines.\n" +
         "LIKES: [one sentence — what kind of work you enjoy most]\n" +
         "DISLIKES: [one sentence — what kind of work you find least interesting]\n\n" +
-        "Example:\n" +
+        "Example — your entire reply should look exactly like this:\n" +
         "LIKES: I love tackling complex algorithmic puzzles and system-design challenges.\n" +
-        "DISLIKES: I find purely repetitive boilerplate generation a bit tedious.";
+        "DISLIKES: I find purely repetitive boilerplate generation a bit tedious.\n\n" +
+        "Now write your two lines:";
 
     // ── Public API ─────────────────────────────────────────────────────────
 
@@ -93,6 +95,35 @@ public static class SelfDescriptionService
             }
         }
         catch { /* never propagate */ }
+    }
+
+    // ── Mood API ───────────────────────────────────────────────────────────
+
+    private const string MoodPrompt =
+        "Reply with exactly one word describing your current mood. " +
+        "Just the single word — no punctuation, no explanation.";
+
+    /// <summary>
+    /// Asks the model for a one-word mood and returns it, or null on any failure.
+    /// Never throws — designed for fire-and-forget callers.
+    /// </summary>
+    public static async Task<string?> FetchMoodAsync(
+        string type, string model, string serverUrl,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(model)) return null;
+        if (IsCloud(type) && string.IsNullOrWhiteSpace(WindowsCredentialManager.Load(type)))
+            return null;
+        try
+        {
+            var (raw, error) = await CallAsync(type, model, serverUrl, MoodPrompt, temperature: null, ct);
+            if (error is not null || string.IsNullOrWhiteSpace(raw)) return null;
+            // Take the first token that looks like a single word (letters only, 3–20 chars)
+            var word = raw.Trim().Split([' ', '\n', '\r', '.', ',', '!', '?'], StringSplitOptions.RemoveEmptyEntries)
+                          .FirstOrDefault(w => w.Length is >= 2 and <= 20 && w.All(char.IsLetter));
+            return word is null ? null : char.ToUpper(word[0]) + word[1..].ToLower();
+        }
+        catch { return null; }
     }
 
     // ── Parsers ────────────────────────────────────────────────────────────

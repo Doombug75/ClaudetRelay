@@ -17,7 +17,8 @@ public class ParticipantsWindow : Window
 
     private readonly string?      _themePath;
     private readonly MainWindow?  _mainWindow;
-    private          string       _sortMode = "slot";
+    private          string       _sortMode    = "slot";
+    private          bool         _activeAtTop = false;
     private          WrapPanel?   _cards;
 
     // Temp storage for rate-limit controls shared between RebuildRpmSection and saveBtn.Click
@@ -105,9 +106,11 @@ public class ParticipantsWindow : Window
             catch { }
         }
 
+        var zoom = UiZoomHelper.FromSettings();
+
         Title                 = "Participants";
-        Width                 = 860;
-        Height                = 680;
+        Width                 = 860 * zoom;
+        Height                = 680 * zoom;
         MinWidth              = 600;
         MinHeight             = 400;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -115,6 +118,10 @@ public class ParticipantsWindow : Window
         ResizeMode            = ResizeMode.CanResize;
         SetResourceReference(BackgroundProperty, "ContentBgBrush");
         SourceInitialized += (_, _) => TryApplyTitleBar();
+
+        // Apply zoom to content so all text, controls and spacing scale uniformly.
+        // Window size is already pre-scaled above so we pass scaleWindow=false here.
+        Loaded += (_, _) => UiZoomHelper.Apply(this, zoom, scaleWindow: false);
 
         BuildUI();
     }
@@ -137,7 +144,6 @@ public class ParticipantsWindow : Window
         var toolbar = new Grid();
         toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         toolBorder.Child = toolbar;
 
@@ -182,18 +188,26 @@ public class ParticipantsWindow : Window
             };
             sortPanel.Children.Add(b);
         }
-        AddSort("Slot #", "slot");
-        AddSort("Name",   "name");
+        AddSort("Slot #",    "slot");
+        AddSort("Name",     "name");
         AddSort("Provider", "provider");
-        AddSort("Date",   "date");
+        AddSort("Date",     "date");
 
-        // General settings button
-        var genBtn = MakeBtn("⚙  General Settings", isPrimary: false);
-        genBtn.Margin = new Thickness(16, 0, 0, 0);
-        genBtn.Click += (_, _) =>
-            new SettingsWindow(_themePath, initialTabIndex: 0) { Owner = this }.ShowDialog();
-        Grid.SetColumn(genBtn, 3);
-        toolbar.Children.Add(genBtn);
+        // "Active at top" toggle
+        var activeTopChk = new CheckBox
+        {
+            Content   = "Active first",
+            IsChecked = _activeAtTop,
+            FontSize  = 11, FontFamily = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(10, 0, 0, 0)
+        };
+        activeTopChk.SetResourceReference(CheckBox.ForegroundProperty, "SidebarDimBrush");
+        activeTopChk.Checked   += (_, _) => { _activeAtTop = true;  RebuildCards(); };
+        activeTopChk.Unchecked += (_, _) => { _activeAtTop = false; RebuildCards(); };
+        sortPanel.Children.Add(activeTopChk);
+
+        // (General Settings moved to the main window's three-dots menu)
 
         // Separator
         var sep = new Rectangle { Height = 1 };
@@ -231,16 +245,30 @@ public class ParticipantsWindow : Window
         // Build display list: preserve original index for all mutations.
         var indexed = participants.Select((p, i) => (p, slot: i + 1, origIdx: i)).ToList();
 
-        var sorted = _sortMode switch
+        IEnumerable<(ParticipantConfig p, int slot, int origIdx)> ApplySort(
+            IEnumerable<(ParticipantConfig p, int slot, int origIdx)> src) => _sortMode switch
         {
-            "name"      => indexed.OrderBy(x => !string.IsNullOrEmpty(x.p.Name) ? x.p.Name : x.p.Type,
-                               StringComparer.OrdinalIgnoreCase).ToList(),
-            "provider"  => indexed.OrderBy(x => x.p.Type, StringComparer.OrdinalIgnoreCase)
-                               .ThenBy(x => x.p.Name, StringComparer.OrdinalIgnoreCase).ToList(),
-            "date"      => indexed.OrderBy(x => x.p.DateAdded).ToList(),
-            "slot_desc" => indexed.OrderByDescending(x => x.slot).ToList(),
-            _           => indexed
+            "name"      => src.OrderBy(x => !string.IsNullOrEmpty(x.p.Name) ? x.p.Name : x.p.Type,
+                               StringComparer.OrdinalIgnoreCase),
+            "provider"  => src.OrderBy(x => x.p.Type, StringComparer.OrdinalIgnoreCase)
+                              .ThenBy(x => x.p.Name, StringComparer.OrdinalIgnoreCase),
+            "date"      => src.OrderBy(x => x.p.DateAdded),
+            "slot_desc" => src.OrderByDescending(x => x.slot),
+            _           => src
         };
+
+        List<(ParticipantConfig p, int slot, int origIdx)> sorted;
+        if (_activeAtTop)
+        {
+            // Sort each group independently, then concatenate active → inactive
+            var active   = ApplySort(indexed.Where(x =>  x.p.Enabled)).ToList();
+            var inactive = ApplySort(indexed.Where(x => !x.p.Enabled)).ToList();
+            sorted = [..active, ..inactive];
+        }
+        else
+        {
+            sorted = ApplySort(indexed).ToList();
+        }
 
         foreach (var (p, slot, origIdx) in sorted)
         {
@@ -518,6 +546,8 @@ public class ParticipantsWindow : Window
         foreach (var rd in Resources.MergedDictionaries)
             win.Resources.MergedDictionaries.Add(rd);
         win.SetResourceReference(BackgroundProperty, "ContentBgBrush");
+        win.SourceInitialized += (_, _) => TryApplyTitleBarTo(win);
+        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
 
         var scroll = new ScrollViewer
             { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(24, 20, 24, 20) };
@@ -893,9 +923,13 @@ public class ParticipantsWindow : Window
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner  = this, ShowInTaskbar = false, ResizeMode = ResizeMode.NoResize
         };
-        if (_themePath is not null)
-            try { var d = OxsuitLoader.Load(_themePath); if (d is not null) win.Resources.MergedDictionaries.Add(d); } catch { }
+        // Inherit the exact same resource dictionaries that are loaded in this window
+        // (works for both .oxsuit and .xaml themes without re-reading the file)
+        foreach (var rd in Resources.MergedDictionaries)
+            win.Resources.MergedDictionaries.Add(rd);
         win.SetResourceReference(BackgroundProperty, "ContentBgBrush");
+        win.SourceInitialized += (_, _) => TryApplyTitleBarTo(win);
+        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
 
         var root = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
         win.Content = root;
@@ -1146,19 +1180,29 @@ public class ParticipantsWindow : Window
 
     // ── DWM title-bar theming ──────────────────────────────────────────────
 
-    private void TryApplyTitleBar()
+    /// <summary>
+    /// Applies DWM dark-mode flag + caption colour to any window.
+    /// Resolves SidebarBgBrush from the window's own resource tree.
+    /// Safe to call from SourceInitialized — HWND is guaranteed to exist by then.
+    /// </summary>
+    internal static void TryApplyTitleBarTo(Window w)
     {
         try
         {
-            if (TryFindResource("SidebarBgBrush") is not SolidColorBrush bg) return;
-            var hwnd   = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            if (w.TryFindResource("SidebarBgBrush") is not SolidColorBrush bg) return;
+            var hwnd   = new System.Windows.Interop.WindowInteropHelper(w).Handle;
             var isDark = RelLum(bg.Color) < 0.5 ? 1 : 0;
             DwmSetWindowAttribute(hwnd, 20, ref isDark, 4);          // dark/light mode (Win 10+)
-            var cr = bg.Color.R | (bg.Color.G << 8) | (bg.Color.B << 16);
-            DwmSetWindowAttribute(hwnd, 35, ref cr, 4);              // caption colour (Win 11+)
+            var textColor = w.TryFindResource("SidebarTextBrush") is SolidColorBrush tb ? tb.Color : Color.FromRgb(240, 240, 240);
+            var cr   = bg.Color.R | (bg.Color.G << 8) | (bg.Color.B << 16);
+            var tcr  = textColor.R | (textColor.G << 8) | (textColor.B << 16);
+            DwmSetWindowAttribute(hwnd, 35, ref cr,  4);             // caption colour (Win 11+)
+            DwmSetWindowAttribute(hwnd, 36, ref tcr, 4);             // caption text colour (Win 11+)
         }
         catch { }
     }
+
+    private void TryApplyTitleBar() => TryApplyTitleBarTo(this);
 
     // Correct entry point name — the function is DwmSetWindowAttribute, not DwmSet.
     [System.Runtime.InteropServices.DllImport("dwmapi.dll", EntryPoint = "DwmSetWindowAttribute")]

@@ -21,6 +21,10 @@ public class RoadmapItem
     public DateTime   CreatedAt   { get; set; } = DateTime.UtcNow;
     public string     CompletedBy { get; set; } = "";
     public DateTime?  CompletedAt { get; set; }
+    /// <summary>Free-text timing note, e.g. "sometime in September", "when I get to it".</summary>
+    public string     DateNote    { get; set; } = "";
+    /// <summary>Optional attached image filename (stored in PROJECTPLAN/_roadmap_images/).</summary>
+    public string     ImageFileName { get; set; } = "";
 
     private static string NewId() => Guid.NewGuid().ToString("N")[..8];
 }
@@ -36,6 +40,10 @@ public class RoadmapMilestone
     public string            CreatedBy   { get; set; } = "User";
     public DateTime          CreatedAt   { get; set; } = DateTime.UtcNow;
     public DateTime?         CompletedAt { get; set; }
+    /// <summary>Free-text timing note, e.g. "Q1 2027", "after the summer".</summary>
+    public string            DateNote    { get; set; } = "";
+    /// <summary>Optional attached image filename (stored in PROJECTPLAN/_roadmap_images/).</summary>
+    public string            ImageFileName { get; set; } = "";
 
     /// <summary>Average progress of all items. Zero if no items.</summary>
     public int Progress => Items.Count == 0 ? 0
@@ -55,7 +63,14 @@ public class Roadmap
 
 public static class RoadmapService
 {
-    private const string FileName = "roadmap.xml";
+    private const string FileName   = "roadmap.xml";
+    private const string ImagesFolder = "_roadmap_images";
+
+    public static string GetImagesFolder(string projectFolder) =>
+        Path.Combine(projectFolder, "PROJECTPLAN", ImagesFolder);
+
+    public static string GetImagePath(string projectFolder, string fileName) =>
+        Path.Combine(GetImagesFolder(projectFolder), fileName);
 
     // ── Status icons ───────────────────────────────────────────────────────
 
@@ -90,13 +105,15 @@ public static class RoadmapService
 
                 var milestone = new RoadmapMilestone
                 {
-                    Id          = ms.Attribute("id")?.Value        ?? NewId(),
-                    Title       = ms.Attribute("title")?.Value     ?? "",
-                    Description = msDesc,
-                    Status      = ParseStatus(ms.Attribute("status")?.Value),
-                    CreatedBy   = ms.Attribute("createdBy")?.Value ?? "User",
-                    CreatedAt   = ParseDt(ms.Attribute("createdAt")?.Value),
-                    CompletedAt = ParseDtNull(ms.Attribute("completedAt")?.Value)
+                    Id            = ms.Attribute("id")?.Value            ?? NewId(),
+                    Title         = ms.Attribute("title")?.Value         ?? "",
+                    Description   = msDesc,
+                    Status        = ParseStatus(ms.Attribute("status")?.Value),
+                    CreatedBy     = ms.Attribute("createdBy")?.Value     ?? "User",
+                    CreatedAt     = ParseDt(ms.Attribute("createdAt")?.Value),
+                    CompletedAt   = ParseDtNull(ms.Attribute("completedAt")?.Value),
+                    DateNote      = ms.Attribute("dateNote")?.Value      ?? "",
+                    ImageFileName = ms.Attribute("imageFileName")?.Value ?? ""
                 };
 
                 foreach (var it in ms.Elements("Item"))
@@ -107,16 +124,18 @@ public static class RoadmapService
 
                     milestone.Items.Add(new RoadmapItem
                     {
-                        Id          = it.Attribute("id")?.Value          ?? NewId(),
-                        Title       = it.Attribute("title")?.Value       ?? "",
-                        Description = itDesc,
-                        Status      = ParseStatus(it.Attribute("status")?.Value),
-                        Progress    = int.TryParse(it.Attribute("progress")?.Value, out var p)
-                                          ? Math.Clamp(p, 0, 100) : 0,
-                        CreatedBy   = it.Attribute("createdBy")?.Value   ?? "User",
-                        CreatedAt   = ParseDt(it.Attribute("createdAt")?.Value),
-                        CompletedBy = it.Attribute("completedBy")?.Value ?? "",
-                        CompletedAt = ParseDtNull(it.Attribute("completedAt")?.Value)
+                        Id            = it.Attribute("id")?.Value            ?? NewId(),
+                        Title         = it.Attribute("title")?.Value         ?? "",
+                        Description   = itDesc,
+                        Status        = ParseStatus(it.Attribute("status")?.Value),
+                        Progress      = int.TryParse(it.Attribute("progress")?.Value, out var p)
+                                            ? Math.Clamp(p, 0, 100) : 0,
+                        CreatedBy     = it.Attribute("createdBy")?.Value     ?? "User",
+                        CreatedAt     = ParseDt(it.Attribute("createdAt")?.Value),
+                        CompletedBy   = it.Attribute("completedBy")?.Value   ?? "",
+                        CompletedAt   = ParseDtNull(it.Attribute("completedAt")?.Value),
+                        DateNote      = it.Attribute("dateNote")?.Value      ?? "",
+                        ImageFileName = it.Attribute("imageFileName")?.Value ?? ""
                     });
                 }
 
@@ -140,12 +159,14 @@ public static class RoadmapService
         foreach (var ms in roadmap.Milestones)
         {
             var msEl = new XElement("Milestone",
-                new XAttribute("id",          ms.Id),
-                new XAttribute("title",       ms.Title),
-                new XAttribute("status",      ms.Status.ToString()),
-                new XAttribute("createdBy",   ms.CreatedBy),
-                new XAttribute("createdAt",   ms.CreatedAt.ToString("O")),
-                new XAttribute("completedAt", ms.CompletedAt?.ToString("O") ?? ""));
+                new XAttribute("id",            ms.Id),
+                new XAttribute("title",         ms.Title),
+                new XAttribute("status",        ms.Status.ToString()),
+                new XAttribute("createdBy",     ms.CreatedBy),
+                new XAttribute("createdAt",     ms.CreatedAt.ToString("O")),
+                new XAttribute("completedAt",   ms.CompletedAt?.ToString("O") ?? ""),
+                new XAttribute("dateNote",      ms.DateNote),
+                new XAttribute("imageFileName", ms.ImageFileName));
 
             if (!string.IsNullOrEmpty(ms.Description))
                 msEl.Add(new XElement("Desc", new XCData(ms.Description)));
@@ -153,14 +174,16 @@ public static class RoadmapService
             foreach (var it in ms.Items)
             {
                 var itEl = new XElement("Item",
-                    new XAttribute("id",          it.Id),
-                    new XAttribute("title",       it.Title),
-                    new XAttribute("status",      it.Status.ToString()),
-                    new XAttribute("progress",    it.Progress),
-                    new XAttribute("createdBy",   it.CreatedBy),
-                    new XAttribute("createdAt",   it.CreatedAt.ToString("O")),
-                    new XAttribute("completedBy", it.CompletedBy),
-                    new XAttribute("completedAt", it.CompletedAt?.ToString("O") ?? ""));
+                    new XAttribute("id",            it.Id),
+                    new XAttribute("title",         it.Title),
+                    new XAttribute("status",        it.Status.ToString()),
+                    new XAttribute("progress",      it.Progress),
+                    new XAttribute("createdBy",     it.CreatedBy),
+                    new XAttribute("createdAt",     it.CreatedAt.ToString("O")),
+                    new XAttribute("completedBy",   it.CompletedBy),
+                    new XAttribute("completedAt",   it.CompletedAt?.ToString("O") ?? ""),
+                    new XAttribute("dateNote",      it.DateNote),
+                    new XAttribute("imageFileName", it.ImageFileName));
 
                 if (!string.IsNullOrEmpty(it.Description))
                     itEl.Add(new XElement("Desc", new XCData(it.Description)));

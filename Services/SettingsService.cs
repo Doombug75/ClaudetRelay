@@ -247,6 +247,12 @@ public class AppSettings
     public double BridgeControllerFontSize { get; set; } = 12;
 
     /// <summary>
+    /// UI zoom factor applied to all windows (0.5 = 50 %, 1.0 = 100 %, 3.0 = 300 %).
+    /// Default 1.0. Changed in General Settings.
+    /// </summary>
+    public double UiZoom { get; set; } = 1.0;
+
+    /// <summary>
     /// Optional path to an external world-editor executable.
     /// When set and the file exists, the 🌍 World button launches this program
     /// instead of opening the built-in world editor.
