@@ -7566,6 +7566,312 @@ public partial class MainWindow : Window
                 await BridgeWebFetchAsync(args["url"]?.GetValue<string>() ?? "", ct)
         });
 
+        // ── World lore tools ───────────────────────────────────────────────
+        // All world_* tools require a project to be open (BridgeProjectFolder).
+
+        AddTool(new McpTool
+        {
+            Name        = "world_get_summary",
+            Description = "Returns a complete overview of the world-building data in the current project: " +
+                          "all entity counts by type (Characters, Factions, Locations, Lore), " +
+                          "names and key tags for every entry, and a list of all boards. " +
+                          "Call this first to understand the scope of the world before querying details.",
+            Provider    = "Bridge",
+            InputSchemaOverride = """{ "type": "object", "properties": {} }""",
+            ExecuteAsync = (_, _) =>
+            {
+                var folder = BridgeProjectFolder;
+                if (folder is null)
+                    return Task.FromResult("No project loaded. Call bridge_open_project first.");
+
+                var sb = new StringBuilder();
+                sb.AppendLine($"# World Summary — {BridgeProject?.ProjectName ?? System.IO.Path.GetFileName(folder)}");
+                sb.AppendLine();
+
+                foreach (var entityType in new[] { "Character", "Faction", "Location", "Lore" })
+                {
+                    var entities = WorldEntityService.List(folder, entityType);
+                    sb.AppendLine($"## {entityType}s ({entities.Count})");
+                    if (entities.Count == 0)
+                    {
+                        sb.AppendLine("  (none)");
+                    }
+                    else
+                    {
+                        foreach (var e in entities)
+                        {
+                            var tags = new List<string>();
+                            if (e.Fields.TryGetValue("Role", out var role) && !string.IsNullOrWhiteSpace(role))
+                                tags.Add(role);
+                            if (e.Fields.TryGetValue("Type", out var etype) && !string.IsNullOrWhiteSpace(etype))
+                                tags.Add(etype);
+                            if (e.Fields.TryGetValue("Arc", out var arc) && !string.IsNullOrWhiteSpace(arc))
+                                tags.Add($"Arc: {arc}");
+                            if (e.Fields.TryGetValue("CommonKnowledge", out var ck) && ck == "true")
+                                tags.Add("Common Knowledge");
+                            if (e.Fields.TryGetValue("HistoricalKnowledge", out var hk) && hk == "true")
+                                tags.Add("Historical");
+                            var tagStr = tags.Count > 0 ? $"  [{string.Join(", ", tags)}]" : "";
+                            sb.AppendLine($"  • {e.Name}{tagStr}");
+                        }
+                    }
+                    sb.AppendLine();
+                }
+
+                var boards = WorldBoardRegistryService.Load(folder);
+                sb.AppendLine($"## Boards ({boards.Count})");
+                if (boards.Count == 0)
+                    sb.AppendLine("  (none)");
+                else
+                    foreach (var b in boards)
+                        sb.AppendLine($"  • {b.Symbol} {b.Name}  [{string.Join(", ", b.EntityTypes)}]");
+
+                return Task.FromResult(sb.ToString());
+            }
+        });
+
+        AddTool(new McpTool
+        {
+            Name        = "world_get_entities",
+            Description = "Returns detailed information about world entities filtered by type and/or arc. " +
+                          "entity_type: one of Character, Faction, Location, Lore (required). " +
+                          "arc: optional — filter to only entities in this story arc. " +
+                          "search: optional — filter by name substring (case-insensitive). " +
+                          "Each result includes all schema fields, notes, and resolved relationship names.",
+            Provider    = "Bridge",
+            InputSchemaOverride = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "entity_type": {
+                      "type": "string",
+                      "description": "Character, Faction, Location, or Lore",
+                      "enum": ["Character", "Faction", "Location", "Lore"]
+                    },
+                    "arc": {
+                      "type": "string",
+                      "description": "Optional: filter to this story arc name"
+                    },
+                    "search": {
+                      "type": "string",
+                      "description": "Optional: filter by name substring (case-insensitive)"
+                    }
+                  },
+                  "required": ["entity_type"]
+                }
+                """,
+            ExecuteAsync = (args, _) =>
+            {
+                var folder = BridgeProjectFolder;
+                if (folder is null)
+                    return Task.FromResult("No project loaded. Call bridge_open_project first.");
+
+                var entityType = args["entity_type"]?.GetValue<string>() ?? "";
+                var arcFilter  = args["arc"]?.GetValue<string>() ?? "";
+                var search     = args["search"]?.GetValue<string>() ?? "";
+
+                if (!WorldEntitySchemas.All.ContainsKey(entityType))
+                    return Task.FromResult($"Unknown entity type '{entityType}'. Valid types: Character, Faction, Location, Lore.");
+
+                var entities = WorldEntityService.List(folder, entityType);
+
+                if (!string.IsNullOrWhiteSpace(arcFilter))
+                    entities = entities.Where(e =>
+                        e.Fields.TryGetValue("Arc", out var a) &&
+                        a.Contains(arcFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+                if (!string.IsNullOrWhiteSpace(search))
+                    entities = entities.Where(e =>
+                        e.Name.Contains(search, StringComparison.OrdinalIgnoreCase)).ToList();
+
+                if (entities.Count == 0)
+                    return Task.FromResult($"No {entityType} entities found matching the criteria.");
+
+                var allFactions   = WorldEntityService.List(folder, "Faction");
+                var allCharacters = WorldEntityService.List(folder, "Character");
+                var idToName = allFactions.Concat(allCharacters)
+                    .ToDictionary(e => e.Id, e => e.Name, StringComparer.OrdinalIgnoreCase);
+
+                var sb = new StringBuilder();
+                sb.AppendLine($"# {entityType}s ({entities.Count} found)");
+                sb.AppendLine();
+
+                foreach (var e in entities)
+                {
+                    sb.AppendLine($"## {e.Name}");
+                    foreach (var (field, _) in WorldEntitySchemas.For(entityType))
+                    {
+                        if (e.Fields.TryGetValue(field, out var val) && !string.IsNullOrWhiteSpace(val))
+                            sb.AppendLine($"  **{field}:** {val}");
+                    }
+                    if (entityType == "Lore")
+                    {
+                        if (e.Fields.TryGetValue("CommonKnowledge", out var ck) && ck == "true")
+                            sb.AppendLine("  **Common Knowledge:** Yes");
+                        if (e.Fields.TryGetValue("HistoricalKnowledge", out var hk) && hk == "true")
+                            sb.AppendLine("  **Historical Knowledge:** Yes");
+                    }
+                    if (entityType == "Faction" && !string.IsNullOrWhiteSpace(e.FactionColor))
+                        sb.AppendLine($"  **Color:** {e.FactionColor}");
+                    if (e.MemberIds.Count > 0)
+                    {
+                        var memberNames = e.MemberIds.Select(id => idToName.TryGetValue(id, out var n) ? n : id);
+                        var label = entityType == "Lore" ? "Known by" : "Members";
+                        sb.AppendLine($"  **{label}:** {string.Join(", ", memberNames)}");
+                    }
+                    if (e.FactionIds.Count > 0)
+                    {
+                        var factionNames = e.FactionIds.Select(id => idToName.TryGetValue(id, out var n) ? n : id);
+                        sb.AppendLine($"  **Factions:** {string.Join(", ", factionNames)}");
+                    }
+                    if (!string.IsNullOrWhiteSpace(e.Notes))
+                        sb.AppendLine($"  **Notes:** {e.Notes}");
+                    sb.AppendLine();
+                }
+
+                return Task.FromResult(sb.ToString());
+            }
+        });
+
+        AddTool(new McpTool
+        {
+            Name        = "world_get_entity",
+            Description = "Returns full details for a single world entity by exact name. " +
+                          "entity_type: one of Character, Faction, Location, Lore. " +
+                          "name: the entity name (case-insensitive match). " +
+                          "Returns all fields, notes, and resolved relationship names.",
+            Provider    = "Bridge",
+            InputSchemaOverride = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "entity_type": {
+                      "type": "string",
+                      "description": "Character, Faction, Location, or Lore"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "The entity name (case-insensitive)"
+                    }
+                  },
+                  "required": ["entity_type", "name"]
+                }
+                """,
+            ExecuteAsync = (args, _) =>
+            {
+                var folder = BridgeProjectFolder;
+                if (folder is null)
+                    return Task.FromResult("No project loaded. Call bridge_open_project first.");
+
+                var entityType = args["entity_type"]?.GetValue<string>() ?? "";
+                var name       = args["name"]?.GetValue<string>() ?? "";
+
+                if (!WorldEntitySchemas.All.ContainsKey(entityType))
+                    return Task.FromResult($"Unknown entity type '{entityType}'. Valid types: Character, Faction, Location, Lore.");
+
+                var entities = WorldEntityService.List(folder, entityType);
+                var entity   = entities.FirstOrDefault(e =>
+                    string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase));
+
+                if (entity is null)
+                    return Task.FromResult($"No {entityType} named '{name}' found.");
+
+                var allFactions   = WorldEntityService.List(folder, "Faction");
+                var allCharacters = WorldEntityService.List(folder, "Character");
+                var idToName = allFactions.Concat(allCharacters)
+                    .ToDictionary(e => e.Id, e => e.Name, StringComparer.OrdinalIgnoreCase);
+
+                var sb = new StringBuilder();
+                sb.AppendLine($"# {entity.EntityType}: {entity.Name}");
+                sb.AppendLine($"  ID:      {entity.Id}");
+                sb.AppendLine($"  Created: {entity.CreatedAt:yyyy-MM-dd}");
+                sb.AppendLine($"  Updated: {entity.UpdatedAt:yyyy-MM-dd}");
+                sb.AppendLine();
+                sb.AppendLine("## Fields");
+                foreach (var (field, _) in WorldEntitySchemas.For(entityType))
+                {
+                    if (entity.Fields.TryGetValue(field, out var val) && !string.IsNullOrWhiteSpace(val))
+                        sb.AppendLine($"  **{field}:** {val}");
+                }
+                if (entityType == "Lore")
+                {
+                    if (entity.Fields.TryGetValue("CommonKnowledge", out var ck) && ck == "true")
+                        sb.AppendLine("  **Common Knowledge:** Yes");
+                    if (entity.Fields.TryGetValue("HistoricalKnowledge", out var hk) && hk == "true")
+                        sb.AppendLine("  **Historical Knowledge:** Yes");
+                }
+                if (entityType == "Faction" && !string.IsNullOrWhiteSpace(entity.FactionColor))
+                    sb.AppendLine($"  **Color:** {entity.FactionColor}");
+
+                if (entity.MemberIds.Count > 0)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($"## {(entityType == "Lore" ? "Known by" : "Members")}");
+                    foreach (var id in entity.MemberIds)
+                        sb.AppendLine($"  • {(idToName.TryGetValue(id, out var n) ? n : id)}");
+                }
+                if (entity.FactionIds.Count > 0)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("## Factions");
+                    foreach (var id in entity.FactionIds)
+                        sb.AppendLine($"  • {(idToName.TryGetValue(id, out var n) ? n : id)}");
+                }
+                if (!string.IsNullOrWhiteSpace(entity.Notes))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("## Notes");
+                    sb.AppendLine(entity.Notes);
+                }
+
+                return Task.FromResult(sb.ToString());
+            }
+        });
+
+        AddTool(new McpTool
+        {
+            Name        = "world_get_boards",
+            Description = "Lists all world boards in the current project with their names, symbols, " +
+                          "entity types displayed, card/relation/frame counts, and last updated dates. " +
+                          "Use this to understand how the world is visually organised across boards.",
+            Provider    = "Bridge",
+            InputSchemaOverride = """{ "type": "object", "properties": {} }""",
+            ExecuteAsync = (_, _) =>
+            {
+                var folder = BridgeProjectFolder;
+                if (folder is null)
+                    return Task.FromResult("No project loaded. Call bridge_open_project first.");
+
+                var boards = WorldBoardRegistryService.Load(folder);
+                if (boards.Count == 0)
+                    return Task.FromResult("No boards found in this project.");
+
+                var sb = new StringBuilder();
+                sb.AppendLine($"# World Boards ({boards.Count})");
+                sb.AppendLine();
+
+                foreach (var b in boards.OrderBy(b => b.Name))
+                {
+                    sb.AppendLine($"## {b.Symbol} {b.Name}");
+                    sb.AppendLine($"  Entity types: {string.Join(", ", b.EntityTypes)}");
+                    sb.AppendLine($"  Created:      {b.CreatedAt:yyyy-MM-dd}");
+                    sb.AppendLine($"  Updated:      {b.UpdatedAt:yyyy-MM-dd}");
+                    var boardData = EntityBoardService.Load(folder, b.Id);
+                    if (boardData.Positions.Count > 0)
+                        sb.AppendLine($"  Cards placed: {boardData.Positions.Count}");
+                    if (boardData.Relations.Count > 0)
+                        sb.AppendLine($"  Relations:    {boardData.Relations.Count}");
+                    if (boardData.Frames.Count > 0)
+                        sb.AppendLine($"  Frames:       {boardData.Frames.Count}");
+                    if (boardData.TextBoxes.Count > 0)
+                        sb.AppendLine($"  Text boxes:   {boardData.TextBoxes.Count}");
+                    sb.AppendLine();
+                }
+
+                return Task.FromResult(sb.ToString());
+            }
+        });
+
         return tools;
     }
 
@@ -8057,6 +8363,12 @@ public partial class MainWindow : Window
         ("bridge_run_agent_task",    "Fires an agent task asynchronously - the agent runs in the background and writes its result to output_file. Returns a task_id immediately so multiple agents can run in parallel."),
         ("bridge_list_active_tasks", "Lists all agent tasks with their current status (running / completed / failed / timeout), duration, output file path, and error details. Tasks older than 4 hours are auto-removed."),
         ("bridge_wait_for_tasks",    "Waits for a list of task IDs to finish, polling every 500ms. Returns per-task results with errors. Never hangs - any task exceeding the timeout is marked 'timeout' with a full error explanation (rate limit, connection lost, crash, etc.)."),
+
+        (null,                       "🌍  World"),
+        ("world_get_summary",        "Returns an overview of all world entities (Characters, Factions, Locations, Lore) and boards in the current project. Start here to understand the scope of the world."),
+        ("world_get_entities",       "Returns detailed information about world entities filtered by type (Character / Faction / Location / Lore), story arc, or name substring. Includes all schema fields, notes, and resolved relationship names."),
+        ("world_get_entity",         "Returns full details for a single world entity by name and type, including all fields, notes, member list, and faction associations."),
+        ("world_get_boards",         "Lists all world boards with entity types shown, card / relation / frame / text-box counts, and last updated dates."),
     ];
 
     private UIElement BuildToolSettingsCard(AppSettings cfg)

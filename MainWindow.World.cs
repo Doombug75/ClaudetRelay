@@ -53,11 +53,13 @@ public partial class MainWindow
     private bool   _entityEditOpen  = false;   // true while ShowEntityEditDialog is open
 
     // Entity list filter state (reset when switching entity type)
-    private string? _worldFilterName      = null;
-    private string? _worldFilterFaction   = null;
-    private string? _worldFilterArc       = null;
-    private string? _worldFilterAlignment = null;
-    private string  _worldSortMode        = "name_asc";
+    private string? _worldFilterName               = null;
+    private string? _worldFilterFaction            = null;
+    private string? _worldFilterArc                = null;
+    private string? _worldFilterAlignment          = null;
+    private bool    _worldFilterCommonKnowledge    = false;
+    private bool    _worldFilterHistoricalKnowledge = false;
+    private string  _worldSortMode                 = "name_asc";
 
     // Open board windows keyed by board ID (singleton per board)
     private readonly Dictionary<string, WorldBoardWindow> _openBoardWindows = new();
@@ -170,11 +172,13 @@ public partial class MainWindow
                 _worldBoardsMode    = false;
                 _worldActiveType    = Singular(capturedEt);
                 // Reset filters when switching entity type
-                _worldFilterName      = null;
-                _worldFilterFaction   = null;
-                _worldFilterArc       = null;
-                _worldFilterAlignment = null;
-                _worldSortMode        = "name_asc";
+                _worldFilterName                = null;
+                _worldFilterFaction             = null;
+                _worldFilterArc                 = null;
+                _worldFilterAlignment           = null;
+                _worldFilterCommonKnowledge     = false;
+                _worldFilterHistoricalKnowledge = false;
+                _worldSortMode                  = "name_asc";
                 BuildWorldContent();
             };
             tabs.Children.Add(tab);
@@ -284,15 +288,36 @@ public partial class MainWindow
             filterRow.Children.Add(combo);
         }
 
+        bool isLoreView = _worldActiveType == "Lore";
+
         if (factionVals.Count > 0 || hasMissingFaction)
             AddFilterCombo("All Factions", factionVals, hasMissingFaction, "(no faction)",
                 () => _worldFilterFaction, v => _worldFilterFaction = v);
         if (arcVals.Count > 0 || hasMissingArc)
             AddFilterCombo("All Arcs", arcVals, hasMissingArc, "(no arc)",
                 () => _worldFilterArc, v => _worldFilterArc = v);
-        if (alignVals.Count > 0 || hasMissingAlignment)
+        if (!isLoreView && (alignVals.Count > 0 || hasMissingAlignment))
             AddFilterCombo("All Alignments", alignVals, hasMissingAlignment, "(no alignment)",
                 () => _worldFilterAlignment, v => _worldFilterAlignment = v);
+
+        if (isLoreView)
+        {
+            CheckBox MakeKnowledgeCheck(string label, bool current, Action<bool> set)
+            {
+                var chk = new CheckBox
+                {
+                    Content = label, IsChecked = current,
+                    FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                    Margin = new Thickness(0, 2, 10, 2), VerticalAlignment = VerticalAlignment.Center
+                };
+                chk.SetResourceReference(CheckBox.ForegroundProperty, "ContentTextBrush");
+                chk.Checked   += (_, _) => { set(true);  BuildWorldContent(); };
+                chk.Unchecked += (_, _) => { set(false); BuildWorldContent(); };
+                return chk;
+            }
+            filterRow.Children.Add(MakeKnowledgeCheck("Common Knowledge",    _worldFilterCommonKnowledge,    v => _worldFilterCommonKnowledge    = v));
+            filterRow.Children.Add(MakeKnowledgeCheck("Historical Knowledge", _worldFilterHistoricalKnowledge, v => _worldFilterHistoricalKnowledge = v));
+        }
 
         // Sort buttons
         Button MakeSortBtn(string label, string mode)
@@ -311,9 +336,11 @@ public partial class MainWindow
         resetBtn.FontSize = 10; resetBtn.Padding = new Thickness(6, 3, 6, 3); resetBtn.Margin = new Thickness(4, 2, 0, 2);
         resetBtn.Click += (_, _) =>
         {
-            _worldFilterName = null; _worldFilterFaction = null;
-            _worldFilterArc  = null; _worldFilterAlignment = null;
-            _worldSortMode   = "name_asc";
+            _worldFilterName                = null; _worldFilterFaction   = null;
+            _worldFilterArc                 = null; _worldFilterAlignment = null;
+            _worldFilterCommonKnowledge     = false;
+            _worldFilterHistoricalKnowledge = false;
+            _worldSortMode                  = "name_asc";
             nameBox.Text = "";
             BuildWorldContent();
         };
@@ -334,10 +361,18 @@ public partial class MainWindow
                 var v = e.Fields.TryGetValue("Arc", out var av) ? av : null;
                 if (!(_worldFilterArc == "<<none>>" ? string.IsNullOrWhiteSpace(v) : v == _worldFilterArc)) return false;
             }
-            if (_worldFilterAlignment != null)
+            if (_worldFilterAlignment != null && e.EntityType != "Lore")
             {
                 var v = e.Fields.TryGetValue("Alignment", out var alv) ? alv : null;
                 if (!(_worldFilterAlignment == "<<none>>" ? string.IsNullOrWhiteSpace(v) : v == _worldFilterAlignment)) return false;
+            }
+            if (_worldFilterCommonKnowledge && e.EntityType == "Lore")
+            {
+                if (!e.Fields.TryGetValue("CommonKnowledge", out var ck) || ck != "true") return false;
+            }
+            if (_worldFilterHistoricalKnowledge && e.EntityType == "Lore")
+            {
+                if (!e.Fields.TryGetValue("HistoricalKnowledge", out var hk) || hk != "true") return false;
             }
             return true;
         }).ToList();
