@@ -7980,7 +7980,12 @@ public partial class MainWindow : Window
             {
                 var name            = args["participant_name"]?.GetValue<string>()?.Trim() ?? "MCP Client";
                 var message         = args["message"]?.GetValue<string>()?.Trim() ?? "";
-                var triggerResponses = args["trigger_responses"]?.GetValue<bool>() ?? true;
+                // Accept both JSON boolean true/false and string "true"/"false"
+                var triggerNode = args["trigger_responses"];
+                var triggerResponses = triggerNode is null ? true
+                    : triggerNode.GetValueKind() == System.Text.Json.JsonValueKind.String
+                        ? !string.Equals(triggerNode.GetValue<string>(), "false", StringComparison.OrdinalIgnoreCase)
+                        : triggerNode.GetValue<bool>();
 
                 if (string.IsNullOrEmpty(message))
                     return "Error: message cannot be empty.";
