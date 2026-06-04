@@ -53,6 +53,9 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 - **Multi-provider, multi-agent chat** — up to 20 participants from any mix of cloud providers and local Ollama models in a single shared conversation
 - **Orchestration modes** — All Respond, Coordinator First, Coordinator Summarizes
 - **Roles & personas** — Coordinator and Reasoner roles, custom names, answer-as aliases, tone slider, response-length settings, and saveable character files per participant
+- **AI-to-AI dialogue** — enable multi-round dialogue so participants can read and reply to each other before the next user message; configurable turn limit
+- **Chattiness control** — global and per-project slider controlling how eagerly participants join the conversation unprompted
+- **Grounded responses** — system prompt injection prevents models from inventing personal traits, hobbies, or relationships unless a role instruction explicitly allows it
 - **Rate limiting** — per-provider RPM throttling to stay within API quotas
 - **Secure key storage** — API keys stored exclusively in Windows Credential Manager, never written to disk
 
@@ -63,18 +66,23 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 - **Backup** — one-click ZIP backup of any project
 - **Export** — save conversations as HTML or Markdown
 
-### World Builder *(new)*
+### World Builder
 - **Entity editor** — create and manage Characters, Locations, Factions, and Lore entries with rich, schema-driven field sets
 - **Character fields** — Role, Age, Level/Classes, Alignment, Background, Goal, Flaw, Arc, Voice, Health/Resources, Attributes, and Skills
+- **Portrait support** — add portrait images to characters; duplicate-safe filename handling keeps the entity list clean
 - **Faction membership** — characters can belong to multiple factions; each faction gets a colour badge from a 15-colour palette
 - **Faction dots on character cards** — coloured dots on each character card show faction membership at a glance; wraps gracefully beyond ten factions
 - **Board view** — free-canvas board for arranging all entity types spatially; drag cards, draw named relations between entities, and auto-arrange
 - **Relation lines** — eight line styles (solid, dashed, dotted, double variants), custom captions, legend entries, and colour-coded strokes
 - **Quick-add from board** — add any entity type directly from the board toolbar without switching views
 
-### MCP / Bridge *(new)*
-- **MCP Server mode** — expose ClaudetRelay as a Model Context Protocol server so external tools can query and drive conversations
-- **Model Controller** — route and coordinate multiple models through a unified controller participant with a dedicated sub-tab UI
+### MCP / Bridge
+- **MCP Server mode** — expose ClaudetRelay as a Model Context Protocol server; connect Claude Desktop, Claude Code, or any MCP-compatible client
+- **MCP chat participation** — external clients (Claude Desktop, Claude Code) can read chat history and post messages as named participants via `chat_get_history`, `chat_post_message`, and `chat_wait_for_round` tools; enable per-project via the participant menu
+- **Bridge agents** — register local Ollama models or cloud models as named Bridge agents; send tasks silently via `bridge_post_to_agents` without routing through the chat
+- **Project agent roster** — save a Bridge agent roster per project; load it with one click when a project is open and restore the global roster automatically on close
+- **Model Controller** — route and coordinate multiple local models through a cloud controller with a dedicated sub-tab UI; keeps heavy token work on-device
+- **Configurable tool access** — enable or disable individual MCP tools per mode (Server vs. Controller) from the Bridge settings window
 
 ### Themes
 - **101 built-in themes** — Catppuccin, Tokyo Night, Dracula, Gruvbox, Leatherbound series, Skyrim, Deep Rock Galactic, planetary series, Warhammer 40K factions, and many more
@@ -98,6 +106,7 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 | **Voice output** | Text-to-speech playback of AI responses |
 | **Multi-language UI** | German as the first additional language alongside English |
 | **LM Studio support** | Local model provider via LM Studio's OpenAI-compatible endpoint |
+| **Codebase refactor** | Split `MainWindow.xaml.cs` into focused partial classes for better maintainability |
 
 ---
 
