@@ -8031,6 +8031,69 @@ public partial class MainWindow : Window
             }
         });
 
+        // ── chat_wait_for_round - block until the current AI response round finishes ──
+        AddTool(new McpTool
+        {
+            Name        = "chat_wait_for_round",
+            Description = "Waits until all AI participants have finished responding in the current round, " +
+                          "then returns the new messages. Call this after chat_post_message " +
+                          "(with trigger_responses=true) to know when it is your turn to reply. " +
+                          "Returns immediately if no round is active. " +
+                          "Optional timeout_seconds (default 120). " +
+                          "Returns the new messages posted since you called this tool.",
+            Provider    = "Bridge",
+            InputSchemaOverride = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "timeout_seconds": { "type": "integer", "description": "Maximum seconds to wait. Default 120." }
+                  }
+                }
+                """,
+            ExecuteAsync = async (args, ct) =>
+            {
+                var timeout = args?["timeout_seconds"]?.GetValue<int>() ?? 120;
+
+                // Snapshot history count before waiting so we can return only the new messages
+                int historyBefore = await Dispatcher.InvokeAsync(() => _sharedHistory.Count);
+
+                // Small initial delay to let a just-triggered round actually start
+                await Task.Delay(600, ct);
+
+                // Poll until _streamCts is null (round finished) or timeout
+                var deadline = DateTime.UtcNow.AddSeconds(timeout);
+                while (!ct.IsCancellationRequested)
+                {
+                    bool roundActive = await Dispatcher.InvokeAsync(() => _streamCts is not null);
+                    if (!roundActive) break;
+                    if (DateTime.UtcNow >= deadline)
+                        return $"⏱ Timeout after {timeout}s — AI participants may still be responding. " +
+                               "Call chat_get_history to see what has been posted so far.";
+                    await Task.Delay(400, ct);
+                }
+
+                if (ct.IsCancellationRequested)
+                    return "Cancelled.";
+
+                // Collect new messages posted during the round
+                var newMessages = await Dispatcher.InvokeAsync(() =>
+                    _sharedHistory.Skip(historyBefore).ToList());
+
+                if (newMessages.Count == 0)
+                    return "✓ Round complete — no new messages were posted.";
+
+                var sb = new StringBuilder();
+                sb.AppendLine($"✓ Round complete — {newMessages.Count} new message(s):\n");
+                foreach (var m in newMessages)
+                {
+                    var sender = m.Sender ?? (m.Role == "user" ? "User" : "AI");
+                    var preview = m.Content?.Length > 300 ? m.Content[..300] + "…" : m.Content ?? "";
+                    sb.AppendLine($"**{sender}**: {preview}\n");
+                }
+                return sb.ToString().TrimEnd();
+            }
+        });
+
         return tools;
     }
 
@@ -8531,7 +8594,8 @@ public partial class MainWindow : Window
 
         (null,                       "💬  Chat"),
         ("chat_get_history",         "Returns recent chat messages from the active ClaudetRelay chat. General chat is always accessible. Project chats require MCP Client to be enabled (add via + participant button)."),
-        ("chat_post_message",        "Posts a message into the active chat as a named participant — appears as a bubble, saved to the log, visible to AI participants on their next turn."),
+        ("chat_post_message",        "Posts a message into the active chat as a named participant — appears as a bubble, saved to the log, visible to AI participants on their next turn. Set trigger_responses=false for messages directed at the human user."),
+        ("chat_wait_for_round",      "Waits until all AI participants finish responding in the current round, then returns the new messages. Call after chat_post_message to know when it is your turn to reply."),
     ];
 
     private UIElement BuildToolSettingsCard(AppSettings cfg)
