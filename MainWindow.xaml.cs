@@ -1632,6 +1632,9 @@ public partial class MainWindow : Window
         // Restore the globally configured participants (enabled only - skip empty disabled slots)
         var globalSettings = SettingsService.Load();
         ReInitializeParticipantsFrom(globalSettings.Participants.Where(p => p.Enabled).ToList());
+
+        // If we had switched to a project's Bridge agent roster, restore the global one now.
+        RestoreGlobalBridgeAgentsIfNeeded();
     }
 
     // ── Project participant mismatch detection ─────────────────────────────
@@ -4750,6 +4753,41 @@ public partial class MainWindow : Window
     private ProjectSettings? _bridgeProject;
     private Roadmap?         _bridgeRoadmap;
 
+    // ── Bridge project roster state ────────────────────────────────────────
+    // When the user loads a project's saved agent roster in the Bridge panel,
+    // we swap the global BridgeAgents out and restore them on project close.
+    private bool              _bridgeUsingProjectRoster;
+    private List<BridgeAgent>? _globalBridgeAgentsBackup;
+
+    /// <summary>
+    /// Switches Bridge agents to the given project roster, saving the global roster first
+    /// so it can be restored later with <see cref="RestoreGlobalBridgeAgentsIfNeeded"/>.
+    /// </summary>
+    private void ActivateProjectBridgeRoster(List<BridgeAgent> projectAgents)
+    {
+        var cfg = SettingsService.Load();
+        _globalBridgeAgentsBackup = [.. cfg.BridgeAgents];   // snapshot current global
+        cfg.BridgeAgents          = [.. projectAgents];       // apply project roster
+        SettingsService.Save(cfg);
+        _bridgeUsingProjectRoster = true;
+        BuildBridgeContent();
+    }
+
+    /// <summary>
+    /// If the project roster is active, restores the global Bridge agents and rebuilds the panel.
+    /// Safe to call when no project roster is active (no-op).
+    /// </summary>
+    private void RestoreGlobalBridgeAgentsIfNeeded()
+    {
+        if (!_bridgeUsingProjectRoster || _globalBridgeAgentsBackup is null) return;
+        var cfg = SettingsService.Load();
+        cfg.BridgeAgents = _globalBridgeAgentsBackup;
+        SettingsService.Save(cfg);
+        _bridgeUsingProjectRoster  = false;
+        _globalBridgeAgentsBackup  = null;
+        BuildBridgeContent();
+    }
+
     /// <summary>
     /// The project folder visible to Bridge tools — bridge-specific if explicitly opened,
     /// otherwise falls back to the main chat's open project (if any).
@@ -5716,6 +5754,131 @@ public partial class MainWindow : Window
         };
         agentsSub.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         agentsCol.Children.Add(agentsSub);
+
+        // ── Project roster banner ─────────────────────────────────────────
+        // Shows when a project is open, offering to save/load/restore agent roster.
+        var openProject = _currentProject;
+        if (openProject is not null)
+        {
+            var rosterBanner = new Border
+            {
+                Padding = new Thickness(10, 7, 10, 7), CornerRadius = new CornerRadius(5),
+                BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 0, 8)
+            };
+            rosterBanner.SetResourceReference(Border.BorderBrushProperty, "AccentBgBrush");
+
+            // tint: use project roster active → warm accent; available → subtle; no saved → very subtle
+            bool projectHasRoster = openProject.SavedBridgeAgents is { Count: > 0 };
+            if (_bridgeUsingProjectRoster)
+                rosterBanner.SetResourceReference(Border.BackgroundProperty, "AccentBgBrush");
+            else
+                rosterBanner.SetResourceReference(Border.BackgroundProperty, "ControlBgBrush");
+
+            var rosterStack = new StackPanel { Orientation = Orientation.Horizontal };
+            rosterBanner.Child = rosterStack;
+
+            var rosterIcon = new TextBlock
+            {
+                Text = _bridgeUsingProjectRoster ? "✅" : (projectHasRoster ? "📋" : "💾"),
+                FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 6, 0)
+            };
+            rosterIcon.SetResourceReference(TextBlock.ForegroundProperty,
+                _bridgeUsingProjectRoster ? "AccentTextBrush" : "ContentTextBrush");
+            rosterStack.Children.Add(rosterIcon);
+
+            var rosterLbl = new TextBlock
+            {
+                Text = _bridgeUsingProjectRoster
+                    ? $"Project roster active"
+                    : (projectHasRoster ? $"Project has a saved agent roster" : "Save agents to project"),
+                FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 6, 0), MaxWidth = 130
+            };
+            rosterLbl.SetResourceReference(TextBlock.ForegroundProperty,
+                _bridgeUsingProjectRoster ? "AccentTextBrush" : "ContentTextBrush");
+            rosterStack.Children.Add(rosterLbl);
+
+            // Buttons panel
+            var rosterBtns = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(4, 0, 0, 0)
+            };
+            rosterStack.Children.Add(rosterBtns);
+
+            if (_bridgeUsingProjectRoster)
+            {
+                // Active: offer restore global + update saved
+                var restoreBtn = MakeBridgeSmallBtn("↩ Restore global");
+                restoreBtn.FontSize = 10;
+                restoreBtn.Padding  = new Thickness(6, 3, 6, 3);
+                restoreBtn.ToolTip  = "Restore your global Bridge agent roster";
+                restoreBtn.Click   += (_, _) => RestoreGlobalBridgeAgentsIfNeeded();
+                rosterBtns.Children.Add(restoreBtn);
+
+                var updateBtn = MakeBridgeSmallBtn("💾 Update saved");
+                updateBtn.FontSize = 10;
+                updateBtn.Padding  = new Thickness(6, 3, 6, 3);
+                updateBtn.Margin   = new Thickness(0, 3, 0, 0);
+                updateBtn.ToolTip  = "Save the current agent list as this project's roster";
+                updateBtn.Click   += (_, _) =>
+                {
+                    var s = SettingsService.Load();
+                    openProject.SavedBridgeAgents = [.. s.BridgeAgents];
+                    Services.ProjectService.SaveProject(_currentProjectFolder!, openProject);
+                    updateBtn.Content = "✓ Saved";
+                    updateBtn.IsEnabled = false;
+                };
+                rosterBtns.Children.Add(updateBtn);
+            }
+            else if (projectHasRoster)
+            {
+                // Roster available but not active: offer to load it or update saved
+                var loadBtn = MakeBridgeSmallBtn("▶ Use it");
+                loadBtn.FontSize = 10;
+                loadBtn.Padding  = new Thickness(6, 3, 6, 3);
+                loadBtn.ToolTip  = "Replace current agents with this project's saved roster (global roster restored on project close)";
+                loadBtn.Click   += (_, _) => ActivateProjectBridgeRoster(openProject.SavedBridgeAgents!);
+                rosterBtns.Children.Add(loadBtn);
+
+                var saveBtn = MakeBridgeSmallBtn("💾 Update");
+                saveBtn.FontSize = 10;
+                saveBtn.Padding  = new Thickness(6, 3, 6, 3);
+                saveBtn.Margin   = new Thickness(0, 3, 0, 0);
+                saveBtn.ToolTip  = "Overwrite the saved roster with the current agent list";
+                saveBtn.Click   += (_, _) =>
+                {
+                    var s = SettingsService.Load();
+                    openProject.SavedBridgeAgents = [.. s.BridgeAgents];
+                    Services.ProjectService.SaveProject(_currentProjectFolder!, openProject);
+                    saveBtn.Content = "✓ Updated";
+                    saveBtn.IsEnabled = false;
+                };
+                rosterBtns.Children.Add(saveBtn);
+            }
+            else
+            {
+                // No saved roster yet: offer to save current
+                var saveNewBtn = MakeBridgeSmallBtn("💾 Save");
+                saveNewBtn.FontSize = 10;
+                saveNewBtn.Padding  = new Thickness(6, 3, 6, 3);
+                saveNewBtn.ToolTip  = "Save the current agent list as this project's roster";
+                saveNewBtn.Click   += (_, _) =>
+                {
+                    var s = SettingsService.Load();
+                    openProject.SavedBridgeAgents = [.. s.BridgeAgents];
+                    Services.ProjectService.SaveProject(_currentProjectFolder!, openProject);
+                    BuildBridgeContent();   // rebuild to show "roster available" state
+                };
+                rosterBtns.Children.Add(saveNewBtn);
+            }
+
+            agentsCol.Children.Add(rosterBanner);
+        }
 
         var agentListPanel = new StackPanel();
         agentsCol.Children.Add(agentListPanel);

@@ -178,6 +178,13 @@ public class ProjectSettings
     /// </summary>
     public List<ParticipantConfig>? ActiveParticipants { get; set; } = null;
 
+    /// <summary>
+    /// Bridge agent roster saved for this project.
+    /// When non-null and non-empty, the Bridge panel offers to use these agents instead of the
+    /// global roster. The global roster is restored automatically when the project is closed.
+    /// </summary>
+    public List<BridgeAgent>? SavedBridgeAgents { get; set; } = null;
+
     /// <summary>Looks up the role for a participant by provider + model (case-insensitive).
     /// Creates and registers a new empty role if none exists, using
     /// <see cref="DefaultResponseLength"/> as the initial ResponseLength.</summary>
