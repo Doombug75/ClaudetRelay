@@ -406,3 +406,6 @@ secrets.json
 # Build output — distributed as a zip, not committed to the repo
 publish/
 .claude/
+
+# Understand Anything plugin output — generated locally, not part of the source
+.understand-anything/
