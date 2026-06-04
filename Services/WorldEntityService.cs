@@ -184,10 +184,26 @@ public static class WorldEntityService
     public static void Save(string projFolder, WorldEntity entity)
     {
         entity.UpdatedAt = DateTime.UtcNow;
-        var dir = GetEntityFolder(projFolder, entity.EntityType);
+        var dir        = GetEntityFolder(projFolder, entity.EntityType);
         Directory.CreateDirectory(dir);
-        File.WriteAllText(EntityFilePath(projFolder, entity),
-                          JsonSerializer.Serialize(entity, WriteOpts));
+        var targetPath = EntityFilePath(projFolder, entity);
+
+        // Clean up any stale files that share the same entity Id but differ in filename.
+        // This can happen when an entity was created externally (e.g. via MCP) with a
+        // filename containing spaces, while MakeSafeName would produce an underscore version.
+        foreach (var f in Directory.GetFiles(dir, "*.json"))
+        {
+            if (string.Equals(f, targetPath, StringComparison.OrdinalIgnoreCase)) continue;
+            try
+            {
+                var text = File.ReadAllText(f);
+                if (text.Contains($"\"Id\": \"{entity.Id}\""))
+                    File.Delete(f);
+            }
+            catch { /* best-effort */ }
+        }
+
+        File.WriteAllText(targetPath, JsonSerializer.Serialize(entity, WriteOpts));
     }
 
     /// <summary>

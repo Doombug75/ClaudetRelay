@@ -1416,6 +1416,22 @@ public partial class MainWindow : Window
         var loaded = ProjectService.LoadProject(projFolder);
         if (loaded is null) { MessageBox.Show("Could not read project file.", "Error"); return; }
 
+        // ── Guard: ask before switching away from an already-open project ────
+        if (_currentProjectFolder is not null &&
+            !string.Equals(_currentProjectFolder, projFolder, StringComparison.OrdinalIgnoreCase))
+        {
+            var currentName = _projectSettings?.ProjectName
+                              ?? SysIO.Path.GetFileName(_currentProjectFolder);
+            var newName     = loaded.ProjectName
+                              ?? SysIO.Path.GetFileName(projFolder);
+            var confirm = MessageBox.Show(
+                $"\"{currentName}\" is currently open.\n\nClose it and open \"{newName}\" instead?",
+                "Switch Project",
+                MessageBoxButton.OKCancel, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.OK) return;
+            CloseCurrentProject();
+        }
+
         // ── Mismatch check BEFORE touching any UI or state ──────────────────
         if (loaded.ActiveParticipants is { Count: > 0 })
         {
@@ -6263,11 +6279,12 @@ public partial class MainWindow : Window
             Title = isCloud ? "Add Cloud Agent" : "Add Local Agent",
             Width = 460,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this,
-            Background = (Brush)FindResource("ContentBgBrush"),
             ShowInTaskbar = false, ResizeMode = ResizeMode.CanResize
         };
         win.SizeToContent = SizeToContent.Height;
         win.MaxHeight = 560;
+        ApplyThemeToDialog(win);
+        win.SetResourceReference(Window.BackgroundProperty, "ContentBgBrush");
 
         var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(20, 16, 20, 16) };
         win.Content = scroll;
@@ -6368,7 +6385,10 @@ public partial class MainWindow : Window
                         s.BridgeAgents.Add(agent);
                         SettingsService.Save(s);
                         added = true;
-                        win.DialogResult = true;
+                        // Stay open — update button to ✓ so user can add more agents
+                        addRowBtn.Content   = "✓ Added";
+                        addRowBtn.IsEnabled = false;
+                        row.Opacity         = 0.5;
                     };
                 }
 
@@ -6390,16 +6410,16 @@ public partial class MainWindow : Window
             root.Children.Add(noAvail);
         }
 
-        // ── Cancel row ─────────────────────────────────────────────────────
+        // ── Close row ──────────────────────────────────────────────────────
         var bottomRow = new StackPanel
         {
             Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
             Margin = new Thickness(0, 14, 0, 0)
         };
         root.Children.Add(bottomRow);
-        var cancelBtn = MakeBridgeActionBtn("Cancel", false);
-        cancelBtn.Click += (_, _) => win.Close();
-        bottomRow.Children.Add(cancelBtn);
+        var closeBtn = MakeBridgeActionBtn("Done", false);
+        closeBtn.Click += (_, _) => win.Close();
+        bottomRow.Children.Add(closeBtn);
 
         win.ShowDialog();
         if (added) BuildBridgeContent();
@@ -6785,6 +6805,16 @@ public partial class MainWindow : Window
                 if (!System.IO.Directory.Exists(path))
                     return Task.FromResult($"Error: folder not found: '{path}'");
 
+                // Guard: refuse to switch while another project is loaded
+                if (_bridgeProject is not null &&
+                    !string.Equals(_bridgeProjectFolder, path, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(
+                        $"Error: project '{_bridgeProject.ProjectName}' is already loaded. " +
+                        "Call bridge_open_project with the same path to reload it, " +
+                        "or call bridge_close_project to unload it first.");
+                }
+
                 var proj = Services.ProjectService.LoadProject(path);
                 if (proj is null)
                     return Task.FromResult(
@@ -6806,6 +6836,29 @@ public partial class MainWindow : Window
                     $"  Roadmap:    {milestoneCount} milestone(s), {taskCount} task(s)\n\n" +
                     "You can now call bridge_get_project_info, bridge_get_roadmap, " +
                     "bridge_update_roadmap_item and bridge_complete_roadmap_item.");
+            }
+        });
+
+        // ── bridge_close_project - unload the current bridge project ─────────
+        AddTool(new McpTool
+        {
+            Name        = "bridge_close_project",
+            Description = "Unloads the currently loaded bridge project. " +
+                          "Call this before bridge_open_project when you want to switch to a different project.",
+            Provider    = "Bridge",
+            InputSchemaOverride = """{ "type": "object", "properties": {} }""",
+            ExecuteAsync = (_, _) =>
+            {
+                if (_bridgeProject is null)
+                    return Task.FromResult("No project is currently loaded.");
+                var name = _bridgeProject.ProjectName;
+                _bridgeProjectFolder = null;
+                _bridgeProject       = null;
+                _bridgeRoadmap       = null;
+                Dispatcher.InvokeAsync(() => {
+                    if (ProjectsContent.Visibility == Visibility.Visible) RefreshProjectList();
+                });
+                return Task.FromResult($"✓ Project '{name}' unloaded.");
             }
         });
 
@@ -7047,6 +7100,76 @@ public partial class MainWindow : Window
                            $"Call bridge_list_agents to see available agents.";
 
                 return await handler(message, ct);
+            }
+        });
+
+        // ── bridge_post_to_agents - broadcast task to all enabled agents ─────
+        AddTool(new McpTool
+        {
+            Name        = "bridge_post_to_agents",
+            Description = "Sends a task or message to ALL enabled Bridge agents in parallel and returns " +
+                          "each agent's response. Use this instead of chat_post_message when you want " +
+                          "silent agent work — results come back as tool output, nothing is posted to chat. " +
+                          "Set parallel=true to query agents simultaneously (faster but unordered). " +
+                          "Default is sequential (ordered, each agent sees only your message, not others' replies).",
+            Provider    = "Bridge",
+            InputSchemaOverride = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "message":  { "type": "string",  "description": "The task or prompt to send to all agents" },
+                    "parallel": { "type": "boolean", "description": "Run agents in parallel (default false = sequential)" }
+                  },
+                  "required": ["message"]
+                }
+                """,
+            ExecuteAsync = async (args, ct) =>
+            {
+                var message  = args["message"]?.GetValue<string>()?.Trim() ?? "";
+                var parallel = args["parallel"]?.GetValue<bool>() ?? false;
+
+                if (string.IsNullOrWhiteSpace(message))
+                    return "Error: message is required.";
+
+                var activeAgents = cfg.BridgeAgents.Where(a => a.IsEnabled).ToList();
+                if (activeAgents.Count == 0)
+                    return "Error: no Bridge agents are configured or enabled. " +
+                           "Add agents in the Bridge → Agents panel first.";
+
+                var results = new List<(string Name, string Response)>();
+
+                if (parallel)
+                {
+                    var tasks = activeAgents.Select(async agent =>
+                    {
+                        if (!agentHandlers.TryGetValue(agent.Label, out var handler))
+                            return (agent.Label, $"Error: agent '{agent.Label}' is not available.");
+                        try   { return (agent.Label, await handler(message, ct)); }
+                        catch (Exception ex) { return (agent.Label, $"Error: {ex.Message}"); }
+                    });
+                    results.AddRange(await Task.WhenAll(tasks));
+                }
+                else
+                {
+                    foreach (var agent in activeAgents)
+                    {
+                        if (ct.IsCancellationRequested) break;
+                        if (!agentHandlers.TryGetValue(agent.Label, out var handler))
+                        { results.Add((agent.Label, $"Error: agent '{agent.Label}' is not available.")); continue; }
+                        try   { results.Add((agent.Label, await handler(message, ct))); }
+                        catch (Exception ex) { results.Add((agent.Label, $"Error: {ex.Message}")); }
+                    }
+                }
+
+                var sb = new StringBuilder();
+                sb.AppendLine($"Responses from {results.Count} agent(s):\n");
+                foreach (var (name, response) in results)
+                {
+                    sb.AppendLine($"## {name}");
+                    sb.AppendLine(response.Trim());
+                    sb.AppendLine();
+                }
+                return sb.ToString().TrimEnd();
             }
         });
 
@@ -8557,6 +8680,7 @@ public partial class MainWindow : Window
         (null,                       "🤖  Agents"),
         ("bridge_list_agents",       "Lists all enabled Bridge agents with their names and models. Agents call this to discover who they can talk to."),
         ("bridge_ask_agent",         "Sends a message to a named agent and returns the response. The core agent-to-agent communication tool."),
+        ("bridge_post_to_agents",    "Broadcasts a task to ALL enabled Bridge agents and returns every response. Silent — nothing is posted to chat. Use parallel=true for speed."),
 
         (null,                       "📁  Folders"),
         ("bridge_list_folders",      "Lists all configured Bridge folders and their read/write permissions. Agents call this to discover which paths are accessible."),
@@ -9000,6 +9124,7 @@ public partial class MainWindow : Window
         sb.AppendLine("  Agents:");
         sb.AppendLine("    • bridge_list_agents()                         - agents with roles and specialties");
         sb.AppendLine("    • bridge_ask_agent(name, message)              - send a message to a named agent");
+        sb.AppendLine("    • bridge_post_to_agents(message, parallel)     - broadcast task to ALL agents, returns all responses (silent — no chat)");
         sb.AppendLine("  Folders:");
         sb.AppendLine("    • bridge_list_folders()                        - configured folders + write access");
         sb.AppendLine("    • bridge_list_folder(path)                     - list files and subfolders at a path");
@@ -15775,7 +15900,8 @@ public partial class MainWindow : Window
                 $"do not invent or claim personal hobbies, feelings, relationships, or experiences. " +
                 $"Do not fabricate or assume facts you are uncertain about; acknowledge uncertainty honestly instead. " +
                 $"Messages from other AI participants are prefixed with their display name in square brackets. " +
-                $"IMPORTANT: Never prefix your own response with your name or any label - write directly without any '[Name]:' header." +
+                $"IMPORTANT: Never prefix your own response with your name or any label — write directly without any '[Name]:' header. " +
+                $"Never write as, speak for, or impersonate another participant. You are {myName} and only ever respond in your own voice." +
                 BuildAppContextInstruction(forOllama: forUi) +
                 BuildProjectTypeContext() +
                 BuildRoleInstruction(myRole, reasoners, planners, researchers, critics, superRole) +
@@ -15844,7 +15970,8 @@ public partial class MainWindow : Window
             $"do not invent or claim personal hobbies, feelings, relationships, or experiences. " +
             $"Do not fabricate or assume facts you are uncertain about; acknowledge uncertainty honestly instead. " +
             $"Messages from other AI participants are prefixed with their display name in square brackets. " +
-            $"IMPORTANT: Never prefix your own response with your name or any label - write directly without any '[Name]:' header." +
+            $"IMPORTANT: Never prefix your own response with your name or any label — write directly without any '[Name]:' header. " +
+            $"Never write as, speak for, or impersonate another participant. You are {myName} and only ever respond in your own voice." +
             BuildAppContextInstruction(forCloud: forUi) +
             BuildProjectTypeContext() +
             BuildRoleInstruction(myRole, reasoners, planners, researchers, critics, superRole) +
