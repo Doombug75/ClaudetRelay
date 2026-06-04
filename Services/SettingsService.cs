@@ -191,6 +191,15 @@ public class AppSettings
     public int GlobalResponseLength { get; set; } = 50;
 
     /// <summary>
+    /// How eagerly participants join the conversation unprompted (0–100).
+    /// 0 = silent (only respond when directly addressed),
+    /// 50 = balanced (respect when someone else is addressed, PASS if nothing new),
+    /// 100 = very chatty (always keep the discussion going).
+    /// Project settings can override this per project.
+    /// </summary>
+    public int GlobalChattiness { get; set; } = 50;
+
+    /// <summary>
     /// Port the built-in MCP server listens on. Default 3333.
     /// Change if another service is already using that port.
     /// </summary>

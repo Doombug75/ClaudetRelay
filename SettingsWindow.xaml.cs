@@ -63,6 +63,7 @@ public partial class SettingsWindow : Window
     private CheckBox  _mockingbirdBox       = null!;
     private TextBox   _dialogueTurnsBox     = null!;
     private Slider    _responseLengthSlider = null!;
+    private Slider    _chattinessSlider     = null!;
     private Slider    _zoomSlider           = null!;
 
     // ── Constructor ────────────────────────────────────────────────────────
@@ -374,6 +375,57 @@ public partial class SettingsWindow : Window
         var responseLengthHint = MakeHintText(
             "50 = model default (no instruction injected)  ·  Only applies in general chat — project settings always take priority.");
 
+        // ── Chattiness ──────────────────────────────────────────────────────
+        var chattinessSep = new Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 12) };
+        chattinessSep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
+
+        var chattinessLabel = new TextBlock
+        {
+            Style  = (Style)FindResource("SLabel"),
+            Text   = "CHATTINESS",
+            Margin = new Thickness(0, 4, 0, 6)
+        };
+
+        var chattinessCurrentValue = Math.Clamp(settings.GlobalChattiness, 0, 100);
+        var chattinessValueLabel = new TextBlock
+        {
+            FontSize   = 12, FontFamily = new FontFamily("Segoe UI"),
+            Text       = FormatChattinessLabel(chattinessCurrentValue),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin     = new Thickness(0, 0, 0, 4)
+        };
+        chattinessValueLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+
+        var chattinessSlider = new Slider
+        {
+            Minimum             = 0,
+            Maximum             = 100,
+            Value               = chattinessCurrentValue,
+            TickFrequency       = 10,
+            IsSnapToTickEnabled = false,
+            Margin              = new Thickness(0, 0, 0, 4)
+        };
+        _chattinessSlider = chattinessSlider;
+        chattinessSlider.ValueChanged += (_, e) =>
+            chattinessValueLabel.Text = FormatChattinessLabel((int)e.NewValue);
+
+        var chattinessRow = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        chattinessRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        chattinessRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        chattinessRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var clLeft  = MakeHintText("Silent");
+        var clRight = MakeHintText("Chatty");
+        Grid.SetColumn(clLeft,             0);
+        Grid.SetColumn(chattinessSlider,   1);
+        Grid.SetColumn(clRight,            2);
+        chattinessRow.Children.Add(clLeft);
+        chattinessRow.Children.Add(chattinessSlider);
+        chattinessRow.Children.Add(clRight);
+
+        var chattinessHint = MakeHintText(
+            "Controls how eagerly participants join the conversation. " +
+            "Silent = only answer when addressed directly. Chatty = always keep the discussion going.");
+
         // ── UI Zoom ─────────────────────────────────────────────────────────
         var zoomSep = new Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 12) };
         zoomSep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
@@ -436,6 +488,11 @@ public partial class SettingsWindow : Window
         root.Children.Add(responseLengthValueLabel);
         root.Children.Add(responseLengthRow);
         root.Children.Add(responseLengthHint);
+        root.Children.Add(chattinessSep);
+        root.Children.Add(chattinessLabel);
+        root.Children.Add(chattinessValueLabel);
+        root.Children.Add(chattinessRow);
+        root.Children.Add(chattinessHint);
         root.Children.Add(zoomSep);
         root.Children.Add(zoomLabel);
         root.Children.Add(zoomValueLabel);
@@ -1251,6 +1308,7 @@ public partial class SettingsWindow : Window
         settings.AiDialogueMaxTurns   = int.TryParse(_dialogueTurnsBox.Text, out var dTurns)
                                         && dTurns is >= 3 and <= 100 ? dTurns : 10;
         settings.GlobalResponseLength = (int)_responseLengthSlider.Value;
+        settings.GlobalChattiness     = (int)_chattinessSlider.Value;
         settings.UiZoom               = Math.Clamp(_zoomSlider.Value / 100.0, 0.5, 3.0);
 
         settings.Participants.Clear();
@@ -1399,6 +1457,17 @@ public partial class SettingsWindow : Window
         < 70  => "Moderate",
         < 90  => "Thorough",
         _     => "Very detailed"
+    };
+
+    internal static string FormatChattinessLabel(int v) => v switch
+    {
+        < 15  => "Silent",
+        < 30  => "Reserved",
+        < 45  => "Focused",
+        <= 55 => "Balanced",
+        < 70  => "Conversational",
+        < 85  => "Engaged",
+        _     => "Very chatty"
     };
 
     private TextBlock MakeHintText(string text) => new TextBlock

@@ -150,6 +150,20 @@ public class ProjectSettings
     /// <summary>Default response length (0–100) for new participants. 50 = model default.</summary>
     public int DefaultResponseLength { get; set; } = 50;
 
+    /// <summary>
+    /// How eagerly participants join the conversation unprompted (0–100).
+    /// Overrides the global General Settings value for this project.
+    /// -1 = use global setting.
+    /// </summary>
+    public int DefaultChattiness { get; set; } = -1;
+
+    /// <summary>
+    /// When true, MCP clients (Claude Desktop, Claude Code) can read and post to this
+    /// project's chat via the chat_get_history and chat_post_message MCP tools.
+    /// Enable by adding an MCP Client via the + participant menu while the project is open.
+    /// </summary>
+    public bool McpChatEnabled { get; set; } = false;
+
     /// <summary>Legacy — no longer used. Kept so existing JSON round-trips cleanly.</summary>
     public string TeamPlan { get; set; } = "";
 

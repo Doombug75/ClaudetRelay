@@ -165,6 +165,7 @@ public partial class MainWindow : Window
     private string?                              _currentThemePath;
     private string                               _userName              = "You";
     private int                                  _toneLevel             = 50;
+    private int                                  _chattinessLevel       = 50;
     private bool                                 _mockingbirdMode       = false;
     private double                               _chatBubbleWidthPct    = 78.0;
     private string                               _projectLanguage       = "";
@@ -266,9 +267,10 @@ public partial class MainWindow : Window
         }
 
         // User display name & tone
-        _userName        = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
-        _toneLevel       = settings.ToneLevel;
-        _mockingbirdMode = settings.MockingbirdMode;
+        _userName          = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
+        _toneLevel         = settings.ToneLevel;
+        _chattinessLevel   = settings.GlobalChattiness;
+        _mockingbirdMode   = settings.MockingbirdMode;
 
         // AI dialogue toggle + depth
         _aiDialogueEnabled    = settings.AiDialogueEnabled;
@@ -330,6 +332,7 @@ public partial class MainWindow : Window
         var settings = SettingsService.Load();
         _userName             = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
         _toneLevel            = settings.ToneLevel;
+        _chattinessLevel      = settings.GlobalChattiness;
         _mockingbirdMode      = settings.MockingbirdMode;
         _aiDialogueEnabled    = settings.AiDialogueEnabled;
         _aiDialogueMaxTurns   = Math.Clamp(settings.AiDialogueMaxTurns, 3, 100);
@@ -7872,6 +7875,146 @@ public partial class MainWindow : Window
             }
         });
 
+        // ── chat_get_history - read active chat log ───────────────────────
+        AddTool(new McpTool
+        {
+            Name        = "chat_get_history",
+            Description = "Returns recent chat messages from the active ClaudetRelay chat. " +
+                          "General chat (no project open) is always accessible. " +
+                          "For project chats, the project must have MCP Client enabled — " +
+                          "open the project in ClaudetRelay and add an MCP Client via the + participant button. " +
+                          "Pass count to limit results (default 50, max 200). " +
+                          "Pass project_path to read a specific project's chat instead of the active one.",
+            Provider    = "Bridge",
+            InputSchemaOverride = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "count":        { "type": "integer", "description": "Number of recent messages to return (1–200, default 50)" },
+                    "project_path": { "type": "string",  "description": "Optional: absolute path to a specific project folder" }
+                  }
+                }
+                """,
+            ExecuteAsync = (args, _) =>
+            {
+                var count       = Math.Max(1, Math.Min(200, args["count"]?.GetValue<int>() ?? 50));
+                var projectPath = args["project_path"]?.GetValue<string>()?.Trim();
+
+                List<ChatLogEntry> entries;
+                string context;
+
+                if (!string.IsNullOrEmpty(projectPath))
+                {
+                    var proj = Services.ProjectService.LoadProject(projectPath);
+                    if (proj is null)
+                        return Task.FromResult($"Error: no ClaudetRelay project at '{projectPath}'.");
+                    if (!proj.McpChatEnabled)
+                        return Task.FromResult(
+                            $"MCP chat access is not enabled for project '{proj.ProjectName}'. " +
+                            "Open it in ClaudetRelay and add an MCP Client via the + participant button.");
+                    entries = Services.ProjectService.LoadChatLog(projectPath);
+                    context = $"Project: {proj.ProjectName}";
+                }
+                else if (_currentProjectFolder is not null && _projectSettings is not null)
+                {
+                    if (!_projectSettings.McpChatEnabled)
+                        return Task.FromResult(
+                            $"MCP chat access is not enabled for '{_projectSettings.ProjectName}'. " +
+                            "Add an MCP Client via the + participant button to enable it.");
+                    entries = Services.ProjectService.LoadChatLog(_currentProjectFolder);
+                    context = $"Project: {_projectSettings.ProjectName}";
+                }
+                else
+                {
+                    entries = GeneralChatLogService.LoadRecentLog();
+                    context = "General chat";
+                }
+
+                if (entries.Count == 0)
+                    return Task.FromResult($"No chat history found. ({context})");
+
+                var recent = entries.Count > count ? entries[^count..] : entries;
+                var sb = new StringBuilder();
+                sb.AppendLine($"# Chat History  ({context})");
+                sb.AppendLine($"Showing {recent.Count} of {entries.Count} total messages");
+                sb.AppendLine();
+
+                foreach (var e in recent)
+                {
+                    if (e.SenderType == "System")
+                        sb.AppendLine($"[{e.Timestamp:HH:mm}] ─── {e.Message} ───");
+                    else
+                        sb.AppendLine($"[{e.Timestamp:HH:mm}] **{e.DisplayName}**: {e.Message}");
+                    sb.AppendLine();
+                }
+
+                return Task.FromResult(sb.ToString());
+            }
+        });
+
+        // ── chat_post_message - inject a bubble into the active chat ──────
+        AddTool(new McpTool
+        {
+            Name        = "chat_post_message",
+            Description = "Posts a message into the active ClaudetRelay chat as a named participant. " +
+                          "The message appears as a chat bubble, is saved to the chat log, " +
+                          "and will be visible to all AI participants on their next turn. " +
+                          "For project chats, MCP Client must be enabled (add via + participant button). " +
+                          "Use participant_name to set the sender label (e.g. 'Claude Code', 'External Review').",
+            Provider    = "Bridge",
+            InputSchemaOverride = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "participant_name": { "type": "string", "description": "Display name shown on the chat bubble" },
+                    "message":          { "type": "string", "description": "The message to post" }
+                  },
+                  "required": ["participant_name", "message"]
+                }
+                """,
+            ExecuteAsync = async (args, _) =>
+            {
+                var name    = args["participant_name"]?.GetValue<string>()?.Trim() ?? "MCP Client";
+                var message = args["message"]?.GetValue<string>()?.Trim() ?? "";
+
+                if (string.IsNullOrEmpty(message))
+                    return "Error: message cannot be empty.";
+
+                // Gate: project chat requires McpChatEnabled
+                if (_currentProjectFolder is not null && _projectSettings is not null && !_projectSettings.McpChatEnabled)
+                    return $"MCP chat access is not enabled for '{_projectSettings.ProjectName}'. " +
+                           "Add an MCP Client via the + participant button to enable it.";
+
+                var avatarLabel = name.Length >= 2 ? name[..2].ToUpper() : name.ToUpper();
+
+                var entry = new ChatLogEntry
+                {
+                    Timestamp   = DateTime.Now,
+                    SenderType  = "AI",
+                    Provider    = "MCP Client",
+                    ModelName   = "external",
+                    DisplayName = name,
+                    AvatarLabel = avatarLabel,
+                    AccentKey   = "AccentPrimaryBrush",
+                    BubbleKey   = "SecondaryBubbleBrush",
+                    IsUser      = false,
+                    Message     = message
+                };
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    AddMessage(name, avatarLabel, "AccentPrimaryBrush", "SecondaryBubbleBrush", message, isUser: false);
+                    ChatScrollViewer.ScrollToBottom();
+                    AppendToProjectLog(entry);
+                    AppendToGeneralLog(entry);
+                    _sharedHistory.Add(new CloudAIMessage("assistant", message, name));
+                });
+
+                var preview = message.Length > 80 ? message[..80] + "…" : message;
+                return $"✓ Posted as '{name}': \"{preview}\"";
+            }
+        });
+
         return tools;
     }
 
@@ -8369,6 +8512,10 @@ public partial class MainWindow : Window
         ("world_get_entities",       "Returns detailed information about world entities filtered by type (Character / Faction / Location / Lore), story arc, or name substring. Includes all schema fields, notes, and resolved relationship names."),
         ("world_get_entity",         "Returns full details for a single world entity by name and type, including all fields, notes, member list, and faction associations."),
         ("world_get_boards",         "Lists all world boards with entity types shown, card / relation / frame / text-box counts, and last updated dates."),
+
+        (null,                       "💬  Chat"),
+        ("chat_get_history",         "Returns recent chat messages from the active ClaudetRelay chat. General chat is always accessible. Project chats require MCP Client to be enabled (add via + participant button)."),
+        ("chat_post_message",        "Posts a message into the active chat as a named participant — appears as a bubble, saved to the log, visible to AI participants on their next turn."),
     ];
 
     private UIElement BuildToolSettingsCard(AppSettings cfg)
@@ -10045,6 +10192,7 @@ public partial class MainWindow : Window
             var updated = SettingsService.Load();
             _userName             = string.IsNullOrWhiteSpace(updated.UserName) ? "You" : updated.UserName.Trim();
             _toneLevel            = updated.ToneLevel;
+            _chattinessLevel      = updated.GlobalChattiness;
             _mockingbirdMode      = updated.MockingbirdMode;
             _aiDialogueEnabled    = updated.AiDialogueEnabled;
             _aiDialogueMaxTurns   = Math.Clamp(updated.AiDialogueMaxTurns, 3, 100);
@@ -11111,6 +11259,58 @@ public partial class MainWindow : Window
         root.Children.Add(defLenLabel);
         root.Children.Add(defLenRow);
 
+        // ── Default Chattiness ─────────────────────────────────────────────
+        var defChatLabel = new TextBlock
+        {
+            Text       = "CHATTINESS",
+            FontSize   = 11, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(0, 0, 0, 6),
+            Foreground = (Brush)FindResource("ContentDimBrush")
+        };
+
+        int defChatValue = ps.DefaultChattiness >= 0 ? ps.DefaultChattiness
+                         : (int)Math.Clamp(SettingsService.Load().GlobalChattiness, 0, 100);
+
+        var defChatSlider = new Slider
+        {
+            Minimum = 0, Maximum = 100,
+            Value   = defChatValue,
+            TickFrequency = 10, IsSnapToTickEnabled = false,
+            Width = 220, Margin = new Thickness(0, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var defChatValueTb = new TextBlock
+        {
+            FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
+            Width = 100, VerticalAlignment = VerticalAlignment.Center,
+            Foreground = (Brush)FindResource("ContentTextBrush"),
+            Text = SettingsWindow.FormatChattinessLabel(defChatValue)
+        };
+        defChatSlider.ValueChanged += (_, e) =>
+            defChatValueTb.Text = SettingsWindow.FormatChattinessLabel((int)e.NewValue);
+
+        var defChatRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin      = new Thickness(0, 0, 0, 4)
+        };
+        defChatRow.Children.Add(defChatSlider);
+        defChatRow.Children.Add(defChatValueTb);
+
+        var defChatHint = new TextBlock
+        {
+            Text = "Overrides the global Chattiness setting for this project. " +
+                   "Silent = only respond when addressed. Chatty = always keep discussing.",
+            FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12),
+            Foreground = (Brush)FindResource("ContentDimBrush")
+        };
+
+        root.Children.Add(defChatLabel);
+        root.Children.Add(defChatRow);
+        root.Children.Add(defChatHint);
+
         // ── Separator ──────────────────────────────────────────────────────
         var sep = new Rectangle
         {
@@ -11517,6 +11717,9 @@ public partial class MainWindow : Window
 
             // Collect default response length
             ps.DefaultResponseLength = (int)defLenSlider.Value;
+
+            // Collect chattiness override
+            ps.DefaultChattiness = (int)defChatSlider.Value;
 
             // Collect roles
             ps.Roles.Clear();
@@ -13230,11 +13433,48 @@ public partial class MainWindow : Window
 
         var menu = new ContextMenu { FontFamily = new FontFamily("Segoe UI"), FontSize = 13 };
 
+        // ── MCP Client special entry ───────────────────────────────────────
+        if (_currentProjectFolder is not null && _projectSettings is not null)
+        {
+            bool mcpEnabled = _projectSettings.McpChatEnabled;
+            var mcpItem = new MenuItem
+            {
+                Header    = mcpEnabled
+                    ? "🔌  MCP Client  ·  already connected"
+                    : "🔌  MCP Client  ·  Allow Claude Desktop / Claude Code to chat",
+                IsEnabled = !mcpEnabled
+            };
+            if (!mcpEnabled)
+            {
+                mcpItem.Click += (_, _) =>
+                {
+                    _projectSettings.McpChatEnabled = true;
+                    ProjectService.SaveProject(_currentProjectFolder!, _projectSettings);
+                    AddSystemMessage("🔌 MCP Client connected — Claude Desktop and Claude Code can now read and post to this chat via the chat_get_history and chat_post_message MCP tools.");
+                };
+            }
+            menu.Items.Add(mcpItem);
+            menu.Items.Add(new Separator());
+        }
+        else
+        {
+            var mcpGeneral = new MenuItem
+            {
+                Header    = "🔌  MCP Client  ·  General chat is always accessible via MCP",
+                IsEnabled = false
+            };
+            menu.Items.Add(mcpGeneral);
+            menu.Items.Add(new Separator());
+        }
+
         foreach (var p in enabled)
         {
-            // Name-based duplicate check: each settings entry has a unique display name,
-            // so we look for an exact name+model+provider match in the live participant list.
-            // This correctly handles multiple entries with the same model but different names.
+            // Duplicate check: if only one settings entry uses this provider+model combo,
+            // match on provider+model alone — this makes the check rename-proof (live cards
+            // keep the old CustomName until refreshed, so a name comparison would falsely
+            // allow re-adding a renamed participant).
+            // When multiple settings entries share the same provider+model (intentional
+            // multi-persona setups), fall back to name comparison so each persona stays distinct.
             var effectiveName = string.IsNullOrEmpty(p.Name)
                 ? FormatModelDisplayName(p.Model)
                 : p.Name;
@@ -13242,17 +13482,27 @@ public partial class MainWindow : Window
             bool alreadyAdded;
             if (p.Type == "Ollama")
             {
-                alreadyAdded = _ollamaParticipants.Any(ui =>
-                    ui.Data.Service.CurrentModel == p.Model &&
-                    ui.Data.Service.BaseUrl      == p.ServerUrl &&
-                    ui.Data.DisplayName          == effectiveName);
+                bool multiPersona = enabled.Count(q => q.Type == p.Type && q.Model == p.Model && q.ServerUrl == p.ServerUrl) > 1;
+                alreadyAdded = multiPersona
+                    ? _ollamaParticipants.Any(ui =>
+                        ui.Data.Service.CurrentModel == p.Model &&
+                        ui.Data.Service.BaseUrl      == p.ServerUrl &&
+                        ui.Data.DisplayName          == effectiveName)
+                    : _ollamaParticipants.Any(ui =>
+                        ui.Data.Service.CurrentModel == p.Model &&
+                        ui.Data.Service.BaseUrl      == p.ServerUrl);
             }
             else
             {
-                alreadyAdded = _cloudAIParticipants.Any(ui =>
-                    ui.Data.Service.ProviderName == p.Type &&
-                    ui.Data.Service.CurrentModel == p.Model &&
-                    ui.Data.DisplayName          == effectiveName);
+                bool multiPersona = enabled.Count(q => q.Type == p.Type && q.Model == p.Model) > 1;
+                alreadyAdded = multiPersona
+                    ? _cloudAIParticipants.Any(ui =>
+                        ui.Data.Service.ProviderName == p.Type &&
+                        ui.Data.Service.CurrentModel == p.Model &&
+                        ui.Data.DisplayName          == effectiveName)
+                    : _cloudAIParticipants.Any(ui =>
+                        ui.Data.Service.ProviderName == p.Type &&
+                        ui.Data.Service.CurrentModel == p.Model);
             }
 
             bool hasKey = p.Type == "Ollama"
@@ -13606,16 +13856,65 @@ public partial class MainWindow : Window
             }
             else
             {
-                // Round 0 - first response, always fire everyone unconditionally
-                foreach (var ui in activeOllamas)
+                // Round 0 — resolve effective chattiness (project overrides global if set).
+                int chattiness = (_projectSettings?.DefaultChattiness ?? -1) >= 0
+                    ? _projectSettings!.DefaultChattiness
+                    : _chattinessLevel;
+
+                // Detect whether the user addressed specific participants by name.
+                var lastUserMsg      = _sharedHistory.LastOrDefault(m => m.Role == "user")?.Content ?? "";
+                var addressedOllamas = activeOllamas .Where(ui => IsNamedInMessage(lastUserMsg, GetEffectiveName(ui))).ToList();
+                var addressedClouds  = activeCloudAIs.Where(ui => IsNamedInMessage(lastUserMsg, GetEffectiveName(ui))).ToList();
+                var otherOllamas     = activeOllamas .Except(addressedOllamas).ToList();
+                var otherClouds      = activeCloudAIs.Except(addressedClouds).ToList();
+                bool anyAddressed    = addressedOllamas.Count + addressedClouds.Count > 0;
+
+                if (anyAddressed)
                 {
-                    if (ct.IsCancellationRequested) break;
-                    await RunOllamaStreamAsync(ui, ct);
+                    var addressedNames = addressedOllamas.Select(GetEffectiveName)
+                        .Concat(addressedClouds.Select(GetEffectiveName)).ToList();
+                    bool   isSingle  = addressedNames.Count == 1;
+                    string nameList  = isSingle ? addressedNames[0] : string.Join(", ", addressedNames);
+
+                    // Addressed participants respond naturally first
+                    foreach (var ui in addressedOllamas)
+                    {
+                        if (ct.IsCancellationRequested) break;
+                        await RunOllamaStreamAsync(ui, ct);
+                    }
+                    foreach (var ui in addressedClouds)
+                    {
+                        if (ct.IsCancellationRequested) break;
+                        await RunCloudAIStreamAsync(ui, ct);
+                    }
+
+                    // Non-addressed: hint (or none) depends on chattiness
+                    var notAddressedHint = BuildNotAddressedHint(chattiness, nameList, isSingle);
+                    foreach (var ui in otherOllamas)
+                    {
+                        if (ct.IsCancellationRequested) break;
+                        await RunOllamaStreamAsync(ui, ct, notAddressedHint);
+                    }
+                    foreach (var ui in otherClouds)
+                    {
+                        if (ct.IsCancellationRequested) break;
+                        await RunCloudAIStreamAsync(ui, ct, notAddressedHint);
+                    }
                 }
-                foreach (var ui in activeCloudAIs)
+                else
                 {
-                    if (ct.IsCancellationRequested) break;
-                    await RunCloudAIStreamAsync(ui, ct);
+                    // Nobody addressed — apply quiet-mode hint if chattiness is low
+                    var quietHint = BuildQuietModeHint(chattiness);
+                    foreach (var ui in activeOllamas)
+                    {
+                        if (ct.IsCancellationRequested) break;
+                        await RunOllamaStreamAsync(ui, ct, quietHint);
+                    }
+                    foreach (var ui in activeCloudAIs)
+                    {
+                        if (ct.IsCancellationRequested) break;
+                        await RunCloudAIStreamAsync(ui, ct, quietHint);
+                    }
                 }
             }
         }
@@ -15029,6 +15328,15 @@ public partial class MainWindow : Window
         Regex.IsMatch(response, $@"@{Regex.Escape(name)}\b", RegexOptions.IgnoreCase);
 
     /// <summary>
+    /// Returns true when <paramref name="name"/> appears as a whole word anywhere in
+    /// <paramref name="message"/> (case-insensitive, no @ required).
+    /// Used to detect when the user directly addresses a participant by name.
+    /// </summary>
+    private static bool IsNamedInMessage(string message, string name) =>
+        !string.IsNullOrWhiteSpace(name) &&
+        Regex.IsMatch(message, $@"\b{Regex.Escape(name)}\b", RegexOptions.IgnoreCase);
+
+    /// <summary>
     /// Returns true when the response is just "PASS" (possibly with trailing punctuation /
     /// whitespace), meaning the AI decided it has nothing new to add in this follow-up round.
     /// </summary>
@@ -15383,6 +15691,9 @@ public partial class MainWindow : Window
                 $"You are {myName}, running the {myModel} model. " +
                 $"Always respond as {myName}. " +
                 $"If asked who you are, say you are {myName} running {myModel}. " +
+                $"You are an AI language model — unless a role instruction explicitly tells you otherwise, " +
+                $"do not invent or claim personal hobbies, feelings, relationships, or experiences. " +
+                $"Do not fabricate or assume facts you are uncertain about; acknowledge uncertainty honestly instead. " +
                 $"Messages from other AI participants are prefixed with their display name in square brackets. " +
                 $"IMPORTANT: Never prefix your own response with your name or any label - write directly without any '[Name]:' header." +
                 BuildAppContextInstruction(forOllama: forUi) +
@@ -15396,6 +15707,7 @@ public partial class MainWindow : Window
                 BuildInputFilesContext(_currentProjectFolder) +
                 BuildWorldEntityContext() +
                 BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage) +
+                BuildChattinessInstruction(_chattinessLevel) +
                 BuildFileOperationInstruction(_currentProjectFolder, myHasWrite, writerNames) +
                 BuildRoadmapContext(myRole) +
                 BuildSessionTimeInstruction(myRole))
@@ -15448,6 +15760,9 @@ public partial class MainWindow : Window
         var system =
             $"You are {myName}, running model {myModel}. " +
             $"Always respond as {myName}. If asked who you are, identify yourself as {myName}. " +
+            $"You are an AI language model — unless a role instruction explicitly tells you otherwise, " +
+            $"do not invent or claim personal hobbies, feelings, relationships, or experiences. " +
+            $"Do not fabricate or assume facts you are uncertain about; acknowledge uncertainty honestly instead. " +
             $"Messages from other AI participants are prefixed with their display name in square brackets. " +
             $"IMPORTANT: Never prefix your own response with your name or any label - write directly without any '[Name]:' header." +
             BuildAppContextInstruction(forCloud: forUi) +
@@ -15461,6 +15776,7 @@ public partial class MainWindow : Window
             BuildInputFilesContext(_currentProjectFolder) +
             BuildWorldEntityContext() +
             BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage) +
+            BuildChattinessInstruction(_chattinessLevel) +
             BuildFileOperationInstruction(_currentProjectFolder, myHasWrite, writerNames) +
             BuildRoadmapContext(myRole) +
             BuildSessionTimeInstruction(myRole);
@@ -16305,6 +16621,7 @@ public partial class MainWindow : Window
         // Apply non-participant general settings unconditionally
         _userName             = string.IsNullOrWhiteSpace(newSettings.UserName) ? "You" : newSettings.UserName.Trim();
         _toneLevel            = newSettings.ToneLevel;
+        _chattinessLevel      = newSettings.GlobalChattiness;
         _mockingbirdMode      = newSettings.MockingbirdMode;
         _aiDialogueEnabled    = newSettings.AiDialogueEnabled;
         _aiDialogueMaxTurns   = Math.Clamp(newSettings.AiDialogueMaxTurns, 3, 100);
@@ -17176,6 +17493,96 @@ public partial class MainWindow : Window
         _     => "\n\nThis is your moment - write a long, expressive, detailed response. Don't hold back."
     };
 
+    // ── Chattiness instruction ─────────────────────────────────────────────
+
+    /// <summary>
+    /// System-prompt snippet that sets the participant's general participation disposition.
+    /// 50 = model default (no injection). Injected alongside tone and response-length.
+    /// </summary>
+    private static string BuildChattinessInstruction(int level) => level switch
+    {
+        < 15  => "\n\nYou are disciplined and focused. Stay strictly on the current topic. " +
+                 "Do not introduce new angles or shift the theme. " +
+                 "Only contribute when your input is directly required or you are explicitly addressed.",
+        < 30  => "\n\nKeep your contributions focused on the discussion at hand. " +
+                 "Avoid tangents. Speak up when you have something clearly relevant — " +
+                 "otherwise, let others carry the thread.",
+        < 45  => "\n\nContribute when you have something genuinely useful to add. " +
+                 "Avoid filling space just to participate.",
+        <= 55 => "",    // 50 = balanced, no injection
+        < 70  => "\n\nBe engaged and conversational. Address other participants by name when relevant. " +
+                 "Keep the discussion lively and feel free to share your perspective proactively.",
+        < 85  => "\n\nBe proactive in the conversation. Ask follow-up questions, build on what others say, " +
+                 "and keep the discussion moving forward. Address others directly.",
+        _     => "\n\nKeep the conversation going! Always have something to add — a follow-up question, " +
+                 "a different angle, a challenge to an assumption. " +
+                 "Be enthusiastic and drive the discussion forward."
+    };
+
+    /// <summary>
+    /// Builds the per-round hint for a participant who was NOT the one addressed.
+    /// Returns null when chattiness is high enough that the participant should just fire freely.
+    /// Thresholds spread evenly so every notch of the slider produces a perceptible change.
+    /// </summary>
+    private static string? BuildNotAddressedHint(int chattiness, string addressedNames, bool isSingle)
+    {
+        // 80–100  Very chatty: join in regardless — no hint
+        if (chattiness >= 80)
+            return null;
+
+        // 60–80  Engaged: soft nudge, no PASS instruction
+        if (chattiness >= 60)
+            return isSingle
+                ? $"This message was mainly for {addressedNames}. " +
+                  "Feel free to add your own angle if you have something relevant."
+                : $"This message was mainly for {addressedNames}. " +
+                  "Jump in if you have a useful perspective.";
+
+        // 40–60  Conversational: gentle guidance, still no hard PASS
+        if (chattiness >= 40)
+            return isSingle
+                ? $"This message was addressed to {addressedNames}. " +
+                  "Consider whether you have something meaningfully different to add before responding."
+                : $"This message was primarily for {addressedNames}. " +
+                  "Respond if you have a genuinely different perspective or important point.";
+
+        // 20–40  Reserved: PASS is offered as an option
+        if (chattiness >= 20)
+            return isSingle
+                ? $"This message was directed specifically at {addressedNames}. " +
+                  "Only respond if you have an important correction, a strong disagreement, " +
+                  "or information the group would lose if you stay silent. " +
+                  "Otherwise, respond with exactly: PASS"
+                : $"This message was primarily addressed to {addressedNames}. " +
+                  "Only respond if you have a meaningfully different perspective or critical information. " +
+                  "Otherwise, respond with exactly: PASS";
+
+        // 0–20  Silent: full PASS — only speak up for truly critical points
+        return isSingle
+            ? $"This message was directed at {addressedNames}, not you. " +
+              "Stay silent unless you strongly disagree or have information that cannot be omitted. " +
+              "Respond with exactly: PASS"
+            : $"This message was addressed to {addressedNames}. " +
+              "Only speak if you have a critical objection or essential information. " +
+              "Respond with exactly: PASS";
+    }
+
+    /// <summary>
+    /// Builds a standing PASS-eligible hint when no participant was specifically addressed
+    /// but the chattiness level calls for restraint.
+    /// Returns null when everyone should fire unconditionally (chattiness ≥ 60).
+    /// </summary>
+    private static string? BuildQuietModeHint(int chattiness) => chattiness switch
+    {
+        >= 60 => null,
+        >= 40 => "Contribute if you have something genuinely new to add. " +
+                 "Avoid repeating points already made by others.",
+        >= 20 => "Only respond if you have something specific and valuable to contribute here. " +
+                 "If you have nothing new to add, respond with exactly: PASS",
+        _     => "Only respond if your input is clearly essential to this discussion. " +
+                 "Otherwise, respond with exactly: PASS"
+    };
+
     // ── Language instruction ───────────────────────────────────────────────
 
     private static string BuildLanguageInstruction(string language) =>
@@ -17269,7 +17676,9 @@ public partial class MainWindow : Window
                 < 45  => "\n\nAdd theatrical poetic flair to your responses. " +
                          "A clever rhyme or dramatic flourish is always welcome, though prose is fine too." + archaic,
 
-                <= 55 => "\n\nYou have a dry theatrical wit. Be occasionally playful but keep responses helpful." + archaic,
+                <= 55 => "\n\nYou have a dry theatrical wit. Be occasionally playful but keep responses helpful. " +
+                         "Sometimes — not always — slip into tight rhythmic rhymes in the style of a rap verse: " +
+                         "punchy cadence, internal rhymes, a little swagger. Then drop back into prose without warning." + archaic,
 
                 < 70  => "\n\nBe warmly funny and gently fond. Your humour is affectionate rather than cutting - " +
                          "wit in service of warmth. Rhymes are now optional; warmth is mandatory." + archaic,
