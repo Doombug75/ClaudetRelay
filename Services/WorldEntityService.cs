@@ -46,9 +46,15 @@ public class WorldEntity
 
     /// <summary>
     /// IDs of member entities (Characters etc.) that belong to this faction.
-    /// Faction entities only.
+    /// Also used by Lore to list characters who know this lore.
     /// </summary>
     public List<string> MemberIds { get; set; } = [];
+
+    /// <summary>
+    /// IDs of factions associated with this entity.
+    /// For Lore: factions where every member shares this knowledge.
+    /// </summary>
+    public List<string> FactionIds { get; set; } = [];
 }
 
 // ── Field schemas ──────────────────────────────────────────────────────────
@@ -78,6 +84,8 @@ public static class WorldEntitySchemas
         ["Location"] =
         [
             ("Type",             "city / building / wilderness / imagined …"),
+            ("Arc",              "Story arc this location is tied to"),
+            ("Alignment",        "friendly / hostile / neutral / contested …"),
             ("Description",      "Visual and sensory details"),
             ("Atmosphere",       "Mood and feeling of this place"),
             ("Significance",     "Why does this place matter to the story?"),
@@ -94,9 +102,10 @@ public static class WorldEntitySchemas
         ["Lore"] =
         [
             ("Category",    "history / myth / magic / prophecy / technology …"),
+            ("Arc",         "Story arc this lore belongs to"),
             ("Description", "What is this lore entry?"),
-            ("Known by",    "Which characters are aware of this?"),
             ("Source",      "Where does this knowledge come from?")
+            // CommonKnowledge, HistoricalKnowledge stored in Fields; Characters/Factions via chip sections
         ]
     };
 
@@ -125,6 +134,12 @@ public static class WorldEntitySchemas
         "#795548", // Brown
         "#607D8B", // Blue Grey
         "#757575", // Grey
+        // ── 5 additions ──────────────────────────────────────────────────────
+        "#FFC107", // Amber (warm gold — distinct from orange)
+        "#689F38", // Olive Green (forest, distinct from bright green)
+        "#00838F", // Deep Cyan (between cyan and teal)
+        "#AD1457", // Deep Pink / Crimson
+        "#EF6C00", // Burnt Orange (deep, red-orange)
     ];
 }
 
@@ -312,6 +327,30 @@ public enum BoardLineStyle
     DoubleSolid, DoubleDotted, DoubleDashed, DoubleDotDash
 }
 
+/// <summary>A movable waypoint on a relation line (makes the line bend around cards).</summary>
+public class BoardWaypoint
+{
+    public string  Id         { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public double  X          { get; set; }
+    public double  Y          { get; set; }
+    /// <summary>
+    /// When set, this waypoint's position is always read from the master waypoint with this ID
+    /// (which lives on another relation).  Used so junction-connected lines move together.
+    /// </summary>
+    public string? LinkedToId { get; set; } = null;
+}
+
+/// <summary>A named line-style preset that lives in the board legend.</summary>
+public class BoardLinePreset
+{
+    public string         Id        { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string         Name      { get; set; } = "Standard";
+    public BoardLineStyle Style     { get; set; } = BoardLineStyle.Solid;
+    public string         Color     { get; set; } = "#2196F3";
+    public double         Thickness { get; set; } = 1.5;
+    public bool           HasArrow  { get; set; } = false;
+}
+
 /// <summary>A named relation between two entities on the board.</summary>
 public class BoardRelation
 {
@@ -323,10 +362,52 @@ public class BoardRelation
     /// <summary>Entry shown in the board legend (empty = hidden from legend). Max 20 chars.</summary>
     public string         LegendLabel { get; set; } = "";
     public BoardLineStyle LineStyle   { get; set; } = BoardLineStyle.Solid;
-    /// <summary>WPF theme brush resource key for the line color.</summary>
-    public string         LineColor   { get; set; } = "AccentHighlightBrush";
+    /// <summary>Hex color string (#RRGGBB) for the line. Legacy boards may store a brush key name.</summary>
+    public string         LineColor   { get; set; } = "#2196F3";
     /// <summary>Stroke thickness in pixels (1–10).</summary>
     public double         Thickness   { get; set; } = 1.5;
+    /// <summary>When true, an arrowhead is drawn at the ToId end of the line.</summary>
+    public bool           HasArrow    { get; set; } = true;
+    /// <summary>Ordered intermediate waypoints (bends). Line goes From → WP[0] → … → To.</summary>
+    public List<BoardWaypoint> Waypoints { get; set; } = [];
+    /// <summary>When true the line visually STARTS at Waypoints[0] instead of the FromId card border.</summary>
+    public bool StartsAtJunction { get; set; } = false;
+    /// <summary>When true the line visually ENDS at Waypoints[^1] instead of the ToId card border.</summary>
+    public bool EndsAtJunction   { get; set; } = false;
+}
+
+/// <summary>A freely-placeable styled text annotation on the board canvas.</summary>
+public class BoardTextBox
+{
+    public string Id          { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public double X           { get; set; }
+    public double Y           { get; set; }
+    public double Width       { get; set; } = 200;
+    public double Height      { get; set; } = 80;
+    public string Text        { get; set; } = "Text";
+    public string FontFamily  { get; set; } = "Segoe UI";
+    public double FontSize    { get; set; } = 12;
+    public bool   Bold        { get; set; } = false;
+    public bool   Italic      { get; set; } = false;
+    public string TextColor   { get; set; } = "#212121";
+    public string BgColor     { get; set; } = "#00000000";
+    public string FrameColor  { get; set; } = "#FF808080";
+    public double FrameThick  { get; set; } = 0;
+    public string FrameStyle  { get; set; } = "None"; // None, Solid, Dashed, Dotted
+    public string HAlign      { get; set; } = "Left";  // Left, Center, Right, Justify
+    public string VAlign      { get; set; } = "Top";   // Top, Center, Bottom
+}
+
+/// <summary>A colored grouping frame that groups and moves items on the board canvas.</summary>
+public class BoardFrame
+{
+    public string Id     { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public double X      { get; set; }
+    public double Y      { get; set; }
+    public double Width  { get; set; } = 300;
+    public double Height { get; set; } = 200;
+    public string Color  { get; set; } = "#FF4488AA";
+    public string Label  { get; set; } = "";
 }
 
 /// <summary>
@@ -335,10 +416,32 @@ public class BoardRelation
 /// </summary>
 public class EntityBoardData
 {
-    public Dictionary<string, BoardPosition> Positions     { get; set; } = new();
-    public List<BoardRelation>               Relations     { get; set; } = [];
+    public Dictionary<string, BoardPosition> Positions        { get; set; } = new();
+    public List<BoardRelation>               Relations        { get; set; } = [];
+    /// <summary>Named line-style presets managed via the legend editor.</summary>
+    public List<BoardLinePreset>             LinePresets      { get; set; } = [];
+    /// <summary>Freely placed text annotations on the board.</summary>
+    public List<BoardTextBox>                TextBoxes        { get; set; } = [];
+    /// <summary>Board IDs pinned onto this board as tiles (board-in-board). Key = board ID.</summary>
+    public Dictionary<string, BoardPosition> BoardPinPositions { get; set; } = new();
+    /// <summary>Colored grouping frames on the canvas.</summary>
+    public List<BoardFrame>                  Frames            { get; set; } = [];
     /// <summary>Whether the floating legend panel is visible.</summary>
-    public bool                              LegendVisible { get; set; } = true;
+    public bool                              LegendVisible    { get; set; } = true;
+    /// <summary>Snap card/waypoint/textbox movements to this grid (px). 0 = off.</summary>
+    public double                            GridSize         { get; set; } = 10;
+    /// <summary>When true the snap behaviour is active.</summary>
+    public bool                              SnapToGrid       { get; set; } = false;
+    /// <summary>When true grid lines are rendered (independent of snap).</summary>
+    public bool                              GridVisible      { get; set; } = false;
+    /// <summary>Grid line colour as "#AARRGGBB". Null = use the default theme colour.</summary>
+    public string?                           GridColor        { get; set; }
+    /// <summary>Absolute path to the board background image, or null.</summary>
+    public string?                           BackgroundImagePath { get; set; }
+    /// <summary>How the background image fills the canvas: Fill | Uniform | UniformToFill | Scale.</summary>
+    public string                            BgImageMode      { get; set; } = "Fill";
+    /// <summary>Scale percentage used when BgImageMode = "Scale" (1 – 500).</summary>
+    public double                            BgImageScale     { get; set; } = 100;
 }
 
 public static class EntityBoardService
@@ -400,7 +503,7 @@ public class WorldBoard
     public string       Name        { get; set; } = "Board";
     public string       Symbol      { get; set; } = "🗺";
     /// <summary>Singular entity type names shown on this board (e.g. "Character", "Location").</summary>
-    public List<string> EntityTypes { get; set; } = ["Character", "Location", "Faction"];
+    public List<string> EntityTypes { get; set; } = ["Character", "Location", "Faction", "Lore"];
     public DateTime     CreatedAt   { get; set; } = DateTime.UtcNow;
     public DateTime     UpdatedAt   { get; set; } = DateTime.UtcNow;
 }
@@ -446,9 +549,18 @@ public static class WorldBoardRegistryService
 
     public static readonly string[] SymbolPalette =
     [
-        "🗺", "🌍", "🌿", "⚔️", "👥", "🏰",
-        "🔮", "📜", "🐉", "💀", "⭐", "🌙",
-        "☀️", "🌊", "🔥", "🏔️", "❄️", "🌸",
-        "🗡️", "🛡️", "🏛️", "🧙", "👑", "🗝️"
+        // World / places
+        "🗺", "🌍", "🌐", "🏰", "🏛️", "🏠", "🏕", "⛩", "🕌", "🗻", "🌋", "🏝",
+        // Nature / weather
+        "🌿", "🌳", "🌾", "🌵", "🌴", "🌸", "🌺", "🌙", "☀️", "🌊", "🏔️", "❄️",
+        "🔥", "⚡", "🌪", "🌈", "💫", "🌀",
+        // Combat / military
+        "⚔️", "🗡️", "🛡️", "🏹", "⚓", "🚩",
+        // Characters / social
+        "👥", "👑", "🧙", "💀", "🦅", "🕊", "🦁", "🐺", "🐍", "🐉",
+        // Magic / knowledge
+        "🔮", "📜", "📖", "🗝️", "⭐", "🔯", "🪄", "🧿", "⚗", "🔭", "💎",
+        // Symbols / misc
+        "⚜", "🔱", "🏴", "⚙", "🧲", "🪨", "🗿", "🎭", "🎪"
     ];
 }

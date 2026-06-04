@@ -47,6 +47,7 @@ public class WorldEntityEditDialog : Window
         bool isCharacter = string.Equals(entity.EntityType, "Character",  StringComparison.OrdinalIgnoreCase);
         bool isFaction   = string.Equals(entity.EntityType, "Faction",    StringComparison.OrdinalIgnoreCase);
         bool isLocation  = string.Equals(entity.EntityType, "Location",   StringComparison.OrdinalIgnoreCase);
+        bool isLore      = string.Equals(entity.EntityType, "Lore",       StringComparison.OrdinalIgnoreCase);
 
         // Initialise mutable state fields
         _portraitFileName     = entity.PortraitFileName;
@@ -56,7 +57,7 @@ public class WorldEntityEditDialog : Window
 
         Title                 = isNew ? $"New {entity.EntityType}" : $"Edit {entity.EntityType}";
         Width                 = isCharacter ? 660 : 520;
-        Height                = isCharacter ? 820 : (isFaction ? 740 : 620);
+        Height                = isCharacter ? 820 : (isFaction ? 780 : (isLocation ? 680 : (isLore ? 720 : 620)));
         MinWidth              = 420;
         MinHeight             = 400;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -168,10 +169,67 @@ public class WorldEntityEditDialog : Window
         if (isLocation)
             BuildImageAttachmentZone(root, projFolder, entity, () => nameBox.Text.Trim());
 
-        // ── Faction extras ─────────────────────────────────────────────────
+        // ── Faction extras (color picker + member list + banner image) ────
         var workingMemberIds = entity.MemberIds.ToList();
         if (isFaction)
+        {
             BuildFactionExtras(root, projFolder, entity, workingMemberIds);
+            BuildImageAttachmentZone(root, projFolder, entity, () => nameBox.Text.Trim());
+        }
+
+        // ── Location: faction membership ──────────────────────────────────
+        List<string>?       locationFactionIds = null;
+        List<WorldEntity>?  allFactions        = null;
+        if (isLocation)
+        {
+            allFactions        = WorldEntityService.List(projFolder, "Faction");
+            locationFactionIds = allFactions
+                .Where(f => f.MemberIds.Contains(entity.Id))
+                .Select(f => f.Id)
+                .ToList();
+            BuildLocationFactionSection(root, projFolder, entity, allFactions, locationFactionIds);
+        }
+
+        // ── Lore: knowledge tags + factions + characters ───────────────────
+        CheckBox? loreCommonCheck = null, loreHistoricalCheck = null;
+        List<string>? loreFactionIds = null, loreMemberIds = null;
+        if (isLore)
+        {
+            // Knowledge-type checkboxes
+            var tagsLbl = new TextBlock { Text = "Knowledge type", FontSize = 12, FontWeight = FontWeights.SemiBold,
+                FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 14, 0, 6) };
+            tagsLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+            root.Children.Add(tagsLbl);
+
+            loreCommonCheck = new CheckBox
+            {
+                Content     = "Common knowledge  (everyone may have heard this)",
+                IsChecked   = entity.Fields.TryGetValue("CommonKnowledge", out var ck) && ck == "true",
+                FontSize    = 12, Margin = new Thickness(0, 0, 0, 6)
+            };
+            loreCommonCheck.SetResourceReference(CheckBox.ForegroundProperty, "ContentTextBrush");
+            root.Children.Add(loreCommonCheck);
+
+            loreHistoricalCheck = new CheckBox
+            {
+                Content     = "Historical knowledge  (from the distant past)",
+                IsChecked   = entity.Fields.TryGetValue("HistoricalKnowledge", out var hk) && hk == "true",
+                FontSize    = 12, Margin = new Thickness(0, 0, 0, 4)
+            };
+            loreHistoricalCheck.SetResourceReference(CheckBox.ForegroundProperty, "ContentTextBrush");
+            root.Children.Add(loreHistoricalCheck);
+
+            // Factions who share this lore
+            loreFactionIds = entity.FactionIds.ToList();
+            allFactions    = WorldEntityService.List(projFolder, "Faction");
+            BuildLocationFactionSection(root, projFolder, entity, allFactions, loreFactionIds,
+                heading: "Factions with this knowledge", addLabel: "＋ Add faction");
+
+            // Characters who know this lore
+            loreMemberIds = entity.MemberIds.ToList();
+            BuildMemberSection(root, projFolder, "Characters who know this lore", "Character",
+                loreMemberIds, "＋ Add character");
+        }
 
         // ── Notes ──────────────────────────────────────────────────────────
         var notesBox = AddField(root, "Notes", "Freeform notes", entity.Notes, isMultiline: true);
@@ -198,9 +256,38 @@ public class WorldEntityEditDialog : Window
             entity.Fields.Clear();
             foreach (var (field, tb) in fieldBoxes)
                 if (!string.IsNullOrWhiteSpace(tb.Text)) entity.Fields[field] = tb.Text.Trim();
-            if (isFaction)   { entity.FactionColor = _selectedFactionColor; entity.MemberIds = workingMemberIds; }
+            if (isFaction)   { entity.FactionColor = _selectedFactionColor; entity.MemberIds = workingMemberIds;
+                               entity.ImageFileName = _imageFileName; }
             if (isCharacter)   entity.PortraitFileName = _portraitFileName;
-            if (isLocation)    entity.ImageFileName    = _imageFileName;
+            if (isLocation)
+            {
+                entity.ImageFileName = _imageFileName;
+                if (allFactions is not null && locationFactionIds is not null)
+                {
+                    foreach (var fac in allFactions)
+                    {
+                        bool shouldBeMember = locationFactionIds.Contains(fac.Id);
+                        bool isMember       = fac.MemberIds.Contains(entity.Id);
+                        if (shouldBeMember && !isMember)
+                            { fac.MemberIds.Add(entity.Id); WorldEntityService.Save(projFolder, fac); }
+                        else if (!shouldBeMember && isMember)
+                            { fac.MemberIds.Remove(entity.Id); WorldEntityService.Save(projFolder, fac); }
+                    }
+                }
+            }
+            if (isLore)
+            {
+                entity.MemberIds  = loreMemberIds  ?? [];
+                entity.FactionIds = loreFactionIds ?? [];
+                if (loreCommonCheck?.IsChecked == true)
+                    entity.Fields["CommonKnowledge"] = "true";
+                else
+                    entity.Fields.Remove("CommonKnowledge");
+                if (loreHistoricalCheck?.IsChecked == true)
+                    entity.Fields["HistoricalKnowledge"] = "true";
+                else
+                    entity.Fields.Remove("HistoricalKnowledge");
+            }
             DialogResult = true;
         };
         btnRow.Children.Add(saveBtn);
@@ -741,28 +828,42 @@ public class WorldEntityEditDialog : Window
         }
         UpdateSwatchSel();
 
-        // ── Members ────────────────────────────────────────────────────────
-        var memberLbl = new TextBlock { Text = "Members", FontSize = 12, FontWeight = FontWeights.SemiBold, FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 14, 0, 6) };
-        memberLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
-        root.Children.Add(memberLbl);
+        // ── Character Members ──────────────────────────────────────────────
+        BuildMemberSection(root, projFolder, "Character Members", "Character",
+            workingMemberIds, addLabel: "＋ Add character");
 
-        var allChars = WorldEntityService.List(projFolder, "Character");
+        // ── Location Members ───────────────────────────────────────────────
+        BuildMemberSection(root, projFolder, "Location Members", "Location",
+            workingMemberIds, addLabel: "＋ Add location");
+    }
+
+    /// <summary>Builds a chip-panel section for one entity type's members within a faction.</summary>
+    private void BuildMemberSection(StackPanel root, string projFolder, string heading,
+        string entityType, List<string> workingMemberIds, string addLabel)
+    {
+        var allOfType = WorldEntityService.List(projFolder, entityType);
+
+        var lbl = new TextBlock { Text = heading, FontSize = 12, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 14, 0, 6) };
+        lbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+        root.Children.Add(lbl);
+
         var chipsPanel = new WrapPanel { Orientation = Orientation.Horizontal };
         root.Children.Add(chipsPanel);
 
         void RefreshChips()
         {
             chipsPanel.Children.Clear();
-            var charById = allChars.ToDictionary(c => c.Id);
+            var byId = allOfType.ToDictionary(e => e.Id);
             foreach (var membId in workingMemberIds.ToList())
             {
-                if (!charById.TryGetValue(membId, out var ch)) continue;
+                if (!byId.TryGetValue(membId, out var ent)) continue;
                 var capturedId = membId;
                 var chip = new Border { CornerRadius = new CornerRadius(12), Padding = new Thickness(8, 4, 6, 4), Margin = new Thickness(0, 0, 6, 6), BorderThickness = new Thickness(1) };
                 chip.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
                 chip.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
                 var row  = new StackPanel { Orientation = Orientation.Horizontal };
-                var name = new TextBlock { Text = ch.Name, FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
+                var name = new TextBlock { Text = ent.Name, FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
                 name.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
                 var rmv  = new TextBlock { Text = " ✕", FontSize = 10, Cursor = Cursors.Hand, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) };
                 rmv.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
@@ -771,18 +872,19 @@ public class WorldEntityEditDialog : Window
                 chip.Child = row;
                 chipsPanel.Children.Add(chip);
             }
-            if (allChars.Any(c => !workingMemberIds.Contains(c.Id)))
+            if (allOfType.Any(e => !workingMemberIds.Contains(e.Id)))
             {
                 var addChip = new Border { CornerRadius = new CornerRadius(12), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 6, 6), BorderThickness = new Thickness(1), Cursor = Cursors.Hand };
                 addChip.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
                 addChip.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
-                var addTb = new TextBlock { Text = "＋ Add member", FontSize = 11 };
+                var addTb = new TextBlock { Text = addLabel, FontSize = 11 };
                 addTb.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
                 addChip.Child = addTb;
                 addChip.MouseLeftButtonDown += (_, _) =>
                 {
-                    var picked = ShowCharacterPicker(allChars, workingMemberIds);
-                    if (picked is not null && !workingMemberIds.Contains(picked.Id)) { workingMemberIds.Add(picked.Id); RefreshChips(); }
+                    var picked = ShowEntityPicker(allOfType, workingMemberIds, $"Add {entityType}");
+                    if (picked is not null && !workingMemberIds.Contains(picked.Id))
+                        { workingMemberIds.Add(picked.Id); RefreshChips(); }
                 };
                 chipsPanel.Children.Add(addChip);
             }
@@ -790,15 +892,84 @@ public class WorldEntityEditDialog : Window
         RefreshChips();
     }
 
-    // ── Character picker ───────────────────────────────────────────────────
-
-    private WorldEntity? ShowCharacterPicker(List<WorldEntity> characters, List<string> excludeIds)
+    /// <summary>Builds a faction-chip section. Used by Location (membership) and Lore (knowledge factions).</summary>
+    private void BuildLocationFactionSection(StackPanel root, string projFolder, WorldEntity entity,
+        List<WorldEntity> allFactions, List<string> locationFactionIds,
+        string heading = "Faction Membership", string addLabel = "＋ Add to faction")
     {
-        var eligible = characters.Where(c => !excludeIds.Contains(c.Id)).ToList();
-        if (eligible.Count == 0) { MessageBox.Show("All characters are already members.", "Nothing to add", MessageBoxButton.OK, MessageBoxImage.Information); return null; }
+        if (allFactions.Count == 0) return;
+
+        var lbl = new TextBlock { Text = heading, FontSize = 12, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 14, 0, 6) };
+        lbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+        root.Children.Add(lbl);
+
+        var chipsPanel = new WrapPanel { Orientation = Orientation.Horizontal };
+        root.Children.Add(chipsPanel);
+
+        void RefreshChips()
+        {
+            chipsPanel.Children.Clear();
+            var facById = allFactions.ToDictionary(f => f.Id);
+            foreach (var fId in locationFactionIds.ToList())
+            {
+                if (!facById.TryGetValue(fId, out var fac)) continue;
+                var capturedId = fId;
+                // Colored chip: show faction color as a small dot
+                Color? dotColor = null;
+                if (!string.IsNullOrEmpty(fac.FactionColor))
+                    try { dotColor = (Color)ColorConverter.ConvertFromString(fac.FactionColor)!; } catch { }
+
+                var chip = new Border { CornerRadius = new CornerRadius(12), Padding = new Thickness(6, 4, 6, 4), Margin = new Thickness(0, 0, 6, 6), BorderThickness = new Thickness(1) };
+                chip.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
+                chip.BorderBrush = dotColor.HasValue
+                    ? new SolidColorBrush(Color.FromArgb(140, dotColor.Value.R, dotColor.Value.G, dotColor.Value.B))
+                    : (Brush)(TryFindResource("ControlBorderBrush") ?? Brushes.Gray);
+                var row = new StackPanel { Orientation = Orientation.Horizontal };
+                if (dotColor.HasValue)
+                {
+                    var dot = new Ellipse { Width = 8, Height = 8, Fill = new SolidColorBrush(dotColor.Value),
+                        VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 5, 0) };
+                    row.Children.Add(dot);
+                }
+                var name = new TextBlock { Text = fac.Name, FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
+                name.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
+                var rmv  = new TextBlock { Text = " ✕", FontSize = 10, Cursor = Cursors.Hand, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) };
+                rmv.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+                rmv.MouseLeftButtonDown += (_, _) => { locationFactionIds.Remove(capturedId); RefreshChips(); };
+                row.Children.Add(name); row.Children.Add(rmv);
+                chip.Child = row;
+                chipsPanel.Children.Add(chip);
+            }
+            if (allFactions.Any(f => !locationFactionIds.Contains(f.Id)))
+            {
+                var addChip = new Border { CornerRadius = new CornerRadius(12), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 6, 6), BorderThickness = new Thickness(1), Cursor = Cursors.Hand };
+                addChip.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
+                addChip.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+                var addTb = new TextBlock { Text = addLabel, FontSize = 11 };
+                addTb.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
+                addChip.Child = addTb;
+                addChip.MouseLeftButtonDown += (_, _) =>
+                {
+                    var picked = ShowEntityPicker(allFactions, locationFactionIds, "Assign Faction");
+                    if (picked is not null && !locationFactionIds.Contains(picked.Id))
+                        { locationFactionIds.Add(picked.Id); RefreshChips(); }
+                };
+                chipsPanel.Children.Add(addChip);
+            }
+        }
+        RefreshChips();
+    }
+
+    // ── Generic entity picker ──────────────────────────────────────────────
+
+    private WorldEntity? ShowEntityPicker(List<WorldEntity> entities, List<string> excludeIds, string title)
+    {
+        var eligible = entities.Where(e => !excludeIds.Contains(e.Id)).ToList();
+        if (eligible.Count == 0) { MessageBox.Show("All entries are already assigned.", "Nothing to add", MessageBoxButton.OK, MessageBoxImage.Information); return null; }
 
         WorldEntity? result = null;
-        var win = new Window { Title = "Add Member", Width = 320, Height = Math.Min(480, 80 + eligible.Count * 42), MinHeight = 120, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ShowInTaskbar = false, ResizeMode = ResizeMode.CanResize };
+        var win = new Window { Title = title, Width = 320, Height = Math.Min(480, 80 + eligible.Count * 42), MinHeight = 120, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ShowInTaskbar = false, ResizeMode = ResizeMode.CanResize };
         // Inherit theme
         foreach (var rd in Resources.MergedDictionaries) win.Resources.MergedDictionaries.Add(rd);
         win.SetResourceReference(Window.BackgroundProperty, "ContentBgBrush");

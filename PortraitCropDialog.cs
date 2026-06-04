@@ -35,11 +35,12 @@ public class PortraitCropDialog : Window
     private double _panXAtDrag, _panYAtDrag;
 
     // ── UI elements (updated on layout change) ─────────────────────────────
-    private System.Windows.Controls.Image _imgEl   = null!;
-    private System.Windows.Controls.Image _preview = null!;
-    private Slider   _zoomSlider  = null!;
+    private System.Windows.Controls.Image _imgEl    = null!;
+    private System.Windows.Controls.Image _preview  = null!;
+    private Slider    _zoomSlider = null!;
     private TextBlock _zoomLabel  = null!;
-    private Canvas   _canvas      = null!;
+    private TextBox   _zoomBox    = null!;   // manual % input
+    private Canvas    _canvas     = null!;
 
     // ── Result ─────────────────────────────────────────────────────────────
     public BitmapSource? CroppedResult { get; private set; }
@@ -127,7 +128,7 @@ public class PortraitCropDialog : Window
         // Image element
         _imgEl = new System.Windows.Controls.Image
         {
-            Stretch = Stretch.Fill,
+            Stretch = Stretch.Uniform,   // never deforms; Width/Height already keep aspect ratio
             Width   = _source.PixelWidth  * _zoom,
             Height  = _source.PixelHeight * _zoom
         };
@@ -228,29 +229,72 @@ public class PortraitCropDialog : Window
         zoomLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
         sidePanel.Children.Add(zoomLbl);
 
-        var zoomRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+        // Grid: slider (Star) | textbox (Auto) — no overflow possible
+        var zoomRow = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        zoomRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        zoomRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         sidePanel.Children.Add(zoomRow);
 
         _zoomSlider = new Slider
         {
             Minimum = ZoomMin, Maximum = ZoomMax, Value = _zoom,
-            Width = 130, VerticalAlignment = VerticalAlignment.Center,
-            IsSnapToTickEnabled = false
+            VerticalAlignment = VerticalAlignment.Center,
+            IsSnapToTickEnabled = false,
+            SmallChange = 0.01,   // ← 1 % per arrow key
+            LargeChange = 0.10    // ← 10 % per PgUp/PgDn
         };
-        _zoomLabel = new TextBlock
+        Grid.SetColumn(_zoomSlider, 0);
+        zoomRow.Children.Add(_zoomSlider);
+
+        // Text input: shows current %, accepts manual entry
+        _zoomBox = new TextBox
         {
-            Text = FormatZoom(_zoom), FontSize = 11,
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0), Width = 46
+            Text = $"{_zoom * 100:F0}",
+            Width = 56, FontSize = 11, TextAlignment = TextAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(6, 0, 0, 0),
+            Padding = new Thickness(4, 2, 4, 2),
+            BorderThickness = new Thickness(1),
+            ToolTip = "Type zoom % then Enter"
         };
-        _zoomLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+        _zoomBox.SetResourceReference(TextBox.BackgroundProperty,  "ControlBgBrush");
+        _zoomBox.SetResourceReference(TextBox.ForegroundProperty,  "ContentTextBrush");
+        _zoomBox.SetResourceReference(TextBox.BorderBrushProperty, "ControlBorderBrush");
+        Grid.SetColumn(_zoomBox, 1);
+        zoomRow.Children.Add(_zoomBox);
+
+        // Keep _zoomLabel pointing to something non-null so ApplyLayout doesn't crash
+        _zoomLabel = new TextBlock();   // hidden; textbox is the display now
+
+        bool _syncingZoom = false;
         _zoomSlider.ValueChanged += (_, e) =>
         {
             _zoom = e.NewValue;
-            _zoomLabel.Text = FormatZoom(_zoom);
+            if (!_syncingZoom) { _syncingZoom = true; _zoomBox.Text = $"{_zoom * 100:F0}"; _syncingZoom = false; }
             ApplyLayout();
         };
-        zoomRow.Children.Add(_zoomSlider);
-        zoomRow.Children.Add(_zoomLabel);
+        _zoomBox.KeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Enter && e.Key != Key.Return) return;
+            if (double.TryParse(_zoomBox.Text.Trim().TrimEnd('%'), out var pct))
+            {
+                _syncingZoom = true;
+                _zoomSlider.Value = Math.Clamp(pct / 100.0, ZoomMin, ZoomMax);
+                _syncingZoom = false;
+            }
+            _zoomBox.Text = $"{_zoom * 100:F0}";  // normalise display
+            e.Handled = true;
+        };
+        _zoomBox.LostFocus += (_, _) =>
+        {
+            if (double.TryParse(_zoomBox.Text.Trim().TrimEnd('%'), out var pct))
+            {
+                _syncingZoom = true;
+                _zoomSlider.Value = Math.Clamp(pct / 100.0, ZoomMin, ZoomMax);
+                _syncingZoom = false;
+            }
+            _zoomBox.Text = $"{_zoom * 100:F0}";
+        };
 
         // Reset button
         var resetBtn = MakeBtn("↺ Reset", false);
@@ -333,7 +377,7 @@ public class PortraitCropDialog : Window
         _imgEl.Height = imgH;
         Canvas.SetLeft(_imgEl, _panX);
         Canvas.SetTop (_imgEl, _panY);
-        _zoomLabel.Text = FormatZoom(_zoom);
+        if (_zoomBox is not null) _zoomBox.Text = $"{_zoom * 100:F0}";
         UpdatePreview();
     }
 
@@ -357,24 +401,48 @@ public class PortraitCropDialog : Window
 
     // ── Crop computation ───────────────────────────────────────────────────
 
-    private CroppedBitmap? ComputeCrop()
+    private BitmapSource? ComputeCrop()
     {
         if (_zoom <= 0) return null;
 
-        // Frame region in image-pixel coordinates
+        // Frame region in image-pixel space
         double cropX = (FrameLeft - _panX) / _zoom;
         double cropY = (FrameTop  - _panY) / _zoom;
         double cropW = FrameW / _zoom;
         double cropH = FrameH / _zoom;
 
-        // Clamp to image bounds
-        int x = (int)Math.Max(0, Math.Round(cropX));
-        int y = (int)Math.Max(0, Math.Round(cropY));
-        int w = (int)Math.Min(_source.PixelWidth  - x, Math.Round(cropW));
-        int h = (int)Math.Min(_source.PixelHeight - y, Math.Round(cropH));
+        // Clamp the source region that actually exists within the bitmap
+        double srcX = Math.Max(0, cropX);
+        double srcY = Math.Max(0, cropY);
+        double srcW = Math.Min(_source.PixelWidth  - srcX, cropW - (srcX - cropX));
+        double srcH = Math.Min(_source.PixelHeight - srcY, cropH - (srcY - cropY));
 
-        if (w <= 0 || h <= 0) return null;
-        try { return new CroppedBitmap(_source, new Int32Rect(x, y, w, h)); }
+        if (srcW <= 0 || srcH <= 0) return null;
+
+        // Where in the output frame does the valid source land?
+        double dstX = (srcX - cropX) / cropW * FrameW;
+        double dstY = (srcY - cropY) / cropH * FrameH;
+        double dstW = srcW / cropW * FrameW;
+        double dstH = srcH / cropH * FrameH;
+
+        // Compose onto a transparent FrameW × FrameH canvas
+        // so a smaller/partially-covered frame never squishes the image
+        try
+        {
+            var cropped = new CroppedBitmap(_source,
+                new Int32Rect((int)Math.Round(srcX), (int)Math.Round(srcY),
+                              (int)Math.Round(srcW), (int)Math.Round(srcH)));
+            var dv = new System.Windows.Media.DrawingVisual();
+            using (var dc = dv.RenderOpen())
+                dc.DrawImage(cropped, new Rect(dstX, dstY, dstW, dstH));
+
+            var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                (int)FrameW, (int)FrameH, 96, 96,
+                System.Windows.Media.PixelFormats.Pbgra32);
+            rtb.Render(dv);
+            rtb.Freeze();
+            return rtb;
+        }
         catch { return null; }
     }
 

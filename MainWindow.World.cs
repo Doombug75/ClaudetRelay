@@ -46,9 +46,10 @@ public partial class MainWindow
 
     // ── World editor panel ────────────────────────────────────────────────
 
-    private string _worldActiveType = "";   // which entity-type tab is selected
-    private bool   _worldBoardsMode = false; // true = board gallery; false = entity card grid
-    private bool   _worldBoardsSortByDate = true;
+    private string          _worldActiveType        = "";
+    private bool            _worldBoardsMode        = false;
+    private string          _worldBoardsSort        = "date_desc"; // name_asc | name_desc | date_asc | date_desc
+    private readonly HashSet<string> _worldBoardsTypeFilter = new(); // empty = all; otherwise filter by EntityTypes intersection
     private bool   _entityEditOpen  = false;   // true while ShowEntityEditDialog is open
 
     // Entity list filter state (reset when switching entity type)
@@ -102,11 +103,15 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>Returns the entity types for the current project type (e.g. Characters, Locations…).</summary>
+    /// <summary>Returns the entity types for the current project type (e.g. Characters, Locations…).
+    /// "Lores" is always included so the lore library is always accessible regardless of project-type config.</summary>
     private string[] GetWorldEntityTypes()
     {
         var wf = _currentProjectType?.GetWorldFolderList();
-        return wf is { Length: > 0 } ? wf : ["Characters", "Locations"];
+        var types = (wf is { Length: > 0 } ? wf : new[] { "Characters", "Locations" }).ToList();
+        if (!types.Any(t => t.TrimEnd('s').Equals("Lore", StringComparison.OrdinalIgnoreCase)))
+            types.Add("Lores");
+        return types.ToArray();
     }
 
     private void BuildWorldContent()
@@ -393,7 +398,7 @@ public partial class MainWindow
         {
             var cardsWrap = new WrapPanel { Orientation = Orientation.Horizontal, ItemWidth = 240 };
             List<WorldEntity> cardFactions = [];
-            if (string.Equals(_worldActiveType, "Character", StringComparison.OrdinalIgnoreCase))
+            if (_worldActiveType is "Character" or "Location" or "Lore")
                 cardFactions = WorldEntityService.List(projFolder, "Faction");
             foreach (var entity in entities)
                 cardsWrap.Children.Add(BuildEntityCard(entity, projFolder, Refresh, cardFactions));
@@ -452,131 +457,143 @@ public partial class MainWindow
     private Border BuildEntityCard(WorldEntity entity, string projFolder, Action refresh,
                                    IReadOnlyList<WorldEntity>? allFactions = null)
     {
-        var schema = WorldEntitySchemas.For(entity.EntityType);
+        var schema    = WorldEntitySchemas.For(entity.EntityType);
+        bool isChar   = entity.EntityType == "Character";
+        bool isLoc    = entity.EntityType == "Location";
+        bool isFac    = entity.EntityType == "Faction";
+        const double ThumbW = 62;
 
+        // ── Resolve faction accent colour ──────────────────────────────────
+        Color? factionAccent = null;
+        if (isFac && !string.IsNullOrEmpty(entity.FactionColor))
+            try { factionAccent = (Color)ColorConverter.ConvertFromString(entity.FactionColor)!; } catch { }
+
+        // ── Card border ────────────────────────────────────────────────────
         var card = new Border
         {
             Width           = 228,
             Margin          = new Thickness(0, 0, 12, 12),
-            Padding         = new Thickness(14, 12, 14, 12),
+            Padding         = new Thickness(0),          // thumbnail column handles left edge
             CornerRadius    = new CornerRadius(8),
             BorderThickness = new Thickness(1),
+            ClipToBounds    = true
         };
-        card.SetResourceReference(Border.BackgroundProperty,   "ControlBgBrush");
-        card.SetResourceReference(Border.BorderBrushProperty,  "ControlBorderBrush");
+        card.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
+        if (factionAccent.HasValue)
+            card.BorderBrush = new SolidColorBrush(
+                Color.FromArgb(160, factionAccent.Value.R, factionAccent.Value.G, factionAccent.Value.B));
+        else
+            card.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
 
-        var inner = new StackPanel();
-        card.Child = inner;
+        // ── Outer grid: thumbnail col + content col ────────────────────────
+        var outerGrid = new Grid();
+        outerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        outerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        card.Child = outerGrid;
 
-        // Name — use ControlTextBrush: the card background is ControlBgBrush,
-        // so ControlText is the semantically correct foreground pairing.
+        // ── Thumbnail column ───────────────────────────────────────────────
+        // Character: portrait (3:4),  Location: square image,  Faction: image or colour strip
+        string? imgPath = null;
+        double thumbH   = ThumbW;
+        if (isChar && !string.IsNullOrWhiteSpace(entity.PortraitFileName))
+        {
+            imgPath = WorldEntityService.GetPortraitPath(projFolder, entity.PortraitFileName);
+            thumbH  = ThumbW * 4.0 / 3.0;  // 3:4 portrait
+        }
+        else if ((isLoc || isFac) && !string.IsNullOrWhiteSpace(entity.ImageFileName))
+        {
+            imgPath = WorldEntityService.GetImagePath(projFolder, entity.ImageFileName);
+            thumbH  = ThumbW;
+        }
+
+        var thumbCol = new Border
+        {
+            Width           = ThumbW,
+            CornerRadius    = new CornerRadius(7, 0, 0, 7),
+            ClipToBounds    = true,
+            VerticalAlignment = VerticalAlignment.Stretch
+        };
+        Grid.SetColumn(thumbCol, 0);
+        outerGrid.Children.Add(thumbCol);
+
+        if (imgPath != null && System.IO.File.Exists(imgPath))
+        {
+            var bmp = ThumbnailService.LoadThumb(imgPath);
+            if (bmp != null)
+            {
+                thumbCol.Child = new System.Windows.Controls.Image
+                {
+                    Source  = bmp,
+                    Stretch = Stretch.UniformToFill
+                };
+            }
+            else
+            {
+                // No image loaded — show color strip fallback
+                thumbCol.Width = 6;
+                if (factionAccent.HasValue)
+                    thumbCol.Background = new SolidColorBrush(factionAccent.Value);
+                else
+                    thumbCol.SetResourceReference(Border.BackgroundProperty, "ControlBorderBrush");
+            }
+        }
+        else if (factionAccent.HasValue)
+        {
+            // Faction: no image — wide colour strip
+            thumbCol.Width  = 6;
+            thumbCol.CornerRadius = new CornerRadius(7, 0, 0, 7);
+            thumbCol.Background   = new SolidColorBrush(factionAccent.Value);
+        }
+        else
+        {
+            // Nothing to show — collapse the column
+            thumbCol.Width = 0;
+        }
+
+        // ── Content column ─────────────────────────────────────────────────
+        var inner = new StackPanel { Margin = new Thickness(12, 9, 12, 9) };
+        Grid.SetColumn(inner, 1);
+        outerGrid.Children.Add(inner);
+
         var nameText = new TextBlock
         {
-            Text       = entity.Name,
-            FontSize   = 13,
-            FontWeight = FontWeights.SemiBold,
-            FontFamily = new FontFamily("Segoe UI"),
+            Text         = entity.Name,
+            FontSize     = 13,
+            FontWeight   = FontWeights.SemiBold,
+            FontFamily   = new FontFamily("Segoe UI"),
             TextTrimming = TextTrimming.CharacterEllipsis,
-            Margin     = new Thickness(0, 0, 0, 8)
+            Margin       = new Thickness(0, 0, 0, 6)
         };
         nameText.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
         inner.Children.Add(nameText);
 
-        // Up to 3 field previews
+        // Up to 3 schema field previews
+        int maxFieldW = (int)(228 - (thumbCol.Width > 6 ? ThumbW : thumbCol.Width) - 24 - 4);
         foreach (var (field, _) in schema.Take(3))
         {
             if (!entity.Fields.TryGetValue(field, out var val) || string.IsNullOrWhiteSpace(val))
                 continue;
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 3) };
-            var lbl = new TextBlock
-            {
-                Text      = field + ": ",
-                FontSize  = 11,
-                FontFamily = new FontFamily("Segoe UI"),
-                FontWeight = FontWeights.SemiBold
-            };
+            var row  = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 2) };
+            var lbl  = new TextBlock { Text = field + ": ", FontSize = 10, FontWeight = FontWeights.SemiBold, FontFamily = new FontFamily("Segoe UI") };
             lbl.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
-            var valText = new TextBlock
-            {
-                Text        = val,
-                FontSize    = 11,
-                FontFamily  = new FontFamily("Segoe UI"),
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth    = 148
-            };
-            valText.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
-            row.Children.Add(lbl);
-            row.Children.Add(valText);
+            var vt   = new TextBlock { Text = val, FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+                                       TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = maxFieldW };
+            vt.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
+            row.Children.Add(lbl); row.Children.Add(vt);
             inner.Children.Add(row);
         }
 
-        // Notes preview
-        if (!string.IsNullOrWhiteSpace(entity.Notes))
-        {
-            var notesPreview = new TextBlock
-            {
-                Text         = entity.Notes,
-                FontSize     = 11,
-                FontFamily   = new FontFamily("Segoe UI"),
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxHeight    = 36,
-                TextWrapping = TextWrapping.Wrap,
-                Margin       = new Thickness(0, 4, 0, 0)
-            };
-            notesPreview.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
-            inner.Children.Add(notesPreview);
-        }
-
-        // ── Faction colour dot (for Faction cards) ────────────────────────
-        if (entity.EntityType == "Faction" && !string.IsNullOrEmpty(entity.FactionColor))
-        {
-            Color fCol;
-            try   { fCol = (Color)ColorConverter.ConvertFromString(entity.FactionColor)!; }
-            catch { fCol = Colors.Gray; }
-
-            var factionDotRow = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Margin      = new Thickness(0, 6, 0, 0)
-            };
-            var factionDotOuter = new Ellipse
-            {
-                Width = 12, Height = 12,
-                Fill  = new SolidColorBrush(fCol),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            var factionColorLabel = new TextBlock
-            {
-                Text      = entity.FactionColor,
-                FontSize  = 9,
-                FontFamily = new FontFamily("Segoe UI"),
-                Margin    = new Thickness(5, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            factionColorLabel.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
-            factionDotRow.Children.Add(factionDotOuter);
-            factionDotRow.Children.Add(factionColorLabel);
-            inner.Children.Add(factionDotRow);
-        }
-
-        // ── Faction membership dots (for Character cards) ─────────────────
-        if (entity.EntityType == "Character" && allFactions != null)
+        // ── Faction membership dots (Characters + Locations) ─────────────
+        if ((isChar || isLoc) && allFactions != null)
         {
             var myFactions = allFactions
                 .Where(f => f.MemberIds.Contains(entity.Id) && !string.IsNullOrEmpty(f.FactionColor))
                 .ToList();
-
             if (myFactions.Count > 0)
             {
-                var dotSep = new Rectangle
-                {
-                    Height  = 1,
-                    Margin  = new Thickness(0, 8, 0, 6),
-                    Opacity = 0.3
-                };
-                dotSep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
-                inner.Children.Add(dotSep);
-
+                var sep = new Rectangle { Height = 1, Margin = new Thickness(0, 6, 0, 4), Opacity = 0.25 };
+                sep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
+                inner.Children.Add(sep);
                 var dotPanel = new WrapPanel { Orientation = Orientation.Horizontal };
                 foreach (var f in myFactions)
                     dotPanel.Children.Add(MakeFactionDot(f.FactionColor, f.Name));
@@ -584,21 +601,46 @@ public partial class MainWindow
             }
         }
 
-        // ── Action buttons ─────────────────────────────────────────────────
-        var btnRow = new StackPanel
+        // ── Faction knowledge dots (Lore — factions stored on entity.FactionIds) ──
+        bool isLoreCard = entity.EntityType == "Lore";
+        if (isLoreCard && allFactions != null && entity.FactionIds.Count > 0)
         {
-            Orientation = Orientation.Horizontal,
-            Margin      = new Thickness(0, 10, 0, 0)
-        };
-        inner.Children.Add(btnRow);
+            var myFactions = allFactions
+                .Where(f => entity.FactionIds.Contains(f.Id) && !string.IsNullOrEmpty(f.FactionColor))
+                .ToList();
+            if (myFactions.Count > 0)
+            {
+                var sep = new Rectangle { Height = 1, Margin = new Thickness(0, 6, 0, 4), Opacity = 0.25 };
+                sep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
+                inner.Children.Add(sep);
+                var dotPanel = new WrapPanel { Orientation = Orientation.Horizontal };
+                foreach (var f in myFactions)
+                    dotPanel.Children.Add(MakeFactionDot(f.FactionColor, f.Name));
+                inner.Children.Add(dotPanel);
+            }
+        }
 
-        var editBtn = MakeFilePanelButton("✏ Edit", isPrimary: false);
-        editBtn.FontSize = 11; editBtn.Padding = new Thickness(9, 4, 9, 4);
-        editBtn.Click  += (_, _) =>
+        // ── Context menu: edit + delete + send to board ───────────────────
+        void DoDelete()
         {
-            // If another entity is already being edited, open this one as read-only
+            if (MessageBox.Show($"Delete {entity.EntityType} '{entity.Name}'?",
+                    "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+                != MessageBoxResult.Yes) return;
+            // Delete thumbnails for portraits/images
+            if (!string.IsNullOrWhiteSpace(entity.PortraitFileName))
+                ThumbnailService.DeleteThumb(WorldEntityService.GetPortraitPath(projFolder, entity.PortraitFileName));
+            if (!string.IsNullOrWhiteSpace(entity.ImageFileName))
+                ThumbnailService.DeleteThumb(WorldEntityService.GetImagePath(projFolder, entity.ImageFileName));
+            WorldEntityService.Delete(projFolder, entity);
+            refresh();
+        }
+
+        var ctx = new ContextMenu();
+
+        var editItem = new MenuItem { Header = "✏  Edit" };
+        editItem.Click += (_, _) =>
+        {
             if (_entityEditOpen) { ShowEntityReadOnlyDialog(entity); return; }
-
             var copy    = CloneEntity(entity);
             var oldName = entity.Name;
             if (ShowEntityEditDialog(copy, projFolder, isNew: false))
@@ -610,22 +652,77 @@ public partial class MainWindow
                 refresh();
             }
         };
-        btnRow.Children.Add(editBtn);
+        ctx.Items.Add(editItem);
+        ctx.Items.Add(new Separator());
 
-        var delBtn = MakeFilePanelButton("🗑", isPrimary: false);
-        delBtn.FontSize = 12; delBtn.Padding = new Thickness(8, 4, 8, 4);
-        delBtn.Margin   = new Thickness(6, 0, 0, 0);
-        delBtn.SetResourceReference(Button.ForegroundProperty, "AccentHighlightBrush");
-        delBtn.ToolTip  = $"Delete {entity.Name}";
-        delBtn.Click   += (_, _) =>
+        var delItem = new MenuItem { Header = "🗑  Delete" };
+        delItem.Click += (_, _) => DoDelete();
+        ctx.Items.Add(delItem);
+
+        // "Send to World Board" submenu – boards loaded lazily on open.
+        // WPF only fires SubmenuOpened when Items.Count > 0, so we seed one placeholder item
+        // to make the arrow appear; the handler replaces it with real entries.
+        var sendItem = new MenuItem { Header = "📌  Send to Board" };
+        sendItem.Items.Add(new MenuItem { Header = "…", IsEnabled = false }); // placeholder forces arrow
+        sendItem.SubmenuOpened += (_, _) =>
         {
-            if (MessageBox.Show($"Delete {entity.EntityType} '{entity.Name}'?",
-                    "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Warning)
-                != MessageBoxResult.Yes) return;
-            WorldEntityService.Delete(projFolder, entity);
-            refresh();
+            sendItem.Items.Clear();
+            var allBoards = WorldBoardRegistryService.Load(projFolder);
+            if (allBoards.Count == 0)
+            {
+                sendItem.Items.Add(new MenuItem { Header = "(no boards created yet)", IsEnabled = false });
+                return;
+            }
+            // Show only boards that accept this entity type
+            var matching = allBoards
+                .Where(b => b.EntityTypes.Any(t =>
+                    string.Equals(t, entity.EntityType, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            if (matching.Count == 0)
+            {
+                sendItem.Items.Add(new MenuItem
+                {
+                    Header = $"(no board configured for {entity.EntityType}s)",
+                    IsEnabled = false
+                });
+                return;
+            }
+            foreach (var b in matching)
+            {
+                var capturedBoard = b;
+                var mi = new MenuItem { Header = capturedBoard.Symbol + "  " + capturedBoard.Name };
+                mi.Click += (_, _) =>
+                {
+                    var bData = EntityBoardService.Load(projFolder, capturedBoard.Id);
+                    if (bData.Positions.ContainsKey(entity.Id))
+                    {
+                        MessageBox.Show($"'{entity.Name}' is already on board \"{capturedBoard.Name}\".",
+                            "Already on board", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+                    // Place at a position snapped to the board's grid
+                    double gs   = bData.GridSize > 0 ? bData.GridSize : 10;
+                    double maxY = bData.Positions.Count > 0
+                        ? bData.Positions.Values.Max(p => p.Y) : 60;
+                    double placeY = Math.Round((maxY + 120) / gs) * gs;
+                    bData.Positions[entity.Id] = new BoardPosition { X = 60, Y = placeY };
+                    EntityBoardService.Save(projFolder, capturedBoard.Id, bData);
+                    MessageBox.Show($"'{entity.Name}' added to board \"{capturedBoard.Name}\".",
+                        "Done", MessageBoxButton.OK, MessageBoxImage.Information);
+                };
+                sendItem.Items.Add(mi);
+            }
         };
-        btnRow.Children.Add(delBtn);
+        ctx.Items.Add(sendItem);
+        card.ContextMenu = ctx;
+
+        // Double-click opens the edit dialog directly
+        card.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.ClickCount < 2) return;
+            e.Handled = true;
+            editItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        };
 
         return card;
     }
@@ -880,9 +977,20 @@ public partial class MainWindow
     private void BuildWorldBoardGallery(string projFolder)
     {
         var boards = WorldBoardRegistryService.Load(projFolder);
-        var sorted = _worldBoardsSortByDate
-            ? boards.OrderByDescending(b => b.UpdatedAt).ToList()
-            : boards.OrderBy(b => b.Name, StringComparer.OrdinalIgnoreCase).ToList();
+
+        // Apply type filter
+        var filtered = _worldBoardsTypeFilter.Count == 0
+            ? boards
+            : boards.Where(b => b.EntityTypes.Any(et => _worldBoardsTypeFilter.Contains(et))).ToList();
+
+        // Apply sort
+        var sorted = _worldBoardsSort switch
+        {
+            "name_asc"  => filtered.OrderBy(b => b.Name, StringComparer.OrdinalIgnoreCase).ToList(),
+            "name_desc" => filtered.OrderByDescending(b => b.Name, StringComparer.OrdinalIgnoreCase).ToList(),
+            "date_asc"  => filtered.OrderBy(b => b.UpdatedAt).ToList(),
+            _           => filtered.OrderByDescending(b => b.UpdatedAt).ToList()  // date_desc (default)
+        };
 
         // Scroll area fills row 1
         var scroll = new ScrollViewer
@@ -898,39 +1006,41 @@ public partial class MainWindow
         var body = new StackPanel();
         scroll.Content = body;
 
-        // ── Toolbar row: sort + add ────────────────────────────────────────
-        var toolRow = new Grid { Margin = new Thickness(0, 0, 0, 14) };
-        toolRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        toolRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        body.Children.Add(toolRow);
+        // ── Toolbar: sort + type filter + add ─────────────────────────────
+        var toolStack = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
+        body.Children.Add(toolStack);
 
-        // Sort buttons
+        // Row 1: Sort + New Board
+        var sortRow = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        sortRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        sortRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        toolStack.Children.Add(sortRow);
+
         var sortPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(sortPanel, 0);
-        toolRow.Children.Add(sortPanel);
+        sortRow.Children.Add(sortPanel);
 
-        var sortLbl = new TextBlock { Text = "Sort:", FontSize = 11, FontFamily = new FontFamily("Segoe UI"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        var sortLbl = new TextBlock { Text = "Sort:", FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         sortLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
         sortPanel.Children.Add(sortLbl);
 
-        Button MakeSortBtn(string label, bool active)
+        Button MakeSortBtn(string label, string key)
         {
-            var b = MakeFilePanelButton(label, active);
+            var b = MakeFilePanelButton(label, _worldBoardsSort == key);
             b.FontSize = 11; b.Padding = new Thickness(10, 4, 10, 4); b.Margin = new Thickness(0, 0, 4, 0);
+            b.Click += (_, _) => { _worldBoardsSort = key; BuildWorldContent(); };
             return b;
         }
-        var sortNameBtn = MakeSortBtn("Name", !_worldBoardsSortByDate);
-        var sortDateBtn = MakeSortBtn("Last changed", _worldBoardsSortByDate);
-        sortNameBtn.Click += (_, _) => { _worldBoardsSortByDate = false; BuildWorldContent(); };
-        sortDateBtn.Click += (_, _) => { _worldBoardsSortByDate = true;  BuildWorldContent(); };
-        sortPanel.Children.Add(sortNameBtn);
-        sortPanel.Children.Add(sortDateBtn);
+        sortPanel.Children.Add(MakeSortBtn("A→Z",        "name_asc"));
+        sortPanel.Children.Add(MakeSortBtn("Z→A",        "name_desc"));
+        sortPanel.Children.Add(MakeSortBtn("Date ↑",     "date_asc"));
+        sortPanel.Children.Add(MakeSortBtn("Date ↓",     "date_desc"));
 
-        // "New Board" button
         var addBoardBtn = MakeFilePanelButton("＋ New Board", isPrimary: true);
         addBoardBtn.FontSize = 12; addBoardBtn.Padding = new Thickness(14, 6, 14, 6);
         Grid.SetColumn(addBoardBtn, 1);
-        toolRow.Children.Add(addBoardBtn);
+        sortRow.Children.Add(addBoardBtn);
         addBoardBtn.Click += (_, _) =>
         {
             var newBoard = ShowNewBoardDialog(projFolder);
@@ -939,6 +1049,38 @@ public partial class MainWindow
             WorldBoardRegistryService.Save(projFolder, boards);
             BuildWorldContent();
         };
+
+        // Row 2: Content-type filter chips
+        var filterRow = new StackPanel { Orientation = Orientation.Horizontal };
+        toolStack.Children.Add(filterRow);
+
+        var filterLbl = new TextBlock { Text = "Filter:", FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        filterLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+        filterRow.Children.Add(filterLbl);
+
+        foreach (var et in new[] { "Character", "Faction", "Location", "Lore" })
+        {
+            var capEt  = et;
+            bool active = _worldBoardsTypeFilter.Contains(et);
+            var chip = MakeFilePanelButton(et, active);
+            chip.FontSize = 11; chip.Padding = new Thickness(10, 4, 10, 4); chip.Margin = new Thickness(0, 0, 4, 0);
+            chip.Click += (_, _) =>
+            {
+                if (_worldBoardsTypeFilter.Contains(capEt)) _worldBoardsTypeFilter.Remove(capEt);
+                else _worldBoardsTypeFilter.Add(capEt);
+                BuildWorldContent();
+            };
+            filterRow.Children.Add(chip);
+        }
+
+        if (_worldBoardsTypeFilter.Count > 0)
+        {
+            var clearBtn = MakeFilePanelButton("✕ Clear", false);
+            clearBtn.FontSize = 11; clearBtn.Padding = new Thickness(8, 4, 8, 4);
+            clearBtn.Click += (_, _) => { _worldBoardsTypeFilter.Clear(); BuildWorldContent(); };
+            filterRow.Children.Add(clearBtn);
+        }
 
         // ── Tile grid ──────────────────────────────────────────────────────
         if (sorted.Count == 0)
@@ -1006,6 +1148,7 @@ public partial class MainWindow
                 Margin = new Thickness(0, 22, 0, 8),
                 TextAlignment = TextAlignment.Center
             };
+            symBlock.SetResourceReference(TextBlock.ForegroundProperty, "AccentHighlightBrush");
             tileInner.Children.Add(symBlock);
 
             // Name
