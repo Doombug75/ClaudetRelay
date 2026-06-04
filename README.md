@@ -95,10 +95,9 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 
 | Feature | Notes |
 |---|---|
+| **Voice output** | Text-to-speech playback of AI responses |
+| **Multi-language UI** | German as the first additional language alongside English |
 | **LM Studio support** | Local model provider via LM Studio's OpenAI-compatible endpoint |
-| **Audio output** | Text-to-speech playback of AI responses |
-| **Roadmap & World Board → HTML** | Export the visual roadmap and world board as self-contained HTML files |
-| **Multi-language UI** | Localisation support for non-English interface languages |
 
 ---
 
