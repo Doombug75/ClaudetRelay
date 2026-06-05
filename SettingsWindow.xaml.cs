@@ -104,8 +104,8 @@ public partial class SettingsWindow : Window
         if (providerModeOnly)
         {
             // Providers-only view: just the API key tab
-            Title                  = "Providers Setup · ClaudetRelay";
-            WindowTitleBlock.Text  = "Providers Setup";
+            Title                  = $"{Loc.S("Providers_Title")} · ClaudetRelay";
+            WindowTitleBlock.Text  = Loc.S("Providers_Title");
             BuildProvidersTab();
         }
         else
@@ -254,9 +254,9 @@ public partial class SettingsWindow : Window
                     toneValueLabel.Text = FormatToneLabelBuccaneer((int)toneSlider.Value);
                     break;
                 default:
-                    toneLeft.Text       = "Neutral";
-                    toneRight.Text      = "Friendly";
-                    toneHint.Text       = "0 = strictly neutral  ·  50 = model default (no change)  ·  100 = very friendly";
+                    toneLeft.Text       = Loc.S("Settings_ToneNeutral");
+                    toneRight.Text      = Loc.S("Settings_ToneFriendly");
+                    toneHint.Text       = Loc.S("Settings_ToneHint");
                     toneValueLabel.Text = FormatToneLabel((int)toneSlider.Value);
                     break;
             }
@@ -518,7 +518,7 @@ public partial class SettingsWindow : Window
         };
         zoomValueLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
 
-        var zoomLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "UI ZOOM" };
+        var zoomLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = Loc.S("Settings_UiZoom") };
 
         var zoomSlider = new Slider
         {
@@ -546,7 +546,7 @@ public partial class SettingsWindow : Window
         zoomRow.Children.Add(zoomSlider);
         zoomRow.Children.Add(zRight);
 
-        var zoomHint = MakeHintText("Scales all windows uniformly. Main window applies immediately on save; other windows apply when next opened.");
+        var zoomHint = MakeHintText(Loc.S("Settings_UiZoomHint"));
 
         var root = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         root.Children.Add(nameLabel);
@@ -619,12 +619,12 @@ public partial class SettingsWindow : Window
 
         var showHideBtn = new Button
         {
-            Content = "Show",
+            Content = Loc.S("Providers_Show"),
             Height  = 36,
             Padding = new Thickness(10, 0, 10, 0),
             Margin  = new Thickness(6, 0, 0, 0),
             Style   = (Style)FindResource("SButtonSecondary"),
-            ToolTip = "Show / hide key"
+            ToolTip = Loc.S("Providers_ShowHideTip")
         };
 
         // Row: key input + show/hide button
@@ -651,7 +651,7 @@ public partial class SettingsWindow : Window
         // Test button + status label
         var testBtn = new Button
         {
-            Content = "Test Connection",
+            Content = Loc.S("Providers_TestConnection"),
             Style   = (Style)FindResource("SButtonSecondary"),
             Margin  = new Thickness(0, 0, 10, 0),
             Height  = 32
@@ -672,7 +672,7 @@ public partial class SettingsWindow : Window
         var keyLabel = new TextBlock
         {
             Style  = (Style)FindResource("SLabel"),
-            Text   = "API KEY",
+            Text   = Loc.S("Providers_ApiKey"),
             Margin = new Thickness(0, 4, 0, 6)
         };
 
@@ -693,7 +693,7 @@ public partial class SettingsWindow : Window
                 keyTextBox.Text         = keyBox.Password;
                 keyOuter.Visibility     = Visibility.Collapsed;
                 keyTextOuter.Visibility = Visibility.Visible;
-                showHideBtn.Content     = "Hide";
+                showHideBtn.Content     = Loc.S("Providers_Hide");
                 keyTextBox.Focus();
                 keyTextBox.CaretIndex   = keyTextBox.Text.Length;
             }
@@ -702,7 +702,7 @@ public partial class SettingsWindow : Window
                 keyBox.Password         = keyTextBox.Text;
                 keyTextOuter.Visibility = Visibility.Collapsed;
                 keyOuter.Visibility     = Visibility.Visible;
-                showHideBtn.Content     = "Show";
+                showHideBtn.Content     = Loc.S("Providers_Show");
             }
         };
 
@@ -713,13 +713,13 @@ public partial class SettingsWindow : Window
         testBtn.Click += async (_, _) =>
         {
             testLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
-            testLabel.Text = "Testing…";
+            testLabel.Text = Loc.S("Providers_Testing");
             try
             {
                 var key = GetApiKeyForProvider(capturedProvider);
                 if (string.IsNullOrWhiteSpace(key))
                 {
-                    testLabel.Text = "⚠  Enter a key first.";
+                    testLabel.Text = Loc.S("Providers_EnterKeyFirst");
                     return;
                 }
 
@@ -727,7 +727,7 @@ public partial class SettingsWindow : Window
                 var ok = await svc.IsAvailableAsync();
                 testLabel.SetResourceReference(TextBlock.ForegroundProperty,
                     ok ? "SecondaryAccentBrush" : "AccentHighlightBrush");
-                testLabel.Text = ok ? "Connected ✓" : "Failed ✗  (check your key)";
+                testLabel.Text = ok ? Loc.S("Providers_Connected") : Loc.S("Providers_Failed");
             }
             catch (Exception ex)
             {
@@ -1270,7 +1270,7 @@ public partial class SettingsWindow : Window
     private async Task TestOllamaAsync(ParticipantForm form)
     {
         form.OllamaTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
-        form.OllamaTestLabel.Text = "Testing…";
+        form.OllamaTestLabel.Text = Loc.S("Providers_Testing");
 
         try
         {
@@ -1282,7 +1282,7 @@ public partial class SettingsWindow : Window
 
             form.OllamaTestLabel.SetResourceReference(TextBlock.ForegroundProperty,
                 ok ? "SecondaryAccentBrush" : "AccentHighlightBrush");
-            form.OllamaTestLabel.Text = ok ? "Online ✓" : "Offline ✗";
+            form.OllamaTestLabel.Text = ok ? Loc.S("Providers_Online") : Loc.S("Providers_Offline");
 
             if (ok)
             {
@@ -1318,14 +1318,14 @@ public partial class SettingsWindow : Window
     private async Task TestCloudAIAsync(ParticipantForm form)
     {
         form.CloudTestLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
-        form.CloudTestLabel.Text = "Testing…";
+        form.CloudTestLabel.Text = Loc.S("Providers_Testing");
 
         try
         {
             var apiKey = GetApiKeyForProvider(form.CurrentProvider);
             if (string.IsNullOrWhiteSpace(apiKey))
             {
-                form.CloudTestLabel.Text = "⚠  Enter an API key in the Providers tab first.";
+                form.CloudTestLabel.Text = Loc.S("Providers_EnterKeyInTab");
                 return;
             }
 
@@ -1334,7 +1334,7 @@ public partial class SettingsWindow : Window
 
             form.CloudTestLabel.SetResourceReference(TextBlock.ForegroundProperty,
                 ok ? "SecondaryAccentBrush" : "AccentHighlightBrush");
-            form.CloudTestLabel.Text = ok ? "Connected ✓" : "Failed ✗  (check your key)";
+            form.CloudTestLabel.Text = ok ? Loc.S("Providers_Connected") : Loc.S("Providers_Failed");
 
             if (ok)
             {
@@ -1346,7 +1346,7 @@ public partial class SettingsWindow : Window
                         // Update master list then re-apply any active filter
                         form.AllCloudModels      = models;
                         ApplyCloudModelFilter(form);
-                        form.CloudTestLabel.Text = $"Connected ✓  · {models.Count} models";
+                        form.CloudTestLabel.Text = $"{Loc.S("Providers_Connected")}  · {models.Count} models";
                     }
                 }
                 catch { /* keep default list */ }
@@ -1463,7 +1463,7 @@ public partial class SettingsWindow : Window
             settings.ProviderThrottle[provider] = ts;
 
         SettingsService.Save(settings);
-        SaveStatusLabel.Text = "Saved ✓";
+        SaveStatusLabel.Text = Loc.S("Settings_SaveStatus");
         DialogResult = true;
     }
 

@@ -500,4 +500,22 @@
   <data name="Board_NoCategory"               xml:space="preserve"><value>(keine Kategorie)</value></data>
   <data name="Board_AddToBoard"                xml:space="preserve"><value>+ Zum Board hinzufügen</value></data>
 
+  <!-- ── Providers Setup window ────────────────────────────────────────── -->
+  <data name="Providers_Title"          xml:space="preserve"><value>Anbieter-Einrichtung</value></data>
+  <data name="Providers_ApiKey"         xml:space="preserve"><value>API-SCHLÜSSEL</value></data>
+  <data name="Providers_Show"           xml:space="preserve"><value>Anzeigen</value></data>
+  <data name="Providers_Hide"           xml:space="preserve"><value>Verbergen</value></data>
+  <data name="Providers_ShowHideTip"    xml:space="preserve"><value>Schlüssel anzeigen / verbergen</value></data>
+  <data name="Providers_TestConnection" xml:space="preserve"><value>Verbindung testen</value></data>
+  <data name="Providers_Testing"        xml:space="preserve"><value>Verbindung wird getestet…</value></data>
+  <data name="Providers_EnterKeyFirst"  xml:space="preserve"><value>⚠  Zuerst einen Schlüssel eingeben.</value></data>
+  <data name="Providers_EnterKeyInTab"  xml:space="preserve"><value>⚠  Zuerst einen API-Schlüssel im Anbieter-Tab eingeben.</value></data>
+  <data name="Providers_Connected"      xml:space="preserve"><value>Verbunden ✓</value></data>
+  <data name="Providers_Failed"         xml:space="preserve"><value>Fehlgeschlagen ✗  (Schlüssel prüfen)</value></data>
+  <data name="Providers_Online"         xml:space="preserve"><value>Online ✓</value></data>
+  <data name="Providers_Offline"        xml:space="preserve"><value>Offline ✗</value></data>
+
+  <!-- ── Settings: UI Zoom hint ────────────────────────────────────────── -->
+  <data name="Settings_UiZoomHint"      xml:space="preserve"><value>Skaliert alle Fenster gleichmäßig. Das Hauptfenster übernimmt die Änderung sofort beim Speichern; andere Fenster beim nächsten Öffnen.</value></data>
+
 </root>

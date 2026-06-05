@@ -500,4 +500,22 @@
   <data name="Board_NoCategory"               xml:space="preserve"><value>(no category)</value></data>
   <data name="Board_AddToBoard"                xml:space="preserve"><value>+ Add to Board</value></data>
 
+  <!-- ── Providers Setup window ────────────────────────────────────────── -->
+  <data name="Providers_Title"          xml:space="preserve"><value>Providers Setup</value></data>
+  <data name="Providers_ApiKey"         xml:space="preserve"><value>API KEY</value></data>
+  <data name="Providers_Show"           xml:space="preserve"><value>Show</value></data>
+  <data name="Providers_Hide"           xml:space="preserve"><value>Hide</value></data>
+  <data name="Providers_ShowHideTip"    xml:space="preserve"><value>Show / hide key</value></data>
+  <data name="Providers_TestConnection" xml:space="preserve"><value>Test Connection</value></data>
+  <data name="Providers_Testing"        xml:space="preserve"><value>Testing…</value></data>
+  <data name="Providers_EnterKeyFirst"  xml:space="preserve"><value>⚠  Enter a key first.</value></data>
+  <data name="Providers_EnterKeyInTab"  xml:space="preserve"><value>⚠  Enter an API key in the Providers tab first.</value></data>
+  <data name="Providers_Connected"      xml:space="preserve"><value>Connected ✓</value></data>
+  <data name="Providers_Failed"         xml:space="preserve"><value>Failed ✗  (check your key)</value></data>
+  <data name="Providers_Online"         xml:space="preserve"><value>Online ✓</value></data>
+  <data name="Providers_Offline"        xml:space="preserve"><value>Offline ✗</value></data>
+
+  <!-- ── Settings: UI Zoom hint ────────────────────────────────────────── -->
+  <data name="Settings_UiZoomHint"      xml:space="preserve"><value>Scales all windows uniformly. Main window applies immediately on save; other windows apply when next opened.</value></data>
+
 </root>
