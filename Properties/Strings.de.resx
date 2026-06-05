@@ -418,6 +418,7 @@
 
   <!-- ── Shared dialog buttons ─────────────────────────────────────────── -->
   <data name="Btn_OK"                          xml:space="preserve"><value>OK</value></data>
+  <data name="Btn_Load"                        xml:space="preserve"><value>Laden</value></data>
 
   <!-- ── World Board window ────────────────────────────────────────────── -->
   <data name="Board_AddRelation"               xml:space="preserve"><value>🔗 Beziehung hinzufügen</value></data>

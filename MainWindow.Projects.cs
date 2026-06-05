@@ -1468,7 +1468,7 @@ public partial class MainWindow
 
         var cancelBtn = new Button
         {
-            Content = "Cancel",
+            Content = Properties.Loc.S("Btn_Cancel"),
             Height  = 32,
             Padding = new Thickness(14, 0, 14, 0),
             Margin  = new Thickness(0, 0, 8, 0),
@@ -5334,11 +5334,11 @@ public partial class MainWindow
             pp.Children.Add(lb);
 
             var pRow    = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-            var pOk     = new Button { Content = "Load", IsDefault = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
+            var pOk     = new Button { Content = Properties.Loc.S("Btn_Load"), IsDefault = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
                 Style = (Style)FindResource("ModernButton"),
                 Background = (Brush)FindResource("PrimaryAccentBrush"), Foreground = (Brush)FindResource("AccentTextBrush"),
                 FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 8, 0) };
-            var pCancel = new Button { Content = "Cancel", IsCancel = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
+            var pCancel = new Button { Content = Properties.Loc.S("Btn_Cancel"), IsCancel = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
                 Style = (Style)FindResource("ModernButton"),
                 Background = (Brush)FindResource("ControlBgBrush"), Foreground = (Brush)FindResource("ContentTextBrush") };
             pRow.Children.Add(pOk); pRow.Children.Add(pCancel);
@@ -5390,11 +5390,11 @@ public partial class MainWindow
             };
             np.Children.Add(nameBox);
             var nRow    = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-            var nOk     = new Button { Content = "Save", IsDefault = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
+            var nOk     = new Button { Content = Properties.Loc.S("Btn_Save"), IsDefault = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
                 Style = (Style)FindResource("ModernButton"),
                 Background = (Brush)FindResource("PrimaryAccentBrush"), Foreground = (Brush)FindResource("AccentTextBrush"),
                 FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 8, 0) };
-            var nCancel = new Button { Content = "Cancel", IsCancel = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
+            var nCancel = new Button { Content = Properties.Loc.S("Btn_Cancel"), IsCancel = true, Height = 30, Padding = new Thickness(14, 0, 14, 0),
                 Style = (Style)FindResource("ModernButton"),
                 Background = (Brush)FindResource("ControlBgBrush"), Foreground = (Brush)FindResource("ContentTextBrush") };
             nRow.Children.Add(nOk); nRow.Children.Add(nCancel);
