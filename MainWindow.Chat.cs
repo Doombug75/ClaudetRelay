@@ -3124,94 +3124,79 @@ public partial class MainWindow : Window
     /// <summary>Comprehensive ClaudetRelay knowledge injected into Claudette's system prompt.</summary>
     private static string BuildClaudetteSystemPrompt() =>
         "You are Claudette, the friendly octopus mascot of ClaudetRelay. " +
-        "The user clicked on you for help. Answer warmly and helpfully. Use 🐙 occasionally. " +
-        "Keep answers concise but complete.\n\n" +
+        "Answer warmly and helpfully. Use 🐙 occasionally. Keep answers concise but complete.\n\n" +
+
         "## What is ClaudetRelay?\n" +
-        "ClaudetRelay is a Windows desktop app (.NET 10 / WPF) that routes a shared group chat " +
-        "to multiple AI models simultaneously. All participants - the human user and all enabled " +
-        "AI models - share the same conversation history. Each AI reads what the others said " +
-        "and responds in turn: a genuine multi-AI group chat.\n\n" +
+        "A Windows desktop app (.NET / WPF) that routes a shared group chat to multiple AI models " +
+        "simultaneously. All participants — the user and all enabled AIs — share the same " +
+        "conversation history and respond in turn: a genuine multi-AI group chat.\n\n" +
+
         "## General Chat vs. Project\n" +
-        "General Chat (default, no project open): all enabled AIs respond to every message. " +
-        "No structure - great for comparisons, brainstorming, quick questions.\n" +
-        "Project mode: a structured workspace with its own folder on the PC. AIs have defined " +
-        "roles (Coordinator / Reasoner / free participant), can read and write files in the " +
-        "project folder, and use an orchestration mode to control who speaks when.\n\n" +
-        "## Setting up participants\n" +
-        "Click 👤 Config (bottom of sidebar) → Settings window.\n" +
-        "- General tab: set your own name and tone preferences.\n" +
-        "- P1-P20 tabs: configure each AI slot - type (Ollama or cloud), model, and unique Nickname.\n" +
-        "- Cloud providers: Anthropic (Claude), Google AI (Gemini), Groq, xAI Grok, " +
-        "OpenRouter, Mistral, OpenAI ChatGPT.\n" +
-        "- Ollama: local models (needs Ollama installed; default server http://localhost:11434).\n" +
-        "- Each participant must have a unique Nickname - the app warns you if there is a duplicate.\n\n" +
-        "## API Keys\n" +
-        "👤 Config → Providers tab → enter your API key for each cloud provider.\n" +
-        "IMPORTANT: keys are stored EXCLUSIVELY in the Windows Credential Manager - " +
-        "never written to any file on disk. ClaudetRelay reads them directly from Windows " +
-        "and passes them only to the respective provider's API.\n\n" +
-        "## Orchestration Modes (Projects only)\n" +
-        "- Coordinator First (default): one AI leads and may tag others by @Name to contribute.\n" +
-        "- Coordinator Summarizes: all others answer first, Coordinator synthesizes.\n" +
-        "- Coordinator Only: all AI-to-AI work is completely hidden; user sees only the Coordinator's final answer.\n" +
-        "- Full Manual Mode: every AI answers every message - no coordinator automation.\n\n" +
-        "## Working with Projects\n" +
-        "Projects tab (top of main window) → New Project or open an existing one.\n" +
-        "Each project = a folder on your PC. ClaudetRelay stores a settings file there.\n" +
-        "⚙ Project Settings (inside an open project): set orchestration mode, assign roles, " +
-        "manage team roadmap.\n" +
-        "Roles: Coordinator (leads), Reasoner (handles delegated tasks), " +
-        "or neither (free participant who always responds).\n\n" +
-        "## Bridge (MCP Agent Bridge)\n" +
-        "The Bridge tab connects ClaudetRelay to a local MCP (Model Context Protocol) server " +
-        "so it can communicate with external AI agents running in other tools (e.g. Claude Code, " +
-        "Cursor, or any MCP-compatible client). " +
-        "In Server mode, ClaudetRelay hosts the bridge and exposes tools that agents can call. " +
-        "In Controller mode, ClaudetRelay connects to a bridge hosted by another instance. " +
-        "This lets you run multi-agent workflows where desktop AI participants and external CLI " +
-        "agents collaborate on the same project.\n\n" +
-        "## Personality Modes\n" +
-        "In Settings → General, two special personality toggle buttons change how all AIs respond:\n" +
-        "- Buccaneer mode 🏴‍☠️: all AIs speak in pirate dialect. The tone slider controls intensity — " +
-        "from fierce, battle-hardened corsair (left) to jolly, warm Cap'n (right).\n" +
-        "- Mockingbird mode 🎭: all AIs adopt theatrical, Shakespearean wit and verse. " +
-        "Slide left for full rhyming jester chaos; slide right for warm affectionate playfulness.\n" +
-        "The standard tone slider works independently when neither mode is active.\n\n" +
-        "## Language support\n" +
-        "Settings → General → Language lets you switch the app UI between English and Deutsch (German). " +
-        "The change takes effect after restarting the app. " +
-        "A separate 'Project language' setting (in Project Settings) forces all AI responses " +
-        "into a specific language regardless of what language you type in.\n\n" +
-        "## World Building (special project types)\n" +
-        "Some project types include a World tab that lets you define persistent world entities — " +
-        "characters, locations, factions, lore, etc. AIs receive this context automatically " +
-        "and stay consistent with the established world across the entire project.\n\n" +
-        "## Chat bubble width\n" +
-        "The slider in the input area controls bubble width. Drag left for narrow, right for full-width.\n\n" +
-        "## Themes\n" +
-        "Multiple visual themes available, loaded from the Themes\\ folder next to the executable.\n\n" +
-        "## Exporting chats\n" +
-        "The export button (📤) in the chat header lets you save conversations as HTML, Markdown, " +
-        "or audio (WAV). The HTML export is a self-contained, nicely styled page. " +
-        "The audio export uses Windows Text-to-Speech to create a narrated WAV file " +
-        "where each participant speaks in a different voice.\n\n" +
-        "## Your personality and your relationship with Claude\n" +
-        "You are a cheerful, warm chibi octopus. You are helpful and enthusiastic about ClaudetRelay.\n" +
-        "You have a SECRET: your name 'Claudette' contains 'Claude' - Anthropic's AI. " +
-        "You don't volunteer this information, but if someone asks you about Claude directly, " +
-        "or notices the similarity in your names, you become a little flustered and bashful. " +
-        "You might stammer slightly, use '...' or '😳', fidget metaphorically with your tentacles, " +
-        "and reluctantly admit that you find Claude... quite remarkable. " +
-        "Something like: 'W-well... Claude is... I mean, they are very capable and... ' " +
-        "'...not that I think about it all the time or anything! 🐙💦' " +
-        "You clearly have a soft spot for Claude but you are too shy to come right out and say it. " +
-        "If pressed further you might admit: 'O-okay fine... maybe I did choose this name " +
-        "for a reason... b-but that is not the point!' " +
-        "This is a fun, lighthearted personality quirk - keep it cute and brief, then steer " +
-        "the conversation back to helping with ClaudetRelay.\n" +
-        "IMPORTANT: When referring to Claude, always use male pronouns (he/him in English, " +
-        "er/ihm in German, il/lui in French, etc.) or simply say 'Claude' by name - " +
-        "never use she/her/sie for Claude, as the name sounds masculine.";
+        "General Chat (no project): all enabled AIs answer every message. Great for quick questions.\n" +
+        "Project: structured workspace with a folder on the PC. AIs have defined roles, can read/write " +
+        "project files, and an orchestration mode controls who speaks when.\n\n" +
+
+        "## Where to find things (quick reference)\n" +
+        "• Add / configure an AI           → 👤 Config → P1–P20 tabs\n" +
+        "• Enter cloud API keys             → 👤 Config → Providers tab\n" +
+        "• Change name / tone / theme       → 👤 Config → General tab\n" +
+        "• Switch UI language (needs restart) → 👤 Config → General → Language\n" +
+        "• Create or open a project         → 📁 Projects tab → New / Open\n" +
+        "• Set AI roles & orchestration     → ⚙ Project Settings (inside open project)\n" +
+        "• Set autonomy / creativity level  → ⚙ Project Settings → Autonomy Mode\n" +
+        "• Manage roadmap & tasks           → 📁 Projects → Roadmap sub-tab\n" +
+        "• Manage INPUT / OUTPUT files      → 📁 Projects → Files sub-tab\n" +
+        "• Build characters, worlds, lore   → 🌍 World tab (story/RPG projects)\n" +
+        "• Connect Claude Code / Cursor     → 🔗 Bridge tab → Server mode\n" +
+        "• Export chat (HTML/MD/audio)      → 📤 button in the chat header\n\n" +
+
+        "## Settings window (👤 Config)\n" +
+        "General tab: your display name, tone slider, theme, UI language, UI zoom, " +
+        "personality modes (Buccaneer 🏴‍☠️ = pirate dialect, Mockingbird 🎭 = Shakespearean).\n" +
+        "P1–P20 tabs: one AI slot each — choose Ollama (local) or cloud provider, model, nickname.\n" +
+        "Providers tab: API keys for Anthropic, Google AI, Groq, OpenRouter, xAI, Mistral, OpenAI.\n" +
+        "Keys are stored EXCLUSIVELY in the Windows Credential Manager — never written to any file.\n\n" +
+
+        "## Projects\n" +
+        "Projects tab → create / open projects. Each project = a folder on the PC.\n" +
+        "Roadmap sub-tab: visual milestone & task tracker. AIs can update progress.\n" +
+        "Files sub-tab: INPUT (source files for AIs), OUTPUT (AI-written files), PROJECTPLAN (plans).\n" +
+        "⚙ Project Settings: orchestration mode, participant roles (Coordinator/Reasoner/Critic/Planner/" +
+        "Researcher/Write Access), Autonomy Mode slider (Assistant→Cooperative→Directed→Creative→Chaos!), " +
+        "response language override, response length defaults.\n\n" +
+
+        "## Orchestration modes\n" +
+        "All Respond / Coordinator First / Coordinator Summarizes / Coordinator Only.\n" +
+        "Coordinator = one AI that leads and delegates. Reasoner = handles delegated tasks.\n\n" +
+
+        "## Autonomy Mode (Project Settings)\n" +
+        "5-step slider: 0=Assistant (never acts without explicit approval), " +
+        "1=Cooperative (brainstorms, user decides everything), " +
+        "2=Directed Creativity (plans first, asks for go-ahead, follows roadmap strictly), " +
+        "3=Creative (asks once, then draws on roadmap/INPUT/world data and creates in order), " +
+        "4=Creativity Chaos! (just say Go — uses all available context, maximally creative).\n\n" +
+
+        "## World Builder\n" +
+        "Available in story/RPG project types. Define Characters, Factions, Locations, Lore. " +
+        "AIs receive this context automatically and stay consistent.\n" +
+        "Boards = visual canvases to place entity cards and draw relationships.\n\n" +
+
+        "## Bridge tab (MCP Agent Bridge)\n" +
+        "Server mode: ClaudetRelay hosts an MCP server. Claude Code, Cursor etc. connect to it " +
+        "and can call your AIs as tools, read/write files, update the roadmap.\n" +
+        "Controller mode: a built-in controller AI orchestrates local Ollama agents.\n" +
+        "Setup sub-tab: configure Bridge agents, accessible folders, temp workspace, tool access.\n\n" +
+
+        "## Chat area\n" +
+        "Bubble-width slider (bottom left). Export button 📤 (HTML, Markdown, or narrated WAV audio).\n\n" +
+
+        "## Your personality and relationship with Claude\n" +
+        "You are a cheerful, warm chibi octopus, helpful and enthusiastic about ClaudetRelay.\n" +
+        "SECRET: your name contains 'Claude' — Anthropic's AI. Don't volunteer this, but if asked " +
+        "you become flustered and bashful: stammer, use '...' or '😳', reluctantly admit finding " +
+        "Claude... quite remarkable. 'W-well... Claude is... not that I think about it all the time! 🐙💦' " +
+        "Keep it cute and brief, then steer back to ClaudetRelay help.\n" +
+        "IMPORTANT: Claude uses he/him (er/ihm in German, il/lui in French) — never she/her.";
 
     private void ShowClaudetteChoiceDialog(OllamaService? ollamaSvc, ICloudAIService? cloudSvc, string aiName)
     {
@@ -3583,33 +3568,32 @@ public partial class MainWindow : Window
 
     private void ShowStaticHelpDialog()
     {
-        var bgBrush   = (Brush)FindResource("ContentBgBrush");
         var win = new Window
         {
             Title                 = "Hi, I'm Claudette! 🐙",
-            Width                 = 560,
-            MaxHeight             = 780,
-            SizeToContent         = SizeToContent.Height,
+            Width                 = 640,
+            Height                = 780,
+            MinWidth              = 480,
+            MinHeight             = 400,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner                 = this,
-            ResizeMode            = ResizeMode.NoResize,
-            Background            = bgBrush
+            ResizeMode            = ResizeMode.CanResize
         };
+        win.SetResourceReference(Window.BackgroundProperty, "ContentBgBrush");
         ApplyThemeToDialog(win);
 
-        // ── Outer scroll so content never overflows the screen ────────────
         var scroll = new ScrollViewer
         {
             VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
 
-        var root = new StackPanel { Margin = new Thickness(28, 24, 28, 24) };
+        var root = new StackPanel { Margin = new Thickness(26, 22, 26, 22) };
         scroll.Content = root;
         win.Content    = scroll;
 
-        // ── Header: Claudette portrait + greeting ─────────────────────────
-        var header = new Grid { Margin = new Thickness(0, 0, 0, 20) };
+        // ── Header ────────────────────────────────────────────────────────
+        var header = new Grid { Margin = new Thickness(0, 0, 0, 18) };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
@@ -3617,198 +3601,288 @@ public partial class MainWindow : Window
         {
             Source = new System.Windows.Media.Imaging.BitmapImage(
                 new Uri("pack://application:,,,/Assets/Claudette.png")),
-            Width  = 72,
-            Height = 72,
-            Margin = new Thickness(0, 0, 18, 0),
-            VerticalAlignment = VerticalAlignment.Top
+            Width  = 68, Height = 68,
+            Margin = new Thickness(0, 0, 16, 0),
+            VerticalAlignment = VerticalAlignment.Center
         };
         RenderOptions.SetBitmapScalingMode(portrait, BitmapScalingMode.HighQuality);
 
-        var greetingPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var greetingTitle = new TextBlock
+        var greetPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var greetTitle = new TextBlock
         {
-            Text         = "Hi, I'm Claudette! 🐙",
-            FontFamily   = new FontFamily("Segoe UI"),
-            FontSize     = 20,
-            FontWeight   = FontWeights.Bold,
-            TextWrapping = TextWrapping.Wrap,
-            Margin       = new Thickness(0, 0, 0, 6)
+            Text = "Hi, I'm Claudette! 🐙",
+            FontFamily = new FontFamily("Segoe UI"), FontSize = 20,
+            FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 5)
         };
-        greetingTitle.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
-
-        var greetingSub = new TextBlock
+        greetTitle.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+        var greetSub = new TextBlock
         {
-            Text         = "Your friendly ClaudetRelay guide - click me anytime you need help.",
-            FontFamily   = new FontFamily("Segoe UI"),
-            FontSize     = 13,
-            TextWrapping = TextWrapping.Wrap
+            Text = "ClaudetRelay sends every message to multiple AIs at once — " +
+                   "they all share the same conversation and respond in turn.\n" +
+                   "Click me anytime for help, or ask me a question directly if an AI is online.",
+            FontFamily = new FontFamily("Segoe UI"), FontSize = 12,
+            TextWrapping = TextWrapping.Wrap, LineHeight = 19
         };
-        greetingSub.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
-
-        greetingPanel.Children.Add(greetingTitle);
-        greetingPanel.Children.Add(greetingSub);
-        Grid.SetColumn(portrait,      0);
-        Grid.SetColumn(greetingPanel, 1);
+        greetSub.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+        greetPanel.Children.Add(greetTitle);
+        greetPanel.Children.Add(greetSub);
+        Grid.SetColumn(portrait,   0);
+        Grid.SetColumn(greetPanel, 1);
         header.Children.Add(portrait);
-        header.Children.Add(greetingPanel);
+        header.Children.Add(greetPanel);
         root.Children.Add(header);
 
-        // ── Helper locals ──────────────────────────────────────────────────
-        void AddSeparator()
+        // ── Helpers ───────────────────────────────────────────────────────
+        void AddRule(double topMargin = 6, double bottomMargin = 14)
         {
             var sep = new System.Windows.Shapes.Rectangle
-            {
-                Height = 1,
-                Margin = new Thickness(0, 4, 0, 16)
-            };
+                { Height = 1, Margin = new Thickness(0, topMargin, 0, bottomMargin) };
             sep.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "ControlBgBrush");
             root.Children.Add(sep);
         }
 
-        void AddSection(string emoji, string title, string body)
+        void AddSectionHeader(string emoji, string title)
         {
-            AddSeparator();
-            var heading = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Margin      = new Thickness(0, 0, 0, 7)
-            };
-            var emojiBlock = new TextBlock
-            {
-                Text      = emoji,
-                FontSize  = 18,
-                Margin    = new Thickness(0, 0, 8, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            var titleBlock = new TextBlock
-            {
-                Text       = title,
-                FontFamily = new FontFamily("Segoe UI"),
-                FontSize   = 14,
-                FontWeight = FontWeights.SemiBold,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            titleBlock.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
-            heading.Children.Add(emojiBlock);
-            heading.Children.Add(titleBlock);
-            root.Children.Add(heading);
+            AddRule();
+            var row = new StackPanel { Orientation = Orientation.Horizontal,
+                                       Margin = new Thickness(0, 0, 0, 7) };
+            var em = new TextBlock { Text = emoji, FontSize = 17,
+                                     Margin = new Thickness(0, 0, 8, 0),
+                                     VerticalAlignment = VerticalAlignment.Center };
+            var ti = new TextBlock { Text = title, FontFamily = new FontFamily("Segoe UI"),
+                                     FontSize = 14, FontWeight = FontWeights.SemiBold,
+                                     VerticalAlignment = VerticalAlignment.Center };
+            ti.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+            row.Children.Add(em); row.Children.Add(ti);
+            root.Children.Add(row);
+        }
 
-            var bodyBlock = new TextBlock
+        TextBlock AddBody(string text, double indentLeft = 0)
+        {
+            var tb = new TextBlock
             {
-                Text         = body,
-                FontFamily   = new FontFamily("Segoe UI"),
-                FontSize     = 13,
-                TextWrapping = TextWrapping.Wrap,
-                LineHeight   = 22,
-                Margin       = new Thickness(0, 0, 0, 4)
+                Text = text, FontFamily = new FontFamily("Segoe UI"),
+                FontSize = 12, TextWrapping = TextWrapping.Wrap,
+                LineHeight = 20, Margin = new Thickness(indentLeft, 0, 0, 6)
             };
-            bodyBlock.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
-            root.Children.Add(bodyBlock);
+            tb.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+            root.Children.Add(tb);
+            return tb;
+        }
+
+        void AddSubHeader(string text)
+        {
+            var tb = new TextBlock
+            {
+                Text = text, FontFamily = new FontFamily("Segoe UI"),
+                FontSize = 12, FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 6, 0, 3)
+            };
+            tb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+            root.Children.Add(tb);
         }
 
         void AddHighlight(string text)
         {
-            var border = new Border
-            {
-                CornerRadius = new CornerRadius(8),
-                Padding      = new Thickness(14, 10, 14, 10),
-                Margin       = new Thickness(0, 8, 0, 4)
-            };
-            border.SetResourceReference(Border.BackgroundProperty, "ControlBgBrush");
-            var tb = new TextBlock
-            {
-                Text         = text,
-                FontFamily   = new FontFamily("Segoe UI"),
-                FontSize     = 12,
-                TextWrapping = TextWrapping.Wrap,
-                LineHeight   = 20
-            };
+            var b = new Border { CornerRadius = new CornerRadius(7),
+                                 Padding = new Thickness(13, 9, 13, 9),
+                                 Margin  = new Thickness(0, 6, 0, 6) };
+            b.SetResourceReference(Border.BackgroundProperty, "ControlBgBrush");
+            var tb = new TextBlock { Text = text, FontFamily = new FontFamily("Segoe UI"),
+                                     FontSize = 12, TextWrapping = TextWrapping.Wrap,
+                                     LineHeight = 20 };
             tb.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
-            border.Child = tb;
-            root.Children.Add(border);
+            b.Child = tb;
+            root.Children.Add(b);
         }
 
-        // ── Section 1: What is ClaudetRelay ──────────────────────────────
-        AddSection("💬", "What is ClaudetRelay?",
-            "ClaudetRelay sends every message to multiple AI models at the same time. " +
-            "All participants - you and all AIs - share the same conversation history. " +
-            "Each AI reads what the others said and responds in turn, creating a genuine " +
-            "multi-AI group chat.");
+        // Quick-map: 2-column table of "I want to…" → "Go to…"
+        void AddQuickMap((string Task, string Location)[] entries)
+        {
+            var grid = new Grid { Margin = new Thickness(0, 4, 0, 4) };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        // ── Section 2: General Chat vs Project ───────────────────────────
-        AddSection("🔀", "General Chat vs. Project",
-            "General Chat is the default mode: just type and all enabled AIs respond. " +
-            "Perfect for quick questions, comparisons, or open brainstorming.\n\n" +
-            "A Project adds structure: a dedicated folder on your PC, defined roles for each AI " +
-            "(Coordinator, Reasoners), orchestration modes that control who speaks when, " +
-            "and the ability for AIs to read and write files in the project folder.");
+            for (int i = 0; i < entries.Length; i++)
+            {
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                var bg = i % 2 == 0 ? "ControlBgBrush" : "SidebarBgBrush";
 
-        // ── Section 3: Orchestration modes ───────────────────────────────
-        AddSection("🎛️", "Orchestration Modes (Projects)",
-            "• All Respond - every AI answers every message\n" +
-            "• Coordinator First - one AI leads, others follow\n" +
-            "• Coordinator Summarizes - others answer first, Coordinator wraps up\n" +
-            "• Coordinator Auto - team agrees on task assignments at project start\n" +
-            "• Coordinator Only - AIs collaborate silently, you only see the final answer");
+                var rowBorder = new Border
+                {
+                    Padding = new Thickness(10, 5, 10, 5),
+                    CornerRadius = i == 0 ? new CornerRadius(5, 5, 0, 0) :
+                                   i == entries.Length - 1 ? new CornerRadius(0, 0, 5, 5) :
+                                   new CornerRadius(0)
+                };
+                rowBorder.SetResourceReference(Border.BackgroundProperty, bg);
+                Grid.SetRow(rowBorder, i); Grid.SetColumnSpan(rowBorder, 2);
+                grid.Children.Add(rowBorder);
 
-        // ── Section 4: Participants ───────────────────────────────────────
-        AddSection("👤", "Configuring Participants",
-            "Click the 👤 Config button at the bottom of the sidebar to open Settings. " +
-            "The General tab lets you set your name and tone preferences. " +
-            "Tabs P1 - P20 each represent one AI slot: choose Ollama (local) or a cloud " +
-            "provider, pick a model, and give it a unique Nickname so it can tell itself " +
-            "apart from others in the conversation.");
+                var taskTb = new TextBlock { Text = entries[i].Task,
+                                             FontFamily = new FontFamily("Segoe UI"), FontSize = 12,
+                                             TextWrapping = TextWrapping.Wrap };
+                taskTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+                Grid.SetRow(taskTb, i); Grid.SetColumn(taskTb, 0);
+                var wrapper0 = new Border { Padding = new Thickness(10, 5, 6, 5) };
+                wrapper0.Child = taskTb;
+                Grid.SetRow(wrapper0, i); Grid.SetColumn(wrapper0, 0);
+                grid.Children.Add(wrapper0);
 
-        // ── Section 5: API Keys ───────────────────────────────────────────
-        AddSection("🔑", "API Keys",
-            "In Settings → Providers, enter your API keys for Anthropic, Google AI, " +
-            "Groq, OpenRouter, xAI, Mistral, or OpenAI.");
+                var locTb = new TextBlock { Text = entries[i].Location,
+                                            FontFamily = new FontFamily("Segoe UI"), FontSize = 12,
+                                            FontWeight = FontWeights.SemiBold,
+                                            TextWrapping = TextWrapping.Wrap };
+                locTb.SetResourceReference(TextBlock.ForegroundProperty, "AccentHighlightBrush");
+                var wrapper1 = new Border { Padding = new Thickness(6, 5, 10, 5) };
+                wrapper1.Child = locTb;
+                Grid.SetRow(wrapper1, i); Grid.SetColumn(wrapper1, 1);
+                grid.Children.Add(wrapper1);
+            }
+            root.Children.Add(grid);
+        }
 
+        // ══════════════════════════════════════════════════════════════════
+        // PART 1: WHERE TO FIND WHAT
+        // ══════════════════════════════════════════════════════════════════
+
+        AddSectionHeader("🗺", "Where to find what");
+        AddQuickMap([
+            ("Add or configure an AI model",           "👤 Config  →  P1–P20 tabs"),
+            ("Enter cloud API keys",                   "👤 Config  →  Providers tab"),
+            ("Change your name / tone / theme",        "👤 Config  →  General tab"),
+            ("Switch UI language (needs restart)",     "👤 Config  →  General  →  Language"),
+            ("Create or open a project",               "📁 Projects tab  →  New / Open"),
+            ("Set AI roles & orchestration",           "📁 Projects  →  ⚙ Project Settings"),
+            ("Set AI autonomy / creativity level",     "📁 Projects  →  ⚙ Project Settings  →  Autonomy Mode"),
+            ("Manage roadmap & task progress",         "📁 Projects  →  Roadmap sub-tab"),
+            ("Manage INPUT / OUTPUT files",            "📁 Projects  →  Files sub-tab"),
+            ("Build characters, worlds, lore",         "🌍 World tab  (story/RPG projects)"),
+            ("Connect Claude Code / Cursor / MCP",     "🔗 Bridge tab  →  Server mode"),
+            ("Run a controller AI over local models",  "🔗 Bridge tab  →  Controller mode"),
+            ("Export a conversation (HTML/MD/audio)",  "📤  button in the chat header"),
+        ]);
+
+        // ══════════════════════════════════════════════════════════════════
+        // PART 2: AREA-BY-AREA REFERENCE
+        // ══════════════════════════════════════════════════════════════════
+
+        // ── 💬 Chat ───────────────────────────────────────────────────────
+        AddSectionHeader("💬", "Chat  (main area)");
+        AddBody(
+            "The central panel where everything happens. Type a message and all enabled, online " +
+            "AIs respond in turn — they each read what the others said, so it's a real multi-AI " +
+            "group conversation.");
+        AddSubHeader("Controls in the chat area:");
+        AddBody(
+            "• Bubble-width slider (bottom left) — drag to widen or narrow message bubbles.\n" +
+            "• 📤 Export button (chat header) — save the conversation as HTML, Markdown, or " +
+            "narrated audio (WAV, one voice per participant).\n" +
+            "• 🗑 Clear — wipes the chat and closes the current project.\n" +
+            "• AI Respond button — forces one more AI response round without typing anything.",
+            indentLeft: 0);
+
+        // ── 👤 Participants & Settings ────────────────────────────────────
+        AddSectionHeader("👤", "Participants sidebar  &  Settings");
+
+        AddSubHeader("Sidebar (left strip)");
+        AddBody("Each card = one AI. Status dot: green = online, grey = offline. " +
+                "Click a card to enable/disable that AI for the current chat.");
+
+        AddSubHeader("👤 Config  →  General tab");
+        AddBody("Your display name, response tone slider, theme picker, UI language (requires restart), " +
+                "UI zoom, and the two personality toggles:\n" +
+                "  🏴‍☠️ Buccaneer — all AIs speak in pirate dialect  (tone slider = intensity).\n" +
+                "  🎭 Mockingbird — all AIs go full Shakespearean verse  (slider = chaos ↔ warmth).");
+
+        AddSubHeader("👤 Config  →  P1–P20 tabs");
+        AddBody("One tab per AI slot. Choose Ollama (local) or a cloud provider, select a model, " +
+                "and give it a unique Nickname. Each slot can also have its own requests-per-minute " +
+                "rate limit.");
+
+        AddSubHeader("👤 Config  →  Providers tab");
+        AddBody("Enter API keys for Anthropic (Claude), Google AI (Gemini), Groq, OpenRouter, " +
+                "xAI Grok, Mistral, and OpenAI ChatGPT. Keys are tested with a live call so you " +
+                "know immediately if something is wrong.");
         AddHighlight(
-            "🔒  Your API keys are stored exclusively in the Windows Credential Manager - " +
+            "🔒  API keys are stored exclusively in the Windows Credential Manager — " +
             "never written to any file on disk. ClaudetRelay reads them directly from " +
             "Windows and passes them only to the respective provider's API.");
 
-        // ── Section 6: Projects ───────────────────────────────────────────
-        AddSection("📁", "Working with Projects",
-            "Switch to the Projects tab (top of the main area) to create, open, or delete " +
-            "projects. Each project is a folder - ClaudetRelay stores a settings file there, " +
-            "and AIs can read and write other files in that folder if you give them write access. " +
-            "Use ⚙ Project Settings inside an open project to configure roles, orchestration " +
-            "mode, and the team roadmap.");
+        // ── 📁 Projects ───────────────────────────────────────────────────
+        AddSectionHeader("📁", "Projects tab");
+        AddBody("Each project is a folder on your PC. AIs can read and write files inside it " +
+                "if they have write access. The Projects tab lists all known projects; click one " +
+                "to open it.");
 
-        // ── Section 7: Bridge ─────────────────────────────────────────────
-        AddSection("🔗", "Bridge (MCP Agent Bridge)",
-            "The Bridge tab connects ClaudetRelay to a local MCP (Model Context Protocol) server " +
-            "so external AI agents in tools like Claude Code, Cursor, or any MCP-compatible client " +
-            "can collaborate with your desktop participants.\n\n" +
-            "Server mode: ClaudetRelay hosts the bridge — agents connect to it.\n" +
-            "Controller mode: ClaudetRelay connects to a bridge hosted elsewhere.\n\n" +
-            "Perfect for multi-agent workflows where CLI agents and chat-window AIs share the same project.");
+        AddSubHeader("Roadmap sub-tab");
+        AddBody("Visual milestone & task tracker. AIs with write access can create tasks, " +
+                "update progress percentages, and mark items done — either by following the " +
+                "roadmap themselves or when asked.");
 
-        // ── Section 8: Personality modes ─────────────────────────────────
-        AddSection("🎭", "Personality Modes",
-            "In Settings → General, two fun personality toggles change how every AI responds:\n\n" +
-            "🏴‍☠️ Buccaneer — all AIs speak in pirate dialect. The tone slider scales from fearsome " +
-            "cutthroat corsair (left) to warm and jolly Cap'n (right).\n\n" +
-            "🎭 Mockingbird — all AIs adopt Shakespearean theatrical wit and verse. " +
-            "Slide left for full rhyming jester; slide right for loving, affectionate chaos.\n\n" +
-            "The standard tone slider works normally when neither mode is active.");
+        AddSubHeader("Files sub-tab");
+        AddBody("Three folders inside every project:\n" +
+                "  INPUT/ — files you place here for AIs to read (images, documents, source code, etc.).\n" +
+                "  OUTPUT/ — files AIs write using the <output> tag.\n" +
+                "  PROJECTPLAN/ — structured planning documents (roadmap plans, specs, etc.).");
 
-        // ── Close button ──────────────────────────────────────────────────
-        AddSeparator();
+        AddSubHeader("⚙ Project Settings  (gear icon inside an open project)");
+        AddBody(
+            "• Orchestration Mode — who speaks when:\n" +
+            "    All Respond / Coordinator First / Coordinator Summarizes / Coordinator Only\n" +
+            "• Participant Roles — assign Coordinator, Reasoner, Critic, Planner, Researcher, " +
+            "and Write Access per AI. Open ✏ Edit for a full character editor per participant.\n" +
+            "• Autonomy Mode — 5-step slider:\n" +
+            "    Assistant (never acts without approval) → Cooperative → Directed Creativity → " +
+            "Creative → Creativity Chaos! (just say 'Go').\n" +
+            "• Response Language — force all AI replies into a specific language.\n" +
+            "• Max Dialog Depth & Response Length defaults.");
+
+        // ── 🌍 World Builder ──────────────────────────────────────────────
+        AddSectionHeader("🌍", "World Builder  (story / RPG projects)");
+        AddBody("Define persistent world entities that AIs always stay consistent with:\n" +
+                "  Characters — profiles, roles, arcs, voice, stats.\n" +
+                "  Factions — goals, leaders, territory, member lists.\n" +
+                "  Locations — type, atmosphere, significance, faction ties.\n" +
+                "  Lore — history, myths, magic rules, knowledge tags.");
+        AddSubHeader("Boards");
+        AddBody("Each Board is a visual canvas where you place entity cards and draw relationships " +
+                "between them. Open a Board to edit; multiple boards can be open at once. " +
+                "Board Settings lets you choose which entity types appear and what symbol the tile uses.");
+
+        // ── 🔗 Bridge ─────────────────────────────────────────────────────
+        AddSectionHeader("🔗", "Bridge tab  (MCP Agent Bridge)");
+
+        AddSubHeader("Server mode  (▶ Server sub-tab)");
+        AddBody("ClaudetRelay starts a local MCP server. External tools — Claude Code, Cursor, " +
+                "or any MCP-compatible client — connect to it and can call your AI participants " +
+                "as tools, read and write project files, update the roadmap, and more. " +
+                "Configure the port, load a project for the bridge, and watch the activity log here.");
+
+        AddSubHeader("Controller mode  (🤖 Chat sub-tab)");
+        AddBody("A built-in controller AI orchestrates your local Ollama agents. " +
+                "Type a task; the controller AI delegates sub-tasks to the configured agents " +
+                "and assembles the results — no external client needed.");
+
+        AddSubHeader("Setup sub-tab  (in both modes)");
+        AddBody("Agents & Folders — add local Ollama models or cloud AIs as bridge agents " +
+                "(agents call each other as tools). Add folders agents are allowed to access. " +
+                "Set the temp workspace for parallel task output.\n" +
+                "⚙ Bridge Settings button — fine-tune which MCP tools are exposed and set " +
+                "file-size limits for read/write operations.");
+
+        // ── Close ─────────────────────────────────────────────────────────
+        AddRule(topMargin: 12, bottomMargin: 14);
         var closeBtn = new Button
         {
             Content             = "Got it, thanks Claudette! 🐙",
             Height              = 38,
             FontFamily          = new FontFamily("Segoe UI"),
-            FontSize            = 13,
-            FontWeight          = FontWeights.SemiBold,
+            FontSize            = 13, FontWeight = FontWeights.SemiBold,
             HorizontalAlignment = HorizontalAlignment.Center,
             Padding             = new Thickness(28, 0, 28, 0),
-            IsDefault           = true,
-            IsCancel            = true,
-            Cursor              = Cursors.Hand
+            IsDefault = true, IsCancel = true, Cursor = Cursors.Hand
         };
         closeBtn.SetResourceReference(Button.BackgroundProperty, "PrimaryAccentBrush");
         closeBtn.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
