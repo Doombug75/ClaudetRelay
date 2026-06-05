@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
+using ClaudetRelay.Properties;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
@@ -215,7 +216,7 @@ public partial class MainWindow
             Style               = (Style)FindResource("ModernButton"),
             Background          = (Brush)FindResource("ControlBgBrush"),
             Foreground          = (Brush)FindResource("ControlHighBrush"),
-            ToolTip             = "Project settings",
+            ToolTip             = Loc.S("ToolTip_ProjectSettings"),
             Cursor              = Cursors.Hand
         };
         btnSettings.Click += (_, e) =>
@@ -305,9 +306,9 @@ public partial class MainWindow
 
         // ── Right-click context menu ───────────────────────────────────────
         var ctxMenu    = new ContextMenu();
-        var exportHtml = new MenuItem { Header = "🔄  Export Chat History as HTML…" };
-        var exportMd   = new MenuItem { Header = "📝  Export Chat History as Markdown…" };
-        var browseItem = new MenuItem { Header = "📁  Browse project files…" };
+        var exportHtml = new MenuItem { Header = Loc.S("MenuItem_ExportHtml") };
+        var exportMd   = new MenuItem { Header = Loc.S("MenuItem_ExportMarkdown") };
+        var browseItem = new MenuItem { Header = Loc.S("MenuItem_BrowseFiles") };
 
         var capturedFolder = projFolder;
         var capturedMeta   = meta;
@@ -332,7 +333,7 @@ public partial class MainWindow
         var entries = ProjectService.LoadChatLog(projFolder);
         if (entries.Count == 0)
         {
-            MessageBox.Show("This project has no chat history to export.",
+            MessageBox.Show(Loc.S("Err_NoChatHistory"),
                             "Nothing to export", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -554,7 +555,7 @@ public partial class MainWindow
         // ── Dialog window (3x3 grid: 3 cols × 150px + margins + scrollbar) ──
         var dlg = new Window
         {
-            Title                 = "Choose Project Type",
+            Title                 = Loc.S("Dlg_ChooseProjectType"),
             Width                 = 530,
             Height                = 600,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -568,7 +569,7 @@ public partial class MainWindow
         // ── Header ────────────────────────────────────────────────────────
         var header = new TextBlock
         {
-            Text         = "What kind of project is this?",
+            Text         = Loc.S("Dlg_ChooseTypeQuestion"),
             FontSize     = 15,
             FontWeight   = FontWeights.SemiBold,
             FontFamily   = new FontFamily("Segoe UI"),
@@ -578,7 +579,7 @@ public partial class MainWindow
 
         var subtitle = new TextBlock
         {
-            Text         = "Choose the type that best fits your project. You can change it later.",
+            Text         = Loc.S("Dlg_ChooseTypeHint"),
             FontSize     = 12,
             FontFamily   = new FontFamily("Segoe UI"),
             Foreground   = subtextBrush,
@@ -718,7 +719,7 @@ public partial class MainWindow
         // ── Buttons ───────────────────────────────────────────────────────
         okBtn = new Button
         {
-            Content    = "Create Project",
+            Content    = Loc.S("Btn_CreateProject"),
             Width      = 130,
             Height     = 36,
             FontFamily = new FontFamily("Segoe UI"),
@@ -749,7 +750,7 @@ public partial class MainWindow
         // "Manage Types…" - opens the editor, then loops back to the picker
         var manageBtn = new Button
         {
-            Content    = "⚙  Manage Types…",
+            Content    = Loc.S("Btn_ManageTypes"),
             Height     = 36,
             FontFamily = new FontFamily("Segoe UI"),
             FontSize   = 12,
@@ -841,7 +842,7 @@ public partial class MainWindow
     private void OpenProject(string projFolder)
     {
         var loaded = ProjectService.LoadProject(projFolder);
-        if (loaded is null) { MessageBox.Show("Could not read project file.", "Error"); return; }
+        if (loaded is null) { MessageBox.Show(Loc.S("Err_CouldNotReadProject"), Loc.S("Dlg_BridgeError")); return; }
 
         // ── Guard: ask before switching away from an already-open project ────
         if (_currentProjectFolder is not null &&
@@ -1132,7 +1133,7 @@ public partial class MainWindow
     {
         var win = new Window
         {
-            Title                 = "⚠  Participant Mismatch",
+            Title                 = Loc.S("Dlg_ParticipantMismatch"),
             Width                 = 520,
             SizeToContent         = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1211,7 +1212,7 @@ public partial class MainWindow
 
         var participantSettingsBtn = new Button
         {
-            Content = "👤  Participant Settings",
+            Content = Loc.S("Btn_ParticipantSettings"),
             Height  = 32,
             Padding = new Thickness(14, 0, 14, 0),
             Margin  = new Thickness(0, 0, 8, 0),
@@ -1227,7 +1228,7 @@ public partial class MainWindow
 
         var projectSettingsBtn = new Button
         {
-            Content = "⚙  Project Settings",
+            Content = Loc.S("Btn_ProjectSettings"),
             Height  = 32,
             Padding = new Thickness(14, 0, 14, 0),
             Margin  = new Thickness(0, 0, 8, 0),
@@ -1289,7 +1290,7 @@ public partial class MainWindow
 
         var win = new Window
         {
-            Title                 = "⚙  Fix Project Participants",
+            Title                 = Loc.S("Dlg_FixParticipants"),
             Width                 = 600,
             SizeToContent         = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1375,7 +1376,7 @@ public partial class MainWindow
                     var rep       = mismatch.GlobalReplacement;
                     var adoptBtn  = new Button
                     {
-                        Content = "🔄 Apply",
+                        Content = Loc.S("Btn_Apply"),
                         Height  = 26,
                         Padding = new Thickness(8, 0, 8, 0),
                         Margin  = new Thickness(0, 0, 4, 0),
@@ -1403,7 +1404,7 @@ public partial class MainWindow
                 // ⏸ Disable
                 var disableBtn = new Button
                 {
-                    Content = "⏸ Disable",
+                    Content = Loc.S("Btn_Disable"),
                     Height  = 26,
                     Padding = new Thickness(8, 0, 8, 0),
                     Margin  = new Thickness(0, 0, 4, 0),
@@ -1425,7 +1426,7 @@ public partial class MainWindow
                 // 🗑 Remove
                 var removeBtn = new Button
                 {
-                    Content = "🗑 Remove",
+                    Content = Loc.S("Btn_RemoveParticipant"),
                     Height  = 26,
                     Padding = new Thickness(8, 0, 8, 0),
                     Style   = btnStyle,
@@ -1480,7 +1481,7 @@ public partial class MainWindow
 
         var saveBtn = new Button
         {
-            Content   = "💾  Save & Load Project",
+            Content   = Loc.S("Btn_SaveAndLoad"),
             Height    = 32,
             Padding   = new Thickness(14, 0, 14, 0),
             IsDefault = true,

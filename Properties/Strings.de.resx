@@ -89,20 +89,121 @@
   <data name="Folders_BackupClearTip" xml:space="preserve"><value>Sicherungen deaktivieren (keine Sicherungsabfrage beim Schließen von Projekten)</value></data>
 
   <!-- ── Projects tab ───────────────────────────────────────────────────── -->
-  <data name="Projects_Title"        xml:space="preserve"><value>Projekte</value></data>
-  <data name="Projects_Sort"         xml:space="preserve"><value>Sortierung:</value></data>
-  <data name="Projects_SortAZ"       xml:space="preserve"><value>A–Z</value></data>
-  <data name="Projects_SortDate"     xml:space="preserve"><value>Aktuell</value></data>
-  <data name="Projects_SortType"     xml:space="preserve"><value>Typ</value></data>
-  <data name="Projects_NoProjects"   xml:space="preserve"><value>Noch keine Projekte. Klicken Sie auf ＋ Neues Projekt, um eines zu erstellen.</value></data>
+  <data name="Projects_Title"              xml:space="preserve"><value>Projekte</value></data>
+  <data name="Projects_Sort"               xml:space="preserve"><value>Sortierung:</value></data>
+  <data name="Projects_SortAZ"             xml:space="preserve"><value>A–Z</value></data>
+  <data name="Projects_SortDate"           xml:space="preserve"><value>Aktuell</value></data>
+  <data name="Projects_SortType"           xml:space="preserve"><value>Typ</value></data>
+  <data name="Projects_NoProjects"         xml:space="preserve"><value>Noch keine Projekte. Klicken Sie auf ＋ Neues Projekt, um eines zu erstellen.</value></data>
+  <data name="Projects_ClickToCreate"      xml:space="preserve"><value>Klicken Sie unten auf „Neues Projekt", um eines zu erstellen.</value></data>
+  <data name="Projects_BridgeActive"       xml:space="preserve"><value>🔌 Bridge aktiv</value></data>
+  <data name="Projects_MismatchHint"       xml:space="preserve"><value>Das Projekt wird erst geladen, wenn die Teilnehmer aufgelöst wurden. Bitte korrigieren oder konfigurieren Sie die Teilnehmerliste neu.</value></data>
+  <data name="Projects_FixParticipantsHint" xml:space="preserve"><value>Gespeicherte Projektteilnehmer — bitte alle Konflikte auflösen:</value></data>
+  <data name="ToolTip_CreateBackup"        xml:space="preserve"><value>ZIP-Sicherung erstellen</value></data>
+  <data name="ToolTip_ProjectSettings"     xml:space="preserve"><value>Projekteinstellungen</value></data>
+  <data name="ToolTip_DisableParticipant"  xml:space="preserve"><value>Diesen Teilnehmer für dieses Projekt deaktivieren</value></data>
+  <data name="ToolTip_RemoveParticipant"   xml:space="preserve"><value>Diesen Teilnehmer aus dem Projekt entfernen</value></data>
+  <data name="MenuItem_ExportHtml"         xml:space="preserve"><value>🔄  Chatverlauf als HTML exportieren…</value></data>
+  <data name="MenuItem_ExportMarkdown"     xml:space="preserve"><value>📝  Chatverlauf als Markdown exportieren…</value></data>
+  <data name="MenuItem_BrowseFiles"        xml:space="preserve"><value>📁  Projektdateien durchsuchen…</value></data>
+  <data name="Dlg_ChooseProjectType"       xml:space="preserve"><value>Projekttyp auswählen</value></data>
+  <data name="Dlg_ChooseTypeQuestion"      xml:space="preserve"><value>Was für ein Projekt ist das?</value></data>
+  <data name="Dlg_ChooseTypeHint"          xml:space="preserve"><value>Wählen Sie den Typ, der am besten zu Ihrem Projekt passt. Sie können ihn später ändern.</value></data>
+  <data name="Dlg_ParticipantMismatch"     xml:space="preserve"><value>⚠  Teilnehmerkonflikt</value></data>
+  <data name="Dlg_FixParticipants"         xml:space="preserve"><value>⚙  Projektteilnehmer beheben</value></data>
+  <data name="Btn_CreateProject"           xml:space="preserve"><value>Projekt erstellen</value></data>
+  <data name="Btn_ManageTypes"             xml:space="preserve"><value>⚙  Typen verwalten…</value></data>
+  <data name="Btn_ParticipantSettings"     xml:space="preserve"><value>👤  Teilnehmer-Einstellungen</value></data>
+  <data name="Btn_ProjectSettings"         xml:space="preserve"><value>⚙  Projekteinstellungen</value></data>
+  <data name="Btn_Apply"                   xml:space="preserve"><value>🔄 Übernehmen</value></data>
+  <data name="Btn_Disable"                 xml:space="preserve"><value>⏸ Deaktivieren</value></data>
+  <data name="Btn_RemoveParticipant"       xml:space="preserve"><value>🗑 Entfernen</value></data>
+  <data name="Btn_SaveAndLoad"             xml:space="preserve"><value>💾  Speichern &amp; Projekt laden</value></data>
+  <data name="Err_NoChatHistory"           xml:space="preserve"><value>Dieses Projekt hat keinen Chatverlauf zum Exportieren.</value></data>
+  <data name="Err_CouldNotReadProject"     xml:space="preserve"><value>Projektdatei konnte nicht gelesen werden.</value></data>
 
   <!-- ── Bridge tab ─────────────────────────────────────────────────────── -->
-  <data name="Bridge_ModeLabel"      xml:space="preserve"><value>MODUS</value></data>
-  <data name="Bridge_McpServer"      xml:space="preserve"><value>MCP-Server</value></data>
-  <data name="Bridge_ModelController" xml:space="preserve"><value>Modell-Regler</value></data>
-  <data name="Bridge_Agents"         xml:space="preserve"><value>Agenten</value></data>
-  <data name="Bridge_Folders"        xml:space="preserve"><value>Ordner</value></data>
-  <data name="Bridge_Log"            xml:space="preserve"><value>Protokoll</value></data>
+  <data name="Bridge_ModeLabel"          xml:space="preserve"><value>MODUS</value></data>
+  <data name="Bridge_McpServer"          xml:space="preserve"><value>MCP-Server</value></data>
+  <data name="Bridge_ModelController"    xml:space="preserve"><value>Modell-Controller</value></data>
+  <data name="Bridge_Agents"             xml:space="preserve"><value>Agenten</value></data>
+  <data name="Bridge_Folders"            xml:space="preserve"><value>Ordner</value></data>
+  <data name="Bridge_Log"                xml:space="preserve"><value>Protokoll</value></data>
+  <data name="Bridge_Mode"               xml:space="preserve"><value>Modus:</value></data>
+  <data name="Bridge_ModeServer"         xml:space="preserve"><value>🔌  MCP-Server</value></data>
+  <data name="Bridge_ModeController"     xml:space="preserve"><value>🤖  Modell-Controller</value></data>
+  <data name="Bridge_SubTab_Server"      xml:space="preserve"><value>▶  Server</value></data>
+  <data name="Bridge_SubTab_Setup"       xml:space="preserve"><value>⚙  Einstellungen</value></data>
+  <data name="Bridge_SubTab_Chat"        xml:space="preserve"><value>🤖  Chat</value></data>
+  <data name="Bridge_StatusStopped"      xml:space="preserve"><value>Gestoppt</value></data>
+  <data name="Bridge_PortLabel"          xml:space="preserve"><value>    Port:</value></data>
+  <data name="Bridge_StopServer"         xml:space="preserve"><value>■  Stoppen</value></data>
+  <data name="Bridge_StartServer"        xml:space="preserve"><value>▶  Starten</value></data>
+  <data name="Bridge_NoProjectLoaded"    xml:space="preserve"><value>Kein Projekt geladen</value></data>
+  <data name="Btn_LoadProject"           xml:space="preserve"><value>📂  Projekt laden…</value></data>
+  <data name="Btn_Load"                  xml:space="preserve"><value>Laden</value></data>
+  <data name="Btn_Run"                   xml:space="preserve"><value>▶ Ausführen</value></data>
+  <data name="Btn_UnderstandCost"        xml:space="preserve"><value>Ich verstehe die Kosten- und Ratenlimit-Auswirkungen</value></data>
+  <data name="Lbl_BridgeProject"         xml:space="preserve"><value>PROJEKT</value></data>
+  <data name="Lbl_ActivityLog"           xml:space="preserve"><value>AKTIVITÄTSPROTOKOLL</value></data>
+  <data name="Lbl_ControllerParticipant" xml:space="preserve"><value>STEUERUNGS-TEILNEHMER</value></data>
+  <data name="Lbl_ControllerChat"        xml:space="preserve"><value>STEUERUNGS-CHAT</value></data>
+  <data name="Lbl_Agents"                xml:space="preserve"><value>AGENTEN</value></data>
+  <data name="Lbl_Folders"               xml:space="preserve"><value>ORDNER</value></data>
+  <data name="Lbl_TempWorkspace"         xml:space="preserve"><value>TEMP-ARBEITSBEREICH</value></data>
+  <data name="Lbl_AllowWrite"            xml:space="preserve"><value>Schreibzugriff</value></data>
+  <data name="Lbl_Writable"              xml:space="preserve"><value>✏ Beschreibbar</value></data>
+  <data name="Lbl_CloudTag"              xml:space="preserve"><value>☁  Cloud</value></data>
+  <data name="Lbl_AgentsAndFolders"      xml:space="preserve"><value>Agenten &amp; Ordner</value></data>
+  <data name="Bridge_SelectProjectPrompt" xml:space="preserve"><value>Projekt für den Bridge-Modus auswählen:</value></data>
+  <data name="Bridge_StatusRunning"      xml:space="preserve"><value>Wird ausgeführt…</value></data>
+  <data name="Bridge_StatusError"        xml:space="preserve"><value>Fehler</value></data>
+  <data name="Bridge_NoControllerModel"  xml:space="preserve"><value>⚠ Kein Steuerungsmodell ausgewählt. Wählen Sie eines oben aus.</value></data>
+  <data name="Bridge_ControllerInfo"     xml:space="preserve"><value>ℹ️  Die Steuerungs-KI leitet lokale Agenten und hält die intensive Token-Arbeit auf dem Gerät.</value></data>
+  <data name="Bridge_NoParticipants"     xml:space="preserve"><value>Derzeit sind keine Teilnehmer aktiviert. Aktivieren Sie zuerst Teilnehmer in der Seitenleiste.</value></data>
+  <data name="Bridge_ModelsAsTools"      xml:space="preserve"><value>Modelle als Werkzeuge verfügbar.</value></data>
+  <data name="Bridge_ReadablePaths"      xml:space="preserve"><value>Lesbare (und optional beschreibbare) Pfade.</value></data>
+  <data name="Bridge_TempWorkspaceHint"  xml:space="preserve"><value>Gemeinsamer Arbeitsbereich für parallele Agentenaufgaben. Muss in einem beschreibbaren Ordner liegen.</value></data>
+  <data name="Bridge_NoAgents"           xml:space="preserve"><value>Noch keine Agenten.\nFügen Sie lokale Ollama-Modelle hinzu, um zu beginnen.</value></data>
+  <data name="Bridge_NoFolders"          xml:space="preserve"><value>Noch keine Ordner.\nFügen Sie Ordner hinzu, aus denen Agenten lesen können.</value></data>
+  <data name="Bridge_AllowWrite"         xml:space="preserve"><value>Schreibzugriff</value></data>
+  <data name="Bridge_CloudAgentCost"     xml:space="preserve"><value>⚠  Cloud-Agenten verursachen Kosten</value></data>
+  <data name="Bridge_CloudAgentWarning"  xml:space="preserve"><value>Als Bridge-Agenten werden nur lokale Modelle empfohlen.\n\nCloud-Agenten verbrauchen bei jedem bridge_ask-Aufruf echte API-Token und zählen gegen Ratenlimits. Nur verwenden, wenn Sie wissen, was Sie tun.</value></data>
+  <data name="Bridge_AlreadyAdded"       xml:space="preserve"><value>✓ Bereits hinzugefügt</value></data>
+  <data name="Bridge_Added"              xml:space="preserve"><value>✓ Hinzugefügt</value></data>
+  <data name="Bridge_NoEligibleParticipants" xml:space="preserve"><value>Keine qualifizierten Teilnehmer gefunden.</value></data>
+  <data name="Dlg_LoadBridgeProject"     xml:space="preserve"><value>Bridge-Projekt laden</value></data>
+  <data name="Dlg_NoProjects"            xml:space="preserve"><value>Keine Projekte</value></data>
+  <data name="Dlg_InvalidPort"           xml:space="preserve"><value>Ungültiger Port</value></data>
+  <data name="Dlg_BridgeError"           xml:space="preserve"><value>Bridge-Fehler</value></data>
+  <data name="Dlg_AlreadyAdded"          xml:space="preserve"><value>Bereits vorhanden</value></data>
+  <data name="Dlg_CloudAgentNotice"      xml:space="preserve"><value>Cloud-Agent — Wichtiger Hinweis</value></data>
+  <data name="Dlg_SystemDirectory"       xml:space="preserve"><value>Systemverzeichnis</value></data>
+  <data name="Dlg_SelectTempWorkspace"   xml:space="preserve"><value>Temp-Arbeitsbereich auswählen</value></data>
+  <data name="Dlg_SelectFolderForAgents" xml:space="preserve"><value>Ordner für Bridge-Agenten auswählen</value></data>
+  <data name="Err_InvalidPort"           xml:space="preserve"><value>Bitte geben Sie eine gültige Portnummer ein (1024–65535).</value></data>
+  <data name="Err_McpStartFailed"        xml:space="preserve"><value>MCP-Server konnte nicht gestartet werden:</value></data>
+  <data name="Err_NoProjectsFound"       xml:space="preserve"><value>Keine Projekte gefunden.\nErstellen Sie zuerst ein Projekt im Projektmodus.</value></data>
+  <data name="Err_SystemDirectory"       xml:space="preserve"><value>Ein Systemverzeichnis kann nicht als Temp-Arbeitsbereich verwendet werden.</value></data>
+  <data name="Err_FolderAlreadyAdded"    xml:space="preserve"><value>Dieser Ordner ist bereits in der Liste.</value></data>
+  <data name="ToolTip_UnloadProject"     xml:space="preserve"><value>Bridge-Projekt entladen</value></data>
+  <data name="ToolTip_CopyLog"           xml:space="preserve"><value>Gesamtes Protokoll kopieren</value></data>
+  <data name="ToolTip_McpSettings"       xml:space="preserve"><value>Agenten, Ordner und MCP-Werkzeugzugriff konfigurieren</value></data>
+  <data name="ToolTip_ControllerSettings" xml:space="preserve"><value>Agenten, Ordner und Controller-Werkzeugzugriff konfigurieren</value></data>
+  <data name="ToolTip_ClearHistory"      xml:space="preserve"><value>Chatverlauf löschen</value></data>
+  <data name="ToolTip_InputHint"         xml:space="preserve"><value>Anfrage eingeben – Enter zum Senden, Umschalt+Enter für neue Zeile</value></data>
+  <data name="ToolTip_Run"               xml:space="preserve"><value>Ausführen (Eingabe)</value></data>
+  <data name="ToolTip_AddLocalAgent"     xml:space="preserve"><value>Lokales Ollama-Modell als Agenten hinzufügen</value></data>
+  <data name="ToolTip_AddCloudAgent"     xml:space="preserve"><value>Cloud-KI-Modell als Agenten hinzufügen (mit Bedacht)</value></data>
+  <data name="ToolTip_RestoreGlobalRoster" xml:space="preserve"><value>Globale Bridge-Agentenliste wiederherstellen</value></data>
+  <data name="ToolTip_SaveProjectRoster" xml:space="preserve"><value>Aktuelle Agentenliste als Projektroster speichern</value></data>
+  <data name="ToolTip_LoadProjectRoster" xml:space="preserve"><value>Aktuelle Agenten durch gespeicherten Projektroster ersetzen (globale Liste wird beim Schließen wiederhergestellt)</value></data>
+  <data name="ToolTip_UpdateProjectRoster" xml:space="preserve"><value>Gespeicherten Projektroster mit aktueller Agentenliste überschreiben</value></data>
+  <data name="ToolTip_AddFolder"         xml:space="preserve"><value>Ordner für Agenten hinzufügen</value></data>
+  <data name="ToolTip_AllowWrite"        xml:space="preserve"><value>Agenten erlauben, Dateien in diesem Ordner zu schreiben</value></data>
+  <data name="ToolTip_TempWorkspacePath" xml:space="preserve"><value>Vollständiger Pfad zum Temp-Arbeitsbereich</value></data>
+  <data name="ToolTip_BrowseTempWorkspace" xml:space="preserve"><value>Temp-Arbeitsbereich durchsuchen</value></data>
+  <data name="ToolTip_OpenInExplorer"    xml:space="preserve"><value>Temp-Arbeitsbereich im Explorer öffnen</value></data>
 
   <!-- ── System / chat messages ─────────────────────────────────────────── -->
   <data name="Sys_ProjectClosed"     xml:space="preserve"><value>Projekt geschlossen. Starten Sie einen neuen Chat oder öffnen Sie ein Projekt über die Registerkarte „Projekte".</value></data>

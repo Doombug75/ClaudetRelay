@@ -5,6 +5,7 @@ using SysIO = System.IO;
 using System.Text;
 using System.Threading;
 using System.Windows;
+using ClaudetRelay.Properties;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
@@ -166,8 +167,8 @@ public partial class MainWindow : Window
             return btn;
         }
 
-        modeRow.Children.Add(MakeModeBtn("🔌  MCP Server",       BridgeAgentMode.McpServer));
-        modeRow.Children.Add(MakeModeBtn("🤖  Model Controller", BridgeAgentMode.ModelController));
+        modeRow.Children.Add(MakeModeBtn(Loc.S("Bridge_ModeServer"),     BridgeAgentMode.McpServer));
+        modeRow.Children.Add(MakeModeBtn(Loc.S("Bridge_ModeController"), BridgeAgentMode.ModelController));
 
         var modeSep = new Rectangle { Height = 1 };
         modeSep.SetResourceReference(Rectangle.FillProperty, "ControlBgBrush");
@@ -205,8 +206,8 @@ public partial class MainWindow : Window
         subBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         body.Children.Add(subBar);
 
-        var serverTabBtn = MakeBridgeSubTabBtn("▶  Server", active: true);
-        var setupTabBtn  = MakeBridgeSubTabBtn("⚙  Setup",  active: false);
+        var serverTabBtn = MakeBridgeSubTabBtn(Loc.S("Bridge_SubTab_Server"), active: true);
+        var setupTabBtn  = MakeBridgeSubTabBtn(Loc.S("Bridge_SubTab_Setup"),  active: false);
         Grid.SetColumn(serverTabBtn, 0); Grid.SetColumn(setupTabBtn, 1);
         subBar.Children.Add(serverTabBtn); subBar.Children.Add(setupTabBtn);
 
@@ -247,7 +248,7 @@ public partial class MainWindow : Window
         else
         {
             statusDot.Text  = "○  "; statusDot.SetResourceReference(TextBlock.ForegroundProperty,  "SidebarDimBrush");
-            statusText.Text = "Stopped"; statusText.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+            statusText.Text = Loc.S("Bridge_StatusStopped"); statusText.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
         }
         leftStatus.Children.Add(statusDot); leftStatus.Children.Add(statusText);
 
@@ -275,13 +276,13 @@ public partial class MainWindow : Window
         };
         if (_mcpServer?.IsRunning == true)
         {
-            toggleBtn.Content = "■  Stop";
+            toggleBtn.Content = Loc.S("Bridge_StopServer");
             toggleBtn.SetResourceReference(Button.BackgroundProperty, "ControlHoverBrush");
             toggleBtn.SetResourceReference(Button.ForegroundProperty, "AccentHighlightBrush");
         }
         else
         {
-            toggleBtn.Content = "▶  Start";
+            toggleBtn.Content = Loc.S("Bridge_StartServer");
             toggleBtn.SetResourceReference(Button.BackgroundProperty, "AccentBgBrush");
             toggleBtn.SetResourceReference(Button.ForegroundProperty, "SidebarBgBrush");
         }
@@ -295,8 +296,8 @@ public partial class MainWindow : Window
             {
                 if (!int.TryParse(portBox.Text, out int port) || port < 1024 || port > 65535)
                 {
-                    MessageBox.Show("Please enter a valid port number (1024-65535).",
-                        "Invalid Port", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(Loc.S("Err_InvalidPort"),
+                        Loc.S("Dlg_InvalidPort"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 var s = SettingsService.Load(); s.McpPort = port; SettingsService.Save(s);
@@ -306,8 +307,8 @@ public partial class MainWindow : Window
                 try { _mcpServer.Start(); }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Could not start MCP server:\n{ex.Message}",
-                        "Bridge Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"{Loc.S("Err_McpStartFailed")}\n{ex.Message}",
+                        Loc.S("Dlg_BridgeError"), MessageBoxButton.OK, MessageBoxImage.Error);
                     _mcpServer.Dispose(); _mcpServer = null;
                 }
             }
@@ -319,7 +320,7 @@ public partial class MainWindow : Window
         // ── Bridge project ─────────────────────────────────────────────────
         var projSectionLabel = new TextBlock
         {
-            Text = "PROJECT", FontSize = 10, FontWeight = FontWeights.Bold,
+            Text = Loc.S("Lbl_BridgeProject"), FontSize = 10, FontWeight = FontWeights.Bold,
             FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 10, 0, 4)
         };
         projSectionLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
@@ -344,13 +345,13 @@ public partial class MainWindow : Window
         }
         else
         {
-            projNameTb.Text = "No project loaded";
+            projNameTb.Text = Loc.S("Bridge_NoProjectLoaded");
             projNameTb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
         }
         Grid.SetColumn(projNameTb, 0);
         projRow.Children.Add(projNameTb);
 
-        var loadProjBtn = MakeBridgeSmallBtn("📂  Load Project…");
+        var loadProjBtn = MakeBridgeSmallBtn(Loc.S("Btn_LoadProject"));
         loadProjBtn.Margin = new Thickness(8, 0, 0, 0);
         loadProjBtn.Click += (_, _) =>
         {
@@ -362,15 +363,15 @@ public partial class MainWindow : Window
 
             if (projects.Count == 0)
             {
-                MessageBox.Show("No projects found.\nCreate a project in Project mode first.",
-                    "No Projects", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.S("Err_NoProjectsFound"),
+                    Loc.S("Dlg_NoProjects"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             // Simple picker dialog
             var win = new Window
             {
-                Title = "Load Bridge Project", Width = 500,
+                Title = Loc.S("Dlg_LoadBridgeProject"), Width = 500,
                 SizeToContent = SizeToContent.Height, MaxHeight = 600,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this, ResizeMode = ResizeMode.NoResize
@@ -383,7 +384,7 @@ public partial class MainWindow : Window
 
             var hdr = new TextBlock
             {
-                Text = "Select a project to load into Bridge mode:",
+                Text = Loc.S("Bridge_SelectProjectPrompt"),
                 FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
                 Margin = new Thickness(0, 0, 0, 10)
             };
@@ -523,7 +524,7 @@ public partial class MainWindow : Window
 
         var logLabel = new TextBlock
         {
-            Text = "ACTIVITY LOG", FontSize = 10, FontWeight = FontWeights.Bold,
+            Text = Loc.S("Lbl_ActivityLog"), FontSize = 10, FontWeight = FontWeights.Bold,
             FontFamily = new FontFamily("Segoe UI"), VerticalAlignment = VerticalAlignment.Center
         };
         logLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
@@ -580,8 +581,8 @@ public partial class MainWindow : Window
         subBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         body.Children.Add(subBar);
 
-        var chatTabBtn  = MakeBridgeSubTabBtn("🤖  Chat",   active: true);
-        var setupTabBtn = MakeBridgeSubTabBtn("⚙  Setup",   active: false);
+        var chatTabBtn  = MakeBridgeSubTabBtn(Loc.S("Bridge_SubTab_Chat"),  active: true);
+        var setupTabBtn = MakeBridgeSubTabBtn(Loc.S("Bridge_SubTab_Setup"), active: false);
         Grid.SetColumn(chatTabBtn, 0); Grid.SetColumn(setupTabBtn, 1);
         subBar.Children.Add(chatTabBtn); subBar.Children.Add(setupTabBtn);
 
@@ -621,7 +622,7 @@ public partial class MainWindow : Window
         chatPanel.Children.Add(infoBox);
 
         // Controller picker
-        AddSectionLabel(chatPanel, "CONTROLLER PARTICIPANT", topMargin: 0);
+        AddSectionLabel(chatPanel, Loc.S("Lbl_ControllerParticipant"), topMargin: 0);
 
         var allParticipants = new List<(string Label, string Provider, string Model)>();
         foreach (var u in _cloudAIParticipants.Where(u => u.Data.Enabled))
@@ -690,7 +691,7 @@ public partial class MainWindow : Window
 
         var chatLabel = new TextBlock
         {
-            Text = "CONTROLLER CHAT", FontSize = 10, FontWeight = FontWeights.Bold,
+            Text = Loc.S("Lbl_ControllerChat"), FontSize = 10, FontWeight = FontWeights.Bold,
             FontFamily = new FontFamily("Segoe UI"), VerticalAlignment = VerticalAlignment.Center
         };
         chatLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
@@ -1005,7 +1006,7 @@ public partial class MainWindow : Window
 
         var agentsLbl = new TextBlock
         {
-            Text = "AGENTS", FontSize = 10, FontWeight = FontWeights.Bold,
+            Text = Loc.S("Lbl_Agents"), FontSize = 10, FontWeight = FontWeights.Bold,
             FontFamily = new FontFamily("Segoe UI"), VerticalAlignment = VerticalAlignment.Center
         };
         agentsLbl.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
@@ -1174,7 +1175,7 @@ public partial class MainWindow : Window
 
         var foldersLbl = new TextBlock
         {
-            Text = "FOLDERS", FontSize = 10, FontWeight = FontWeights.Bold,
+            Text = Loc.S("Lbl_Folders"), FontSize = 10, FontWeight = FontWeights.Bold,
             FontFamily = new FontFamily("Segoe UI"), VerticalAlignment = VerticalAlignment.Center
         };
         foldersLbl.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
@@ -1209,7 +1210,7 @@ public partial class MainWindow : Window
 
         var tempLbl = new TextBlock
         {
-            Text = "TEMP WORKSPACE", FontSize = 10, FontWeight = FontWeights.Bold,
+            Text = Loc.S("Lbl_TempWorkspace"), FontSize = 10, FontWeight = FontWeights.Bold,
             FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 0, 0, 4)
         };
         tempLbl.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
