@@ -134,7 +134,7 @@ public partial class MainWindow : Window
 
         var modeLbl = new TextBlock
         {
-            Text = "Mode:", FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
+            Text = Loc.S("Bridge_Mode"), FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0)
         };
         modeLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
@@ -415,7 +415,7 @@ public partial class MainWindow : Window
                 };
                 var dateTb = new TextBlock
                 {
-                    Text = $"Last opened: {proj.LastOpened:yyyy-MM-dd}  ·  {folder}",
+                    Text = $"{Loc.S("Bridge_LastOpened")} {proj.LastOpened:yyyy-MM-dd}  ·  {folder}",
                     FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis
                 };
                 dateTb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
@@ -432,7 +432,7 @@ public partial class MainWindow : Window
 
             var cancelBtn = new Button
             {
-                Content = "Cancel", Padding = new Thickness(16, 7, 16, 7),
+                Content = Loc.S("Btn_Cancel"), Padding = new Thickness(16, 7, 16, 7),
                 Margin = new Thickness(0, 0, 8, 0), Cursor = Cursors.Hand
             };
             if (TryFindResource("ModernButton") is Style mbs) cancelBtn.Style = mbs;
@@ -443,7 +443,7 @@ public partial class MainWindow : Window
 
             var loadBtn = new Button
             {
-                Content = "Load", Padding = new Thickness(16, 7, 16, 7), Cursor = Cursors.Hand
+                Content = Loc.S("Btn_Load"), Padding = new Thickness(16, 7, 16, 7), Cursor = Cursors.Hand
             };
             if (TryFindResource("ModernButton") is Style lbs2) loadBtn.Style = lbs2;
             loadBtn.SetResourceReference(Button.BackgroundProperty, "AccentBgBrush");
@@ -531,8 +531,8 @@ public partial class MainWindow : Window
         Grid.SetColumn(logLabel, 0);
         logHeaderRow.Children.Add(logLabel);
 
-        var copyLogBtn = MakeBridgeSmallBtn("📋 Copy");
-        copyLogBtn.ToolTip = "Copy all log text to clipboard";
+        var copyLogBtn = MakeBridgeSmallBtn(Loc.S("Bridge_CopyLog"));
+        copyLogBtn.ToolTip = Loc.S("Bridge_CopyLogTip");
         copyLogBtn.Click += (_, _) =>
         {
             if (_bridgeLogPanel is null) return;
@@ -563,10 +563,10 @@ public partial class MainWindow : Window
         BuildBridgeAgentsSection(setupPanel, cfg);
         setupPanel.Children.Add(BuildClientSetupCard(cfg));
 
-        var mcpSettingsBtn = MakeBridgeSmallBtn("⚙  MCP Bridge Settings…");
+        var mcpSettingsBtn = MakeBridgeSmallBtn(Loc.S("Bridge_McpSettingsBtn"));
         mcpSettingsBtn.FontSize = 12; mcpSettingsBtn.Padding = new Thickness(14, 7, 14, 7);
         mcpSettingsBtn.Margin   = new Thickness(0, 4, 0, 8);
-        mcpSettingsBtn.ToolTip  = "Configure agents, folders and MCP tool access";
+        mcpSettingsBtn.ToolTip  = Loc.S("Bridge_McpSettingsTip");
         mcpSettingsBtn.Click   += (_, _) => ShowMcpBridgeSettingsWindow();
         setupPanel.Children.Add(mcpSettingsBtn);
     }
@@ -908,11 +908,11 @@ public partial class MainWindow : Window
         // ── SETUP panel ────────────────────────────────────────────────────
         BuildBridgeAgentsSection(setupPanel, cfg);
 
-        var ctrlSettingsBtn = MakeBridgeSmallBtn("⚙  Controller Bridge Settings…");
+        var ctrlSettingsBtn = MakeBridgeSmallBtn(Loc.S("Bridge_CtrlSettingsBtn"));
         ctrlSettingsBtn.FontSize  = 12;
         ctrlSettingsBtn.Padding   = new Thickness(14, 7, 14, 7);
         ctrlSettingsBtn.Margin    = new Thickness(0, 0, 0, 8);
-        ctrlSettingsBtn.ToolTip   = "Configure agents, folders and Controller tool access";
+        ctrlSettingsBtn.ToolTip   = Loc.S("Bridge_CtrlSettingsTip");
         ctrlSettingsBtn.Click    += (_, _) => ShowControllerBridgeSettingsWindow();
         setupPanel.Children.Add(ctrlSettingsBtn);
 
@@ -951,7 +951,7 @@ public partial class MainWindow : Window
 
         var toggleLbl = new TextBlock
         {
-            Text = "Agents & Folders", FontSize = 12, FontWeight = FontWeights.SemiBold,
+            Text = Loc.S("Bridge_AgentsFolders"), FontSize = 12, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"), VerticalAlignment = VerticalAlignment.Center
         };
         toggleLbl.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
@@ -977,7 +977,7 @@ public partial class MainWindow : Window
             agentsExpanded   = !agentsExpanded;
             contentPanel.Visibility = agentsExpanded ? Visibility.Visible : Visibility.Collapsed;
             toggleChevron.Text      = agentsExpanded ? "▾" : "▸";
-            toggleLbl.Text          = agentsExpanded ? "Agents & Folders" : "Agents & Folders  (click to expand)";
+            toggleLbl.Text          = agentsExpanded ? Loc.S("Bridge_AgentsFolders") : Loc.S("Bridge_AgentsFoldersCollapsed");
         };
 
         // Separator inside content
@@ -1017,14 +1017,14 @@ public partial class MainWindow : Window
         Grid.SetColumn(addBtns, 1);
         agentsHdr.Children.Add(addBtns);
 
-        var addLocalBtn = MakeBridgeSmallBtn("＋ Local");
-        addLocalBtn.ToolTip = "Add a local Ollama model as an agent";
+        var addLocalBtn = MakeBridgeSmallBtn(Loc.S("Bridge_AddLocal"));
+        addLocalBtn.ToolTip = Loc.S("Bridge_AddLocalTip");
         addLocalBtn.Click  += (_, _) => ShowAddAgentDialog(isCloud: false, body, cfg);
         addBtns.Children.Add(addLocalBtn);
 
         var addCloudBtn = MakeBridgeSmallBtn("＋ Cloud");
         addCloudBtn.Margin  = new Thickness(4, 0, 0, 0);
-        addCloudBtn.ToolTip = "Add a cloud AI model as an agent (use with care)";
+        addCloudBtn.ToolTip = Loc.S("Bridge_AddCloudTip");
         addCloudBtn.Click  += (_, _) => ShowAddAgentDialog(isCloud: true, body, cfg);
         addBtns.Children.Add(addCloudBtn);
 
@@ -1032,7 +1032,7 @@ public partial class MainWindow : Window
 
         var agentsSub = new TextBlock
         {
-            Text = "Models exposed as tools.", FontSize = 11,
+            Text = Loc.S("Bridge_ModelsAsTools"), FontSize = 11,
             FontFamily = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8)
         };
@@ -1183,14 +1183,14 @@ public partial class MainWindow : Window
         foldersHdr.Children.Add(foldersLbl);
 
         var addFolderBtn = MakeBridgeSmallBtn("＋ Add");
-        addFolderBtn.ToolTip = "Add a folder agents can access";
+        addFolderBtn.ToolTip = Loc.S("Bridge_AddFolderTip");
         Grid.SetColumn(addFolderBtn, 1);
         foldersHdr.Children.Add(addFolderBtn);
         foldersCol.Children.Add(foldersHdr);
 
         var foldersSub = new TextBlock
         {
-            Text = "Readable (and optionally writable) paths.", FontSize = 11,
+            Text = Loc.S("Bridge_ReadablePaths"), FontSize = 11,
             FontFamily = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8)
         };
@@ -1218,7 +1218,7 @@ public partial class MainWindow : Window
 
         var tempSub = new TextBlock
         {
-            Text = "Shared scratch folder for parallel agent tasks. Must be inside a write-enabled folder.",
+            Text = Loc.S("Bridge_TempWorkspaceHint"),
             FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6)
         };
@@ -1286,7 +1286,7 @@ public partial class MainWindow : Window
         {
             var empty = new TextBlock
             {
-                Text = "No agents yet.\nAdd local Ollama models to get started.",
+                Text = Loc.S("Bridge_NoAgents"),
                 FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0)
             };
@@ -1392,7 +1392,7 @@ public partial class MainWindow : Window
         {
             var empty = new TextBlock
             {
-                Text = "No folders yet.\nAdd folders agents can read from.",
+                Text = Loc.S("Bridge_NoFolders"),
                 FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0)
             };
@@ -1451,7 +1451,7 @@ public partial class MainWindow : Window
             // Build content inline so the brush resolves
             var writeLabel = new TextBlock
             {
-                Text = "Allow write", FontSize = 11,
+                Text = Loc.S("Bridge_AllowWrite"), FontSize = 11,
                 FontFamily = new FontFamily("Segoe UI")
             };
             writeLabel.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
@@ -3859,8 +3859,8 @@ public partial class MainWindow : Window
 
     // ── Bridge Settings popup ─────────────────────────────────────────────
 
-    private void ShowMcpBridgeSettingsWindow()   => ShowBridgeSettingsWindowCore("MCP Bridge Settings",  isMcp: true);
-    private void ShowControllerBridgeSettingsWindow() => ShowBridgeSettingsWindowCore("Controller Bridge Settings", isMcp: false);
+    private void ShowMcpBridgeSettingsWindow()   => ShowBridgeSettingsWindowCore(Loc.S("BridgeSettings_McpTitle"),  isMcp: true);
+    private void ShowControllerBridgeSettingsWindow() => ShowBridgeSettingsWindowCore(Loc.S("BridgeSettings_CtrlTitle"), isMcp: false);
 
     private void ShowBridgeSettingsWindowCore(string title, bool isMcp)
     {
@@ -3890,18 +3890,16 @@ public partial class MainWindow : Window
         if (isMcp)
         {
             BuildToolListSection(root, cfg,
-                icon: "🔌", title: "MCP Server - Tool Access",
-                subtitle: "Tools exposed to Claude Desktop, Claude Code and other MCP clients.\n" +
-                          "Unchecked tools are hidden from external clients entirely.",
+                icon: "🔌", title: Loc.S("BridgeSettings_McpToolsSection"),
+                subtitle: Loc.S("BridgeSettings_McpSubtitle"),
                 disabledList: cfg.DisabledMcpServerTools,
                 saveDisabled: list => { var s = SettingsService.Load(); s.DisabledMcpServerTools = list; SettingsService.Save(s); });
         }
         else
         {
             BuildToolListSection(root, cfg,
-                icon: "🤖", title: "Model Controller - Tool Access",
-                subtitle: "Tools available to the built-in controller AI when orchestrating agents.\n" +
-                          "Local models may be given more access than cloud connections (zero-trust policy).",
+                icon: "🤖", title: Loc.S("BridgeSettings_CtrlToolsSection"),
+                subtitle: Loc.S("BridgeSettings_CtrlSubtitle"),
                 disabledList: cfg.DisabledControllerTools,
                 saveDisabled: list => { var s = SettingsService.Load(); s.DisabledControllerTools = list; SettingsService.Save(s); });
         }
@@ -3948,7 +3946,7 @@ public partial class MainWindow : Window
         var totalTools = BridgeToolDescriptions.Count(t => t.Name is not null);
         var countLbl   = new TextBlock
         {
-            Text = $"{totalTools - disabledList.Count} of {totalTools} tools enabled",
+            Text = string.Format(Loc.S("BridgeSettings_ToolsEnabled"), totalTools - disabledList.Count, totalTools),
             FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
             Margin = new Thickness(0, 0, 0, 8)
         };
@@ -4024,14 +4022,14 @@ public partial class MainWindow : Window
             {
                 disabledList.RemoveAll(t => string.Equals(t, captured, StringComparison.OrdinalIgnoreCase));
                 saveDisabled(disabledList);
-                countLbl.Text = $"{totalTools - disabledList.Count} of {totalTools} tools enabled";
+                countLbl.Text = string.Format(Loc.S("BridgeSettings_ToolsEnabled"), totalTools - disabledList.Count, totalTools);
             };
             cb.Unchecked += (_, _) =>
             {
                 if (!disabledList.Contains(captured, StringComparer.OrdinalIgnoreCase))
                     disabledList.Add(captured);
                 saveDisabled(disabledList);
-                countLbl.Text = $"{totalTools - disabledList.Count} of {totalTools} tools enabled";
+                countLbl.Text = string.Format(Loc.S("BridgeSettings_ToolsEnabled"), totalTools - disabledList.Count, totalTools);
             };
         }
     }
@@ -4040,17 +4038,15 @@ public partial class MainWindow : Window
     {
         var title = new TextBlock
         {
-            Text = "FILE SIZE LIMITS", FontSize = 10, FontWeight = FontWeights.Bold,
+            Text = Loc.S("BridgeSettings_FileLimits"), FontSize = 10, FontWeight = FontWeights.Bold,
             FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 0, 0, 4)
         };
         title.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         parent.Children.Add(title);
 
         var noteText = isMcp
-            ? "MCP Server always connects to cloud clients. Keep limits low to control API token costs."
-            : "Local controller: raise limits freely (no token costs).\n" +
-              "Cloud controller: keep limits low to control API costs.\n" +
-              "The active limit is chosen automatically based on whether the controller model is local or cloud.";
+            ? Loc.S("BridgeSettings_McpLimitsNote")
+            : Loc.S("BridgeSettings_CtrlLimitsNote");
 
         var note = new TextBlock
         {

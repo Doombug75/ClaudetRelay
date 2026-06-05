@@ -113,6 +113,49 @@ public static class WorldEntitySchemas
     public static List<(string Field, string Hint)> For(string entityType) =>
         All.TryGetValue(entityType, out var schema) ? schema : [];
 
+    /// <summary>Returns the localised display name for an entity type key (e.g. "Character" → "Charakter").</summary>
+    public static string LocalizeEntityType(string entityType) => entityType switch
+    {
+        "Character" => ClaudetRelay.Properties.Loc.S("EntityType_Character"),
+        "Faction"   => ClaudetRelay.Properties.Loc.S("EntityType_Faction"),
+        "Location"  => ClaudetRelay.Properties.Loc.S("EntityType_Location"),
+        "Lore"      => ClaudetRelay.Properties.Loc.S("EntityType_Lore"),
+        _           => entityType
+    };
+
+    /// <summary>
+    /// Returns a localised display label for a schema field name.
+    /// Falls back to the original field name for unsupported languages or unknown fields.
+    /// </summary>
+    public static string LocalizeSchemaField(string field) =>
+        System.Threading.Thread.CurrentThread.CurrentUICulture.TwoLetterISOLanguageName == "de"
+            ? field switch
+            {
+                "Role"               => "Rolle",
+                "Age"                => "Alter",
+                "Level / Classes"    => "Level / Klassen",
+                "Alignment"          => "Gesinnung",
+                "Background"         => "Hintergrund",
+                "Goal"               => "Ziel",
+                "Flaw"               => "Schwäche",
+                "Arc"                => "Charakterbogen",
+                "Voice"              => "Stimme / Sprechweise",
+                "Health / Resources" => "HP / Ressourcen",
+                "Attributes"         => "Attribute",
+                "Skills"             => "Fähigkeiten",
+                "Type"               => "Typ",
+                "Description"        => "Beschreibung",
+                "Atmosphere"         => "Atmosphäre",
+                "Significance"       => "Bedeutung",
+                "First appears in"   => "Erste Erwähnung",
+                "Leader"             => "Anführer",
+                "Territory"          => "Territorium",
+                "Category"           => "Kategorie",
+                "Source"             => "Quelle",
+                _                    => field
+            }
+            : field;
+
     /// <summary>
     /// Palette of 15 distinct hex colours for faction dot badges.
     /// More than the four accent brushes so each faction stays visually unique.

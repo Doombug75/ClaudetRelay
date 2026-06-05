@@ -55,7 +55,10 @@ public class WorldEntityEditDialog : Window
         _selectedFactionColor = entity.FactionColor;
         _themePath            = themePath;
 
-        Title                 = isNew ? $"New {entity.EntityType}" : $"Edit {entity.EntityType}";
+        var localizedType     = WorldEntitySchemas.LocalizeEntityType(entity.EntityType);
+        Title                 = isNew
+            ? $"{Properties.Loc.S("Entity_New")} {localizedType}"
+            : $"{Properties.Loc.S("Entity_Edit")}: {localizedType}";
         Width                 = isCharacter ? 660 : 520;
         Height                = isCharacter ? 820 : (isFaction ? 780 : (isLocation ? 680 : (isLore ? 720 : 620)));
         MinWidth              = 420;
@@ -135,7 +138,7 @@ public class WorldEntityEditDialog : Window
 
             var typeBadge = new TextBlock
             {
-                Text = entity.EntityType, FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+                Text = localizedType, FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
                 Margin = new Thickness(2, 6, 0, 0)
             };
             typeBadge.SetResourceReference(TextBlock.ForegroundProperty, "AccentHighlightBrush");
@@ -162,7 +165,7 @@ public class WorldEntityEditDialog : Window
         foreach (var (field, hint) in schema)
         {
             entity.Fields.TryGetValue(field, out var existing);
-            fieldBoxes[field] = AddField(root, field, hint, existing ?? "", isMultiline: IsMultilineField(field));
+            fieldBoxes[field] = AddField(root, WorldEntitySchemas.LocalizeSchemaField(field), hint, existing ?? "", isMultiline: IsMultilineField(field));
         }
 
         // ── Location reference image ───────────────────────────────────────

@@ -4198,7 +4198,7 @@ public partial class MainWindow
 
         var win = new Window
         {
-            Title                 = $"Project Settings - {projectName}",
+            Title                 = $"{Properties.Loc.S("ProjSettings_Title")} - {projectName}",
             Width                 = 520,
             SizeToContent         = SizeToContent.Height,
             Owner                 = this,
@@ -4214,7 +4214,7 @@ public partial class MainWindow
         // ── Project Description ────────────────────────────────────────────
         var descLabel = new TextBlock
         {
-            Text       = "PROJECT DESCRIPTION",
+            Text       = Properties.Loc.S("ProjSettings_Description"),
             FontSize   = 11, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 6),
@@ -4239,8 +4239,7 @@ public partial class MainWindow
 
         var descHint = new TextBlock
         {
-            Text         = "Shown to all AI participants as project context. " +
-                           "Example: \"A dark fantasy novel about a dragon who falls in love with a wizard.\"",
+            Text         = Properties.Loc.S("ProjSettings_DescHint"),
             FontSize     = 11, FontFamily = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap,
             Margin       = new Thickness(0, 4, 0, 16),
@@ -4261,7 +4260,7 @@ public partial class MainWindow
         // ── Orchestration Mode ─────────────────────────────────────────────
         var modeLabel = new TextBlock
         {
-            Text       = "ORCHESTRATION MODE",
+            Text       = Properties.Loc.S("ProjSettings_OrchMode"),
             FontSize   = 11, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 8),
@@ -4282,31 +4281,23 @@ public partial class MainWindow
 
         // CoordinatorFirst is checked for projects that were previously saved as CoordinatorAuto
         // (legacy value 3) since CoordinatorAuto is no longer exposed in the UI.
-        var radioCoordFirst = MakeRadio("Coordinator-first  (default)",
-            "The Coordinator answers first and decides which Reasoner(s) should respond next.\n" +
-            "Reasoners are triggered when the Coordinator tags them (e.g. @Reasoner).\n" +
-            "Coordinator automation (SuperPowers calibration, work-session greeting) runs automatically.",
+        var radioCoordFirst = MakeRadio(Properties.Loc.S("ProjSettings_CoordFirst"),
+            Properties.Loc.S("ProjSettings_CoordFirstTip"),
             OrchestrationMode.CoordinatorFirst);
         // Treat legacy CoordinatorAuto as CoordinatorFirst in the UI
         if (ps.OrchestrationMode == OrchestrationMode.CoordinatorAuto)
             radioCoordFirst.IsChecked = true;
 
-        var radioCoordSum = MakeRadio("All respond, Coordinator summarizes",
-            "All participants respond normally. The Coordinator then receives all answers\n" +
-            "as context and writes a final synthesising summary.",
+        var radioCoordSum = MakeRadio(Properties.Loc.S("ProjSettings_CoordSum"),
+            Properties.Loc.S("ProjSettings_CoordSumTip"),
             OrchestrationMode.CoordinatorSummarizes);
 
-        var radioCoordOnly = MakeRadio("Coordinator Only  (hidden AI-to-AI)",
-            "The user communicates only with the Coordinator.\n" +
-            "All AI-to-AI work (Coordinator deliberation + Reasoner responses) is hidden.\n" +
-            "Small status indicators show which participant is active.\n" +
-            "Only the Coordinator's final synthesis is shown to the user.",
+        var radioCoordOnly = MakeRadio(Properties.Loc.S("ProjSettings_CoordOnly"),
+            Properties.Loc.S("ProjSettings_CoordOnlyTip"),
             OrchestrationMode.CoordinatorOnly);
 
-        var radioAll = MakeRadio("Full Manual Mode",
-            "Every active participant answers every user message - no coordinator automation.\n" +
-            "No SuperPowers calibration, no work-session greeting.\n" +
-            "Use when you want to manage all task assignments yourself.",
+        var radioAll = MakeRadio(Properties.Loc.S("ProjSettings_FullManual"),
+            Properties.Loc.S("ProjSettings_FullManualTip"),
             OrchestrationMode.AllRespond);
 
         // Reset-roadmap-planning link - shown when roadmap building has already been started
@@ -4320,7 +4311,7 @@ public partial class MainWindow
         };
         resetRoadmapTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         var resetRoadmapLink = new Hyperlink();
-        resetRoadmapLink.Inlines.Add("🗺 Reset roadmap planning (coordinator re-starts conversation on next open)");
+        resetRoadmapLink.Inlines.Add(Properties.Loc.S("ProjSettings_ResetRoadmap"));
         resetRoadmapLink.Click += (_, _) =>
         {
             ps.RoadmapInitialized = false;
@@ -4340,7 +4331,7 @@ public partial class MainWindow
         // ── Language ───────────────────────────────────────────────────────
         var langLabel = new TextBlock
         {
-            Text       = "RESPONSE LANGUAGE",
+            Text       = Properties.Loc.S("ProjSettings_ResponseLang"),
             FontSize   = 11, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 6),
@@ -4369,7 +4360,7 @@ public partial class MainWindow
 
         var langHint = new TextBlock
         {
-            Text       = "Empty = follow the conversation language",
+            Text       = Properties.Loc.S("ProjSettings_LangHint"),
             FontSize   = 11, FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 16),
             Foreground = (Brush)FindResource("ContentDimBrush")
@@ -4382,7 +4373,7 @@ public partial class MainWindow
         // ── Max. Dialog Depth ──────────────────────────────────────────────
         var depthLabel = new TextBlock
         {
-            Text       = "MAX. DIALOG DEPTH",
+            Text       = Properties.Loc.S("ProjSettings_MaxDepth"),
             FontSize   = 11, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 6),
@@ -4402,14 +4393,14 @@ public partial class MainWindow
             Foreground        = (Brush)FindResource("ContentTextBrush"),
             Background        = (Brush)FindResource("ControlBgBrush"),
             BorderBrush       = (Brush)FindResource("ControlBgBrush"),
-            ToolTip           = "Positive integer. 1 = only respond to user (no AI-to-AI chaining)."
+            ToolTip           = Properties.Loc.S("ProjSettings_MaxDepthTip")
         };
         // Allow only digits
         depthBox.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsDigit);
 
         var depthHintTb = new TextBlock
         {
-            Text              = "How many AI-to-AI response rounds are allowed before the user must send a new message.",
+            Text              = Properties.Loc.S("ProjSettings_MaxDepthHint"),
             FontSize          = 11, FontFamily = new FontFamily("Segoe UI"),
             TextWrapping      = TextWrapping.Wrap,
             VerticalAlignment = VerticalAlignment.Center,
@@ -4430,7 +4421,7 @@ public partial class MainWindow
         // ── Default Response Length ────────────────────────────────────────
         var defLenLabel = new TextBlock
         {
-            Text       = "DEFAULT RESPONSE LENGTH",
+            Text       = Properties.Loc.S("ProjSettings_ResponseLength"),
             FontSize   = 11, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 6),
@@ -4458,13 +4449,13 @@ public partial class MainWindow
 
         string DefLenName(int v) => v switch
         {
-            < 10  => "One-liner",
-            < 30  => "Brief",
-            < 45  => "Concise",
-            <= 55 => "Balanced",
-            < 70  => "Moderate",
-            < 90  => "Detailed",
-            _     => "Monologue"
+            < 10  => Properties.Loc.S("Len_OneLiner"),
+            < 30  => Properties.Loc.S("Len_Brief"),
+            < 45  => Properties.Loc.S("Len_Concise"),
+            <= 55 => Properties.Loc.S("Len_Balanced"),
+            < 70  => Properties.Loc.S("Len_Moderate"),
+            < 90  => Properties.Loc.S("Len_Detailed"),
+            _     => Properties.Loc.S("Len_Monologue")
         };
         defLenValueTb.Text = DefLenName(ps.DefaultResponseLength);
         defLenSlider.ValueChanged += (_, e) =>
@@ -4473,14 +4464,14 @@ public partial class MainWindow
         // "Apply to All" is wired after the allRoles list is populated below
         var applyAllBtn = new Button
         {
-            Content           = "Apply to all",
+            Content           = Properties.Loc.S("ProjSettings_ApplyAll"),
             Height            = 28, Padding = new Thickness(10, 0, 10, 0),
             Style             = (Style)FindResource("ModernButton"),
             Background        = (Brush)FindResource("ControlBgBrush"),
             Foreground        = (Brush)FindResource("ContentTextBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             Margin            = new Thickness(10, 0, 0, 0),
-            ToolTip           = "Override the response length for every participant in this project"
+            ToolTip           = Properties.Loc.S("ProjSettings_ApplyAllTip")
         };
 
         var defLenRow = new StackPanel
@@ -4498,7 +4489,7 @@ public partial class MainWindow
         // ── Default Chattiness ─────────────────────────────────────────────
         var defChatLabel = new TextBlock
         {
-            Text       = "CHATTINESS",
+            Text       = Properties.Loc.S("ProjSettings_Chattiness"),
             FontSize   = 11, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 6),
@@ -4536,8 +4527,7 @@ public partial class MainWindow
 
         var defChatHint = new TextBlock
         {
-            Text = "Overrides the global Chattiness setting for this project. " +
-                   "Silent = only respond when addressed. Chatty = always keep discussing.",
+            Text = Properties.Loc.S("ProjSettings_ChattinessHint"),
             FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12),
             Foreground = (Brush)FindResource("ContentDimBrush")
@@ -4559,7 +4549,7 @@ public partial class MainWindow
         // ── Participant Roles ──────────────────────────────────────────────
         var rolesLabel = new TextBlock
         {
-            Text       = "PARTICIPANT ROLES",
+            Text       = Properties.Loc.S("ProjSettings_ParticipantRoles"),
             FontSize   = 11, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 0, 0, 10),
@@ -4586,7 +4576,7 @@ public partial class MainWindow
         {
             var noParticipants = new TextBlock
             {
-                Text       = "No participants are currently enabled. Enable participants in 👤 Participant Config first.",
+                Text       = Properties.Loc.S("ProjSettings_NoParticipants"),
                 FontSize   = 12, FontFamily = new FontFamily("Segoe UI"),
                 TextWrapping = TextWrapping.Wrap,
                 Margin     = new Thickness(0, 0, 0, 12),
@@ -4805,7 +4795,7 @@ public partial class MainWindow
             {
                 IsChecked  = role.IsActive,
                 IsEnabled  = available,
-                ToolTip    = "Active in this scene",
+                ToolTip    = Properties.Loc.S("ProjSettings_ActiveInScene"),
                 Margin     = new Thickness(8, 0, 8, 0),
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -4813,7 +4803,7 @@ public partial class MainWindow
             // ── Edit button ────────────────────────────────────────────────
             var editBtn = new Button
             {
-                Content    = "✏ Edit",
+                Content    = Properties.Loc.S("ProjSettings_EditBtn"),
                 Height     = 28, Padding = new Thickness(10, 0, 10, 0),
                 Style      = (Style)FindResource("ModernButton"),
                 Background = (Brush)FindResource("ControlBgBrush"),
@@ -4903,7 +4893,7 @@ public partial class MainWindow
 
         var saveBtn = new Button
         {
-            Content    = "Save",
+            Content    = Properties.Loc.S("Btn_Save"),
             IsDefault  = true,
             Height     = 36, Margin = new Thickness(0, 0, 8, 16),
             Style      = (Style)FindResource("ModernButton"),
@@ -4913,7 +4903,7 @@ public partial class MainWindow
         };
         var cancelBtn = new Button
         {
-            Content    = "Cancel",
+            Content    = Properties.Loc.S("Btn_Cancel"),
             IsCancel   = true,
             Height     = 36, Margin = new Thickness(0, 0, 0, 16),
             Style      = (Style)FindResource("ModernButton"),
@@ -5042,7 +5032,7 @@ public partial class MainWindow
         // ── Window ────────────────────────────────────────────────────────
         var win = new Window
         {
-            Title                 = $"Character Editor - {displayName}",
+            Title                 = $"{Properties.Loc.S("CharEditor_Title")} - {displayName}",
             Width                 = 480,
             MaxHeight             = 800,
             SizeToContent         = SizeToContent.Height,
@@ -5107,28 +5097,28 @@ public partial class MainWindow
 
         static string LengthLabel(double v) => v switch
         {
-            < 10  => "One-liner",
-            < 30  => "Short",
-            < 45  => "Concise",
-            <= 55 => "Default",
-            < 70  => "Moderate",
-            < 90  => "Elaborate",
-            _     => "Monologue"
+            < 10  => Properties.Loc.S("Len_OneLiner"),
+            < 30  => Properties.Loc.S("Len_Short"),
+            < 45  => Properties.Loc.S("Len_Concise"),
+            <= 55 => Properties.Loc.S("Len_Default"),
+            < 70  => Properties.Loc.S("Len_Moderate"),
+            < 90  => Properties.Loc.S("Len_Elaborate"),
+            _     => Properties.Loc.S("Len_Monologue")
         };
 
         // ── IDENTITY ──────────────────────────────────────────────────────
-        root.Children.Add(SectionHeader("IDENTITY"));
+        root.Children.Add(SectionHeader(Properties.Loc.S("CharEditor_Identity")));
 
-        root.Children.Add(MakeLabel("Answer as (character name):"));
+        root.Children.Add(MakeLabel(Properties.Loc.S("CharEditor_AnswerAs")));
         var answerAsBox = MakeTextBox(role.AnswerAsName);
         root.Children.Add(answerAsBox);
 
-        root.Children.Add(MakeLabel("Role instruction:"));
+        root.Children.Add(MakeLabel(Properties.Loc.S("CharEditor_RoleInstruction")));
         var instrBox = MakeTextBox(role.RoleInstruction, multiline: true);
         root.Children.Add(instrBox);
 
         // ── RESPONSE LENGTH ───────────────────────────────────────────────
-        root.Children.Add(SectionHeader("RESPONSE LENGTH"));
+        root.Children.Add(SectionHeader(Properties.Loc.S("CharEditor_ResponseLength")));
 
         var lengthValueLbl = new TextBlock
         {
@@ -5154,9 +5144,9 @@ public partial class MainWindow
         var lengthEndRow = new Grid { Margin = new Thickness(0, 0, 0, 12) };
         lengthEndRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         lengthEndRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var shortEndLbl = new TextBlock { Text = "Short", FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+        var shortEndLbl = new TextBlock { Text = Properties.Loc.S("Len_Short"), FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
             Foreground = (Brush)FindResource("ContentDimBrush"), HorizontalAlignment = HorizontalAlignment.Left };
-        var longEndLbl  = new TextBlock { Text = "Long",  FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+        var longEndLbl  = new TextBlock { Text = Properties.Loc.S("Len_Long"),  FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
             Foreground = (Brush)FindResource("ContentDimBrush"), HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(shortEndLbl, 0); Grid.SetColumn(longEndLbl, 1);
         lengthEndRow.Children.Add(shortEndLbl); lengthEndRow.Children.Add(longEndLbl);
@@ -5166,23 +5156,23 @@ public partial class MainWindow
         root.Children.Add(lengthEndRow);
 
         // ── ORCHESTRATION ─────────────────────────────────────────────────
-        root.Children.Add(SectionHeader("ORCHESTRATION"));
+        root.Children.Add(SectionHeader(Properties.Loc.S("CharEditor_Orchestration")));
 
         var coordCheck = new CheckBox
         {
-            Content    = "Coordinator - routes messages to reasoners",
+            Content    = Properties.Loc.S("CharEditor_Coordinator"),
             IsChecked  = role.IsCoordinator,
             FontSize   = 13,
             FontFamily = new FontFamily("Segoe UI"),
             Foreground = (Brush)FindResource("ContentTextBrush"),
-            ToolTip    = "Only one coordinator per project.",
+            ToolTip    = Properties.Loc.S("CharEditor_CoordinatorTip"),
             Margin     = new Thickness(0, 0, 0, 8)
         };
         root.Children.Add(coordCheck);
 
         var reasonerCheck = new CheckBox
         {
-            Content    = "Reasoner - executes delegated tasks",
+            Content    = Properties.Loc.S("CharEditor_Reasoner"),
             IsChecked  = role.IsReasoner,
             FontSize   = 13,
             FontFamily = new FontFamily("Segoe UI"),
@@ -5199,7 +5189,7 @@ public partial class MainWindow
         };
         var priorityLbl = new TextBlock
         {
-            Text       = $"Priority: {role.ReasonerPriority}  (1 = lowest, 10 = highest)",
+            Text       = string.Format(Properties.Loc.S("CharEditor_Priority"), role.ReasonerPriority),
             FontSize   = 12,
             FontFamily = new FontFamily("Segoe UI"),
             Foreground = (Brush)FindResource("ContentTextBrush"),
@@ -5212,10 +5202,10 @@ public partial class MainWindow
             Value               = role.ReasonerPriority,
             TickFrequency       = 1,
             IsSnapToTickEnabled = true,
-            ToolTip             = "Higher number = higher priority (called first among reasoners). Lower number = called later."
+            ToolTip             = Properties.Loc.S("CharEditor_PriorityTip")
         };
         prioritySlider.ValueChanged += (_, e) =>
-            priorityLbl.Text = $"Priority: {(int)e.NewValue}  (1 = lowest, 10 = highest)";
+            priorityLbl.Text = string.Format(Properties.Loc.S("CharEditor_Priority"), (int)e.NewValue);
         priorityPanel.Children.Add(priorityLbl);
         priorityPanel.Children.Add(prioritySlider);
         root.Children.Add(priorityPanel);
@@ -5230,51 +5220,50 @@ public partial class MainWindow
         // Critic, Planner, Researcher - independent specialisation roles
         var criticCheck = new CheckBox
         {
-            Content    = "Critic - reviews output for consistency, logic errors, and hallucinations",
+            Content    = Properties.Loc.S("CharEditor_Critic"),
             IsChecked  = role.IsCritic,
             FontSize   = 13,
             FontFamily = new FontFamily("Segoe UI"),
             Foreground = (Brush)FindResource("ContentTextBrush"),
-            ToolTip    = "Critic reviews the output of other participants after they respond. Brass badge (CR).",
+            ToolTip    = Properties.Loc.S("CharEditor_CriticTip"),
             Margin     = new Thickness(0, 0, 0, 8)
         };
         root.Children.Add(criticCheck);
 
         var plannerCheck = new CheckBox
         {
-            Content    = "Planner - breaks the user's goal into a structured plan before execution",
+            Content    = Properties.Loc.S("CharEditor_Planner"),
             IsChecked  = role.IsPlanner,
             FontSize   = 13,
             FontFamily = new FontFamily("Segoe UI"),
             Foreground = (Brush)FindResource("ContentTextBrush"),
-            ToolTip    = "Planner is called first to produce a work plan. Amber badge (PL).",
+            ToolTip    = Properties.Loc.S("CharEditor_PlannerTip"),
             Margin     = new Thickness(0, 0, 0, 8)
         };
         root.Children.Add(plannerCheck);
 
         var researcherCheck = new CheckBox
         {
-            Content    = "Researcher - gathers context and references before main answer",
+            Content    = Properties.Loc.S("CharEditor_Researcher"),
             IsChecked  = role.IsResearcher,
             FontSize   = 13,
             FontFamily = new FontFamily("Segoe UI"),
             Foreground = (Brush)FindResource("ContentTextBrush"),
-            ToolTip    = "Researcher is called second (after Planner) to supply background knowledge. Steel-blue badge (RS).",
+            ToolTip    = Properties.Loc.S("CharEditor_ResearcherTip"),
             Margin     = new Thickness(0, 0, 0, 8)
         };
         root.Children.Add(researcherCheck);
 
         var writeAccessCheck = new CheckBox
         {
-            Content    = "Write Access (WR) - may write files using <output> and <projectplan> tags",
+            Content    = Properties.Loc.S("CharEditor_WriteAccess"),
             // Pre-check for CO and R: they imply write access by default.
             // Also covers existing saved roles where IsWriteAccess was false before this field existed.
             IsChecked  = role.IsWriteAccess || role.IsCoordinator || role.IsReasoner,
             FontSize   = 13,
             FontFamily = new FontFamily("Segoe UI"),
             Foreground = (Brush)FindResource("ContentTextBrush"),
-            ToolTip    = "Grants this participant file-write access. Coordinators always have write access. " +
-                         "All other participants are read-only by default. Green badge (WR).",
+            ToolTip    = Properties.Loc.S("CharEditor_WriteAccessTip"),
             Margin     = new Thickness(0, 0, 0, 8)
         };
         root.Children.Add(writeAccessCheck);
@@ -5286,11 +5275,11 @@ public partial class MainWindow
         reasonerCheck.Checked += (_, _) => { writeAccessCheck.IsChecked = true; };
 
         // ── CHARACTER FILE ────────────────────────────────────────────────
-        root.Children.Add(SectionHeader("CHARACTER FILE"));
+        root.Children.Add(SectionHeader(Properties.Loc.S("CharEditor_CharacterFile")));
 
         var fileRow    = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
-        var loadCharBtn = MakeBtn("📂 Load character", (Brush)FindResource("ControlBgBrush"), (Brush)FindResource("ContentTextBrush"));
-        var saveCharBtn = MakeBtn("💾 Save as character", (Brush)FindResource("ControlBgBrush"), (Brush)FindResource("ContentTextBrush"));
+        var loadCharBtn = MakeBtn(Properties.Loc.S("CharEditor_LoadCharacter"), (Brush)FindResource("ControlBgBrush"), (Brush)FindResource("ContentTextBrush"));
+        var saveCharBtn = MakeBtn(Properties.Loc.S("CharEditor_SaveAsCharacter"), (Brush)FindResource("ControlBgBrush"), (Brush)FindResource("ContentTextBrush"));
         fileRow.Children.Add(loadCharBtn);
         fileRow.Children.Add(saveCharBtn);
         root.Children.Add(fileRow);
@@ -5301,14 +5290,14 @@ public partial class MainWindow
             var chars = ProjectService.ListCharacterFiles(projFolder);
             if (chars.Count == 0)
             {
-                MessageBox.Show("No character files found in this project's Characters folder.",
-                    "No Characters", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Properties.Loc.S("CharEditor_NoChars"),
+                    Properties.Loc.S("CharEditor_NoCharsTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             var picker = new Window
             {
-                Title                 = "Load Character",
+                Title                 = Properties.Loc.S("CharEditor_LoadTitle"),
                 Width                 = 300,
                 SizeToContent         = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -5320,7 +5309,7 @@ public partial class MainWindow
             var pp = new StackPanel { Margin = new Thickness(20, 16, 20, 16) };
             pp.Children.Add(new TextBlock
             {
-                Text = "Select a character:", FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
+                Text = Properties.Loc.S("CharEditor_SelectChar"), FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
                 Foreground = (Brush)FindResource("ContentTextBrush"), Margin = new Thickness(0, 0, 0, 8)
             });
             var lb = new ListBox
@@ -5365,7 +5354,7 @@ public partial class MainWindow
 
             var nameWin = new Window
             {
-                Title                 = "Save Character",
+                Title                 = Properties.Loc.S("CharEditor_SaveTitle"),
                 Width                 = 300,
                 SizeToContent         = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -5377,7 +5366,7 @@ public partial class MainWindow
             var np = new StackPanel { Margin = new Thickness(20, 16, 20, 16) };
             np.Children.Add(new TextBlock
             {
-                Text = "Save as character name:", FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
+                Text = Properties.Loc.S("CharEditor_SaveAsName"), FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
                 Foreground = (Brush)FindResource("ContentTextBrush"), Margin = new Thickness(0, 0, 0, 8)
             });
             var nameBox = new TextBox
@@ -5413,8 +5402,8 @@ public partial class MainWindow
                         RoleInstruction = instrBox.Text.Trim(),
                         ResponseLength  = (int)Math.Round(lengthSlider.Value)
                     });
-                    MessageBox.Show($"Character \"{finalName}\" saved to the Characters folder.",
-                        "Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(string.Format(Properties.Loc.S("CharEditor_Saved"), finalName),
+                        Properties.Loc.S("CharEditor_SavedTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
         };
@@ -5433,7 +5422,7 @@ public partial class MainWindow
 
         var resetBtn = new Button
         {
-            Content   = "↩ Reset",
+            Content   = Properties.Loc.S("CharEditor_Reset"),
             Height    = 34, Padding = new Thickness(12, 0, 12, 0),
             Style     = (Style)FindResource("ModernButton"),
             Background = (Brush)FindResource("ControlBgBrush"),
@@ -5444,7 +5433,7 @@ public partial class MainWindow
         var rightBtns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         var okBtn = new Button
         {
-            Content    = "OK",
+            Content    = Properties.Loc.S("Btn_OK"),
             IsDefault  = true,
             Height     = 34, Padding = new Thickness(20, 0, 20, 0),
             Style      = (Style)FindResource("ModernButton"),
@@ -5455,7 +5444,7 @@ public partial class MainWindow
         };
         var cancelEditorBtn = new Button
         {
-            Content    = "Cancel",
+            Content    = Properties.Loc.S("Btn_Cancel"),
             IsCancel   = true,
             Height     = 34, Padding = new Thickness(14, 0, 14, 0),
             Style      = (Style)FindResource("ModernButton"),

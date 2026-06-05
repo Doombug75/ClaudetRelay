@@ -28,7 +28,7 @@
   <data name="Nav_Bridge"    xml:space="preserve"><value>🔌  Bridge</value></data>
   <data name="Nav_ChatView"  xml:space="preserve"><value>Chat</value></data>
   <data name="Nav_World"     xml:space="preserve"><value>🌍 Welt</value></data>
-  <data name="Nav_Roadmap"   xml:space="preserve"><value>📊 Fahrplan</value></data>
+  <data name="Nav_Roadmap"   xml:space="preserve"><value>📊 Roadmap</value></data>
   <data name="Nav_Files"     xml:space="preserve"><value>📂 Dateien</value></data>
 
   <!-- ── Common buttons ─────────────────────────────────────────────────── -->
@@ -142,7 +142,6 @@
   <data name="Bridge_StartServer"        xml:space="preserve"><value>▶  Starten</value></data>
   <data name="Bridge_NoProjectLoaded"    xml:space="preserve"><value>Kein Projekt geladen</value></data>
   <data name="Btn_LoadProject"           xml:space="preserve"><value>📂  Projekt laden…</value></data>
-  <data name="Btn_Load"                  xml:space="preserve"><value>Laden</value></data>
   <data name="Btn_Run"                   xml:space="preserve"><value>▶ Ausführen</value></data>
   <data name="Btn_UnderstandCost"        xml:space="preserve"><value>Ich verstehe die Kosten- und Ratenlimit-Auswirkungen</value></data>
   <data name="Lbl_BridgeProject"         xml:space="preserve"><value>PROJEKT</value></data>
@@ -520,13 +519,13 @@
   <data name="Settings_UiZoomHint"      xml:space="preserve"><value>Skaliert alle Fenster gleichmäßig. Das Hauptfenster übernimmt die Änderung sofort beim Speichern; andere Fenster beim nächsten Öffnen.</value></data>
 
   <!-- ── Roadmap panel ──────────────────────────────────────────────────── -->
-  <data name="Roadmap_Title"              xml:space="preserve"><value>📊 Fahrplan</value></data>
+  <data name="Roadmap_Title"              xml:space="preserve"><value>📊 Roadmap</value></data>
   <data name="Roadmap_AddMilestone"       xml:space="preserve"><value>+ Meilenstein</value></data>
   <data name="Roadmap_AddMilestoneTitle"  xml:space="preserve"><value>Meilenstein hinzufügen</value></data>
   <data name="Roadmap_EditMilestoneTitle" xml:space="preserve"><value>Meilenstein bearbeiten</value></data>
   <data name="Roadmap_DeleteMilestoneTitle" xml:space="preserve"><value>Meilenstein löschen</value></data>
   <data name="Roadmap_ExportHtml"         xml:space="preserve"><value>⬇ HTML5 exportieren</value></data>
-  <data name="Roadmap_EmptyHint"          xml:space="preserve"><value>Noch keine Fahrplan-Einträge.&#x0a;Klicke auf  &quot;+ Meilenstein&quot;  um den ersten Meilenstein hinzuzufügen.</value></data>
+  <data name="Roadmap_EmptyHint"          xml:space="preserve"><value>Noch keine Roadmap-Einträge.&#x0a;Klicke auf  &quot;+ Meilenstein&quot;  um den ersten Meilenstein hinzuzufügen.</value></data>
   <data name="Roadmap_NoItemsHint"        xml:space="preserve"><value>Noch keine Aufgaben - klicke auf  &quot;+ Aufgabe&quot;  um die erste Aufgabe hinzuzufügen.</value></data>
   <data name="Roadmap_AddItem"            xml:space="preserve"><value>+ Aufgabe</value></data>
   <data name="Roadmap_AddItemTitle"       xml:space="preserve"><value>Aufgabe hinzufügen</value></data>
@@ -571,5 +570,121 @@
   <data name="Files_Restore"              xml:space="preserve"><value>↺ Wiederherstellen</value></data>
   <data name="Files_RestoreTip"           xml:space="preserve"><value>Diese Version als aktuelle Datei wiederherstellen (aktuelle wird zuerst gesichert)</value></data>
   <data name="Files_HideHistory"          xml:space="preserve"><value>Versionsverlauf ausblenden</value></data>
+
+  <!-- ── Wave 8: Entity type display names ── -->
+  <data name="EntityType_Character"           xml:space="preserve"><value>Charakter</value></data>
+  <data name="EntityType_Faction"             xml:space="preserve"><value>Fraktion</value></data>
+  <data name="EntityType_Location"            xml:space="preserve"><value>Ort</value></data>
+  <data name="EntityType_Lore"                xml:space="preserve"><value>Lore</value></data>
+  <data name="Entity_New"                     xml:space="preserve"><value>Neu</value></data>
+  <data name="Entity_Edit"                    xml:space="preserve"><value>Bearbeiten</value></data>
+
+  <!-- ── Wave 8: World Builder dialogs ── -->
+  <data name="World_NewBoardTitle"            xml:space="preserve"><value>Neues Board</value></data>
+  <data name="World_RenameBoardTitle"         xml:space="preserve"><value>Board umbenennen</value></data>
+  <data name="World_BoardNameLabel"           xml:space="preserve"><value>Board-Name:</value></data>
+  <data name="World_BoardSettingsTitle"       xml:space="preserve"><value>Board-Einstellungen</value></data>
+
+  <!-- ── Wave 8: Bridge panel ── -->
+  <data name="Bridge_CopyLog"                 xml:space="preserve"><value>📋 Kopieren</value></data>
+  <data name="Bridge_CopyLogTip"              xml:space="preserve"><value>Gesamtes Protokoll in die Zwischenablage kopieren</value></data>
+  <data name="Bridge_LastOpened"              xml:space="preserve"><value>Zuletzt geöffnet:</value></data>
+  <data name="Bridge_AgentsFolders"           xml:space="preserve"><value>Agenten &amp; Ordner</value></data>
+  <data name="Bridge_AgentsFoldersCollapsed"  xml:space="preserve"><value>Agenten &amp; Ordner  (klicken zum Aufklappen)</value></data>
+  <data name="Bridge_AddLocal"                xml:space="preserve"><value>＋ Lokal</value></data>
+  <data name="Bridge_AddLocalTip"             xml:space="preserve"><value>Lokales Ollama-Modell als Agenten hinzufügen</value></data>
+  <data name="Bridge_AddCloudTip"             xml:space="preserve"><value>Cloud-KI-Modell als Agenten hinzufügen (mit Bedacht verwenden)</value></data>
+  <data name="Bridge_AddFolderTip"            xml:space="preserve"><value>Ordner hinzufügen, auf den Agenten zugreifen können</value></data>
+  <data name="Bridge_McpSettingsBtn"          xml:space="preserve"><value>⚙  MCP-Bridge-Einstellungen…</value></data>
+  <data name="Bridge_CtrlSettingsBtn"         xml:space="preserve"><value>⚙  Controller-Bridge-Einstellungen…</value></data>
+  <data name="Bridge_McpSettingsTip"          xml:space="preserve"><value>Agenten, Ordner und MCP-Werkzeugzugriff konfigurieren</value></data>
+  <data name="Bridge_CtrlSettingsTip"         xml:space="preserve"><value>Agenten, Ordner und Controller-Werkzeugzugriff konfigurieren</value></data>
+
+  <!-- ── Wave 8: Bridge Settings window ── -->
+  <data name="BridgeSettings_McpTitle"        xml:space="preserve"><value>MCP-Bridge-Einstellungen</value></data>
+  <data name="BridgeSettings_CtrlTitle"       xml:space="preserve"><value>Controller-Bridge-Einstellungen</value></data>
+  <data name="BridgeSettings_McpToolsSection" xml:space="preserve"><value>MCP-Server – Werkzeugzugriff</value></data>
+  <data name="BridgeSettings_CtrlToolsSection" xml:space="preserve"><value>Modell-Controller – Werkzeugzugriff</value></data>
+  <data name="BridgeSettings_McpSubtitle"     xml:space="preserve"><value>Werkzeuge, die Claude Desktop, Claude Code und anderen MCP-Clients bereitgestellt werden.&#x0a;Deaktivierte Werkzeuge werden externen Clients vollständig verborgen.</value></data>
+  <data name="BridgeSettings_CtrlSubtitle"    xml:space="preserve"><value>Werkzeuge des eingebauten Controller-KI zur Orchestrierung von Agenten.&#x0a;Lokale Modelle können mehr Zugriff erhalten als Cloud-Verbindungen (Zero-Trust-Richtlinie).</value></data>
+  <data name="BridgeSettings_ToolsEnabled"    xml:space="preserve"><value>{0} von {1} Werkzeugen aktiviert</value></data>
+  <data name="BridgeSettings_FileLimits"      xml:space="preserve"><value>DATEIGRÖSSENLIMITS</value></data>
+  <data name="BridgeSettings_McpLimitsNote"   xml:space="preserve"><value>Der MCP-Server verbindet sich immer mit Cloud-Clients. Limits niedrig halten, um API-Token-Kosten zu kontrollieren.</value></data>
+  <data name="BridgeSettings_CtrlLimitsNote"  xml:space="preserve"><value>Lokaler Controller: Limits frei erhöhen (keine Token-Kosten).&#x0a;Cloud-Controller: Limits niedrig halten, um API-Kosten zu kontrollieren.&#x0a;Das Limit wird automatisch je nach lokalem oder Cloud-Controller gewählt.</value></data>
+
+  <!-- ── Wave 8: Project Settings window ── -->
+  <data name="ProjSettings_Title"             xml:space="preserve"><value>Projekteinstellungen</value></data>
+  <data name="ProjSettings_Description"       xml:space="preserve"><value>PROJEKTBESCHREIBUNG</value></data>
+  <data name="ProjSettings_DescHint"          xml:space="preserve"><value>Wird allen KI-Teilnehmern als Projektkontext gezeigt. Beispiel: &quot;Ein Dark-Fantasy-Roman über einen Drachen, der sich in einen Zauberer verliebt.&quot;</value></data>
+  <data name="ProjSettings_OrchMode"          xml:space="preserve"><value>ORCHESTRIERUNGSMODUS</value></data>
+  <data name="ProjSettings_CoordFirst"        xml:space="preserve"><value>Koordinator zuerst  (Standard)</value></data>
+  <data name="ProjSettings_CoordFirstTip"     xml:space="preserve"><value>Der Koordinator antwortet zuerst und entscheidet, welche Denker als Nächstes antworten sollen.&#x0a;Denker werden ausgelöst, wenn der Koordinator sie markiert (z. B. @Denker).&#x0a;Koordinator-Automatisierung (SuperPowers-Kalibrierung, Sitzungsbegrüßung) läuft automatisch.</value></data>
+  <data name="ProjSettings_CoordSum"          xml:space="preserve"><value>Alle antworten, Koordinator fasst zusammen</value></data>
+  <data name="ProjSettings_CoordSumTip"       xml:space="preserve"><value>Alle Teilnehmer antworten normal. Der Koordinator erhält dann alle Antworten&#x0a;als Kontext und schreibt eine abschließende zusammenfassende Synthese.</value></data>
+  <data name="ProjSettings_CoordOnly"         xml:space="preserve"><value>Nur Koordinator  (KI-zu-KI verborgen)</value></data>
+  <data name="ProjSettings_CoordOnlyTip"      xml:space="preserve"><value>Der Nutzer kommuniziert nur mit dem Koordinator.&#x0a;Alle KI-zu-KI-Vorgänge (Koordinator-Überlegung + Denker-Antworten) sind verborgen.&#x0a;Kleine Statusindikatoren zeigen, welcher Teilnehmer aktiv ist.&#x0a;Nur die abschließende Synthese des Koordinators wird dem Nutzer angezeigt.</value></data>
+  <data name="ProjSettings_FullManual"        xml:space="preserve"><value>Vollmanueller Modus</value></data>
+  <data name="ProjSettings_FullManualTip"     xml:space="preserve"><value>Jeder aktive Teilnehmer antwortet auf jede Nutzernachricht – keine Koordinator-Automatisierung.&#x0a;Keine SuperPowers-Kalibrierung, kein Sitzungsgruß.&#x0a;Verwenden, wenn du alle Aufgabenverteilungen selbst steuern möchtest.</value></data>
+  <data name="ProjSettings_ResetRoadmap"      xml:space="preserve"><value>🗺 Roadmap-Planung zurücksetzen (Koordinator startet Gespräch beim nächsten Öffnen neu)</value></data>
+  <data name="ProjSettings_ResponseLang"      xml:space="preserve"><value>ANTWORTSPRACHE</value></data>
+  <data name="ProjSettings_LangHint"          xml:space="preserve"><value>Leer = Gesprächssprache folgen</value></data>
+  <data name="ProjSettings_MaxDepth"          xml:space="preserve"><value>MAX. DIALOGTIEFE</value></data>
+  <data name="ProjSettings_MaxDepthTip"       xml:space="preserve"><value>Positive ganze Zahl. 1 = nur auf Nutzer antworten (keine KI-zu-KI-Verkettung).</value></data>
+  <data name="ProjSettings_MaxDepthHint"      xml:space="preserve"><value>Wie viele KI-zu-KI-Antwortrunden erlaubt sind, bevor der Nutzer eine neue Nachricht senden muss.</value></data>
+  <data name="ProjSettings_ResponseLength"    xml:space="preserve"><value>STANDARDANTWORTLÄNGE</value></data>
+  <data name="ProjSettings_ApplyAll"          xml:space="preserve"><value>Auf alle anwenden</value></data>
+  <data name="ProjSettings_ApplyAllTip"       xml:space="preserve"><value>Antwortlänge für alle Teilnehmer in diesem Projekt überschreiben</value></data>
+  <data name="ProjSettings_Chattiness"        xml:space="preserve"><value>GESPRÄCHIGKEIT</value></data>
+  <data name="ProjSettings_ChattinessHint"    xml:space="preserve"><value>Überschreibt die globale Gesprächigkeitseinstellung für dieses Projekt. Still = nur antworten wenn angesprochen. Gesprächig = immer weiter diskutieren.</value></data>
+  <data name="ProjSettings_ParticipantRoles"  xml:space="preserve"><value>TEILNEHMERROLLEN</value></data>
+  <data name="ProjSettings_NoParticipants"    xml:space="preserve"><value>Derzeit sind keine Teilnehmer aktiv. Aktiviere zunächst Teilnehmer unter 👤 Teilnehmer-Konfiguration.</value></data>
+  <data name="ProjSettings_ActiveInScene"     xml:space="preserve"><value>In dieser Szene aktiv</value></data>
+  <data name="ProjSettings_EditBtn"           xml:space="preserve"><value>✏ Bearbeiten</value></data>
+
+  <!-- ── Wave 8: Response length labels ── -->
+  <data name="Len_OneLiner"                   xml:space="preserve"><value>Einzeiler</value></data>
+  <data name="Len_Brief"                      xml:space="preserve"><value>Kurz</value></data>
+  <data name="Len_Concise"                    xml:space="preserve"><value>Prägnant</value></data>
+  <data name="Len_Balanced"                   xml:space="preserve"><value>Ausgewogen</value></data>
+  <data name="Len_Moderate"                   xml:space="preserve"><value>Moderat</value></data>
+  <data name="Len_Detailed"                   xml:space="preserve"><value>Ausführlich</value></data>
+  <data name="Len_Monologue"                  xml:space="preserve"><value>Monolog</value></data>
+  <data name="Len_Short"                      xml:space="preserve"><value>Kurz</value></data>
+  <data name="Len_Default"                    xml:space="preserve"><value>Standard</value></data>
+  <data name="Len_Elaborate"                  xml:space="preserve"><value>Elaboriert</value></data>
+  <data name="Len_Long"                       xml:space="preserve"><value>Lang</value></data>
+
+  <!-- ── Wave 8: Character Editor ── -->
+  <data name="CharEditor_Title"               xml:space="preserve"><value>Charakter-Editor</value></data>
+  <data name="CharEditor_Identity"            xml:space="preserve"><value>IDENTITÄT</value></data>
+  <data name="CharEditor_AnswerAs"            xml:space="preserve"><value>Antworten als (Charaktername):</value></data>
+  <data name="CharEditor_RoleInstruction"     xml:space="preserve"><value>Rollenanweisung:</value></data>
+  <data name="CharEditor_ResponseLength"      xml:space="preserve"><value>ANTWORTLÄNGE</value></data>
+  <data name="CharEditor_Orchestration"       xml:space="preserve"><value>ORCHESTRIERUNG</value></data>
+  <data name="CharEditor_Coordinator"         xml:space="preserve"><value>Koordinator – leitet Nachrichten an Denker weiter</value></data>
+  <data name="CharEditor_CoordinatorTip"      xml:space="preserve"><value>Nur ein Koordinator pro Projekt.</value></data>
+  <data name="CharEditor_Reasoner"            xml:space="preserve"><value>Denker – führt delegierte Aufgaben aus</value></data>
+  <data name="CharEditor_Priority"            xml:space="preserve"><value>Priorität: {0}  (1 = niedrigste, 10 = höchste)</value></data>
+  <data name="CharEditor_PriorityTip"         xml:space="preserve"><value>Höhere Zahl = höhere Priorität (wird zuerst unter Denkern aufgerufen). Niedrigere Zahl = später aufgerufen.</value></data>
+  <data name="CharEditor_Critic"              xml:space="preserve"><value>Kritiker – überprüft Ausgaben auf Konsistenz, Logikfehler und Halluzinationen</value></data>
+  <data name="CharEditor_CriticTip"           xml:space="preserve"><value>Kritiker überprüft die Ausgaben anderer Teilnehmer nach deren Antwort. Messing-Abzeichen (CR).</value></data>
+  <data name="CharEditor_Planner"             xml:space="preserve"><value>Planer – gliedert das Nutzerziel in einen strukturierten Plan</value></data>
+  <data name="CharEditor_PlannerTip"          xml:space="preserve"><value>Planer wird zuerst aufgerufen, um einen Arbeitsplan zu erstellen. Bernstein-Abzeichen (PL).</value></data>
+  <data name="CharEditor_Researcher"          xml:space="preserve"><value>Forscher – sammelt vor der Hauptantwort Kontext und Referenzen</value></data>
+  <data name="CharEditor_ResearcherTip"       xml:space="preserve"><value>Forscher wird als Zweiter (nach dem Planer) aufgerufen. Stahlblau-Abzeichen (RS).</value></data>
+  <data name="CharEditor_WriteAccess"         xml:space="preserve"><value>Schreibzugriff (WR) – darf Dateien mit &lt;output&gt;- und &lt;projectplan&gt;-Tags schreiben</value></data>
+  <data name="CharEditor_WriteAccessTip"      xml:space="preserve"><value>Gewährt diesem Teilnehmer Schreibzugriff. Koordinatoren haben immer Schreibzugriff. Alle anderen Teilnehmer sind standardmäßig nur lesend. Grünes Abzeichen (WR).</value></data>
+  <data name="CharEditor_CharacterFile"       xml:space="preserve"><value>CHARAKTERDATEI</value></data>
+  <data name="CharEditor_LoadCharacter"       xml:space="preserve"><value>📂 Charakter laden</value></data>
+  <data name="CharEditor_SaveAsCharacter"     xml:space="preserve"><value>💾 Als Charakter speichern</value></data>
+  <data name="CharEditor_NoChars"             xml:space="preserve"><value>Keine Charakterdateien im Charakterordner dieses Projekts gefunden.</value></data>
+  <data name="CharEditor_NoCharsTitle"        xml:space="preserve"><value>Keine Charaktere</value></data>
+  <data name="CharEditor_SelectChar"          xml:space="preserve"><value>Charakter auswählen:</value></data>
+  <data name="CharEditor_LoadTitle"           xml:space="preserve"><value>Charakter laden</value></data>
+  <data name="CharEditor_SaveTitle"           xml:space="preserve"><value>Charakter speichern</value></data>
+  <data name="CharEditor_SaveAsName"          xml:space="preserve"><value>Als Charaktername speichern:</value></data>
+  <data name="CharEditor_Saved"               xml:space="preserve"><value>Charakter &quot;{0}&quot; im Charakterordner gespeichert.</value></data>
+  <data name="CharEditor_SavedTitle"          xml:space="preserve"><value>Gespeichert</value></data>
+  <data name="CharEditor_Reset"               xml:space="preserve"><value>↩ Zurücksetzen</value></data>
 
 </root>

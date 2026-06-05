@@ -883,11 +883,11 @@ public partial class MainWindow
 
         var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
         stack.Children.Add(btnRow);
-        var cancelBtn = MakeFilePanelButton("Cancel", isPrimary: false);
+        var cancelBtn = MakeFilePanelButton(Properties.Loc.S("Btn_Cancel"), isPrimary: false);
         cancelBtn.Padding = new Thickness(12, 5, 12, 5);
         cancelBtn.Click  += (_, _) => win.DialogResult = false;
         btnRow.Children.Add(cancelBtn);
-        var okBtn = MakeFilePanelButton("OK", isPrimary: true);
+        var okBtn = MakeFilePanelButton(Properties.Loc.S("Btn_OK"), isPrimary: true);
         okBtn.Padding = new Thickness(12, 5, 12, 5); okBtn.Margin = new Thickness(8, 0, 0, 0);
         okBtn.Click  += (_, _) => win.DialogResult = true;
         btnRow.Children.Add(okBtn);
@@ -1237,7 +1237,7 @@ public partial class MainWindow
             var renameItem = new MenuItem { Header = Properties.Loc.S("World_RenameBoard") };
             renameItem.Click += (_, _) =>
             {
-                var newName = ShowSimpleInputDialog("Rename Board", "Board name:", capturedBoard.Name);
+                var newName = ShowSimpleInputDialog(Properties.Loc.S("World_RenameBoardTitle"), Properties.Loc.S("World_BoardNameLabel"), capturedBoard.Name);
                 if (newName is null || newName == capturedBoard.Name) return;
                 capturedBoard.Name    = newName;
                 capturedBoard.UpdatedAt = DateTime.UtcNow;
@@ -1312,7 +1312,7 @@ public partial class MainWindow
 
         var win = new Window
         {
-            Title = "New Board", Width = 440,
+            Title = Properties.Loc.S("World_NewBoardTitle"), Width = 440,
             SizeToContent = SizeToContent.Height, MaxHeight = 620,
             ResizeMode = ResizeMode.NoResize,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1381,7 +1381,7 @@ public partial class MainWindow
             var capturedEt = et;
             var chk = new CheckBox
             {
-                Content = et, IsChecked = selectedTypes.Contains(et),
+                Content = WorldEntitySchemas.LocalizeEntityType(et), IsChecked = selectedTypes.Contains(et),
                 FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
                 Margin = new Thickness(0, 0, 0, 6), Cursor = Cursors.Hand
             };
@@ -1429,7 +1429,7 @@ public partial class MainWindow
 
         var win = new Window
         {
-            Title = $"Board Settings — {board.Name}", Width = 440,
+            Title = $"{Properties.Loc.S("World_BoardSettingsTitle")} — {board.Name}", Width = 440,
             SizeToContent = SizeToContent.Height, MaxHeight = 600,
             ResizeMode = ResizeMode.NoResize,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1482,7 +1482,7 @@ public partial class MainWindow
         foreach (var et in availableTypes)
         {
             var capturedEt = et;
-            var chk = new CheckBox { Content = et, IsChecked = selectedTypes.Contains(et), FontSize = 13, FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 0, 0, 6), Cursor = Cursors.Hand };
+            var chk = new CheckBox { Content = WorldEntitySchemas.LocalizeEntityType(et), IsChecked = selectedTypes.Contains(et), FontSize = 13, FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 0, 0, 6), Cursor = Cursors.Hand };
             chk.SetResourceReference(CheckBox.ForegroundProperty, "ContentTextBrush");
             chk.Checked   += (_, _) => selectedTypes.Add(capturedEt);
             chk.Unchecked += (_, _) => selectedTypes.Remove(capturedEt);
