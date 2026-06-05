@@ -518,4 +518,57 @@
   <!-- ── Settings: UI Zoom hint ────────────────────────────────────────── -->
   <data name="Settings_UiZoomHint"      xml:space="preserve"><value>Scales all windows uniformly. Main window applies immediately on save; other windows apply when next opened.</value></data>
 
+  <!-- ── Roadmap panel ──────────────────────────────────────────────────── -->
+  <data name="Roadmap_Title"              xml:space="preserve"><value>📊 Roadmap</value></data>
+  <data name="Roadmap_AddMilestone"       xml:space="preserve"><value>+ Milestone</value></data>
+  <data name="Roadmap_AddMilestoneTitle"  xml:space="preserve"><value>Add Milestone</value></data>
+  <data name="Roadmap_EditMilestoneTitle" xml:space="preserve"><value>Edit Milestone</value></data>
+  <data name="Roadmap_DeleteMilestoneTitle" xml:space="preserve"><value>Delete Milestone</value></data>
+  <data name="Roadmap_ExportHtml"         xml:space="preserve"><value>⬇ Export HTML5</value></data>
+  <data name="Roadmap_EmptyHint"          xml:space="preserve"><value>No roadmap items yet.&#x0a;Click  &quot;+ Milestone&quot;  to add the first milestone.</value></data>
+  <data name="Roadmap_NoItemsHint"        xml:space="preserve"><value>No items yet - click  &quot;+ Item&quot;  to add the first task.</value></data>
+  <data name="Roadmap_AddItem"            xml:space="preserve"><value>+ Item</value></data>
+  <data name="Roadmap_AddItemTitle"       xml:space="preserve"><value>Add Item</value></data>
+  <data name="Roadmap_EditItemTitle"      xml:space="preserve"><value>Edit Item</value></data>
+  <data name="Roadmap_EditMilestoneTip"   xml:space="preserve"><value>Edit milestone</value></data>
+  <data name="Roadmap_DeleteMilestoneTip" xml:space="preserve"><value>Delete milestone</value></data>
+  <data name="Roadmap_SetPct"             xml:space="preserve"><value>Set%</value></data>
+  <data name="Roadmap_SetProgressTip"     xml:space="preserve"><value>Set progress</value></data>
+  <data name="Roadmap_EditItemTip"        xml:space="preserve"><value>Edit item</value></data>
+  <data name="Roadmap_MarkDone"           xml:space="preserve"><value>Mark as done</value></data>
+  <data name="Roadmap_DeleteItemTip"      xml:space="preserve"><value>Delete item</value></data>
+  <data name="Roadmap_SetProgressTitle"   xml:space="preserve"><value>Set Progress</value></data>
+  <data name="Roadmap_Set"                xml:space="preserve"><value>Set</value></data>
+  <data name="Roadmap_Add"                xml:space="preserve"><value>Add</value></data>
+  <data name="Roadmap_TitleLbl"           xml:space="preserve"><value>Title</value></data>
+  <data name="Roadmap_DescriptionLbl"     xml:space="preserve"><value>Description (optional)</value></data>
+  <data name="Roadmap_Timing"             xml:space="preserve"><value>When / Timing (optional)</value></data>
+  <data name="Roadmap_ImageOptional"      xml:space="preserve"><value>Image (optional)</value></data>
+  <data name="Roadmap_InitialProgress"    xml:space="preserve"><value>Initial progress: {0}%</value></data>
+  <data name="Roadmap_RemoveImage"        xml:space="preserve"><value>✕ Remove</value></data>
+  <data name="Roadmap_AttachImage"        xml:space="preserve"><value>🖼 Attach image…</value></data>
+
+  <!-- ── Files panel ───────────────────────────────────────────────────── -->
+  <data name="Files_Refresh"              xml:space="preserve"><value>↻  Refresh</value></data>
+  <data name="Files_OpenProjectFolder"    xml:space="preserve"><value>📁  Open Project Folder</value></data>
+  <data name="Files_RefreshTip"           xml:space="preserve"><value>Reload file listings from disk</value></data>
+  <data name="Files_OpenFolderTip"        xml:space="preserve"><value>Open project folder in Windows Explorer</value></data>
+  <data name="Files_InputHeader"          xml:space="preserve"><value>🔒  INPUT  -  user-managed, AI read-only</value></data>
+  <data name="Files_InputDesc"            xml:space="preserve"><value>Drop finished or reference files here. AI can read them but cannot write or delete them.</value></data>
+  <data name="Files_OutputHeader"         xml:space="preserve"><value>📤  OUTPUT  -  AI deliverables</value></data>
+  <data name="Files_OutputDesc"           xml:space="preserve"><value>Files written by AI participants. Promote a finished file to INPUT to lock it from further AI edits.</value></data>
+  <data name="Files_PlanHeader"           xml:space="preserve"><value>📝  PROJECTPLAN  -  plans &amp; notes</value></data>
+  <data name="Files_PlanDesc"             xml:space="preserve"><value>Plans, outlines, task lists, and notes written by AI or the user.</value></data>
+  <data name="Files_NoFiles"              xml:space="preserve"><value>(no files)</value></data>
+  <data name="Files_Open"                 xml:space="preserve"><value>Open</value></data>
+  <data name="Files_PromoteToInput"       xml:space="preserve"><value>🔒 → INPUT</value></data>
+  <data name="Files_NoVersions"           xml:space="preserve"><value>No saved versions.</value></data>
+  <data name="Files_VersionHistory"       xml:space="preserve"><value>Version history  (newest first)</value></data>
+  <data name="Files_DeleteAll"            xml:space="preserve"><value>🧹 Delete All</value></data>
+  <data name="Files_DeleteAllTip"         xml:space="preserve"><value>Delete all saved versions of this file (current file is unaffected)</value></data>
+  <data name="Files_DeleteAllVersionsTitle" xml:space="preserve"><value>Delete All Versions</value></data>
+  <data name="Files_Restore"              xml:space="preserve"><value>↺ Restore</value></data>
+  <data name="Files_RestoreTip"           xml:space="preserve"><value>Restore this version as the current file (current is backed up first)</value></data>
+  <data name="Files_HideHistory"          xml:space="preserve"><value>Hide version history</value></data>
+
 </root>

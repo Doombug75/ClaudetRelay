@@ -518,4 +518,57 @@
   <!-- ── Settings: UI Zoom hint ────────────────────────────────────────── -->
   <data name="Settings_UiZoomHint"      xml:space="preserve"><value>Skaliert alle Fenster gleichmäßig. Das Hauptfenster übernimmt die Änderung sofort beim Speichern; andere Fenster beim nächsten Öffnen.</value></data>
 
+  <!-- ── Roadmap panel ──────────────────────────────────────────────────── -->
+  <data name="Roadmap_Title"              xml:space="preserve"><value>📊 Fahrplan</value></data>
+  <data name="Roadmap_AddMilestone"       xml:space="preserve"><value>+ Meilenstein</value></data>
+  <data name="Roadmap_AddMilestoneTitle"  xml:space="preserve"><value>Meilenstein hinzufügen</value></data>
+  <data name="Roadmap_EditMilestoneTitle" xml:space="preserve"><value>Meilenstein bearbeiten</value></data>
+  <data name="Roadmap_DeleteMilestoneTitle" xml:space="preserve"><value>Meilenstein löschen</value></data>
+  <data name="Roadmap_ExportHtml"         xml:space="preserve"><value>⬇ HTML5 exportieren</value></data>
+  <data name="Roadmap_EmptyHint"          xml:space="preserve"><value>Noch keine Fahrplan-Einträge.&#x0a;Klicke auf  &quot;+ Meilenstein&quot;  um den ersten Meilenstein hinzuzufügen.</value></data>
+  <data name="Roadmap_NoItemsHint"        xml:space="preserve"><value>Noch keine Aufgaben - klicke auf  &quot;+ Aufgabe&quot;  um die erste Aufgabe hinzuzufügen.</value></data>
+  <data name="Roadmap_AddItem"            xml:space="preserve"><value>+ Aufgabe</value></data>
+  <data name="Roadmap_AddItemTitle"       xml:space="preserve"><value>Aufgabe hinzufügen</value></data>
+  <data name="Roadmap_EditItemTitle"      xml:space="preserve"><value>Aufgabe bearbeiten</value></data>
+  <data name="Roadmap_EditMilestoneTip"   xml:space="preserve"><value>Meilenstein bearbeiten</value></data>
+  <data name="Roadmap_DeleteMilestoneTip" xml:space="preserve"><value>Meilenstein löschen</value></data>
+  <data name="Roadmap_SetPct"             xml:space="preserve"><value>%</value></data>
+  <data name="Roadmap_SetProgressTip"     xml:space="preserve"><value>Fortschritt festlegen</value></data>
+  <data name="Roadmap_EditItemTip"        xml:space="preserve"><value>Aufgabe bearbeiten</value></data>
+  <data name="Roadmap_MarkDone"           xml:space="preserve"><value>Als erledigt markieren</value></data>
+  <data name="Roadmap_DeleteItemTip"      xml:space="preserve"><value>Aufgabe löschen</value></data>
+  <data name="Roadmap_SetProgressTitle"   xml:space="preserve"><value>Fortschritt festlegen</value></data>
+  <data name="Roadmap_Set"                xml:space="preserve"><value>Festlegen</value></data>
+  <data name="Roadmap_Add"                xml:space="preserve"><value>Hinzufügen</value></data>
+  <data name="Roadmap_TitleLbl"           xml:space="preserve"><value>Titel</value></data>
+  <data name="Roadmap_DescriptionLbl"     xml:space="preserve"><value>Beschreibung (optional)</value></data>
+  <data name="Roadmap_Timing"             xml:space="preserve"><value>Zeitpunkt (optional)</value></data>
+  <data name="Roadmap_ImageOptional"      xml:space="preserve"><value>Bild (optional)</value></data>
+  <data name="Roadmap_InitialProgress"    xml:space="preserve"><value>Anfangsfortschritt: {0}%</value></data>
+  <data name="Roadmap_RemoveImage"        xml:space="preserve"><value>✕ Entfernen</value></data>
+  <data name="Roadmap_AttachImage"        xml:space="preserve"><value>🖼 Bild anhängen…</value></data>
+
+  <!-- ── Files panel ───────────────────────────────────────────────────── -->
+  <data name="Files_Refresh"              xml:space="preserve"><value>↻  Aktualisieren</value></data>
+  <data name="Files_OpenProjectFolder"    xml:space="preserve"><value>📁  Projektordner öffnen</value></data>
+  <data name="Files_RefreshTip"           xml:space="preserve"><value>Dateilisten vom Datenträger neu laden</value></data>
+  <data name="Files_OpenFolderTip"        xml:space="preserve"><value>Projektordner im Windows Explorer öffnen</value></data>
+  <data name="Files_InputHeader"          xml:space="preserve"><value>🔒  INPUT  -  benutzerverwaltet, KI nur lesen</value></data>
+  <data name="Files_InputDesc"            xml:space="preserve"><value>Abgeschlossene oder Referenzdateien hier ablegen. KI kann sie lesen, aber nicht schreiben oder löschen.</value></data>
+  <data name="Files_OutputHeader"         xml:space="preserve"><value>📤  OUTPUT  -  KI-Ergebnisse</value></data>
+  <data name="Files_OutputDesc"           xml:space="preserve"><value>Von KI-Teilnehmern erstellte Dateien. Eine fertige Datei zu INPUT verschieben, um sie vor weiteren KI-Bearbeitungen zu sperren.</value></data>
+  <data name="Files_PlanHeader"           xml:space="preserve"><value>📝  PROJECTPLAN  -  Pläne &amp; Notizen</value></data>
+  <data name="Files_PlanDesc"             xml:space="preserve"><value>Pläne, Gliederungen, Aufgabenlisten und Notizen von KI oder Benutzer.</value></data>
+  <data name="Files_NoFiles"              xml:space="preserve"><value>(keine Dateien)</value></data>
+  <data name="Files_Open"                 xml:space="preserve"><value>Öffnen</value></data>
+  <data name="Files_PromoteToInput"       xml:space="preserve"><value>🔒 → INPUT</value></data>
+  <data name="Files_NoVersions"           xml:space="preserve"><value>Keine gespeicherten Versionen.</value></data>
+  <data name="Files_VersionHistory"       xml:space="preserve"><value>Versionsverlauf  (neueste zuerst)</value></data>
+  <data name="Files_DeleteAll"            xml:space="preserve"><value>🧹 Alle löschen</value></data>
+  <data name="Files_DeleteAllTip"         xml:space="preserve"><value>Alle gespeicherten Versionen dieser Datei löschen (die aktuelle Datei bleibt unberührt)</value></data>
+  <data name="Files_DeleteAllVersionsTitle" xml:space="preserve"><value>Alle Versionen löschen</value></data>
+  <data name="Files_Restore"              xml:space="preserve"><value>↺ Wiederherstellen</value></data>
+  <data name="Files_RestoreTip"           xml:space="preserve"><value>Diese Version als aktuelle Datei wiederherstellen (aktuelle wird zuerst gesichert)</value></data>
+  <data name="Files_HideHistory"          xml:space="preserve"><value>Versionsverlauf ausblenden</value></data>
+
 </root>

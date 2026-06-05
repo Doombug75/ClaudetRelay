@@ -1625,12 +1625,12 @@ public partial class MainWindow
         // ── Top toolbar ────────────────────────────────────────────────────
         var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 16) };
 
-        var refreshBtn = MakeFilePanelButton("↻  Refresh", isPrimary: false);
+        var refreshBtn = MakeFilePanelButton(Properties.Loc.S("Files_Refresh"), isPrimary: false);
         refreshBtn.Click += (_, _) => BuildFilesContent();
-        refreshBtn.ToolTip = "Reload file listings from disk";
+        refreshBtn.ToolTip = Properties.Loc.S("Files_RefreshTip");
         toolbar.Children.Add(refreshBtn);
 
-        var openFolderBtn = MakeFilePanelButton("📁  Open Project Folder", isPrimary: false);
+        var openFolderBtn = MakeFilePanelButton(Properties.Loc.S("Files_OpenProjectFolder"), isPrimary: false);
         openFolderBtn.Margin = new Thickness(8, 0, 0, 0);
         openFolderBtn.Click += (_, _) =>
         {
@@ -1638,34 +1638,34 @@ public partial class MainWindow
                       (_currentProjectFolder!) { UseShellExecute = true }); }
             catch { /* ignore */ }
         };
-        openFolderBtn.ToolTip = "Open project folder in Windows Explorer";
+        openFolderBtn.ToolTip = Properties.Loc.S("Files_OpenFolderTip");
         toolbar.Children.Add(openFolderBtn);
 
         root.Children.Add(toolbar);
 
         // ── Three sections ─────────────────────────────────────────────────
         root.Children.Add(BuildFilesSection(
-            header:      "🔒  INPUT  -  user-managed, AI read-only",
+            header:      Properties.Loc.S("Files_InputHeader"),
             folder:      "INPUT",
             canDelete:   false,
             canPromote:  false,
-            description: "Drop finished or reference files here. AI can read them but cannot write or delete them.",
+            description: Properties.Loc.S("Files_InputDesc"),
             dimDesc:     true));
 
         root.Children.Add(BuildFilesSection(
-            header:      "📤  OUTPUT  -  AI deliverables",
+            header:      Properties.Loc.S("Files_OutputHeader"),
             folder:      "OUTPUT",
             canDelete:   true,
             canPromote:  true,
-            description: "Files written by AI participants. Promote a finished file to INPUT to lock it from further AI edits.",
+            description: Properties.Loc.S("Files_OutputDesc"),
             dimDesc:     false));
 
         root.Children.Add(BuildFilesSection(
-            header:      "📝  PROJECTPLAN  -  plans & notes",
+            header:      Properties.Loc.S("Files_PlanHeader"),
             folder:      "PROJECTPLAN",
             canDelete:   true,
             canPromote:  false,
-            description: "Plans, outlines, task lists, and notes written by AI or the user.",
+            description: Properties.Loc.S("Files_PlanDesc"),
             dimDesc:     false));
     }
 
@@ -1759,7 +1759,7 @@ public partial class MainWindow
         {
             var empty = new TextBlock
             {
-                Text       = "(no files)",
+                Text       = Properties.Loc.S("Files_NoFiles"),
                 FontSize   = 12,
                 FontFamily = new FontFamily("Segoe UI"),
                 Margin     = new Thickness(4, 0, 0, 0)
@@ -1869,7 +1869,7 @@ public partial class MainWindow
                 isOpen ? "AccentHighlightBrush" : "SidebarDimBrush");
             verBadgeBtn.Content = vText;
             verBadgeBtn.ToolTip = isOpen
-                ? "Hide version history"
+                ? Properties.Loc.S("Files_HideHistory")
                 : $"{vFiles.Length} saved version(s) - click to view";
         }
 
@@ -1902,7 +1902,7 @@ public partial class MainWindow
         Grid.SetColumn(actions, 1);
         grid.Children.Add(actions);
 
-        var openBtn = MakeFilePanelButton("Open", isPrimary: false);
+        var openBtn = MakeFilePanelButton(Properties.Loc.S("Files_Open"), isPrimary: false);
         openBtn.Margin  = new Thickness(4, 0, 0, 0);
         openBtn.ToolTip = $"Open {fileName} in default application";
         openBtn.Click  += (_, _) => OpenFileInEditor(filePath);
@@ -1910,7 +1910,7 @@ public partial class MainWindow
 
         if (canPromote)
         {
-            var promoteBtn = MakeFilePanelButton("🔒 → INPUT", isPrimary: true);
+            var promoteBtn = MakeFilePanelButton(Properties.Loc.S("Files_PromoteToInput"), isPrimary: true);
             promoteBtn.Margin  = new Thickness(4, 0, 0, 0);
             promoteBtn.ToolTip = $"Copy {fileName} to INPUT and lock it from AI edits";
             promoteBtn.Click  += (_, _) =>
@@ -1938,7 +1938,7 @@ public partial class MainWindow
             {
                 var result = MessageBox.Show(
                     $"Delete {folderName}/{fileName}?\n\nThis cannot be undone.",
-                    "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                    Properties.Loc.S("World_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (result != MessageBoxResult.Yes) return;
                 try
                 {
@@ -1980,7 +1980,7 @@ public partial class MainWindow
         {
             var none = new TextBlock
             {
-                Text = "No saved versions.",
+                Text = Properties.Loc.S("Files_NoVersions"),
                 FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
                 Margin = new Thickness(0, 0, 0, 4)
             };
@@ -1996,7 +1996,7 @@ public partial class MainWindow
 
         var title = new TextBlock
         {
-            Text = "Version history  (newest first)",
+            Text = Properties.Loc.S("Files_VersionHistory"),
             FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center
@@ -2005,17 +2005,17 @@ public partial class MainWindow
         Grid.SetColumn(title, 0);
         headerRow.Children.Add(title);
 
-        var deleteAllBtn = MakeFilePanelButton("🧹 Delete All", isPrimary: false);
+        var deleteAllBtn = MakeFilePanelButton(Properties.Loc.S("Files_DeleteAll"), isPrimary: false);
         deleteAllBtn.FontSize = 10;
         deleteAllBtn.Padding  = new Thickness(7, 3, 7, 3);
         deleteAllBtn.SetResourceReference(Button.ForegroundProperty, "AccentHighlightBrush");
-        deleteAllBtn.ToolTip = "Delete all saved versions of this file (current file is unaffected)";
+        deleteAllBtn.ToolTip = Properties.Loc.S("Files_DeleteAllTip");
         deleteAllBtn.Click  += (_, _) =>
         {
             var r = MessageBox.Show(
                 $"Delete all {vFiles.Count} saved version(s) of {SysIO.Path.GetFileName(filePath)}?\n\n" +
                 "The current file is not affected.",
-                "Delete All Versions", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                Properties.Loc.S("Files_DeleteAllVersionsTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (r != MessageBoxResult.Yes) return;
             foreach (var vf in vFiles)
             {
@@ -2054,7 +2054,7 @@ public partial class MainWindow
             vRow.Children.Add(vActions);
 
             // Open version
-            var vOpen = MakeFilePanelButton("Open", isPrimary: false);
+            var vOpen = MakeFilePanelButton(Properties.Loc.S("Files_Open"), isPrimary: false);
             vOpen.FontSize = 10; vOpen.Padding = new Thickness(7, 3, 7, 3);
             vOpen.ToolTip  = $"Open this version in default application";
             vOpen.Click   += (_, _) => OpenFileInEditor(vPath);
@@ -2062,10 +2062,10 @@ public partial class MainWindow
 
             // Restore version
             var capturedVPath = vPath;
-            var vRestore = MakeFilePanelButton("↺ Restore", isPrimary: true);
+            var vRestore = MakeFilePanelButton(Properties.Loc.S("Files_Restore"), isPrimary: true);
             vRestore.FontSize = 10; vRestore.Padding = new Thickness(7, 3, 7, 3);
             vRestore.Margin   = new Thickness(4, 0, 0, 0);
-            vRestore.ToolTip  = "Restore this version as the current file (current is backed up first)";
+            vRestore.ToolTip  = Properties.Loc.S("Files_RestoreTip");
             vRestore.Click   += (_, _) =>
             {
                 // Backup the current file before restoring
@@ -2081,7 +2081,7 @@ public partial class MainWindow
             var vDel = MakeFilePanelButton("🗑", isPrimary: false);
             vDel.FontSize = 12; vDel.Padding = new Thickness(6, 3, 6, 3);
             vDel.Margin   = new Thickness(4, 0, 0, 0);
-            vDel.ToolTip  = "Delete this version";
+            vDel.ToolTip  = Properties.Loc.S("Roadmap_DeleteItemTip");
             vDel.SetResourceReference(Button.ForegroundProperty, "AccentHighlightBrush");
             vDel.Click   += (_, _) =>
             {
@@ -2198,7 +2198,7 @@ public partial class MainWindow
 
         var tbTitle = new TextBlock
         {
-            Text              = "📊 Roadmap",
+            Text              = Properties.Loc.S("Roadmap_Title"),
             FontSize          = 15,
             FontWeight        = FontWeights.SemiBold,
             FontFamily        = new FontFamily("Segoe UI"),
@@ -2209,7 +2209,7 @@ public partial class MainWindow
 
         var addMsBtn = new Button
         {
-            Content    = "+ Milestone",
+            Content    = Properties.Loc.S("Roadmap_AddMilestone"),
             Style      = btnStyle,
             Background = inputBrush,
             Foreground = claudeBrush,
@@ -2234,7 +2234,7 @@ public partial class MainWindow
 
         var exportBtn = new Button
         {
-            Content    = "⬇ Export HTML5",
+            Content    = Properties.Loc.S("Roadmap_ExportHtml"),
             Style      = btnStyle,
             Background = inputBrush,
             Foreground = subtextBrush,
@@ -2278,7 +2278,7 @@ public partial class MainWindow
             });
             empty.Children.Add(new TextBlock
             {
-                Text                = "No roadmap items yet.\nClick  \"+ Milestone\"  to add the first milestone.",
+                Text                = Properties.Loc.S("Roadmap_EmptyHint"),
                 FontSize            = 14,
                 FontFamily          = new FontFamily("Segoe UI"),
                 Foreground          = subtextBrush,
@@ -2347,7 +2347,7 @@ public partial class MainWindow
 
             var addItemBtn = new Button
             {
-                Content    = "+ Item",
+                Content    = Properties.Loc.S("Roadmap_AddItem"),
                 Style      = btnStyle,
                 Background = Brushes.Transparent,
                 Foreground = claudeBrush,
@@ -2385,7 +2385,7 @@ public partial class MainWindow
                 FontSize   = 13,
                 Padding    = new Thickness(6, 4, 6, 4),
                 Margin     = new Thickness(0, 0, 4, 0),
-                ToolTip    = "Edit milestone"
+                ToolTip    = Properties.Loc.S("Roadmap_EditMilestoneTip")
             };
             editMsBtn.Click += (_, _) =>
             {
@@ -2417,13 +2417,13 @@ public partial class MainWindow
                 Foreground = subtextBrush,
                 FontSize   = 13,
                 Padding    = new Thickness(6, 4, 6, 4),
-                ToolTip    = "Delete milestone"
+                ToolTip    = Properties.Loc.S("Roadmap_DeleteMilestoneTip")
             };
             delMsBtn.Click += (_, _) =>
             {
                 if (MessageBox.Show(
                     $"Delete milestone \"{capturedMs.Title}\" and all its items?",
-                    "Delete Milestone", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+                    Properties.Loc.S("Roadmap_DeleteMilestoneTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning)
                     != MessageBoxResult.Yes) return;
                 _currentRoadmap!.Milestones.Remove(capturedMs);
                 SaveRoadmap();
@@ -2500,7 +2500,7 @@ public partial class MainWindow
             {
                 itemsStack.Children.Add(new TextBlock
                 {
-                    Text       = "No items yet - click  \"+ Item\"  to add the first task.",
+                    Text       = Properties.Loc.S("Roadmap_NoItemsHint"),
                     FontSize   = 12,
                     FontFamily = new FontFamily("Segoe UI"),
                     Foreground = subtextBrush,
@@ -2646,14 +2646,14 @@ public partial class MainWindow
 
         var setPctBtn = new Button
         {
-            Content    = "Set%",
+            Content    = Properties.Loc.S("Roadmap_SetPct"),
             Style      = btnStyle,
             Background = Brushes.Transparent,
             Foreground = subtextBrush,
             FontSize   = 10,
             Padding    = new Thickness(6, 3, 6, 3),
             Margin     = new Thickness(0, 0, 2, 0),
-            ToolTip    = "Set progress"
+            ToolTip    = Properties.Loc.S("Roadmap_SetProgressTip")
         };
         setPctBtn.Click += (_, _) =>
         {
@@ -2677,7 +2677,7 @@ public partial class MainWindow
             FontSize   = 12,
             Padding    = new Thickness(6, 3, 6, 3),
             Margin     = new Thickness(0, 0, 2, 0),
-            ToolTip    = "Edit item"
+            ToolTip    = Properties.Loc.S("Roadmap_EditItemTip")
         };
         editBtn.Click += (_, _) =>
         {
@@ -2719,7 +2719,7 @@ public partial class MainWindow
                 FontSize   = 13,
                 Padding    = new Thickness(6, 3, 6, 3),
                 Margin     = new Thickness(0, 0, 2, 0),
-                ToolTip    = "Mark as done"
+                ToolTip    = Properties.Loc.S("Roadmap_MarkDone")
             };
             doneBtn.Click += (_, _) =>
             {
@@ -2742,7 +2742,7 @@ public partial class MainWindow
             Foreground = subtextBrush,
             FontSize   = 12,
             Padding    = new Thickness(6, 3, 6, 3),
-            ToolTip    = "Delete item"
+            ToolTip    = Properties.Loc.S("Roadmap_DeleteItemTip")
         };
         delBtn.Click += (_, _) =>
         {
@@ -2850,7 +2850,7 @@ public partial class MainWindow
                     }
                     catch { }
                 }
-                var removeBtn = new Button { Content = "✕ Remove", Style = btnStyle, Background = Brushes.Transparent, Foreground = subBrush, FontSize = 10, Padding = new Thickness(6, 3, 6, 3), Margin = new Thickness(0, 0, 6, 0) };
+                var removeBtn = new Button { Content = Properties.Loc.S("Roadmap_RemoveImage"), Style = btnStyle, Background = Brushes.Transparent, Foreground = subBrush, FontSize = 10, Padding = new Thickness(6, 3, 6, 3), Margin = new Thickness(0, 0, 6, 0) };
                 removeBtn.Click += (_, _) =>
                 {
                     var old = RoadmapService.GetImagePath(_currentProjectFolder!, currentFile);
@@ -2863,7 +2863,7 @@ public partial class MainWindow
             }
             else
             {
-                var attachBtn = new Button { Content = "🖼 Attach image…", Style = btnStyle, Background = inputBrush, Foreground = textBrush, FontSize = 11, Padding = new Thickness(8, 4, 8, 4) };
+                var attachBtn = new Button { Content = Properties.Loc.S("Roadmap_AttachImage"), Style = btnStyle, Background = inputBrush, Foreground = textBrush, FontSize = 11, Padding = new Thickness(8, 4, 8, 4) };
                 attachBtn.Click += (_, _) =>
                 {
                     var ofd = new Microsoft.Win32.OpenFileDialog
@@ -3062,7 +3062,7 @@ public partial class MainWindow
 
         var dlg = new Window
         {
-            Title                 = isEdit ? "Edit Milestone" : "Add Milestone",
+            Title                 = isEdit ? Properties.Loc.S("Roadmap_EditMilestoneTitle") : Properties.Loc.S("Roadmap_AddMilestoneTitle"),
             Width                 = 560,
             Height                = 560,
             MinWidth              = 420,
@@ -3121,7 +3121,7 @@ public partial class MainWindow
         };
 
         // Date note
-        MakeDialogLabel("When / Timing (optional)", textBrush, out var dateLbl);
+        MakeDialogLabel(Properties.Loc.S("Roadmap_Timing"), textBrush, out var dateLbl);
         dateLbl.Margin = new Thickness(16, 10, 16, 4);
         var dateBox = new TextBox
         {
@@ -3140,14 +3140,14 @@ public partial class MainWindow
         };
 
         // Image attachment
-        MakeDialogLabel("Image (optional)", textBrush, out var imgLbl);
+        MakeDialogLabel(Properties.Loc.S("Roadmap_ImageOptional"), textBrush, out var imgLbl);
         imgLbl.Margin = new Thickness(16, 10, 16, 4);
         var imgPanel = BuildRoadmapImageZone(currentImageFileName, v => currentImageFileName = v, inputBrush, textBrush, subBrush, btnStyle);
 
         // Buttons
         var okBtn = new Button
         {
-            Content    = isEdit ? "Save" : "Add",
+            Content    = isEdit ? Properties.Loc.S("Btn_Save") : Properties.Loc.S("Roadmap_Add"),
             IsDefault  = true,
             Height     = 34,
             MinWidth   = 80,
@@ -3165,7 +3165,7 @@ public partial class MainWindow
 
         var cancelBtn = new Button
         {
-            Content    = "Cancel",
+            Content    = Properties.Loc.S("Btn_Cancel"),
             IsCancel   = true,
             Height     = 34,
             MinWidth   = 80,
@@ -3185,8 +3185,8 @@ public partial class MainWindow
         btnRow.Children.Add(cancelBtn);
 
         // Labels
-        MakeDialogLabel("Title",                  textBrush, out var titleLbl);
-        MakeDialogLabel("Description (optional)", textBrush, out var descLbl);
+        MakeDialogLabel(Properties.Loc.S("Roadmap_TitleLbl"),        textBrush, out var titleLbl);
+        MakeDialogLabel(Properties.Loc.S("Roadmap_DescriptionLbl"),  textBrush, out var descLbl);
         descLbl.Margin = new Thickness(16, 10, 16, 4);
 
         // Layout: DockPanel — buttons bottom, title+date+image+toolbar top, RTB fills
@@ -3230,7 +3230,7 @@ public partial class MainWindow
 
         var dlg = new Window
         {
-            Title                 = isEdit ? "Edit Item" : "Add Item",
+            Title                 = isEdit ? Properties.Loc.S("Roadmap_EditItemTitle") : Properties.Loc.S("Roadmap_AddItemTitle"),
             Width                 = 560,
             Height                = 560,
             MinWidth              = 420,
@@ -3289,7 +3289,7 @@ public partial class MainWindow
         };
 
         // Date note
-        MakeDialogLabel("When / Timing (optional)", textBrush, out var dateLbl2);
+        MakeDialogLabel(Properties.Loc.S("Roadmap_Timing"), textBrush, out var dateLbl2);
         dateLbl2.Margin = new Thickness(16, 8, 16, 4);
         var dateBox2 = new TextBox
         {
@@ -3308,14 +3308,14 @@ public partial class MainWindow
         };
 
         // Image attachment
-        MakeDialogLabel("Image (optional)", textBrush, out var imgLbl2);
+        MakeDialogLabel(Properties.Loc.S("Roadmap_ImageOptional"), textBrush, out var imgLbl2);
         imgLbl2.Margin = new Thickness(16, 8, 16, 4);
         var imgPanel2 = BuildRoadmapImageZone(currentImageFileName, v => currentImageFileName = v, inputBrush, textBrush, subBrush, btnStyle);
 
         // Progress
         var pctLabel = new TextBlock
         {
-            Text       = $"Initial progress: {progress}%",
+            Text       = string.Format(Properties.Loc.S("Roadmap_InitialProgress"), progress),
             FontSize   = 12,
             FontFamily = new FontFamily("Segoe UI"),
             Foreground = subBrush,
@@ -3331,12 +3331,12 @@ public partial class MainWindow
             Margin              = new Thickness(16, 0, 16, 0)
         };
         slider.ValueChanged += (_, e) =>
-            pctLabel.Text = $"Initial progress: {(int)e.NewValue}%";
+            pctLabel.Text = string.Format(Properties.Loc.S("Roadmap_InitialProgress"), (int)e.NewValue);
 
         // Buttons
         var okBtn = new Button
         {
-            Content    = isEdit ? "Save" : "Add",
+            Content    = isEdit ? Properties.Loc.S("Btn_Save") : Properties.Loc.S("Roadmap_Add"),
             IsDefault  = true,
             Height     = 34,
             MinWidth   = 80,
@@ -3355,7 +3355,7 @@ public partial class MainWindow
 
         var cancelBtn = new Button
         {
-            Content    = "Cancel",
+            Content    = Properties.Loc.S("Btn_Cancel"),
             IsCancel   = true,
             Height     = 34,
             MinWidth   = 80,
@@ -3375,8 +3375,8 @@ public partial class MainWindow
         btnRow.Children.Add(cancelBtn);
 
         // Labels
-        MakeDialogLabel("Title",                  textBrush, out var titleLbl);
-        MakeDialogLabel("Description (optional)", textBrush, out var descLbl);
+        MakeDialogLabel(Properties.Loc.S("Roadmap_TitleLbl"),       textBrush, out var titleLbl);
+        MakeDialogLabel(Properties.Loc.S("Roadmap_DescriptionLbl"), textBrush, out var descLbl);
         descLbl.Margin = new Thickness(16, 10, 16, 4);
 
         // Bottom section: progress + buttons (fixed height)
@@ -3423,7 +3423,7 @@ public partial class MainWindow
 
         var dlg = new Window
         {
-            Title                 = "Set Progress",
+            Title                 = Properties.Loc.S("Roadmap_SetProgressTitle"),
             Width                 = 360,
             Height                = 195,
             Owner                 = this,
@@ -3458,7 +3458,7 @@ public partial class MainWindow
 
         var okBtn = new Button
         {
-            Content    = "Set",
+            Content    = Properties.Loc.S("Roadmap_Set"),
             IsDefault  = true,
             Height     = 34,
             Margin     = new Thickness(16, 0, 8, 16),
@@ -3470,7 +3470,7 @@ public partial class MainWindow
 
         var cancelBtn = new Button
         {
-            Content    = "Cancel",
+            Content    = Properties.Loc.S("Btn_Cancel"),
             IsCancel   = true,
             Height     = 34,
             Margin     = new Thickness(0, 0, 16, 16),
