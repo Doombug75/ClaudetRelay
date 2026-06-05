@@ -167,6 +167,7 @@ public partial class MainWindow : Window
     private int                                  _toneLevel             = 50;
     private int                                  _chattinessLevel       = 50;
     private bool                                 _mockingbirdMode       = false;
+    private bool                                 _buccaneeerMode        = false;
     private double                               _chatBubbleWidthPct    = 78.0;
     private string                               _projectLanguage       = "";
     private int                                  _maxDialogDepth        = 1;

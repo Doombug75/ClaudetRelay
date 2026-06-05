@@ -54,6 +54,7 @@ public partial class MainWindow
             _toneLevel            = updated.ToneLevel;
             _chattinessLevel      = updated.GlobalChattiness;
             _mockingbirdMode      = updated.MockingbirdMode;
+            _buccaneeerMode       = updated.BuccaneerMode;
             _aiDialogueEnabled    = updated.AiDialogueEnabled;
             _aiDialogueMaxTurns   = Math.Clamp(updated.AiDialogueMaxTurns, 3, 100);
             _globalResponseLength = Math.Clamp(updated.GlobalResponseLength, 0, 100);

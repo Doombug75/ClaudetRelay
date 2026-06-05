@@ -58,10 +58,12 @@ public partial class SettingsWindow : Window
     private readonly bool                   _providerModeOnly;
     private readonly List<ParticipantForm>  _forms            = [];
     private readonly List<ProviderKeyForm>  _providerKeyForms = [];
-    private TextBox   _userNameBox          = null!;
-    private Slider    _toneSlider           = null!;
-    private CheckBox  _mockingbirdBox       = null!;
-    private TextBox   _dialogueTurnsBox     = null!;
+    private TextBox      _userNameBox          = null!;
+    private Slider       _toneSlider           = null!;
+    private RadioButton  _modeNeutralBtn       = null!;
+    private RadioButton  _modeMockingbirdBtn   = null!;
+    private RadioButton  _modeBuccaneerBtn     = null!;
+    private TextBox      _dialogueTurnsBox     = null!;
     private Slider    _responseLengthSlider = null!;
     private Slider    _chattinessSlider     = null!;
     private Slider    _zoomSlider           = null!;
@@ -199,9 +201,12 @@ public partial class SettingsWindow : Window
         };
         _toneSlider = toneSlider;
         toneSlider.ValueChanged += (_, e) =>
-            toneValueLabel.Text = _mockingbirdBox?.IsChecked == true
-                ? FormatToneLabelMockingbird((int)e.NewValue)
-                : FormatToneLabel((int)e.NewValue);
+        {
+            int v = (int)e.NewValue;
+            toneValueLabel.Text = _modeMockingbirdBtn?.IsChecked == true ? FormatToneLabelMockingbird(v)
+                                : _modeBuccaneerBtn?.IsChecked   == true ? FormatToneLabelBuccaneer(v)
+                                : FormatToneLabel(v);
+        };
 
         var toneRow = new Grid { Margin = new Thickness(0, 0, 0, 4) };
         toneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -218,40 +223,78 @@ public partial class SettingsWindow : Window
 
         var toneHint = MakeHintText("0 = strictly neutral  ·  50 = model default (no change)  ·  100 = very friendly");
 
-        // ── MOCKINGBIRD MODE ───────────────────────────────────────────────
-        var mockingbirdCheck = new CheckBox
+        // ── PERSONALITY MODE (Neutral / Mockingbird / Buccaneer) ───────────
+        var personalityLabel = new TextBlock
         {
-            Style     = (Style)FindResource("SToggle"),
-            IsChecked = settings.MockingbirdMode,
-            Content   = "🐦 Mockingbird mode",
-            Margin    = new Thickness(0, 10, 0, 4),
-            ToolTip   = "Use at own risk."
+            Style  = (Style)FindResource("SLabel"),
+            Text   = "PERSONALITY MODE",
+            Margin = new Thickness(0, 14, 0, 6)
         };
-        _mockingbirdBox = mockingbirdCheck;
 
-        // Apply initial labels if mockingbird was already enabled
-        if (settings.MockingbirdMode)
+        // Helper that applies the correct labels/hints when a mode becomes active
+        void ApplyModeLabels(string mode)
         {
-            toneLeft.Text       = "Comedy 🎭";
-            toneRight.Text      = "Loving 💕";
-            toneHint.Text       = "0 = pure comedy & poems  ·  50 = humoristic default  ·  100 = loving pet names & kisses";
-            toneValueLabel.Text = FormatToneLabelMockingbird(settings.ToneLevel);
+            switch (mode)
+            {
+                case "mockingbird":
+                    toneLeft.Text       = "Comedy 🎭";
+                    toneRight.Text      = "Loving 💕";
+                    toneHint.Text       = "0 = pure comedy & poems  ·  50 = humoristic default  ·  100 = loving pet names & kisses";
+                    toneValueLabel.Text = FormatToneLabelMockingbird((int)toneSlider.Value);
+                    break;
+                case "buccaneer":
+                    toneLeft.Text       = "Cutthroat ⚔️";
+                    toneRight.Text      = "Jolly Cap'n 🏴‍☠️";
+                    toneHint.Text       = "0 = fierce corsair  ·  50 = seafarin' rogue  ·  100 = jolly, friendly cap'n";
+                    toneValueLabel.Text = FormatToneLabelBuccaneer((int)toneSlider.Value);
+                    break;
+                default:
+                    toneLeft.Text       = "Neutral";
+                    toneRight.Text      = "Friendly";
+                    toneHint.Text       = "0 = strictly neutral  ·  50 = model default (no change)  ·  100 = very friendly";
+                    toneValueLabel.Text = FormatToneLabel((int)toneSlider.Value);
+                    break;
+            }
         }
 
-        mockingbirdCheck.Checked += (_, _) =>
+        RadioButton MakePersonalityBtn(string label, string toolTip)
         {
-            toneLeft.Text       = "Comedy 🎭";
-            toneRight.Text      = "Loving 💕";
-            toneHint.Text       = "0 = pure comedy & poems  ·  50 = humoristic default  ·  100 = loving pet names & kisses";
-            toneValueLabel.Text = FormatToneLabelMockingbird((int)toneSlider.Value);
-        };
-        mockingbirdCheck.Unchecked += (_, _) =>
+            var rb = new RadioButton
+            {
+                Content     = label,
+                GroupName   = "PersonalityMode",
+                ToolTip     = toolTip,
+                Style       = (Style)FindResource("SPersonalityBtn"),
+                Margin      = new Thickness(0, 0, 6, 0)
+            };
+            return rb;
+        }
+
+        var btnNeutral    = MakePersonalityBtn("Neutral",          "Standard response tone — controlled by the slider above.");
+        var btnMockingbird = MakePersonalityBtn("🐦 Mockingbird", "Theatrical wit and loving chaos. Use at own risk.");
+        var btnBuccaneer   = MakePersonalityBtn("🏴‍☠️ Buccaneer", "Arrr! Full pirate-speak for every participant. Yarrr!");
+
+        _modeNeutralBtn     = btnNeutral;
+        _modeMockingbirdBtn = btnMockingbird;
+        _modeBuccaneerBtn   = btnBuccaneer;
+
+        // Set initial state
+        if (settings.BuccaneerMode)       { btnBuccaneer.IsChecked   = true; ApplyModeLabels("buccaneer"); }
+        else if (settings.MockingbirdMode) { btnMockingbird.IsChecked = true; ApplyModeLabels("mockingbird"); }
+        else                               { btnNeutral.IsChecked     = true; }
+
+        btnNeutral.Checked     += (_, _) => ApplyModeLabels("neutral");
+        btnMockingbird.Checked += (_, _) => ApplyModeLabels("mockingbird");
+        btnBuccaneer.Checked   += (_, _) => ApplyModeLabels("buccaneer");
+
+        var personalityRow = new StackPanel
         {
-            toneLeft.Text       = "Neutral";
-            toneRight.Text      = "Friendly";
-            toneHint.Text       = "0 = strictly neutral  ·  50 = model default (no change)  ·  100 = very friendly";
-            toneValueLabel.Text = FormatToneLabel((int)toneSlider.Value);
+            Orientation = Orientation.Horizontal,
+            Margin      = new Thickness(0, 0, 0, 4)
         };
+        personalityRow.Children.Add(btnNeutral);
+        personalityRow.Children.Add(btnMockingbird);
+        personalityRow.Children.Add(btnBuccaneer);
 
         // ── AI DIALOGUE TURNS ──────────────────────────────────────────────
         var dialogueSep = new Rectangle { Style = (Style)FindResource("SSep") };
@@ -478,7 +521,8 @@ public partial class SettingsWindow : Window
         root.Children.Add(toneValueLabel);
         root.Children.Add(toneRow);
         root.Children.Add(toneHint);
-        root.Children.Add(mockingbirdCheck);
+        root.Children.Add(personalityLabel);
+        root.Children.Add(personalityRow);
         root.Children.Add(dialogueSep);
         root.Children.Add(dialogueLabel);
         root.Children.Add(dialogueHint);
@@ -1304,7 +1348,8 @@ public partial class SettingsWindow : Window
         settings.UserName = string.IsNullOrEmpty(userName) ? "You" : userName;
 
         settings.ToneLevel            = (int)_toneSlider.Value;
-        settings.MockingbirdMode      = _mockingbirdBox.IsChecked == true;
+        settings.MockingbirdMode      = _modeMockingbirdBtn.IsChecked == true;
+        settings.BuccaneerMode        = _modeBuccaneerBtn.IsChecked   == true;
         settings.AiDialogueMaxTurns   = int.TryParse(_dialogueTurnsBox.Text, out var dTurns)
                                         && dTurns is >= 3 and <= 100 ? dTurns : 10;
         settings.GlobalResponseLength = (int)_responseLengthSlider.Value;
@@ -1446,6 +1491,17 @@ public partial class SettingsWindow : Window
         < 70  => "Affectionately funny",
         < 90  => "Lovingly teasing",
         _     => "Affectionate insults 💕"
+    };
+
+    private static string FormatToneLabelBuccaneer(int v) => v switch
+    {
+        < 10  => "Fierce Buccaneer ⚔️",
+        < 30  => "Salty Sea Dog",
+        < 45  => "Weathered Corsair",
+        <= 55 => "Seafarin' Rogue",
+        < 70  => "Jolly Sailor",
+        < 90  => "Friendly Cap'n",
+        _     => "Jolly Cap'n 🏴‍☠️"
     };
 
     private static string FormatResponseLengthLabel(int v) => v switch

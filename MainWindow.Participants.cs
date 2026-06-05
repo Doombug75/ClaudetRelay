@@ -39,6 +39,7 @@ public partial class MainWindow
         _toneLevel         = settings.ToneLevel;
         _chattinessLevel   = settings.GlobalChattiness;
         _mockingbirdMode   = settings.MockingbirdMode;
+        _buccaneeerMode    = settings.BuccaneerMode;
 
         // AI dialogue toggle + depth
         _aiDialogueEnabled    = settings.AiDialogueEnabled;

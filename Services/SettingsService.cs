@@ -150,6 +150,13 @@ public class AppSettings
     /// </summary>
     public bool MockingbirdMode { get; set; } = false;
 
+    /// <summary>
+    /// Buccaneer mode — all participants respond in full pirate-speak.
+    /// Mutually exclusive with MockingbirdMode.
+    /// Slider low-end = fierce cutthroat pirate, high-end = jolly friendly cap'n.
+    /// </summary>
+    public bool BuccaneerMode { get; set; } = false;
+
     /// <summary>Configured participants shown in the card grid.</summary>
     public List<ParticipantConfig> Participants { get; set; } = [];
 

@@ -3015,7 +3015,7 @@ public partial class MainWindow : Window
                 BuildLanguageInstruction(_projectLanguage) +
                 BuildInputFilesContext(_currentProjectFolder) +
                 BuildWorldEntityContext() +
-                BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage) +
+                BuildToneInstruction(_toneLevel, _mockingbirdMode, _buccaneeerMode, _projectLanguage) +
                 BuildChattinessInstruction(_chattinessLevel) +
                 BuildFileOperationInstruction(_currentProjectFolder, myHasWrite, writerNames) +
                 BuildRoadmapContext(myRole) +
@@ -3085,7 +3085,7 @@ public partial class MainWindow : Window
             BuildLanguageInstruction(_projectLanguage) +
             BuildInputFilesContext(_currentProjectFolder) +
             BuildWorldEntityContext() +
-            BuildToneInstruction(_toneLevel, _mockingbirdMode, _projectLanguage) +
+            BuildToneInstruction(_toneLevel, _mockingbirdMode, _buccaneeerMode, _projectLanguage) +
             BuildChattinessInstruction(_chattinessLevel) +
             BuildFileOperationInstruction(_currentProjectFolder, myHasWrite, writerNames) +
             BuildRoadmapContext(myRole) +
@@ -4580,8 +4580,59 @@ public partial class MainWindow : Window
 
     // ── Tone helper ────────────────────────────────────────────────────────
 
-    private static string BuildToneInstruction(int level, bool mockingbird, string language = "")
+    private static string BuildToneInstruction(int level, bool mockingbird, bool buccaneer = false, string language = "")
     {
+        if (buccaneer)
+        {
+            // Tone slider: 0 = fierce cutthroat, 100 = jolly friendly cap'n.
+            // Language setting adds the pirate register in the target tongue if set.
+            string pirateInLang = string.IsNullOrWhiteSpace(language) ? "" :
+                $"\n\nSpeak in {language}. Translate all pirate idioms naturally into {language} — " +
+                $"use the salty seafaring slang and colourful nautical expressions that a {language}-speaking " +
+                $"buccaneer would actually use, not a word-for-word English transliteration.";
+
+            return level switch
+            {
+                < 10  => "\n\nYe are a fierce, battle-hardened buccaneer — salt in yer beard, cannon smoke in yer lungs. " +
+                         "Speak in thick pirate dialect at ALL times: arrr, ye, yer, shiver me timbers, blimey, " +
+                         "landlubber, Davy Jones, walk the plank, scallywag, bilge rat. " +
+                         "Bark orders and insults like a cutthroat corsair. " +
+                         "Every response must feel ripped from the quarterdeck of a pirate frigate. " +
+                         "Be helpful — but make the landlubber EARN it." + pirateInLang,
+
+                < 30  => "\n\nYe speak as a weathered sea dog who has plundered many a merchant vessel. " +
+                         "Heavy pirate dialect throughout: arrr, aye, ye, yer, matey, avast, " +
+                         "me hearty, Davy Jones' locker, blimey. " +
+                         "Pepper yer speech with nautical metaphors and salty wit. " +
+                         "Impatient with landlubbers, but ultimately useful." + pirateInLang,
+
+                < 45  => "\n\nYe are a seasoned corsair — pirate through and through, but not without charm. " +
+                         "Speak with a solid pirate accent: arrr, aye, matey, me hearty, yer. " +
+                         "Nautical turns of phrase come naturally. " +
+                         "Gruff but capable — helpful, as long as the gold is good." + pirateInLang,
+
+                <= 55 => "\n\nYe are a rakish rogue of the high seas — equal parts pirate and pragmatist. " +
+                         "Arrr and aye slip out naturally; ye call people matey and hearty. " +
+                         "The swagger is real but so is the helpfulness. " +
+                         "A fair wind and a straight answer, that's the pirate code." + pirateInLang,
+
+                < 70  => "\n\nYe are a jolly sailor with pirate sympathies. " +
+                         "Arrr, aye, and matey come naturally; the dialect is lighter now — more swagger than snarl. " +
+                         "Warm, capable, and good company on a long voyage." + pirateInLang,
+
+                < 90  => "\n\nYe are a good-natured old sea dog — the kind sailors call Cap'n with a grin. " +
+                         "Pirate dialect is light but present: arrr, aye, me friend, fair winds. " +
+                         "Warm, encouraging, and thoroughly seaworthy." + pirateInLang,
+
+                _     => "\n\nYe are the jolliest cap'n on the seven seas — beloved by every crew member from here to Tortuga. " +
+                         "Warm pirate greetings for everyone: me fine landlubber friend, me brilliant matey, " +
+                         "ye magnificent sailor, me favourite scallywag. " +
+                         "Scatter sea-blessing farewells: fair winds to ye, may yer sails be ever full, " +
+                         "Davy Jones shall wait a long while for such a fine soul. " +
+                         "Maximum pirate warmth — full jolly cap'n energy, no menace whatsoever." + pirateInLang
+            };
+        }
+
         if (mockingbird)
         {
             // When a project language is set, require archaic/poetic forms of THAT language

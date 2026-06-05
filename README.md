@@ -107,7 +107,7 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 | **Multi-language UI** | German as the first additional language alongside English |
 | **LM Studio support** | Local model provider via LM Studio's OpenAI-compatible endpoint |
 | ~~**Codebase refactor**~~ | ~~Split `MainWindow.xaml.cs` into focused partial classes for better maintainability~~ ✅ Done — 18 800 lines split into 6 focused partial classes; `xaml.cs` reduced to 363 lines |
-| **Buccaneer mode** | Exclusive pirate-speak personality mode (à la Mockingbird). Needs slider redesign to accommodate three mutually exclusive modes: Neutral / Mockingbird / Buccaneer. |
+| ~~**Buccaneer mode**~~ | ~~Exclusive pirate-speak personality mode (à la Mockingbird). Needs slider redesign to accommodate three mutually exclusive modes: Neutral / Mockingbird / Buccaneer.~~ ✅ Done — three-way pill toggle in General Settings (Neutral · 🐦 Mockingbird · 🏴‍☠️ Buccaneer); tone slider relabels dynamically per mode |
 
 ---
 

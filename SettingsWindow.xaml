@@ -209,6 +209,42 @@
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
 
+        <!-- Personality mode pill button (RadioButton styled as a selectable pill) -->
+        <Style x:Key="SPersonalityBtn" TargetType="RadioButton">
+            <Setter Property="FontSize"   Value="12"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Padding"    Value="12,5"/>
+            <Setter Property="Background" Value="{DynamicResource ControlBgBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SidebarTextBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background"   Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush"  Value="{DynamicResource AccentBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SidebarBgBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Window.Resources>
 
     <DockPanel>
