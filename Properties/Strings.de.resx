@@ -416,4 +416,88 @@
   <data name="Entity_NothingToAdd"             xml:space="preserve"><value>Nichts hinzuzufügen</value></data>
   <data name="Entity_Create"                   xml:space="preserve"><value>Erstellen</value></data>
 
+  <!-- ── Shared dialog buttons ─────────────────────────────────────────── -->
+  <data name="Btn_OK"                          xml:space="preserve"><value>OK</value></data>
+
+  <!-- ── World Board window ────────────────────────────────────────────── -->
+  <data name="Board_AddRelation"               xml:space="preserve"><value>🔗 Beziehung hinzufügen</value></data>
+  <data name="Board_Connecting"                xml:space="preserve"><value>🔗 Verbinde…</value></data>
+  <data name="Board_AddDropdown"               xml:space="preserve"><value>➕ Hinzufügen ▾</value></data>
+  <data name="Board_AutoArrange"               xml:space="preserve"><value>📐 Auto-anordnen</value></data>
+  <data name="Board_FiltersShow"               xml:space="preserve"><value>⚙ Filter ▼</value></data>
+  <data name="Board_FiltersHide"               xml:space="preserve"><value>⚙ Filter ▲</value></data>
+  <data name="Board_ConnectHint1"              xml:space="preserve"><value>← Karte anklicken um zu beginnen</value></data>
+  <data name="Board_ConnectHint2"              xml:space="preserve"><value>← Jetzt die Zielkarte anklicken</value></data>
+  <data name="Board_DragHint"                  xml:space="preserve"><value>Karten ziehen · Doppelklick zum Anzeigen · 🔗 zum Verbinden</value></data>
+  <data name="Board_SnapToGrid"                xml:space="preserve"><value>Am Raster ausrichten</value></data>
+  <data name="Board_GridBtn"                   xml:space="preserve"><value>⊞ Raster</value></data>
+  <data name="Board_AllCharacters"             xml:space="preserve"><value>Alle Charaktere</value></data>
+  <data name="Board_AutoArrangeTitle"          xml:space="preserve"><value>Alle automatisch anordnen</value></data>
+  <data name="Board_AutoArrangeConfirm"        xml:space="preserve"><value>Dies wird ALLE Entitäten auf diesem Board neu anordnen und das Layout beeinflussen.&#x0a;&#x0a;Fortfahren?</value></data>
+  <data name="Board_EditRelation"              xml:space="preserve"><value>✏ Beziehung bearbeiten</value></data>
+  <data name="Board_DeleteRelation"            xml:space="preserve"><value>🗑 Beziehung löschen</value></data>
+  <data name="Board_FlipArrow"                 xml:space="preserve"><value>↩  Pfeilrichtung umkehren</value></data>
+  <data name="Board_AddIntersection"           xml:space="preserve"><value>🔵  Schnittpunkt hier hinzufügen</value></data>
+  <data name="Board_ConnectFromHere"           xml:space="preserve"><value>🔗  Von hier verbinden</value></data>
+  <data name="Board_RemoveIntersection"        xml:space="preserve"><value>✕  Schnittpunkt entfernen</value></data>
+  <data name="Board_TextBox"                   xml:space="preserve"><value>📝 Textfeld</value></data>
+  <data name="Board_BgImage"                   xml:space="preserve"><value>🖼 Hintergrundbild</value></data>
+  <data name="Board_PinBoard"                  xml:space="preserve"><value>📋 Board anheften…</value></data>
+  <data name="Board_AddFrame"                  xml:space="preserve"><value>🔲 Rahmen hinzufügen</value></data>
+  <data name="Board_RemoveFromBoard"           xml:space="preserve"><value>✕ Vom Board entfernen</value></data>
+  <data name="Board_GridSettingsTitle"         xml:space="preserve"><value>Rastereinstellungen</value></data>
+  <data name="Board_GridDisplay"               xml:space="preserve"><value>Rasteranzeige</value></data>
+  <data name="Board_ShowGridLines"             xml:space="preserve"><value>Rasterlinien anzeigen</value></data>
+  <data name="Board_GridOpacity"               xml:space="preserve"><value>Deckkraft:</value></data>
+  <data name="Board_GridColour"                xml:space="preserve"><value>Rasterfarbe  (Zurücksetzen = Themafarbe verwenden)</value></data>
+  <data name="Board_ResetGridColour"           xml:space="preserve"><value>Rasterfarbe auf Thema-Standard zurücksetzen</value></data>
+  <data name="Board_GridSizeLabel"             xml:space="preserve"><value>Rastergröße (Pixel, 4 – 200)</value></data>
+  <data name="Board_GridSizeError"             xml:space="preserve"><value>Die Rastergröße muss zwischen 4 und 200 liegen.</value></data>
+  <data name="Board_Invalid"                   xml:space="preserve"><value>Ungültig</value></data>
+  <data name="Board_BgImageTitle"              xml:space="preserve"><value>Hintergrundbild</value></data>
+  <data name="Board_ImageFile"                 xml:space="preserve"><value>Bilddatei</value></data>
+  <data name="Board_BrowseBtn"                 xml:space="preserve"><value>Durchsuchen…</value></data>
+  <data name="Board_DisplayMode"               xml:space="preserve"><value>Anzeigemodus</value></data>
+  <data name="Board_ScaleHint"                 xml:space="preserve"><value>Skalierung % (im Modus „Skalieren", 1–500)</value></data>
+  <data name="Board_EditFrameTitle"            xml:space="preserve"><value>Rahmen bearbeiten</value></data>
+  <data name="Board_FrameLabel"                xml:space="preserve"><value>Beschriftung:</value></data>
+  <data name="Board_FrameColorLbl"             xml:space="preserve"><value>Farbe:</value></data>
+  <data name="Board_EditFrame"                 xml:space="preserve"><value>✏ Rahmen bearbeiten</value></data>
+  <data name="Board_RemoveFrame"               xml:space="preserve"><value>🗑 Rahmen entfernen</value></data>
+  <data name="Board_TextBoxStyleTitle"         xml:space="preserve"><value>Textfeld-Stil</value></data>
+  <data name="Board_TbText"                    xml:space="preserve"><value>Text:</value></data>
+  <data name="Board_TbFont"                    xml:space="preserve"><value>Schriftart:</value></data>
+  <data name="Board_TbTextColor"               xml:space="preserve"><value>Textfarbe:</value></data>
+  <data name="Board_TbAlignment"               xml:space="preserve"><value>Ausrichtung:</value></data>
+  <data name="Board_TbBackground"              xml:space="preserve"><value>Hintergrund:</value></data>
+  <data name="Board_TbFrame"                   xml:space="preserve"><value>Rahmen:</value></data>
+  <data name="Board_TbFrameColor"              xml:space="preserve"><value>Rahmenfarbe:</value></data>
+  <data name="Board_TbBold"                    xml:space="preserve"><value>Fett</value></data>
+  <data name="Board_TbItalic"                  xml:space="preserve"><value>Kursiv</value></data>
+  <data name="Board_EditTextBox"               xml:space="preserve"><value>✏  Textfeld bearbeiten</value></data>
+  <data name="Board_DeleteTextBox"             xml:space="preserve"><value>🗑  Textfeld löschen</value></data>
+  <data name="Board_Legend"                    xml:space="preserve"><value>Legende</value></data>
+  <data name="Board_EditLinePresets"           xml:space="preserve"><value>✏  Linienstile bearbeiten…</value></data>
+  <data name="Board_EditLinePresetsTitle"      xml:space="preserve"><value>Linienstile bearbeiten</value></data>
+  <data name="Board_AddPreset"                 xml:space="preserve"><value>+ Stil hinzufügen</value></data>
+  <data name="Board_EditPresetTitle"           xml:space="preserve"><value>Stil bearbeiten</value></data>
+  <data name="Board_PresetName"                xml:space="preserve"><value>Stilname:</value></data>
+  <data name="Board_LineStyle"                 xml:space="preserve"><value>Linienstil:</value></data>
+  <data name="Board_Colour"                    xml:space="preserve"><value>Farbe:</value></data>
+  <data name="Board_Thickness"                 xml:space="preserve"><value>Stärke:</value></data>
+  <data name="Board_ArrowLbl"                  xml:space="preserve"><value>Pfeil:</value></data>
+  <data name="Board_DrawArrow"                 xml:space="preserve"><value>Pfeilspitze am Ziel zeichnen</value></data>
+  <data name="Board_NewRelation"               xml:space="preserve"><value>Neue Beziehung</value></data>
+  <data name="Board_EditRelationTitle"         xml:space="preserve"><value>Beziehung bearbeiten</value></data>
+  <data name="Board_LoadFromPreset"            xml:space="preserve"><value>Aus Legende-Stil laden:</value></data>
+  <data name="Board_Caption"                   xml:space="preserve"><value>Beschriftung (auf der Linie angezeigt):</value></data>
+  <data name="Board_LegendLabel"               xml:space="preserve"><value>Legendenbezeichnung (max. 20 Zeichen):</value></data>
+  <data name="Board_LineColour"                xml:space="preserve"><value>Linienfarbe:</value></data>
+  <data name="Board_ThicknessHint"             xml:space="preserve"><value>Stärke (1–10 Px):</value></data>
+  <data name="Board_AllTypes"                  xml:space="preserve"><value>Alle Typen</value></data>
+  <data name="Board_NoType"                    xml:space="preserve"><value>(kein Typ)</value></data>
+  <data name="Board_AllCategories"             xml:space="preserve"><value>Alle Kategorien</value></data>
+  <data name="Board_NoCategory"               xml:space="preserve"><value>(keine Kategorie)</value></data>
+  <data name="Board_AddToBoard"                xml:space="preserve"><value>+ Zum Board hinzufügen</value></data>
+
 </root>

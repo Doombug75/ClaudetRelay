@@ -254,12 +254,12 @@ public class WorldBoardWindow : Window
         var toolPanel = new StackPanel { Orientation = Orientation.Horizontal };
         topWrap.Children.Add(toolPanel);
 
-        var connectBtn = MakeBtn(_boardConnectMode ? "🔗 Connecting…" : "🔗 Add Relation", _boardConnectMode);
+        var connectBtn = MakeBtn(_boardConnectMode ? Properties.Loc.S("Board_Connecting") : Properties.Loc.S("Board_AddRelation"), _boardConnectMode);
         connectBtn.Click += (_, _) => { _boardConnectMode = !_boardConnectMode; _boardConnSrcId = null; BuildBoardContent(); };
         toolPanel.Children.Add(connectBtn);
 
         // ── "➕ Add" dropdown — replaces individual entity/text/board buttons ─
-        var addDropBtn = MakeBtn("➕ Add ▾", false);
+        var addDropBtn = MakeBtn(Properties.Loc.S("Board_AddDropdown"), false);
         addDropBtn.Margin  = new Thickness(6, 0, 0, 0);
         addDropBtn.ToolTip = "Add entities, text or board pins";
         addDropBtn.Click += (_, _) =>
@@ -273,7 +273,7 @@ public class WorldBoardWindow : Window
         toolPanel.Children.Add(addDropBtn);
         toolPanel.Children.Add(MakeTSep());
 
-        var arrangeBtn = MakeBtn("📐 Auto-arrange", false);
+        var arrangeBtn = MakeBtn(Properties.Loc.S("Board_AutoArrange"), false);
         arrangeBtn.Click += (_, _) =>
         {
             if (_selectedIds.Count > 0)
@@ -281,8 +281,8 @@ public class WorldBoardWindow : Window
             else
             {
                 var r = MessageBox.Show(
-                    "This will re-arrange ALL entities on this board and may disrupt your layout.\n\nContinue?",
-                    "Auto-Arrange All", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                    Properties.Loc.S("Board_AutoArrangeConfirm"),
+                    Properties.Loc.S("Board_AutoArrangeTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (r == MessageBoxResult.Yes) AutoArrangeBoard(null);
             }
         };
@@ -314,7 +314,7 @@ public class WorldBoardWindow : Window
 
         // ── Filters toggle button ──────────────────────────────────────────
         toolPanel.Children.Add(MakeTSep());
-        var filterToggle = MakeBtn(_filtersVisible ? "⚙ Filters ▲" : "⚙ Filters ▼", _filtersVisible);
+        var filterToggle = MakeBtn(_filtersVisible ? Properties.Loc.S("Board_FiltersHide") : Properties.Loc.S("Board_FiltersShow"), _filtersVisible);
         filterToggle.ToolTip = "Show / hide filter controls";
         filterToggle.Click += (_, _) => { _filtersVisible = !_filtersVisible; BuildBoardContent(); };
         toolPanel.Children.Add(filterToggle);
@@ -352,7 +352,7 @@ public class WorldBoardWindow : Window
         if (factionOptions.Count > 0)
         {
             var factionCombo = new ComboBox { Width = 140, FontSize = 11, Padding = new Thickness(6, 4, 6, 4), Margin = new Thickness(8, 0, 0, 0) };
-            factionCombo.Items.Add("All Factions");
+            factionCombo.Items.Add(Properties.Loc.S("World_AllFactions"));
             foreach (var f in factionOptions)
                 factionCombo.Items.Add(f == "<<none>>" ? "(no faction)" : f);
             factionCombo.SelectedIndex = 0;
@@ -369,7 +369,7 @@ public class WorldBoardWindow : Window
         if (arcOptions.Count > 0)
         {
             var arcCombo = new ComboBox { Width = 140, FontSize = 11, Padding = new Thickness(6, 4, 6, 4), Margin = new Thickness(8, 0, 0, 0) };
-            arcCombo.Items.Add("All Arcs");
+            arcCombo.Items.Add(Properties.Loc.S("World_AllArcs"));
             foreach (var a in arcOptions)
                 arcCombo.Items.Add(a == "<<none>>" ? "(no arc)" : a);
             arcCombo.SelectedIndex = 0;
@@ -386,7 +386,7 @@ public class WorldBoardWindow : Window
         if (alignmentOptions.Count > 0)
         {
             var alignCombo = new ComboBox { Width = 140, FontSize = 11, Padding = new Thickness(6, 4, 6, 4), Margin = new Thickness(8, 0, 0, 0) };
-            alignCombo.Items.Add("All Alignments");
+            alignCombo.Items.Add(Properties.Loc.S("World_AllAlignments"));
             foreach (var al in alignmentOptions)
                 alignCombo.Items.Add(al == "<<none>>" ? "(no alignment)" : al);
             alignCombo.SelectedIndex = 0;
@@ -403,7 +403,7 @@ public class WorldBoardWindow : Window
         if (boardHasLore && loreCharacters.Count > 0)
         {
             var charCombo = new ComboBox { Width = 150, FontSize = 11, Padding = new Thickness(6, 4, 6, 4), Margin = new Thickness(8, 2, 0, 2) };
-            charCombo.Items.Add("All Characters");
+            charCombo.Items.Add(Properties.Loc.S("Board_AllCharacters"));
             foreach (var ch in loreCharacters) charCombo.Items.Add(ch.Name);
             int selCharIdx = _filterCharacter == null ? 0 :
                 loreCharacters.FindIndex(c => c.Id == _filterCharacter) + 1;
@@ -422,7 +422,7 @@ public class WorldBoardWindow : Window
         {
             var ckBox = new CheckBox
             {
-                Content = "Common knowledge", IsChecked = _filterCommonKnowledge,
+                Content = Properties.Loc.S("World_CommonKnowledge"), IsChecked = _filterCommonKnowledge,
                 FontSize = 11, Margin = new Thickness(10, 2, 0, 2),
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -433,7 +433,7 @@ public class WorldBoardWindow : Window
 
             var hkBox = new CheckBox
             {
-                Content = "Historical knowledge", IsChecked = _filterHistoricalKnowledge,
+                Content = Properties.Loc.S("World_HistoricalKnowledge"), IsChecked = _filterHistoricalKnowledge,
                 FontSize = 11, Margin = new Thickness(10, 2, 0, 2),
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -443,7 +443,7 @@ public class WorldBoardWindow : Window
             filterPanel.Children.Add(hkBox);
         }
 
-        var resetBtn = MakeBtn("↺ Reset", false);
+        var resetBtn = MakeBtn(Properties.Loc.S("World_Reset"), false);
         resetBtn.FontSize = 10; resetBtn.Padding = new Thickness(6, 3, 6, 3);
         resetBtn.Margin = new Thickness(10, 2, 0, 2);
         resetBtn.Click += (_, _) =>
@@ -470,8 +470,8 @@ public class WorldBoardWindow : Window
         toolWrap.Children.Add(hintRow);
 
         var hint = _boardConnectMode
-            ? (_boardConnSrcId == null ? "← Click a card to start" : "← Now click the target card")
-            : "Drag cards · Double-click to view · 🔗 to connect";
+            ? (_boardConnSrcId == null ? Properties.Loc.S("Board_ConnectHint1") : Properties.Loc.S("Board_ConnectHint2"))
+            : Properties.Loc.S("Board_DragHint");
         var hintBlock = new TextBlock
         {
             Text = hint, FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
@@ -487,7 +487,7 @@ public class WorldBoardWindow : Window
 
         var snapCheck = new CheckBox
         {
-            Content = "Snap to grid", IsChecked = _boardData.SnapToGrid,
+            Content = Properties.Loc.S("Board_SnapToGrid"), IsChecked = _boardData.SnapToGrid,
             VerticalAlignment = VerticalAlignment.Center, FontSize = 11
         };
         snapCheck.SetResourceReference(CheckBox.ForegroundProperty, "ContentTextBrush");
@@ -495,7 +495,7 @@ public class WorldBoardWindow : Window
         snapCheck.Unchecked += (_, _) => { _boardData.SnapToGrid = false; EntityBoardService.Save(_projFolder, _board.Id, _boardData); BuildBoardContent(); };
         hintRow.Children.Add(snapCheck);
 
-        var gridBtn = MakeBtn("⊞ Grid", false);
+        var gridBtn = MakeBtn(Properties.Loc.S("Board_GridBtn"), false);
         gridBtn.FontSize = 10; gridBtn.Padding = new Thickness(8, 2, 8, 2);
         gridBtn.Margin   = new Thickness(8, 0, 0, 0);
         gridBtn.ToolTip  = "Grid settings";
@@ -712,12 +712,12 @@ public class WorldBoardWindow : Window
 
             var capturedRel = rel;
             var ctx = new ContextMenu();
-            var editRelItem = new MenuItem { Header = "✏ Edit relation" };
+            var editRelItem = new MenuItem { Header = Properties.Loc.S("Board_EditRelation") };
             editRelItem.Click += (_, _) =>
             {
                 var result = ShowRelationDialog(capturedRel.Caption, capturedRel.LegendLabel,
                     capturedRel.LineStyle, capturedRel.LineColor, capturedRel.Thickness,
-                    capturedRel.HasArrow, "Edit Relation");
+                    capturedRel.HasArrow, Properties.Loc.S("Board_EditRelationTitle"));
                 if (result is not null)
                 {
                     capturedRel.Caption     = result.Caption;
@@ -731,7 +731,7 @@ public class WorldBoardWindow : Window
                     BuildBoardContent();
                 }
             };
-            var delRelItem = new MenuItem { Header = "🗑 Delete relation" };
+            var delRelItem = new MenuItem { Header = Properties.Loc.S("Board_DeleteRelation") };
             delRelItem.Click += (_, _) =>
             {
                 _boardData.Relations.Remove(capturedRel);
@@ -741,7 +741,7 @@ public class WorldBoardWindow : Window
             ctx.Items.Add(editRelItem);
             if (capturedRel.HasArrow)
             {
-                var flipRelItem = new MenuItem { Header = "↩  Flip arrow direction" };
+                var flipRelItem = new MenuItem { Header = Properties.Loc.S("Board_FlipArrow") };
                 flipRelItem.Click += (_, _) =>
                 {
                     (capturedRel.FromId, capturedRel.ToId) = (capturedRel.ToId, capturedRel.FromId);
@@ -1260,7 +1260,7 @@ public class WorldBoardWindow : Window
         menu.Items.Add(new Separator());
 
         // ── Text box ────────────────────────────────────────────────────
-        var textItem = new MenuItem { Header = "📝 Text box" };
+        var textItem = new MenuItem { Header = Properties.Loc.S("Board_TextBox") };
         textItem.Click += (_, _) =>
         {
             var tb = new BoardTextBox { X = Snap(placeX), Y = Snap(placeY) };
@@ -1274,7 +1274,7 @@ public class WorldBoardWindow : Window
         menu.Items.Add(textItem);
 
         // ── Background image ─────────────────────────────────────────────
-        var bgImgItem = new MenuItem { Header = "🖼 Background image" };
+        var bgImgItem = new MenuItem { Header = Properties.Loc.S("Board_BgImage") };
         bgImgItem.Click += (_, _) =>
         {
             ShowBackgroundImageDialog();
@@ -1288,7 +1288,7 @@ public class WorldBoardWindow : Window
             .ToList();
         if (eligible2.Count > 0)
         {
-            var boardSub = new MenuItem { Header = "📋 Pin board…" };
+            var boardSub = new MenuItem { Header = Properties.Loc.S("Board_PinBoard") };
             boardSub.Items.Add(new MenuItem { Header = "…", IsEnabled = false }); // force arrow
             boardSub.SubmenuOpened += (_, _) =>
             {
@@ -1311,7 +1311,7 @@ public class WorldBoardWindow : Window
         }
 
         // ── Frame ─────────────────────────────────────────────────────────────
-        var frameItem = new MenuItem { Header = "🔲 Add frame" };
+        var frameItem = new MenuItem { Header = Properties.Loc.S("Board_AddFrame") };
         frameItem.Click += (_, _) =>
         {
             var bf = new BoardFrame { X = Snap(placeX), Y = Snap(placeY) };
@@ -1334,7 +1334,7 @@ public class WorldBoardWindow : Window
     {
         var dlg = new Window
         {
-            Title                 = "Grid Settings",
+            Title                 = Properties.Loc.S("Board_GridSettingsTitle"),
             SizeToContent         = SizeToContent.WidthAndHeight,
             MinWidth              = 320,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1356,7 +1356,7 @@ public class WorldBoardWindow : Window
         }
 
         // ── Visible grid + opacity slider ─────────────────────────────────────
-        root.Children.Add(Lbl("Grid display"));
+        root.Children.Add(Lbl(Properties.Loc.S("Board_GridDisplay")));
 
         // Parse existing alpha and rgb from stored GridColor
         byte   curAlpha = 38;
@@ -1376,14 +1376,14 @@ public class WorldBoardWindow : Window
             { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
         var visCheck = new CheckBox
         {
-            Content = "Show grid lines", IsChecked = _boardData.GridVisible,
+            Content = Properties.Loc.S("Board_ShowGridLines"), IsChecked = _boardData.GridVisible,
             VerticalAlignment = VerticalAlignment.Center
         };
         visCheck.SetResourceReference(CheckBox.ForegroundProperty, "ContentTextBrush");
 
         var alphaLbl = new TextBlock
         {
-            Text = "Opacity:", Margin = new Thickness(16, 0, 6, 0),
+            Text = Properties.Loc.S("Board_GridOpacity"), Margin = new Thickness(16, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
         alphaLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
@@ -1411,7 +1411,7 @@ public class WorldBoardWindow : Window
         root.Children.Add(displayRow);
 
         // ── Grid line colour ──────────────────────────────────────────────────
-        root.Children.Add(Lbl("Grid colour  (Reset = use theme colour)"));
+        root.Children.Add(Lbl(Properties.Loc.S("Board_GridColour")));
 
         string? selGridRgb = curRgb;  // "#RRGGBB" without alpha; null = theme default
         var swatchWrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 4) };
@@ -1442,7 +1442,7 @@ public class WorldBoardWindow : Window
         // Reset button
         var resetColorBtn = new Button
         {
-            Content = "Reset grid colour to theme default",
+            Content = Properties.Loc.S("Board_ResetGridColour"),
             HorizontalAlignment = HorizontalAlignment.Left,
             Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(0, 0, 0, 4)
         };
@@ -1456,7 +1456,7 @@ public class WorldBoardWindow : Window
         root.Children.Add(resetColorBtn);
 
         // ── Grid size ─────────────────────────────────────────────────────────
-        root.Children.Add(Lbl("Grid size (pixels, 4 – 200)"));
+        root.Children.Add(Lbl(Properties.Loc.S("Board_GridSizeLabel")));
         var sizeBox = new TextBox
         {
             Text = ((int)_boardData.GridSize).ToString(), Width = 80, FontSize = 13,
@@ -1470,9 +1470,9 @@ public class WorldBoardWindow : Window
         // ── Buttons ───────────────────────────────────────────────────────────
         var btnRow = new StackPanel { Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right };
-        var okBtn  = new Button { Content = "OK",     Padding = new Thickness(14, 4, 14, 4),
+        var okBtn  = new Button { Content = Properties.Loc.S("Btn_OK"),     Padding = new Thickness(14, 4, 14, 4),
             Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
-        var canBtn = new Button { Content = "Cancel", Padding = new Thickness(14, 4, 14, 4), IsCancel = true };
+        var canBtn = new Button { Content = Properties.Loc.S("Btn_Cancel"), Padding = new Thickness(14, 4, 14, 4), IsCancel = true };
         foreach (var b in new[] { okBtn, canBtn })
         {
             b.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
@@ -1485,7 +1485,7 @@ public class WorldBoardWindow : Window
         {
             if (!double.TryParse(sizeBox.Text, out var sz) || sz < 4 || sz > 200)
             {
-                MessageBox.Show("Grid size must be between 4 and 200.", "Invalid", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Properties.Loc.S("Board_GridSizeError"), Properties.Loc.S("Board_Invalid"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             _boardData.GridVisible = visCheck.IsChecked == true;
@@ -1521,7 +1521,7 @@ public class WorldBoardWindow : Window
     {
         var dlg = new Window
         {
-            Title                 = "Background Image",
+            Title                 = Properties.Loc.S("Board_BgImageTitle"),
             SizeToContent         = SizeToContent.WidthAndHeight,
             MinWidth              = 360,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1542,7 +1542,7 @@ public class WorldBoardWindow : Window
         }
 
         // Current path
-        root.Children.Add(Lbl("Image file"));
+        root.Children.Add(Lbl(Properties.Loc.S("Board_ImageFile")));
         var pathRow  = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,0,8) };
         var pathBox  = new TextBox
         {
@@ -1553,7 +1553,7 @@ public class WorldBoardWindow : Window
         pathBox.SetResourceReference(TextBox.BackgroundProperty,  "ControlBgBrush");
         pathBox.SetResourceReference(TextBox.ForegroundProperty,  "SidebarDimBrush");
         pathBox.SetResourceReference(TextBox.BorderBrushProperty, "ControlBorderBrush");
-        var browseBtn = new Button { Content = "Browse…", Margin = new Thickness(6, 0, 0, 0),
+        var browseBtn = new Button { Content = Properties.Loc.S("Board_BrowseBtn"), Margin = new Thickness(6, 0, 0, 0),
             Padding = new Thickness(8, 3, 8, 3) };
         browseBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
         browseBtn.SetResourceReference(Button.ForegroundProperty, "ContentTextBrush");
@@ -1575,7 +1575,7 @@ public class WorldBoardWindow : Window
         root.Children.Add(pathRow);
 
         // Mode
-        root.Children.Add(Lbl("Display mode"));
+        root.Children.Add(Lbl(Properties.Loc.S("Board_DisplayMode")));
         var modeCombo = new ComboBox { Padding = new Thickness(6, 4, 6, 4), Margin = new Thickness(0,0,0,8) };
         modeCombo.SetResourceReference(ComboBox.BackgroundProperty,  "ControlBgBrush");
         modeCombo.SetResourceReference(ComboBox.BorderBrushProperty, "ControlBorderBrush");
@@ -1589,7 +1589,7 @@ public class WorldBoardWindow : Window
         root.Children.Add(modeCombo);
 
         // Scale (only used for "Scale" mode — still always shown)
-        root.Children.Add(Lbl("Scale % (used when mode = Scale, 1 – 500)"));
+        root.Children.Add(Lbl(Properties.Loc.S("Board_ScaleHint")));
         var scaleRow  = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,0,12) };
         var scaleBox  = new TextBox
         {
@@ -1608,9 +1608,9 @@ public class WorldBoardWindow : Window
         // OK / Cancel
         var btnRow = new StackPanel { Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right };
-        var okBtn  = new Button { Content = "OK",     Padding = new Thickness(14, 4, 14, 4),
+        var okBtn  = new Button { Content = Properties.Loc.S("Btn_OK"),     Padding = new Thickness(14, 4, 14, 4),
             Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
-        var canBtn = new Button { Content = "Cancel", Padding = new Thickness(14, 4, 14, 4), IsCancel = true };
+        var canBtn = new Button { Content = Properties.Loc.S("Btn_Cancel"), Padding = new Thickness(14, 4, 14, 4), IsCancel = true };
         foreach (var b in new[] { okBtn, canBtn })
         {
             b.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
@@ -1623,7 +1623,7 @@ public class WorldBoardWindow : Window
         {
             if (!double.TryParse(scaleBox.Text, out var sc) || sc < 1 || sc > 500)
             {
-                MessageBox.Show("Scale must be between 1 and 500.", "Invalid", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Scale must be between 1 and 500.", Properties.Loc.S("Board_Invalid"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             var selMode = (modeCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Fill";
@@ -1964,7 +1964,7 @@ public class WorldBoardWindow : Window
 
         // ── Context menu on header ────────────────────────────────────────────
         var frameCtx   = new ContextMenu();
-        var editFrItem = new MenuItem { Header = "✏ Edit frame" };
+        var editFrItem = new MenuItem { Header = Properties.Loc.S("Board_EditFrame") };
         editFrItem.Click += (_, _) =>
         {
             if (ShowFrameEditDialog(bf))
@@ -1973,7 +1973,7 @@ public class WorldBoardWindow : Window
                 BuildBoardContent();
             }
         };
-        var delFrItem  = new MenuItem { Header = "🗑 Remove frame" };
+        var delFrItem  = new MenuItem { Header = Properties.Loc.S("Board_RemoveFrame") };
         delFrItem.Click += (_, _) =>
         {
             _boardData.Frames.Remove(bf);
@@ -1990,7 +1990,7 @@ public class WorldBoardWindow : Window
     {
         var dlg = new Window
         {
-            Title                 = "Edit Frame",
+            Title                 = Properties.Loc.S("Board_EditFrameTitle"),
             SizeToContent         = SizeToContent.WidthAndHeight,
             MinWidth              = 280,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -2003,14 +2003,14 @@ public class WorldBoardWindow : Window
 
         var root = new StackPanel { Margin = new Thickness(16) };
 
-        var lblLabel = new TextBlock { Text = "Label:", Margin = new Thickness(0, 0, 0, 4) };
+        var lblLabel = new TextBlock { Text = Properties.Loc.S("Board_FrameLabel"), Margin = new Thickness(0, 0, 0, 4) };
         lblLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
         var labelBox = new TextBox { Text = bf.Label, Padding = new Thickness(4), Margin = new Thickness(0, 0, 0, 12) };
         labelBox.SetResourceReference(TextBox.BackgroundProperty,   "ControlBgBrush");
         labelBox.SetResourceReference(TextBox.ForegroundProperty,   "ContentTextBrush");
         labelBox.SetResourceReference(TextBox.BorderBrushProperty,  "ControlBorderBrush");
 
-        var lblColor = new TextBlock { Text = "Color:", Margin = new Thickness(0, 0, 0, 4) };
+        var lblColor = new TextBlock { Text = Properties.Loc.S("Board_FrameColorLbl"), Margin = new Thickness(0, 0, 0, 4) };
         lblColor.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
 
         var colorPanel  = new WrapPanel { Margin = new Thickness(0, 0, 0, 16) };
@@ -2041,8 +2041,8 @@ public class WorldBoardWindow : Window
         }
 
         var btnRow    = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        var okBtn     = new Button { Content = "OK",     Padding = new Thickness(14, 4, 14, 4), Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
-        var cancelBtn = new Button { Content = "Cancel", Padding = new Thickness(14, 4, 14, 4), IsCancel = true };
+        var okBtn     = new Button { Content = Properties.Loc.S("Btn_OK"),     Padding = new Thickness(14, 4, 14, 4), Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+        var cancelBtn = new Button { Content = Properties.Loc.S("Btn_Cancel"), Padding = new Thickness(14, 4, 14, 4), IsCancel = true };
         foreach (var btn in new[] { okBtn, cancelBtn })
         {
             btn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
@@ -2298,7 +2298,7 @@ public class WorldBoardWindow : Window
 
         // Remove-from-board context menu item
         var ctx = new ContextMenu();
-        var removeItem = new MenuItem { Header = "✕ Remove from board" };
+        var removeItem = new MenuItem { Header = Properties.Loc.S("Board_RemoveFromBoard") };
         removeItem.Click += (_, _) =>
         {
             _boardData.Positions.Remove(entity.Id);
@@ -2308,7 +2308,7 @@ public class WorldBoardWindow : Window
             BuildBoardContent();
         };
         ctx.Items.Add(removeItem);
-        var editItem = new MenuItem { Header = "✏ Edit" };
+        var editItem = new MenuItem { Header = Properties.Loc.S("World_EditItem") };
         editItem.Click += (_, _) =>
         {
             var copy    = CloneEntity(entity);
@@ -2424,42 +2424,42 @@ public class WorldBoardWindow : Window
 
         if (entityTypes.Count > 1)
         {
-            entityTypeCb = MakePickerDropdown("All types");
+            entityTypeCb = MakePickerDropdown(Properties.Loc.S("Board_AllTypes"));
             foreach (var t in entityTypes) entityTypeCb.Items.Add(t);
             filterStack.Children.Add(entityTypeCb);
         }
         if (factionNamesForFilter.Count > 0 || hasMissingFaction)
         {
-            factionCb = MakePickerDropdown("All factions");
-            if (hasMissingFaction) factionCb.Items.Add("(no faction)");
+            factionCb = MakePickerDropdown(Properties.Loc.S("World_AllFactions"));
+            if (hasMissingFaction) factionCb.Items.Add(Properties.Loc.S("World_NoFaction"));
             foreach (var f in factionNamesForFilter) factionCb.Items.Add(f);
             filterStack.Children.Add(factionCb);
         }
         if (arcVals.Count > 0)
         {
-            arcCb = MakePickerDropdown("All arcs");
-            if (HasMissingField("Arc")) arcCb.Items.Add("(no arc)");
+            arcCb = MakePickerDropdown(Properties.Loc.S("World_AllArcs"));
+            if (HasMissingField("Arc")) arcCb.Items.Add(Properties.Loc.S("World_NoArc"));
             foreach (var a in arcVals) arcCb.Items.Add(a);
             filterStack.Children.Add(arcCb);
         }
         if (alignVals.Count > 0)
         {
-            alignmentCb = MakePickerDropdown("All alignments");
-            if (HasMissingField("Alignment")) alignmentCb.Items.Add("(no alignment)");
+            alignmentCb = MakePickerDropdown(Properties.Loc.S("World_AllAlignments"));
+            if (HasMissingField("Alignment")) alignmentCb.Items.Add(Properties.Loc.S("World_NoAlignment"));
             foreach (var al in alignVals) alignmentCb.Items.Add(al);
             filterStack.Children.Add(alignmentCb);
         }
         if (typeVals.Count > 0)
         {
-            typeCb = MakePickerDropdown("All types");
-            if (HasMissingField("Type")) typeCb.Items.Add("(no type)");
+            typeCb = MakePickerDropdown(Properties.Loc.S("Board_AllTypes"));
+            if (HasMissingField("Type")) typeCb.Items.Add(Properties.Loc.S("Board_NoType"));
             foreach (var tv in typeVals) typeCb.Items.Add(tv);
             filterStack.Children.Add(typeCb);
         }
         if (categoryVals.Count > 0)
         {
-            categoryCb = MakePickerDropdown("All categories");
-            if (HasMissingField("Category")) categoryCb.Items.Add("(no category)");
+            categoryCb = MakePickerDropdown(Properties.Loc.S("Board_AllCategories"));
+            if (HasMissingField("Category")) categoryCb.Items.Add(Properties.Loc.S("Board_NoCategory"));
             foreach (var cv in categoryVals) categoryCb.Items.Add(cv);
             filterStack.Children.Add(categoryCb);
         }
@@ -2571,11 +2571,11 @@ public class WorldBoardWindow : Window
         void UpdateCount() { var n = checks.Count(x => x.cb.IsChecked == true); countLabel.Text = n > 0 ? $"{n} selected" : ""; }
         foreach (var (_, cb) in checks) { cb.Checked += (_, _) => UpdateCount(); cb.Unchecked += (_, _) => UpdateCount(); }
 
-        var cancelBtn = MakeBtn("Cancel", false); cancelBtn.Padding = new Thickness(12, 5, 12, 5);
+        var cancelBtn = MakeBtn(Properties.Loc.S("Btn_Cancel"), false); cancelBtn.Padding = new Thickness(12, 5, 12, 5);
         cancelBtn.Click += (_, _) => win.DialogResult = false;
         btnRow.Children.Add(cancelBtn);
 
-        var addBtn = MakeBtn("+ Add to Board", true);
+        var addBtn = MakeBtn(Properties.Loc.S("Board_AddToBoard"), true);
         addBtn.Padding = new Thickness(12, 5, 12, 5); addBtn.Margin = new Thickness(8, 0, 0, 0);
         addBtn.Click += (_, _) => win.DialogResult = true;
         btnRow.Children.Add(addBtn);
@@ -2726,14 +2726,14 @@ public class WorldBoardWindow : Window
         border.MouseRightButtonDown += (_, e) =>
         {
             var mctx = new ContextMenu();
-            var editTb = new MenuItem { Header = "✏  Edit text box" };
+            var editTb = new MenuItem { Header = Properties.Loc.S("Board_EditTextBox") };
             editTb.Click += (_, _) =>
             {
                 if (ShowTextBoxStyleDialog(capturedTb))
                     EntityBoardService.Save(_projFolder, _board.Id, _boardData);
                 BuildBoardContent();
             };
-            var delTb = new MenuItem { Header = "🗑  Delete text box" };
+            var delTb = new MenuItem { Header = Properties.Loc.S("Board_DeleteTextBox") };
             delTb.Click += (_, _) =>
             {
                 _boardData.TextBoxes.Remove(capturedTb);
@@ -2763,7 +2763,7 @@ public class WorldBoardWindow : Window
     {
         var dlg = new Window
         {
-            Title = "Text Box Style", Width = 520, Height = 600,
+            Title = Properties.Loc.S("Board_TextBoxStyleTitle"), Width = 520, Height = 600,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this,
             ResizeMode = ResizeMode.CanResize, WindowStyle = WindowStyle.ToolWindow
         };
@@ -2777,7 +2777,7 @@ public class WorldBoardWindow : Window
         dlg.Content = scroll;
 
         // ── Text content ──
-        sp.Children.Add(MakeDlgLabel("Text:"));
+        sp.Children.Add(MakeDlgLabel(Properties.Loc.S("Board_TbText")));
         var textEdit = new TextBox
         {
             Text = tb.Text, AcceptsReturn = true, MinLines = 3, MaxLines = 8,
@@ -2790,7 +2790,7 @@ public class WorldBoardWindow : Window
         sp.Children.Add(textEdit);
 
         // ── Font family ──
-        sp.Children.Add(MakeDlgLabel("Font:"));
+        sp.Children.Add(MakeDlgLabel(Properties.Loc.S("Board_TbFont")));
         var fontRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,0,10) };
         var fontCombo = new ComboBox { Width = 180, ItemsSource = TbFonts, SelectedItem = tb.FontFamily };
         fontCombo.SetResourceReference(ComboBox.BackgroundProperty, "ControlBgBrush");
@@ -2803,8 +2803,8 @@ public class WorldBoardWindow : Window
         sizeBox.SetResourceReference(TextBox.BackgroundProperty, "ControlBgBrush");
         sizeBox.SetResourceReference(TextBox.ForegroundProperty, "ContentTextBrush");
         sizeBox.SetResourceReference(TextBox.BorderBrushProperty, "ControlBorderBrush");
-        var boldChk   = new CheckBox { Content = "Bold",   IsChecked = tb.Bold,   Margin = new Thickness(8,0,0,0), VerticalAlignment = VerticalAlignment.Center };
-        var italicChk = new CheckBox { Content = "Italic", IsChecked = tb.Italic, Margin = new Thickness(8,0,0,0), VerticalAlignment = VerticalAlignment.Center };
+        var boldChk   = new CheckBox { Content = Properties.Loc.S("Board_TbBold"),   IsChecked = tb.Bold,   Margin = new Thickness(8,0,0,0), VerticalAlignment = VerticalAlignment.Center };
+        var italicChk = new CheckBox { Content = Properties.Loc.S("Board_TbItalic"), IsChecked = tb.Italic, Margin = new Thickness(8,0,0,0), VerticalAlignment = VerticalAlignment.Center };
         boldChk.SetResourceReference(CheckBox.ForegroundProperty, "ContentTextBrush");
         italicChk.SetResourceReference(CheckBox.ForegroundProperty, "ContentTextBrush");
         fontRow.Children.Add(fontCombo); fontRow.Children.Add(sizeBox);
@@ -2812,13 +2812,13 @@ public class WorldBoardWindow : Window
         sp.Children.Add(fontRow);
 
         // ── Text color ──
-        sp.Children.Add(MakeDlgLabel("Text color:"));
+        sp.Children.Add(MakeDlgLabel(Properties.Loc.S("Board_TbTextColor")));
         string textColor = tb.TextColor;
         var (tcRow, _) = MakeSwatchRow(TbSwatches, textColor, c => textColor = c);
         sp.Children.Add(tcRow);
 
         // ── Alignment ──
-        sp.Children.Add(MakeDlgLabel("Alignment:"));
+        sp.Children.Add(MakeDlgLabel(Properties.Loc.S("Board_TbAlignment")));
         var alignRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,0,10) };
         string hAlign = tb.HAlign, vAlign = tb.VAlign;
         foreach (var ha in new[] { "Left","Center","Right","Justify" })
@@ -2855,7 +2855,7 @@ public class WorldBoardWindow : Window
         sp.Children.Add(alignRow);
 
         // ── Background color ──
-        sp.Children.Add(MakeDlgLabel("Background:"));
+        sp.Children.Add(MakeDlgLabel(Properties.Loc.S("Board_TbBackground")));
         string bgColor = tb.BgColor;
         var (bgRow, _) = MakeSwatchRow(
             ["#00000000","#FFFFFFFF","#FFFFFFE0","#FFE0F0FF","#FFE8FFE8","#FFFFF0E0","#FF2B2B2B","#FF1E1E2E"],
@@ -2863,7 +2863,7 @@ public class WorldBoardWindow : Window
         sp.Children.Add(bgRow);
 
         // ── Frame/border ──
-        sp.Children.Add(MakeDlgLabel("Frame:"));
+        sp.Children.Add(MakeDlgLabel(Properties.Loc.S("Board_TbFrame")));
         var frameRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,0,0,10) };
         string frameStyle = tb.FrameStyle;
         var styleCombo = new ComboBox { Width = 90, ItemsSource = new[]{"None","Solid","Dashed","Dotted"}, SelectedItem = tb.FrameStyle };
@@ -2883,15 +2883,15 @@ public class WorldBoardWindow : Window
         frameRow.Children.Add(styleCombo); frameRow.Children.Add(thickLbl); frameRow.Children.Add(thickBox);
         sp.Children.Add(frameRow);
 
-        sp.Children.Add(MakeDlgLabel("Frame color:"));
+        sp.Children.Add(MakeDlgLabel(Properties.Loc.S("Board_TbFrameColor")));
         string frameColor = tb.FrameColor;
         var (fcRow, _) = MakeSwatchRow(TbSwatches, frameColor, c => frameColor = c);
         sp.Children.Add(fcRow);
 
         // ── OK / Cancel ──
         var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,12,0,0) };
-        var ok = new Button { Content = "OK", Width = 80, IsDefault = true, Padding = new Thickness(0,6,0,6) };
-        var cancel = new Button { Content = "Cancel", Width = 80, IsCancel = true, Padding = new Thickness(0,6,0,6), Margin = new Thickness(8,0,0,0) };
+        var ok = new Button { Content = Properties.Loc.S("Btn_OK"), Width = 80, IsDefault = true, Padding = new Thickness(0,6,0,6) };
+        var cancel = new Button { Content = Properties.Loc.S("Btn_Cancel"), Width = 80, IsCancel = true, Padding = new Thickness(0,6,0,6), Margin = new Thickness(8,0,0,0) };
         ok.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
         ok.SetResourceReference(Button.ForegroundProperty, "ContentTextBrush");
         cancel.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
@@ -2987,7 +2987,7 @@ public class WorldBoardWindow : Window
         var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 0) };
         content.Children.Add(headerRow);
 
-        var title = new TextBlock { Text = "Legend", FontSize = 11, FontWeight = FontWeights.SemiBold,
+        var title = new TextBlock { Text = Properties.Loc.S("Board_Legend"), FontSize = 11, FontWeight = FontWeights.SemiBold,
                                     VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand,
                                     ToolTip = "Right-click to edit line presets" };
         title.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
@@ -3001,7 +3001,7 @@ public class WorldBoardWindow : Window
 
         // ── Context menu on the legend panel ───────────────────────────────
         var legendCtx = new ContextMenu();
-        var editPresetsItem = new MenuItem { Header = "✏  Edit Line Presets…" };
+        var editPresetsItem = new MenuItem { Header = Properties.Loc.S("Board_EditLinePresets") };
         editPresetsItem.Click += (_, _) => ShowLegendEditorDialog();
         legendCtx.Items.Add(editPresetsItem);
         panel.ContextMenu = legendCtx;
@@ -3070,7 +3070,7 @@ public class WorldBoardWindow : Window
     {
         var win = new Window
         {
-            Title = "Edit Line Presets", Width = 520, Height = 480,
+            Title = Properties.Loc.S("Board_EditLinePresetsTitle"), Width = 520, Height = 480,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner = this, ShowInTaskbar = false, ResizeMode = ResizeMode.CanResize
         };
@@ -3155,7 +3155,7 @@ public class WorldBoardWindow : Window
         Grid.SetRow(botRow, 1);
         root.Children.Add(botRow);
 
-        var addBtn = MakeBtn("+ Add Preset", true); addBtn.Padding = new Thickness(12, 6, 12, 6);
+        var addBtn = MakeBtn(Properties.Loc.S("Board_AddPreset"), true); addBtn.Padding = new Thickness(12, 6, 12, 6);
         addBtn.Click += (_, _) =>
         {
             var newP = new BoardLinePreset { Name = "New Line" };
@@ -3171,7 +3171,7 @@ public class WorldBoardWindow : Window
         };
         botRow.Children.Add(addBtn);
 
-        var closeBtn = MakeBtn("Close", false); closeBtn.Padding = new Thickness(12, 6, 12, 6);
+        var closeBtn = MakeBtn(Properties.Loc.S("Btn_Close"), false); closeBtn.Padding = new Thickness(12, 6, 12, 6);
         closeBtn.Margin = new Thickness(8, 0, 0, 0);
         closeBtn.Click += (_, _) => win.Close();
         botRow.Children.Add(closeBtn);
@@ -3185,7 +3185,7 @@ public class WorldBoardWindow : Window
     {
         var win = new Window
         {
-            Title = "Edit Preset", Width = 440, Height = 520, ResizeMode = ResizeMode.NoResize,
+            Title = Properties.Loc.S("Board_EditPresetTitle"), Width = 440, Height = 520, ResizeMode = ResizeMode.NoResize,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner = this, ShowInTaskbar = false
         };
@@ -3199,14 +3199,14 @@ public class WorldBoardWindow : Window
 
         void Lbl(string t) { var l = new TextBlock { Text = t, FontSize = 11, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 4) }; l.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush"); root.Children.Add(l); }
 
-        Lbl("Preset name:");
+        Lbl(Properties.Loc.S("Board_PresetName"));
         var nameBox = new TextBox { Text = preset.Name, FontSize = 13, Padding = new Thickness(8, 5, 8, 5), BorderThickness = new Thickness(1) };
         nameBox.SetResourceReference(TextBox.BackgroundProperty,  "ControlBgBrush");
         nameBox.SetResourceReference(TextBox.BorderBrushProperty, "ControlBorderBrush");
         nameBox.SetResourceReference(TextBox.ForegroundProperty,  "ContentTextBrush");
         root.Children.Add(nameBox);
 
-        Lbl("Line style:");
+        Lbl(Properties.Loc.S("Board_LineStyle"));
         var styleItems = new (string D, BoardLineStyle V)[]
         {
             ("━━━━  Solid", BoardLineStyle.Solid), ("· · ·  Dotted", BoardLineStyle.Dotted),
@@ -3219,7 +3219,7 @@ public class WorldBoardWindow : Window
         if (styleCombo.SelectedIndex < 0) styleCombo.SelectedIndex = 0;
         root.Children.Add(styleCombo);
 
-        Lbl("Colour:");
+        Lbl(Properties.Loc.S("Board_Colour"));
         string selColor = preset.Color.StartsWith('#') ? preset.Color : "#2196F3";
         var swatches = new List<Border>();
         var wrap = new WrapPanel { Orientation = Orientation.Horizontal };
@@ -3238,7 +3238,7 @@ public class WorldBoardWindow : Window
             swatches.Add(sw); wrap.Children.Add(sw);
         }
 
-        Lbl("Thickness:");
+        Lbl(Properties.Loc.S("Board_Thickness"));
         var thkRow = new StackPanel { Orientation = Orientation.Horizontal };
         root.Children.Add(thkRow);
         var thkSlider = new Slider { Minimum = 1, Maximum = 10, Value = preset.Thickness, Width = 180, IsSnapToTickEnabled = true, TickFrequency = 0.5, VerticalAlignment = VerticalAlignment.Center };
@@ -3247,15 +3247,15 @@ public class WorldBoardWindow : Window
         thkSlider.ValueChanged += (_, e) => thkLbl.Text = $"{e.NewValue:F1} px";
         thkRow.Children.Add(thkSlider); thkRow.Children.Add(thkLbl);
 
-        Lbl("Arrow:");
-        var arrowCk = new CheckBox { Content = "Draw arrowhead at target end", IsChecked = preset.HasArrow };
+        Lbl(Properties.Loc.S("Board_ArrowLbl"));
+        var arrowCk = new CheckBox { Content = Properties.Loc.S("Board_DrawArrow"), IsChecked = preset.HasArrow };
         arrowCk.SetResourceReference(CheckBox.ForegroundProperty, "ContentTextBrush");
         root.Children.Add(arrowCk);
 
         var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         root.Children.Add(btnRow);
-        var cancelBtn = MakeBtn("Cancel", false); cancelBtn.Padding = new Thickness(12, 6, 12, 6); cancelBtn.Click += (_, _) => win.DialogResult = false;
-        var okBtn     = MakeBtn("OK", true);      okBtn.Padding = new Thickness(12, 6, 12, 6); okBtn.Margin = new Thickness(8, 0, 0, 0); okBtn.Click += (_, _) => win.DialogResult = true;
+        var cancelBtn = MakeBtn(Properties.Loc.S("Btn_Cancel"), false); cancelBtn.Padding = new Thickness(12, 6, 12, 6); cancelBtn.Click += (_, _) => win.DialogResult = false;
+        var okBtn     = MakeBtn(Properties.Loc.S("Btn_OK"), true);      okBtn.Padding = new Thickness(12, 6, 12, 6); okBtn.Margin = new Thickness(8, 0, 0, 0); okBtn.Click += (_, _) => win.DialogResult = true;
         btnRow.Children.Add(cancelBtn); btnRow.Children.Add(okBtn);
         nameBox.Focus(); nameBox.SelectAll();
 
@@ -3330,19 +3330,19 @@ public class WorldBoardWindow : Window
                 if (_selDragging) return;
                 var pos = e.GetPosition(canvas);
                 var mctx = new ContextMenu();
-                var addWp = new MenuItem { Header = "🔵  Add intersection here" };
+                var addWp = new MenuItem { Header = Properties.Loc.S("Board_AddIntersection") };
                 addWp.Click += (_, _) =>
                 {
                     SplitRelationAtSegment(capturedRel2, capturedSeg, pos.X, pos.Y);
                     EntityBoardService.Save(_projFolder, _board.Id, _boardData); BuildBoardContent();
                 };
                 mctx.Items.Add(addWp); mctx.Items.Add(new Separator());
-                var editR = new MenuItem { Header = "✏ Edit relation" };
+                var editR = new MenuItem { Header = Properties.Loc.S("Board_EditRelation") };
                 editR.Click += (_, _) =>
                 {
                     var r = ShowRelationDialog(capturedRel2.Caption, capturedRel2.LegendLabel,
                         capturedRel2.LineStyle, capturedRel2.LineColor, capturedRel2.Thickness,
-                        capturedRel2.HasArrow, "Edit Relation");
+                        capturedRel2.HasArrow, Properties.Loc.S("Board_EditRelationTitle"));
                     if (r != null)
                     {
                         capturedRel2.Caption=r.Caption; capturedRel2.LegendLabel=r.LegendLabel;
@@ -3355,7 +3355,7 @@ public class WorldBoardWindow : Window
                 mctx.Items.Add(editR);
                 if (capturedRel2.HasArrow)
                 {
-                    var flipR = new MenuItem { Header = "↩  Flip arrow direction" };
+                    var flipR = new MenuItem { Header = Properties.Loc.S("Board_FlipArrow") };
                     flipR.Click += (_, _) =>
                     {
                         (capturedRel2.FromId, capturedRel2.ToId) = (capturedRel2.ToId, capturedRel2.FromId);
@@ -3366,7 +3366,7 @@ public class WorldBoardWindow : Window
                     };
                     mctx.Items.Add(flipR);
                 }
-                var delR = new MenuItem { Header = "🗑 Delete relation" };
+                var delR = new MenuItem { Header = Properties.Loc.S("Board_DeleteRelation") };
                 delR.Click += (_, _) => { _boardData.Relations.Remove(capturedRel2); EntityBoardService.Save(_projFolder, _board.Id, _boardData); BuildBoardContent(); };
                 mctx.Items.Add(delR);
                 mctx.IsOpen = true; e.Handled = true;
@@ -3474,14 +3474,14 @@ public class WorldBoardWindow : Window
                 if (_boardConnectMode) { e.Handled = true; return; }
 
                 var wctx = new ContextMenu();
-                var conn = new MenuItem { Header = "🔗  Connect from here" };
+                var conn = new MenuItem { Header = Properties.Loc.S("Board_ConnectFromHere") };
                 conn.Click += (_, _) =>
                 {
                     _connFromWaypoint = (capturedRel3.Id, capturedWp.Id);
                     _boardConnSrcId=null; _boardConnectMode=true; BuildBoardContent();
                 };
                 wctx.Items.Add(conn); wctx.Items.Add(new Separator());
-                var rem = new MenuItem { Header = "✕  Remove intersection" };
+                var rem = new MenuItem { Header = Properties.Loc.S("Board_RemoveIntersection") };
                 rem.Click += (_, _) =>
                 {
                     capturedRel3.Waypoints.RemoveAt(capturedWi);
@@ -4145,11 +4145,11 @@ public class WorldBoardWindow : Window
         BoardLineStyle styleInit = BoardLineStyle.Solid,
         string colorInit = "#2196F3", double thicknessInit = 1.5,
         bool hasArrowInit = false,
-        string title = "New Relation")
+        string? title = null)
     {
         var win = new Window
         {
-            Title = title, Width = 440, Height = 490, ResizeMode = ResizeMode.NoResize,
+            Title = title ?? Properties.Loc.S("Board_NewRelation"), Width = 440, Height = 490, ResizeMode = ResizeMode.NoResize,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner = this, ShowInTaskbar = false
         };
@@ -4200,7 +4200,7 @@ public class WorldBoardWindow : Window
         var presets = _boardData.LinePresets;
         if (presets.Count > 0)
         {
-            AddLabel("Load from Legend preset:");
+            AddLabel(Properties.Loc.S("Board_LoadFromPreset"));
             var presetCombo = new ComboBox { FontSize = 12, Margin = new Thickness(0, 0, 0, 4),
                                              Foreground = new SolidColorBrush(Color.FromRgb(20,20,20)) };
             presetCombo.SetResourceReference(ComboBox.BackgroundProperty,  "ControlBgBrush");
@@ -4229,19 +4229,19 @@ public class WorldBoardWindow : Window
             };
         }
 
-        AddLabel("Caption (shown on line):");
+        AddLabel(Properties.Loc.S("Board_Caption"));
         var captionBox = MakeTextBox(captionInit);
-        AddLabel("Legend label (max 20 chars):");
+        AddLabel(Properties.Loc.S("Board_LegendLabel"));
         var legendBox = MakeTextBox(legendInit, maxLen: 20);
 
-        AddLabel("Line style:");
+        AddLabel(Properties.Loc.S("Board_LineStyle"));
         styleCombo = new ComboBox { FontSize = 12, Padding = new Thickness(8, 4, 8, 4) };
         int styleInitIdx = 0;
         for (int i = 0; i < styleItems.Length; i++) { styleCombo.Items.Add(styleItems[i].Display); if (styleItems[i].Value == styleInit) styleInitIdx = i; }
         styleCombo.SelectedIndex = styleInitIdx;
         root.Children.Add(styleCombo);
 
-        AddLabel("Line colour:");
+        AddLabel(Properties.Loc.S("Board_LineColour"));
         var swatchWrap = new WrapPanel { Orientation = Orientation.Horizontal };
         root.Children.Add(swatchWrap);
         foreach (var hex in WorldEntitySchemas.FactionColorPalette)
@@ -4267,7 +4267,7 @@ public class WorldBoardWindow : Window
             swatches.Add(swatch); swatchWrap.Children.Add(swatch);
         }
 
-        AddLabel("Thickness (1–10 px):");
+        AddLabel(Properties.Loc.S("Board_ThicknessHint"));
         var thickRow = new StackPanel { Orientation = Orientation.Horizontal };
         root.Children.Add(thickRow);
         thickSlider = new Slider { Minimum = 1, Maximum = 10, Value = thicknessInit, Width = 200,
@@ -4278,17 +4278,17 @@ public class WorldBoardWindow : Window
         thickSlider.ValueChanged += (_, e) => thickLbl.Text = $"{e.NewValue:F1} px";
         thickRow.Children.Add(thickSlider); thickRow.Children.Add(thickLbl);
 
-        AddLabel("Arrow:");
-        arrowCheck = new CheckBox { Content = "Draw arrowhead at target end", IsChecked = hasArrowInit, Margin = new Thickness(0, 0, 0, 4) };
+        AddLabel(Properties.Loc.S("Board_ArrowLbl"));
+        arrowCheck = new CheckBox { Content = Properties.Loc.S("Board_DrawArrow"), IsChecked = hasArrowInit, Margin = new Thickness(0, 0, 0, 4) };
         arrowCheck.SetResourceReference(CheckBox.ForegroundProperty, "ContentTextBrush");
         root.Children.Add(arrowCheck);
 
         var dialogBtnRow = new StackPanel { Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         root.Children.Add(dialogBtnRow);
-        var cancelBtn = MakeBtn("Cancel", false); cancelBtn.Padding = new Thickness(12, 6, 12, 6);
+        var cancelBtn = MakeBtn(Properties.Loc.S("Btn_Cancel"), false); cancelBtn.Padding = new Thickness(12, 6, 12, 6);
         cancelBtn.Click += (_, _) => win.DialogResult = false;
-        var okBtn = MakeBtn("OK", true); okBtn.Padding = new Thickness(12, 6, 12, 6);
+        var okBtn = MakeBtn(Properties.Loc.S("Btn_OK"), true); okBtn.Padding = new Thickness(12, 6, 12, 6);
         okBtn.Margin = new Thickness(8, 0, 0, 0); okBtn.Click += (_, _) => win.DialogResult = true;
         dialogBtnRow.Children.Add(cancelBtn); dialogBtnRow.Children.Add(okBtn);
         captionBox.Focus(); captionBox.SelectAll();
