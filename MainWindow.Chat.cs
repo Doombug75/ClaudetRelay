@@ -1491,165 +1491,173 @@ public partial class MainWindow : Window
         return "medium";
     }
 
-    /// <summary>
-    /// Path to this project's ParticipantSuperPowers.xaml, or null when no project is open.
-    /// </summary>
+    /// <summary>Path to this project's legacy SuperPowers file (kept only for migration).</summary>
     private string? GetSuperPowersPath() =>
         _currentProjectFolder is null ? null
             : SysIO.Path.Combine(_currentProjectFolder, "PROJECTSETTINGS", "ParticipantSuperPowers.xaml");
 
-    /// <summary>Path to the AI-determined role assignments file, or null when no project is open.</summary>
-    private string? GetSuperRolesPath() =>
-        _currentProjectFolder is null ? null
-            : SysIO.Path.Combine(_currentProjectFolder, "PROJECTSETTINGS", "ParticipantSuperRoles.xml");
-
     /// <summary>
-    /// Parses ParticipantSuperRoles.xml and returns a dictionary keyed by participant display name.
-    /// Returns null when the file is absent or unreadable.
+    /// Loads the role plan from project.json into a flat display-name→instruction dictionary.
+    /// Returns null when the project has no plan yet.
     /// </summary>
-    private Dictionary<string, (string Title, string Instruction)>? LoadSuperRoles()
+    private Dictionary<string, string>? LoadSuperRoles()
     {
-        var path = GetSuperRolesPath();
-        if (path is null || !SysIO.File.Exists(path)) return null;
-        try
-        {
-            var doc = System.Xml.Linq.XDocument.Load(path);
-            return doc.Root?
-                .Elements("Role")
-                .Where(e => e.Attribute("name")?.Value is { Length: > 0 })
-                .ToDictionary(
-                    e => e.Attribute("name")!.Value,
-                    e => (
-                        Title:       e.Attribute("title")?.Value ?? "",
-                        Instruction: e.Value.Trim()),
-                    StringComparer.OrdinalIgnoreCase);
-        }
-        catch { return null; }
+        var plan = _currentProject?.ParticipantRolePlan;
+        return plan is { Count: > 0 } ? plan : null;
     }
 
     /// <summary>
-    /// Returns the AI-determined role instruction for <paramref name="displayName"/>,
-    /// or null if SuperRoles are unavailable or Full Manual Mode is active.
+    /// Returns the coordinator-written role instruction for <paramref name="displayName"/>,
+    /// or null if no plan exists or Full Manual Mode is active.
     /// The cache is loaded lazily and cleared on project open/close.
     /// </summary>
     private string? GetSuperRoleInstruction(string displayName)
     {
-        // Full Manual Mode always uses checkbox-only instructions - never AI-determined roles.
         if (_projectSettings?.OrchestrationMode == OrchestrationMode.AllRespond) return null;
-
         _superRoles ??= LoadSuperRoles();
-        return _superRoles is not null && _superRoles.TryGetValue(displayName, out var entry)
-            ? entry.Instruction
-            : null;
-    }
-
-    /// <summary>Reads the Fingerprint attribute from the stored SuperPowers file.</summary>
-    private string? LoadStoredSuperPowersFingerprint()
-    {
-        var path = GetSuperPowersPath();
-        if (path is null || !SysIO.File.Exists(path)) return null;
-        try
-        {
-            return System.Xml.Linq.XDocument.Load(path)
-                         .Root?.Attribute("Fingerprint")?.Value;
-        }
-        catch { return null; }
+        return _superRoles is not null && _superRoles.TryGetValue(displayName, out var instruction)
+            ? instruction : null;
     }
 
     /// <summary>
-    /// Loads the SuperPowers XAML and returns a compact text summary for injection
-    /// into system prompts. Returns null when the file does not exist.
+    /// Builds the team capability profile from ParticipantConfig data (SelfDescription,
+    /// Likes, Dislikes) for injection into the coordinator's system prompt context.
+    /// Returns null when no active participants are found.
     /// </summary>
     private string? LoadSuperPowersForContext()
     {
-        var path = GetSuperPowersPath();
-        if (path is null || !SysIO.File.Exists(path)) return null;
+        var activeOllamas  = _ollamaParticipants
+            .Where(u => u.Data.Enabled && IsParticipantActiveInProject(u)).ToList();
+        var activeCloudAIs = _cloudAIParticipants
+            .Where(u => u.Data.Enabled && IsParticipantActiveInProject(u)).ToList();
+
+        if (activeOllamas.Count + activeCloudAIs.Count == 0) return null;
+
+        var globalSettings = SettingsService.Load();
+        var lines = new List<string>();
+
+        void AddEntry(string name, string provider, string model)
+        {
+            var pc   = globalSettings.Participants.FirstOrDefault(p =>
+                string.Equals(p.Type,  provider, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(p.Model, model,    StringComparison.OrdinalIgnoreCase));
+            var role = _projectSettings?.Get(provider, model);
+
+            var roleStr  = role?.IsCoordinator == true ? "Coordinator"
+                         : role?.IsReasoner    == true ? "Reasoner"
+                         : "Participant";
+            var cost     = GetCostTier(provider, model);
+            var isRModel = IsReasonerModel(model);
+            var priority = role?.ReasonerPriority ?? 5;
+
+            var meta = new System.Text.StringBuilder($"{name} [{roleStr}, cost:{cost}");
+            if (isRModel)                  meta.Append($", reasoner(p{priority})");
+            if (role?.IsCritic     == true) meta.Append(", CR");
+            if (role?.IsPlanner    == true) meta.Append(", PL");
+            if (role?.IsResearcher == true) meta.Append(", RS");
+            meta.Append(']');
+            lines.Add(meta.ToString());
+
+            if (pc is not null)
+            {
+                if (!string.IsNullOrWhiteSpace(pc.SelfDescription))
+                    lines.Add($"  {pc.SelfDescription}");
+                if (!string.IsNullOrWhiteSpace(pc.Likes))
+                    lines.Add($"  + Likes: {pc.Likes}");
+                if (!string.IsNullOrWhiteSpace(pc.Dislikes))
+                    lines.Add($"  - Dislikes: {pc.Dislikes}");
+            }
+        }
+
+        foreach (var ui in activeOllamas)
+            AddEntry(GetEffectiveName(ui), "Ollama", ui.Data.Service.CurrentModel);
+        foreach (var ui in activeCloudAIs)
+            AddEntry(GetEffectiveName(ui), ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel);
+
+        return lines.Count > 0 ? string.Join("\n", lines) : null;
+    }
+
+    // ── One-time migration: ParticipantSuperRoles.xml → project.json ────────
+
+    /// <summary>
+    /// If the project still has a legacy ParticipantSuperRoles.xml but no ParticipantRolePlan
+    /// in project.json, reads the XML and migrates the data in-place, then saves project.json.
+    /// </summary>
+    private void TryMigrateLegacySuperRoles()
+    {
+        if (_currentProject is null || _currentProjectFolder is null) return;
+        if (_currentProject.ParticipantRolePlan is { Count: > 0 }) return;   // already migrated
+
+        var xmlPath = SysIO.Path.Combine(_currentProjectFolder, "PROJECTSETTINGS",
+                                         "ParticipantSuperRoles.xml");
+        if (!SysIO.File.Exists(xmlPath)) return;
+
         try
         {
-            var doc = System.Xml.Linq.XDocument.Load(path);
-            if (doc.Root is null) return null;
+            var doc    = System.Xml.Linq.XDocument.Load(xmlPath);
+            var migrated = doc.Root?
+                .Elements("Role")
+                .Where(e => e.Attribute("name")?.Value is { Length: > 0 })
+                .ToDictionary(
+                    e => e.Attribute("name")!.Value,
+                    e => e.Value.Trim(),
+                    StringComparer.OrdinalIgnoreCase);
 
-            var lines = new List<string>();
-            foreach (var p in doc.Root.Elements("Participant"))
+            if (migrated is { Count: > 0 })
             {
-                var name         = p.Attribute("Name")?.Value          ?? "?";
-                var role         = p.Attribute("Role")?.Value          ?? "Participant";
-                var cost         = p.Attribute("CostTier")?.Value      ?? "medium";
-                var isRModel     = p.Attribute("IsReasonerModel")?.Value?.ToLowerInvariant() == "true";
-                var priority     = p.Attribute("ReasonerPriority")?.Value ?? "5";
-                var isCritic     = p.Attribute("IsCritic")?.Value?.ToLowerInvariant()     == "true";
-                var isPlanner    = p.Attribute("IsPlanner")?.Value?.ToLowerInvariant()    == "true";
-                var isResearcher = p.Attribute("IsResearcher")?.Value?.ToLowerInvariant() == "true";
-
-                // New compact attribute format (preferred)
-                var strengths = p.Attribute("Strengths")?.Value?.Trim() ?? "";
-                var bestFor   = p.Attribute("BestFor")?.Value?.Trim()   ?? "";
-                var avoid     = p.Attribute("Avoid")?.Value?.Trim()     ?? "";
-
-                // Build the header line
-                var meta = new System.Text.StringBuilder($"{name} [{role}, cost:{cost}");
-                if (isRModel)     meta.Append($", reasoner(p{priority})");
-                if (isCritic)     meta.Append(", CR");
-                if (isPlanner)    meta.Append(", PL");
-                if (isResearcher) meta.Append(", RS");
-                meta.Append(']');
-                lines.Add(meta.ToString());
-
-                if (!string.IsNullOrEmpty(strengths)) lines.Add($"  + {strengths}");
-                if (!string.IsNullOrEmpty(bestFor))   lines.Add($"  ✓ {bestFor}");
-                if (!string.IsNullOrEmpty(avoid))     lines.Add($"  ✗ {avoid}");
-
-                // Legacy fallback: old files stored a prose <Description> element
-                if (string.IsNullOrEmpty(strengths) && string.IsNullOrEmpty(bestFor))
+                _currentProject.ParticipantRolePlan = new Dictionary<string, string>(migrated);
+                // Also read the fingerprint from SuperPowers.xaml if still present
+                var spPath = GetSuperPowersPath();
+                if (spPath is not null && SysIO.File.Exists(spPath))
                 {
-                    var legacyDesc = p.Element("Description")?.Value?.Trim() ?? "";
-                    if (!string.IsNullOrEmpty(legacyDesc))
-                        lines.Add($"  {legacyDesc}");
+                    try
+                    {
+                        _currentProject.ParticipantFingerprint =
+                            System.Xml.Linq.XDocument.Load(spPath).Root?.Attribute("Fingerprint")?.Value;
+                    }
+                    catch { }
                 }
+                ProjectService.SaveProject(_currentProjectFolder, _currentProject);
+                _superRoles = null;
+                AddSystemMessage("🔄  Migrated participant role plan from legacy file to project settings.");
             }
-            return lines.Count > 0 ? string.Join("\n", lines) : null;
         }
-        catch { return null; }
+        catch { /* best-effort migration */ }
     }
 
     /// <summary>
-    /// Triggers <see cref="TriggerSuperPowersInterviewAsync"/> only when the current
-    /// participant fingerprint differs from what is stored in the SuperPowers file
-    /// (or when the file does not exist). No-op if no coordinator is configured.
+    /// Triggers <see cref="TriggerSuperPowersInterviewAsync"/> only when the team has changed
+    /// since the role plan was last written, or when no plan exists yet.
+    /// No-op if no coordinator is configured or Full Manual Mode is active.
     /// </summary>
     private async Task CheckAndTriggerSuperPowersAsync()
     {
         if (_projectSettings is null || _currentProjectFolder is null) return;
-        // Full Manual Mode has no coordinator automation - skip SuperPowers entirely.
         if (_projectSettings.OrchestrationMode == OrchestrationMode.AllRespond) return;
-
-        // Use HasCoordinatorRole() rather than FindActiveCoordinator() so we do not
-        // silently skip the interview when IsOnline is still null on fresh project open.
-        // FindActiveCoordinator() requires IsOnline == true; on open that check races
-        // against CheckAllStatusAsync and almost always loses → SuperPowers never fires.
         if (!HasCoordinatorRole()) return;
 
-        var currentFp      = GetParticipantFingerprint();
-        var fpMatch        = currentFp == LoadStoredSuperPowersFingerprint();
-        var superRolesPath = GetSuperRolesPath();
-        var rolesExist     = superRolesPath is not null && SysIO.File.Exists(superRolesPath);
+        // Migrate legacy XML on first open (idempotent after the first run)
+        TryMigrateLegacySuperRoles();
 
-        // Re-calibrate if the participant set changed OR if the SuperRoles file is missing
-        // (SuperPowers without SuperRoles means the coordinator never wrote its role definitions).
-        if (fpMatch && rolesExist) return;
+        var currentFp  = GetParticipantFingerprint();
+        var fpMatch    = currentFp == _currentProject?.ParticipantFingerprint;
+        var planExists = _currentProject?.ParticipantRolePlan is { Count: > 0 };
+
+        // Re-run if team composition changed OR no role plan has been written yet
+        if (fpMatch && planExists) return;
 
         await TriggerSuperPowersInterviewAsync(currentFp);
     }
 
     /// <summary>
-    /// Hidden capability interview: silently asks every participant about their strengths
-    /// and weak points, then builds and saves PROJECTSETTINGS/ParticipantSuperPowers.xaml.
-    /// After saving, the Coordinator gives the user a visible summary and asks for feedback.
+    /// Reads ParticipantConfig capability data for all active participants, asks any
+    /// participants who are missing their self-description visibly in chat, then asks
+    /// the coordinator to write a project-specific role plan saved into project.json.
     /// </summary>
     private async Task TriggerSuperPowersInterviewAsync(string fingerprint)
     {
         if (_projectSettings is null || _currentProjectFolder is null || _currentProject is null) return;
-        if (_streamCts is not null) return;   // another stream already running
+        if (_streamCts is not null) return;
 
         var activeOllamas  = _ollamaParticipants
             .Where(ui => ui.Data.Enabled && IsParticipantActiveInProject(ui)).ToList();
@@ -1661,10 +1669,8 @@ public partial class MainWindow : Window
         var (coordOllama, coordCloud) = FindCoordinatorInLists(activeOllamas, activeCloudAIs);
         if (coordOllama is null && coordCloud is null)
         {
-            // HasCoordinatorRole() passed but we still couldn't match the coordinator to a UI
-            // participant - most likely the project's ActiveParticipants list is stale or missing.
             AddSystemMessage("⚠  Coordinator role is configured but no active coordinator participant " +
-                             "was found - capability profile skipped. Try reopening the project.");
+                             "was found — role plan skipped. Try reopening the project.");
             return;
         }
 
@@ -1673,351 +1679,237 @@ public partial class MainWindow : Window
         _streamCts = new CancellationTokenSource();
         var ct = _streamCts.Token;
 
-        // ── Spinner animation ─────────────────────────────────────────────────
-        var spinFrames = new[] { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
-        int spinIdx  = 0;
-        string spinBase = "";
-        var spinTimer = new System.Windows.Threading.DispatcherTimer
-            { Interval = TimeSpan.FromMilliseconds(110) };
-
         try
         {
-            var total    = activeOllamas.Count + activeCloudAIs.Count;
-            spinBase     = $"- Calibrating team capabilities - 0 / {total}";
-            var statusTb = AddUpdatableSystemMessage($"{spinBase}  {spinFrames[0]}");
+            var globalSettings = SettingsService.Load();
 
-            spinTimer.Tick += (_, _) =>
+            // ── Phase 1: ask participants who lack capability data ─────────────
+            // "Missing" = SelfDescription is empty.  Likes/Dislikes are gathered alongside.
+            var needsIntro = new List<(string Name, string Provider, string Model,
+                                       OllamaParticipantUI? Ollama, CloudAIParticipantUI? Cloud)>();
+
+            foreach (var ui in activeOllamas)
             {
-                spinIdx = (spinIdx + 1) % spinFrames.Length;
-                statusTb.Text = $"{spinBase}  {spinFrames[spinIdx]}";
-            };
-            spinTimer.Start();
+                var model = ui.Data.Service.CurrentModel;
+                var pc = globalSettings.Participants.FirstOrDefault(p =>
+                    string.Equals(p.Type, "Ollama", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(p.Model, model, StringComparison.OrdinalIgnoreCase));
+                if (pc is null || string.IsNullOrWhiteSpace(pc.SelfDescription))
+                    needsIntro.Add((GetEffectiveName(ui), "Ollama", model, ui, null));
+            }
+            foreach (var ui in activeCloudAIs)
+            {
+                var provider = ui.Data.Service.ProviderName;
+                var model    = ui.Data.Service.CurrentModel;
+                var pc = globalSettings.Participants.FirstOrDefault(p =>
+                    string.Equals(p.Type,  provider, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(p.Model, model,    StringComparison.OrdinalIgnoreCase));
+                if (pc is null || string.IsNullOrWhiteSpace(pc.SelfDescription))
+                    needsIntro.Add((GetEffectiveName(ui), provider, model, null, ui));
+            }
 
-            // ── Hidden capability assessment ──────────────────────────────────────
-            // Inject a minimal context message so each participant knows what's expected.
+            if (needsIntro.Count > 0)
+            {
+                AddSystemMessage($"👋  Getting to know {needsIntro.Count} team member(s) — " +
+                                 "asking each to introduce themselves...");
+
+                // Inject a minimal context message so each participant understands the ask.
+                _sharedHistory.Add(new CloudAIMessage("user",
+                    "[TEAM SETUP] We are about to start a project together. " +
+                    "Each participant without a capability profile will now briefly introduce themselves."));
+
+                const string introPrompt =
+                    "[TEAM SETUP] Please introduce yourself to the project team. " +
+                    "In 2–3 sentences describe: what you are best at, what kind of work you enjoy most, " +
+                    "and any notable limitations the team should be aware of when assigning tasks to you.";
+
+                foreach (var (name, provider, model, ollamaUi, cloudUi) in needsIntro)
+                {
+                    if (ct.IsCancellationRequested) break;
+
+                    var before = _sharedHistory.Count;
+                    if (ollamaUi is not null)
+                        await RunOllamaStreamAsync(ollamaUi, ct, introPrompt, hidden: false);
+                    else if (cloudUi is not null)
+                        await RunCloudAIStreamAsync(cloudUi, ct, introPrompt, hidden: false);
+
+                    // Parse and save the response back to ParticipantConfig
+                    if (_sharedHistory.Count > before)
+                    {
+                        var answer = _sharedHistory.Last().Content.Trim();
+                        var s = SettingsService.Load();
+                        var target = s.Participants.FirstOrDefault(p =>
+                            string.Equals(p.Type,  provider, StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(p.Model, model,    StringComparison.OrdinalIgnoreCase));
+                        if (target is not null)
+                        {
+                            // Store the intro as SelfDescription; extract Likes/Dislikes sentences
+                            if (string.IsNullOrWhiteSpace(target.SelfDescription))
+                                target.SelfDescription = answer;
+
+                            // Simple heuristic: if the answer has 2+ sentences, treat the
+                            // second as Likes and the last as Dislikes/limitations.
+                            var sentences = answer.Split(['.', '!', '?'],
+                                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                .Where(s2 => s2.Length > 10).ToArray();
+                            if (sentences.Length >= 2 && string.IsNullOrWhiteSpace(target.Likes))
+                                target.Likes = sentences[1].Trim();
+                            if (sentences.Length >= 3 && string.IsNullOrWhiteSpace(target.Dislikes))
+                                target.Dislikes = sentences[^1].Trim();
+
+                            SettingsService.Save(s);
+                        }
+                    }
+                }
+
+                // Reload updated settings so the capability summary is fresh
+                globalSettings = SettingsService.Load();
+            }
+
+            if (ct.IsCancellationRequested) return;
+
+            // ── Phase 2: build capability summary from ParticipantConfig ──────
+            // LoadSuperPowersForContext() now reads directly from ParticipantConfig
+            var capabilitySummary = LoadSuperPowersForContext() ?? "(no capability data available)";
+
+            // ── Phase 3: coordinator writes the role plan ─────────────────────
+            var roleSummary = new System.Text.StringBuilder("Current role assignments:\n");
+            foreach (var ui in activeOllamas)
+            {
+                var r = GetRoleForParticipant(ui);
+                roleSummary.Append($"  • {GetEffectiveName(ui)}: {BuildRoleDesc(r)}\n");
+            }
+            foreach (var ui in activeCloudAIs)
+            {
+                var r = GetRoleForParticipant(ui);
+                roleSummary.Append($"  • {GetEffectiveName(ui)}: {BuildRoleDesc(r)}\n");
+            }
+
+            var allNames = activeOllamas.Select(GetEffectiveName)
+                .Concat(activeCloudAIs.Select(GetEffectiveName)).ToList();
+            var participantNameList = string.Join(", ", allNames);
+
+            var nextStepHint = new System.Text.StringBuilder();
+            bool needsRoadmap = _currentProjectType?.HasRoadmap == true
+                                && !(_projectSettings?.RoadmapInitialized == true)
+                                && (_currentRoadmap is null || _currentRoadmap.Milestones.Count == 0);
+            bool needsWorldBuilding = _currentProjectType?.HasWorldBuilding == true;
+            var  worldFolders       = _currentProjectType?.GetWorldFolderList() ?? [];
+
+            if (needsRoadmap)
+                nextStepHint.AppendLine("• No roadmap has been built yet — suggesting building one together would be the ideal next step.");
+            if (needsWorldBuilding && worldFolders.Length > 0)
+                nextStepHint.AppendLine($"• This project type uses world-building folders ({string.Join(", ", worldFolders)}) — suggest creating them before writing content.");
+            if (nextStepHint.Length == 0)
+                nextStepHint.AppendLine("• The project setup appears complete — ask the user what they would like to work on next.");
+
             _sharedHistory.Add(new CloudAIMessage("user",
-                "[INTERNAL] Technical capability snapshot - coordinator use only. " +
-                "Each participant: reply with exactly 3 labelled lines, no prose."));
+                "The team capability data has been gathered. Here is what we know:\n\n" +
+                "## Team capability profile\n" +
+                capabilitySummary + "\n\n" +
+                roleSummary.ToString() +
+                "\nPlease do the following:\n" +
+                "1. Give the user a concise overview of the team's strengths and your routing plan, " +
+                "noting any cost/performance trade-offs.\n" +
+                "2. Evaluate the current role assignments. Suggest changes if a participant would be " +
+                "better suited to a different role based on their capabilities.\n" +
+                "3. Recommend which participants should receive Write Access (WR). Only participants " +
+                "whose role genuinely requires writing output should have it (creative contributors, coders). " +
+                "Critics, reviewers, and researchers should be read-only. Name your WR recommendations.\n" +
+                "4. Write the project-specific role plan as a JSON file — one instruction per participant " +
+                $"(covering all participants: {participantNameList}).\n\n" +
+                "Use EXACTLY this format for the output block:\n\n" +
+                "<output path=\"PROJECTSETTINGS/ParticipantRolePlan.json\">\n" +
+                "{\n" +
+                "  \"roles\": [\n" +
+                "    {\"name\": \"ExactDisplayName\", \"instruction\": \"Detailed second-person role instruction for this specific project.\"},\n" +
+                "    // one entry per participant\n" +
+                "  ]\n" +
+                "}\n" +
+                "</output>\n\n" +
+                "Write the <output> block first (it is processed automatically), then present your " +
+                "summary, role evaluation, and Write Access recommendations to the user.\n\n" +
+                "CRITICAL — after presenting the above:\n" +
+                "• DO NOT start writing project content (chapters, code, designs, etc.).\n" +
+                "• End with ONE clear suggestion for the logical next step, then ask the user to confirm.\n" +
+                "• Stop after that question. Wait for the user to reply.\n\n" +
+                "Project state:\n" + nextStepHint.ToString()));
 
-            // Strict 3-line machine-readable format - kept as short as possible so
-            // the resulting SuperPowers file is lean and fast for the coordinator to parse.
-            const string assessmentHint =
-                "[INTERNAL] Capability snapshot for coordinator routing. " +
-                "Reply with EXACTLY these 3 lines and nothing else:\n" +
-                "Strengths: [comma-separated keywords, max 6]\n" +
-                "Best for: [comma-separated task types, max 6]\n" +
-                "Avoid: [comma-separated weaknesses, max 4]";
+            if (coordCloud is not null)
+                await RunCloudAIStreamAsync(coordCloud, ct);
+            else
+                await RunOllamaStreamAsync(coordOllama!, ct);
 
-            const string coordSelfHint =
-                "[INTERNAL] Self-assessment for capability routing file. " +
-                "Reply with EXACTLY these 3 lines and nothing else:\n" +
-                "Strengths: [comma-separated keywords, max 6]\n" +
-                "Best for: [comma-separated task types, max 6]\n" +
-                "Avoid: [comma-separated weaknesses, max 4]";
-
-            // ── Collect profiles ──────────────────────────────────────────────────
-            var profiles = new List<(string Name, string Provider, string Model, string Answer)>();
-            int assessed = 0;
-
-            // Non-coordinator participants first
-            foreach (var ui in activeOllamas.Where(u => u != coordOllama))
-            {
-                if (ct.IsCancellationRequested) break;
-                var name = GetEffectiveName(ui);
-                spinBase = $"- Calibrating team capabilities - [{name}] ({assessed + 1} / {total})";
-                var before = _sharedHistory.Count;
-                await RunOllamaStreamAsync(ui, ct, assessmentHint, hidden: true);
-                if (_sharedHistory.Count > before)
-                    profiles.Add((name, "Ollama",
-                                  ui.Data.Service.CurrentModel, _sharedHistory.Last().Content));
-                assessed++;
-            }
-            foreach (var ui in activeCloudAIs.Where(u => u != coordCloud))
-            {
-                if (ct.IsCancellationRequested) break;
-                var name = GetEffectiveName(ui);
-                spinBase = $"- Calibrating team capabilities - [{name}] ({assessed + 1} / {total})";
-                var before = _sharedHistory.Count;
-                await RunCloudAIStreamAsync(ui, ct, assessmentHint, hidden: true);
-                if (_sharedHistory.Count > before)
-                    profiles.Add((name, ui.Data.Service.ProviderName,
-                                  ui.Data.Service.CurrentModel, _sharedHistory.Last().Content));
-                assessed++;
-            }
-
-            // Coordinator answers for themselves
-            if (!ct.IsCancellationRequested)
-            {
-                var coordName = coordCloud is not null
-                    ? GetEffectiveName(coordCloud) : GetEffectiveName(coordOllama!);
-                spinBase = $"- Calibrating team capabilities - [{coordName}] ({assessed + 1} / {total})";
-
-                var before = _sharedHistory.Count;
-                if (coordCloud is not null)
-                {
-                    await RunCloudAIStreamAsync(coordCloud, ct, coordSelfHint, hidden: true);
-                    if (_sharedHistory.Count > before)
-                        profiles.Insert(0, (coordName,
-                                           coordCloud.Data.Service.ProviderName,
-                                           coordCloud.Data.Service.CurrentModel,
-                                           _sharedHistory.Last().Content));
-                }
-                else if (coordOllama is not null)
-                {
-                    await RunOllamaStreamAsync(coordOllama!, ct, coordSelfHint, hidden: true);
-                    if (_sharedHistory.Count > before)
-                        profiles.Insert(0, (coordName,
-                                           "Ollama",
-                                           coordOllama!.Data.Service.CurrentModel,
-                                           _sharedHistory.Last().Content));
-                }
-                assessed++;
-            }
-
-            spinTimer.Stop();
-            statusTb.Text = profiles.Count > 0
-                ? $"✓ Team capabilities profiled - {profiles.Count} participant(s)"
-                : "⚠  Capability profiling produced no results";
-
-            // Use conditional blocks instead of early returns so the finally + chain always run.
-            if (!ct.IsCancellationRequested && profiles.Count > 0)
-            {
-                // ── Build and save XAML ───────────────────────────────────────────────
-                var xaml     = BuildSuperPowersXaml(fingerprint, profiles, activeOllamas, activeCloudAIs);
-                var xamlPath = GetSuperPowersPath();   // may be null if project was closed mid-run
-                if (xamlPath is not null)
-                {
-                    try
-                    {
-                        // EnsureProjectFolders() is called on every OpenProject so the
-                        // PROJECTSETTINGS directory should already exist, but CreateDirectory
-                        // is idempotent - this handles any edge cases gracefully.
-                        var dir = SysIO.Path.GetDirectoryName(xamlPath)!;
-                        SysIO.Directory.CreateDirectory(dir);
-                        SysIO.File.WriteAllText(xamlPath, xaml, System.Text.Encoding.UTF8);
-                    }
-                    catch (Exception ex)
-                    {
-                        AddSystemMessage($"⚠  Could not save ParticipantSuperPowers.xaml: {ex.Message}");
-                        // Tell coordinator so it knows the profile was not persisted
-                        _sharedHistory.Add(new CloudAIMessage("user",
-                            "[SYSTEM: The capability profile could not be saved to disk " +
-                            $"({ex.Message}). The assessment results are still in context for " +
-                            "this session, but will need to be re-run next time.]", "System"));
-                    }
-                }
-
-                // ── Coordinator presents visible summary and role-quality check ─────────
-                if (!ct.IsCancellationRequested)
-                {
-                    // Build a role summary so the coordinator can check fitness
-                    var roleSummary = new System.Text.StringBuilder();
-                    roleSummary.Append("Current role assignments:\n");
-                    foreach (var (name, provider, model, _) in profiles)
-                    {
-                        var r = _projectSettings?.Get(provider, model);
-                        if (r is null) continue;
-                        var parts = new List<string>();
-                        if (r.IsCoordinator) parts.Add("Coordinator");
-                        if (r.IsReasoner)    parts.Add($"Reasoner (priority {r.ReasonerPriority})");
-                        if (r.IsCritic)      parts.Add("Critic");
-                        if (r.IsPlanner)     parts.Add("Planner");
-                        if (r.IsResearcher)  parts.Add("Researcher");
-                        var roleList = parts.Count > 0 ? string.Join(", ", parts) : "no special role";
-                        roleSummary.Append($"  • {name}: {roleList}\n");
-                    }
-
-                    // Build the display name list so the coordinator can reference exact names in the file
-                    var participantNameList = string.Join(", ", profiles.Select(p => p.Name));
-
-                    // Build a "what still needs doing" hint so the coordinator can suggest
-                    // the right next step rather than diving into content.
-                    var nextStepHint = new System.Text.StringBuilder();
-                    bool needsRoadmap = _currentProjectType?.HasRoadmap == true
-                                        && !(_projectSettings?.RoadmapInitialized == true)
-                                        && (_currentRoadmap is null || _currentRoadmap.Milestones.Count == 0);
-                    bool needsWorldBuilding = _currentProjectType?.HasWorldBuilding == true;
-                    var  worldFolders       = _currentProjectType?.GetWorldFolderList() ?? [];
-
-                    if (needsRoadmap)
-                        nextStepHint.AppendLine("• No roadmap has been built yet - suggesting to build one together with the user would be the ideal next step.");
-                    if (needsWorldBuilding && worldFolders.Length > 0)
-                        nextStepHint.AppendLine($"• This project type uses world-building folders ({string.Join(", ", worldFolders)}) - if those don't exist yet, suggest creating them before writing any content.");
-                    if (nextStepHint.Length == 0)
-                        nextStepHint.AppendLine("• The project appears to have its setup in place - ask the user what they would like to work on next.");
-
-                    _sharedHistory.Add(new CloudAIMessage("user",
-                        "The team capability profile has been saved. " +
-                        roleSummary.ToString() +
-                        "\nPlease do four things:\n" +
-                        "1. Give the user a concise overview of the team's strengths and your task routing plan, " +
-                        "highlighting any cost/performance trade-offs.\n" +
-                        "2. Evaluate the current role assignments. If any participant would be better suited " +
-                        "to a different role based on their capabilities, explain clearly and suggest the change.\n" +
-                        "3. Recommend which participants should receive Write Access (WR). Write Access lets a " +
-                        "participant create and edit project files directly. Only grant it to participants whose " +
-                        "role genuinely requires writing output - typically active creative/code contributors. " +
-                        "Read-only participants (critics, reviewers, researchers) should NOT have write access. " +
-                        "Name the specific participants you recommend for WR and briefly explain why.\n" +
-                        "4. Write a ParticipantSuperRoles.xml file that defines each participant's specific role " +
-                        "for THIS project. This file will be injected into each participant's system prompt on " +
-                        "every future session, so make the instructions project-specific, directive, and useful.\n\n" +
-                        "Use EXACTLY this format - one <Role> element per participant, covering all " +
-                        $"participants ({participantNameList}):\n\n" +
-                        "<output path=\"PROJECTSETTINGS/ParticipantSuperRoles.xml\">\n" +
-                        "<ParticipantSuperRoles>\n" +
-                        "  <Role name=\"ExactDisplayName\" title=\"Short Role Title\">Detailed second-person instruction for this participant's role in this specific project.</Role>\n" +
-                        "  <!-- one <Role> per participant -->\n" +
-                        "</ParticipantSuperRoles>\n" +
-                        "</output>\n\n" +
-                        "Write the <output> block first (it will be processed silently), then present your " +
-                        "summary, role evaluation, and Write Access recommendations to the user.\n\n" +
-                        "CRITICAL - after presenting the above:\n" +
-                        "• DO NOT start writing any project content (scenes, chapters, code, designs, etc.).\n" +
-                        "• DO NOT run a work session or task sequence on your own.\n" +
-                        "• Based on the project state below, end your response with ONE clear suggestion " +
-                        "for the logical next step, then ask the user whether they agree or want something different.\n" +
-                        "• Stop after that question. Wait for the user to reply.\n\n" +
-                        "Project state:\n" +
-                        nextStepHint.ToString()));
-
-                    if (coordCloud is not null)
-                        await RunCloudAIStreamAsync(coordCloud, ct);
-                    else
-                        await RunOllamaStreamAsync(coordOllama!, ct);
-                }
-            }
+            // Save fingerprint so we don't re-run until the team composition changes
+            _currentProject.ParticipantFingerprint = fingerprint;
+            ProjectService.SaveProject(_currentProjectFolder, _currentProject);
         }
         catch (Exception ex)
         {
-            spinTimer.Stop();
-            AddSystemMessage($"⚠  Capability profiling failed: {ex.Message}");
+            AddSystemMessage($"⚠  Team capability flow failed: {ex.Message}");
         }
         finally
         {
-            spinTimer.Stop();
-            // Invalidate the SuperRoles cache so the file written by the coordinator
-            // during this session is picked up immediately on the next prompt.
-            _superRoles = null;
+            _superRoles = null;   // invalidate cache; plan may have been written during this session
             _streamCts?.Dispose();
             _streamCts = null;
             AIRespondButton.IsEnabled = true;
             SendButton.IsEnabled      = true;
         }
 
-        // Calibration already ends with a visible coordinator message that includes a
-        // "next step" suggestion.  Firing CheckAndTriggerRoadmapBuildingAsync right after
-        // would stack a second automatic AI exchange on top - overwhelming the user before
-        // they have a chance to reply.  Mark the work session as fired so neither the
-        // work-session greeting nor the roadmap-building intro fires automatically;
-        // both chains are resumable once the user sends their first reply.
         _workSessionFired = true;
-    }
-
-    /// <summary>
-    /// Builds the ParticipantSuperPowers XML document from the collected profiles.
-    /// </summary>
-    private string BuildSuperPowersXaml(
-        string fingerprint,
-        List<(string Name, string Provider, string Model, string Answer)> profiles,
-        List<OllamaParticipantUI>  activeOllamas,
-        List<CloudAIParticipantUI> activeCloudAIs)
-    {
-        var xns = System.Xml.Linq.XNamespace.None;
-
-        var root = new System.Xml.Linq.XElement("ParticipantSuperPowers",
-            new System.Xml.Linq.XAttribute("Fingerprint", fingerprint),
-            new System.Xml.Linq.XAttribute("Generated",   DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")),
-            new System.Xml.Linq.XAttribute("Project",     _currentProject?.ProjectName ?? ""));
-
-        foreach (var (name, provider, model, answer) in profiles)
-        {
-            var role      = _projectSettings?.Get(provider, model);
-            var roleStr   = role?.IsCoordinator == true ? "Coordinator"
-                          : role?.IsReasoner    == true ? "Reasoner"
-                          : "Participant";
-            var priority  = role?.ReasonerPriority ?? 5;
-            var isRModel  = IsReasonerModel(model);
-            var costTier  = GetCostTier(provider, model);
-
-            // Parse the compact 3-line answer into separate attributes
-            var (strengths, bestFor, avoid) = ParseCapabilityLines(answer);
-
-            root.Add(new System.Xml.Linq.XElement("Participant",
-                new System.Xml.Linq.XAttribute("Name",              name),
-                new System.Xml.Linq.XAttribute("Provider",          provider),
-                new System.Xml.Linq.XAttribute("Model",             model),
-                new System.Xml.Linq.XAttribute("Role",              roleStr),
-                new System.Xml.Linq.XAttribute("IsCritic",          role?.IsCritic     == true),
-                new System.Xml.Linq.XAttribute("IsPlanner",         role?.IsPlanner    == true),
-                new System.Xml.Linq.XAttribute("IsResearcher",      role?.IsResearcher == true),
-                new System.Xml.Linq.XAttribute("IsReasonerModel",   isRModel),
-                new System.Xml.Linq.XAttribute("ReasonerPriority",  priority),
-                new System.Xml.Linq.XAttribute("CostTier",          costTier),
-                new System.Xml.Linq.XAttribute("Strengths",         strengths),
-                new System.Xml.Linq.XAttribute("BestFor",           bestFor),
-                new System.Xml.Linq.XAttribute("Avoid",             avoid)));
-        }
-
-        var doc = new System.Xml.Linq.XDocument(
-            new System.Xml.Linq.XComment(
-                " ClaudetRelay - ParticipantSuperPowers.xaml\n" +
-                "     Auto-generated from hidden capability interviews.\n" +
-                "     Do not edit manually - re-run by changing project participants. "),
-            root);
-
-        // Return as indented XML string
-        var sb = new System.Text.StringBuilder();
-        using (var writer = System.Xml.XmlWriter.Create(sb, new System.Xml.XmlWriterSettings
-               { Indent = true, IndentChars = "  ", Encoding = System.Text.Encoding.UTF8,
-                 OmitXmlDeclaration = false }))
-            doc.Save(writer);
-        return sb.ToString();
-    }
-
-    /// <summary>
-    /// Parses the compact 3-line capability answer produced by the assessment prompt
-    /// into separate Strengths / BestFor / Avoid strings.
-    /// Tolerates minor variations in labelling and gracefully falls back for
-    /// models that produce prose instead of the expected format.
-    /// </summary>
-    private static (string Strengths, string BestFor, string Avoid) ParseCapabilityLines(string answer)
-    {
-        var strengths = "";
-        var bestFor   = "";
-        var avoid     = "";
-
-        foreach (var rawLine in answer.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var line = rawLine.Trim();
-            if (line.StartsWith("Strengths:",  StringComparison.OrdinalIgnoreCase))
-                strengths = ExtractAfterFirstColon(line);
-            else if (line.StartsWith("Best for:", StringComparison.OrdinalIgnoreCase) ||
-                     line.StartsWith("Best-for:", StringComparison.OrdinalIgnoreCase) ||
-                     line.StartsWith("Bestfor:",  StringComparison.OrdinalIgnoreCase))
-                bestFor = ExtractAfterFirstColon(line);
-            else if (line.StartsWith("Avoid:", StringComparison.OrdinalIgnoreCase) ||
-                     line.StartsWith("Not for:", StringComparison.OrdinalIgnoreCase) ||
-                     line.StartsWith("Weakness:", StringComparison.OrdinalIgnoreCase))
-                avoid = ExtractAfterFirstColon(line);
-        }
-
-        // If the model ignored the format and returned prose, store everything in Strengths
-        // so at least something is captured.
-        if (string.IsNullOrEmpty(strengths) && string.IsNullOrEmpty(bestFor) &&
-            string.IsNullOrEmpty(avoid))
-        {
-            strengths = answer.Replace('\n', ' ').Trim();
-            if (strengths.Length > 200) strengths = strengths[..200] + "…";
-        }
-
-        return (strengths, bestFor, avoid);
     }
 
     private static string ExtractAfterFirstColon(string line)
     {
         var idx = line.IndexOf(':');
         return idx >= 0 ? line[(idx + 1)..].Trim() : line.Trim();
+    }
+
+    /// <summary>
+    /// Parses the coordinator's role-plan JSON into a display-name → instruction dictionary.
+    /// Accepts both the array format {"roles":[{"name":…,"instruction":…}]}
+    /// and a flat object format {"DisplayName":"instruction"}.
+    /// Strips JSON comments (// …) before parsing.
+    /// </summary>
+    private static bool TryParseRolePlan(string json, out Dictionary<string, string> plan)
+    {
+        plan = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            // Strip // line comments so the coordinator can include them
+            var clean = System.Text.RegularExpressions.Regex.Replace(
+                json, @"//[^\n]*", "", System.Text.RegularExpressions.RegexOptions.Multiline).Trim();
+
+            using var doc = System.Text.Json.JsonDocument.Parse(clean);
+            var root = doc.RootElement;
+
+            if (root.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                // Array format: {"roles":[{"name":"…","instruction":"…"}]}
+                if (root.TryGetProperty("roles", out var rolesElem) &&
+                    rolesElem.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var item in rolesElem.EnumerateArray())
+                    {
+                        var name  = item.TryGetProperty("name",        out var n) ? n.GetString() ?? "" : "";
+                        var instr = item.TryGetProperty("instruction", out var i) ? i.GetString() ?? "" : "";
+                        if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(instr))
+                            plan[name] = instr;
+                    }
+                }
+                else
+                {
+                    // Flat format: {"DisplayName":"instruction"}
+                    foreach (var prop in root.EnumerateObject())
+                        if (!string.IsNullOrWhiteSpace(prop.Name) &&
+                            prop.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+                            plan[prop.Name] = prop.Value.GetString() ?? "";
+                }
+            }
+            return plan.Count > 0;
+        }
+        catch { return false; }
     }
 
     // ── Roadmap-building conversation ──────────────────────────────────────
@@ -4977,18 +4869,40 @@ public partial class MainWindow : Window
             return $"*(→ PROJECTPLAN/{fileName})*";
         });
 
-        // ── Write to PROJECTSETTINGS (path= form, used by SuperRoles prompt) ─
-        // The coordinator is prompted with <output path="PROJECTSETTINGS/ParticipantSuperRoles.xml">
-        // which must be handled before the generic <output file="..."> handler below.
+        // ── Write to PROJECTSETTINGS ────────────────────────────────────────
+        // Handles both the new ParticipantRolePlan.json (stored in project.json)
+        // and any other PROJECTSETTINGS/ files written by the coordinator.
         response = new Regex(
             @"<output\s+path=""(PROJECTSETTINGS/[^""]+)"">\s*([\s\S]*?)\s*</output>",
             RegexOptions.IgnoreCase).Replace(response, m =>
         {
-            var relPath = m.Groups[1].Value.Trim();
-            if (ProjectService.SafeWriteFile(projFolder, relPath, m.Groups[2].Value))
+            var relPath  = m.Groups[1].Value.Trim();
+            var content  = m.Groups[2].Value;
+            var fileName = SysIO.Path.GetFileName(relPath);
+
+            // ParticipantRolePlan.json → parse and merge into project.json
+            if (string.Equals(fileName, "ParticipantRolePlan.json",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                if (TryParseRolePlan(content, out var plan) && plan.Count > 0 &&
+                    _currentProject is not null && _currentProjectFolder is not null)
+                {
+                    _currentProject.ParticipantRolePlan = plan;
+                    ProjectService.SaveProject(_currentProjectFolder, _currentProject);
+                    _superRoles = null;
+                    AddSystemMessage(
+                        $"📝  {senderName} → participant role plan saved ({plan.Count} role(s))");
+                }
+                else
+                    AddSystemMessage($"⚠  {senderName} → ParticipantRolePlan.json could not be parsed.");
+                return $"*(→ {relPath})*";
+            }
+
+            // All other PROJECTSETTINGS/ files — write to disk as before
+            if (ProjectService.SafeWriteFile(projFolder, relPath, content))
             {
                 AddSystemMessage($"📝  {senderName} → {relPath}");
-                _superRoles = null;     // invalidate cache so the new file is picked up immediately
+                _superRoles = null;
             }
             else
                 AddSystemMessage($"⚠  Could not write {relPath} (path rejected).");
@@ -5006,11 +4920,10 @@ public partial class MainWindow : Window
             var lowerName = fileName.ToLowerInvariant();
             var forbiddenPatterns = new[]
             {
-                "projectsettings",  // ProjectSettings_* files
-                "superrole",        // *SuperRoles* files
-                "project.json",     // Main project file
-                "chatlog",          // Chat logs belong in project root
-                "_versions"         // Version history folder marker
+                "projectsettings",   // ProjectSettings/ folder - use path= form instead
+                "project.json",      // Main project file
+                "chatlog",           // Chat logs belong in project root
+                "_versions"          // Version history folder marker
             };
             if (forbiddenPatterns.Any(p => lowerName.Contains(p)))
             {
@@ -5152,7 +5065,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Cleans up internal configuration files from OUTPUT folder if they exist.
     /// Returns a summary of what was removed. Call this on a project folder to
-    /// remove any stray ProjectSettings or SuperRoles files that shouldn't be there.
+    /// remove any stray ProjectSettings files that shouldn't be there.
     /// </summary>
     public static (int FilesRemoved, List<string> RemovedPaths) CleanupOutputFolder(string projFolder)
     {
@@ -5166,7 +5079,6 @@ public partial class MainWindow : Window
         var forbiddenPatterns = new[]
         {
             "projectsettings",
-            "superrole",
             "project.json",
             "chatlog"
         };

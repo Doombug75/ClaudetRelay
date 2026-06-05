@@ -183,8 +183,8 @@ public partial class MainWindow : Window
     private ProjectSettings?           _currentProject;   // same object as _projectSettings
     private ProjectTypeDefinition?     _currentProjectType;
     private Roadmap?                   _currentRoadmap;
-    /// <summary>Cached SuperRoles for the open project. Null = not loaded yet or no file.</summary>
-    private Dictionary<string, (string Title, string Instruction)>? _superRoles;
+    /// <summary>Cached role plan for the open project. Null = not loaded yet or no plan.</summary>
+    private Dictionary<string, string>? _superRoles;   // keyed by display name → role instruction
     private string?                    _selectedProjectFolder; // selected in Projects list
     private DateTime?                  _sessionStartTime;      // set on OpenProject, cleared on close
     private bool                       _workSessionFired;      // prevents double-greeting per open

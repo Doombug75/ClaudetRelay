@@ -186,6 +186,20 @@ public class ProjectSettings
     public List<BridgeAgent>? SavedBridgeAgents { get; set; } = null;
 
     /// <summary>
+    /// Coordinator-written per-participant role instructions for this project.
+    /// Key = participant display name (case-insensitive).
+    /// Replaces the separate ParticipantSuperRoles.xml file; stored here so the
+    /// whole project state lives in one place.
+    /// </summary>
+    public Dictionary<string, string>? ParticipantRolePlan { get; set; } = null;
+
+    /// <summary>
+    /// Sorted fingerprint of the participants that were active when the role plan was last written.
+    /// Used to detect team composition changes and re-trigger the capability flow.
+    /// </summary>
+    public string? ParticipantFingerprint { get; set; } = null;
+
+    /// <summary>
     /// How much creative autonomy the AI has in this project (0–4).
     ///   0 = Assistant  — only acts on explicit instructions, never writes files without approval
     ///   1 = Cooperative — brainstorms and plans; every decision stays with the user  (default)
