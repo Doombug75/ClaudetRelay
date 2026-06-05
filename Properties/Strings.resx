@@ -105,6 +105,7 @@
   <data name="ToolTip_RemoveParticipant"   xml:space="preserve"><value>Remove this participant from the project</value></data>
   <data name="MenuItem_ExportHtml"         xml:space="preserve"><value>🔄  Export Chat History as HTML…</value></data>
   <data name="MenuItem_ExportMarkdown"     xml:space="preserve"><value>📝  Export Chat History as Markdown…</value></data>
+  <data name="MenuItem_ExportAudio"        xml:space="preserve"><value>🔊  Export Chat History as Audio (WAV)…</value></data>
   <data name="MenuItem_BrowseFiles"        xml:space="preserve"><value>📁  Browse project files…</value></data>
   <data name="Dlg_ChooseProjectType"       xml:space="preserve"><value>Choose Project Type</value></data>
   <data name="Dlg_ChooseTypeQuestion"      xml:space="preserve"><value>What kind of project is this?</value></data>

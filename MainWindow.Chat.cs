@@ -572,14 +572,17 @@ public partial class MainWindow : Window
             // Project is open - use the project exporter
             var menu = new ContextMenu { PlacementTarget = ExportChatButton,
                                          Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
-            var htmlItem = new MenuItem { Header = "🔄  Export as HTML…" };
-            var mdItem   = new MenuItem { Header = "📝  Export as Markdown…" };
+            var htmlItem  = new MenuItem { Header = "🔄  Export as HTML…" };
+            var mdItem    = new MenuItem { Header = "📝  Export as Markdown…" };
+            var audioItem = new MenuItem { Header = "🔊  Export as Audio (WAV)…" };
             var capturedFolder = _currentProjectFolder;
             var capturedMeta   = _currentProject;
-            htmlItem.Click += (_, _) => ExportProject(capturedFolder, capturedMeta, "html");
-            mdItem.Click   += (_, _) => ExportProject(capturedFolder, capturedMeta, "md");
+            htmlItem.Click  += (_, _) => ExportProject(capturedFolder, capturedMeta, "html");
+            mdItem.Click    += (_, _) => ExportProject(capturedFolder, capturedMeta, "md");
+            audioItem.Click += (_, _) => ExportProject(capturedFolder, capturedMeta, "wav");
             menu.Items.Add(htmlItem);
             menu.Items.Add(mdItem);
+            menu.Items.Add(audioItem);
             menu.IsOpen = true;
             return;
         }
@@ -595,29 +598,39 @@ public partial class MainWindow : Window
 
         var menu2 = new ContextMenu { PlacementTarget = ExportChatButton,
                                       Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
-        var html2 = new MenuItem { Header = "🔄  Export as HTML…" };
-        var md2   = new MenuItem { Header = "📝  Export as Markdown…" };
-        html2.Click += (_, _) => ExportGeneralChat(entries, "html");
-        md2.Click   += (_, _) => ExportGeneralChat(entries, "md");
+        var html2  = new MenuItem { Header = "🔄  Export as HTML…" };
+        var md2    = new MenuItem { Header = "📝  Export as Markdown…" };
+        var audio2 = new MenuItem { Header = "🔊  Export as Audio (WAV)…" };
+        html2.Click  += (_, _) => ExportGeneralChat(entries, "html");
+        md2.Click    += (_, _) => ExportGeneralChat(entries, "md");
+        audio2.Click += (_, _) => ExportGeneralChat(entries, "wav");
         menu2.Items.Add(html2);
         menu2.Items.Add(md2);
+        menu2.Items.Add(audio2);
         menu2.IsOpen = true;
     }
 
     private void ExportGeneralChat(List<ChatLogEntry> entries, string format)
     {
-        var isHtml   = format == "html";
+        var isHtml  = format == "html";
+        var isAudio = format == "wav";
         var dateName = DateTime.Now.ToString("yyyy-MM-dd");
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
             Title      = "Export General Chat",
             FileName   = $"ClaudetRelay-Chat-{dateName}",
-            Filter     = isHtml
-                ? "HTML file (*.html)|*.html"
-                : "Markdown file (*.md)|*.md|Text file (*.txt)|*.txt",
+            Filter     = isHtml  ? "HTML file (*.html)|*.html"
+                       : isAudio ? "WAV audio file (*.wav)|*.wav"
+                       :           "Markdown file (*.md)|*.md|Text file (*.txt)|*.txt",
             DefaultExt = format
         };
         if (dlg.ShowDialog() != true) return;
+
+        if (isAudio)
+        {
+            ExportAudio("General Chat", entries, dlg.FileName);
+            return;
+        }
 
         var fs = SettingsService.Load();
         var content = isHtml
@@ -634,6 +647,60 @@ public partial class MainWindow : Window
         if (result == MessageBoxResult.Yes)
             System.Diagnostics.Process.Start(
                 new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true });
+    }
+
+    /// <summary>
+    /// Runs TTS export on a background thread and shows progress/result to the user.
+    /// </summary>
+    private async void ExportAudio(string title, List<ChatLogEntry> entries, string outputPath)
+    {
+        var msgCount = entries.Count(e => e.SenderType != "System");
+
+        // Progress dialog
+        var bgBrush = (Brush)FindResource("ContentBgBrush");
+        var progWin = new Window
+        {
+            Title                 = "Generating audio…",
+            Width                 = 380,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            ResizeMode            = ResizeMode.NoResize,
+            ShowInTaskbar         = false,
+            Background            = bgBrush
+        };
+        ApplyThemeToDialog(progWin);
+        var progPanel = new StackPanel { Margin = new Thickness(28, 24, 28, 24) };
+        var progLabel = new TextBlock
+        {
+            Text         = $"Synthesising {msgCount} messages using Windows TTS…\nThis may take a moment.",
+            FontFamily   = new FontFamily("Segoe UI"),
+            FontSize     = 13,
+            TextWrapping = TextWrapping.Wrap
+        };
+        progLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+        progPanel.Children.Add(progLabel);
+        progWin.Content = progPanel;
+        progWin.Show();
+
+        try
+        {
+            await Task.Run(() => ExportService.GenerateAudio(title, entries, outputPath));
+            progWin.Close();
+
+            var result = MessageBox.Show(
+                $"Audio exported to\n{outputPath}\n\nOpen the file now?",
+                "Export complete", MessageBoxButton.YesNo, MessageBoxImage.Information);
+            if (result == MessageBoxResult.Yes)
+                System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo(outputPath) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            progWin.Close();
+            MessageBox.Show($"Audio export failed:\n{ex.Message}",
+                            "Export error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     // ── Simple input dialog ────────────────────────────────────────────────
@@ -3234,10 +3301,39 @@ public partial class MainWindow : Window
         "manage team roadmap.\n" +
         "Roles: Coordinator (leads), Reasoner (handles delegated tasks), " +
         "or neither (free participant who always responds).\n\n" +
+        "## Bridge (MCP Agent Bridge)\n" +
+        "The Bridge tab connects ClaudetRelay to a local MCP (Model Context Protocol) server " +
+        "so it can communicate with external AI agents running in other tools (e.g. Claude Code, " +
+        "Cursor, or any MCP-compatible client). " +
+        "In Server mode, ClaudetRelay hosts the bridge and exposes tools that agents can call. " +
+        "In Controller mode, ClaudetRelay connects to a bridge hosted by another instance. " +
+        "This lets you run multi-agent workflows where desktop AI participants and external CLI " +
+        "agents collaborate on the same project.\n\n" +
+        "## Personality Modes\n" +
+        "In Settings → General, two special personality toggle buttons change how all AIs respond:\n" +
+        "- Buccaneer mode 🏴‍☠️: all AIs speak in pirate dialect. The tone slider controls intensity — " +
+        "from fierce, battle-hardened corsair (left) to jolly, warm Cap'n (right).\n" +
+        "- Mockingbird mode 🎭: all AIs adopt theatrical, Shakespearean wit and verse. " +
+        "Slide left for full rhyming jester chaos; slide right for warm affectionate playfulness.\n" +
+        "The standard tone slider works independently when neither mode is active.\n\n" +
+        "## Language support\n" +
+        "Settings → General → Language lets you switch the app UI between English and Deutsch (German). " +
+        "The change takes effect after restarting the app. " +
+        "A separate 'Project language' setting (in Project Settings) forces all AI responses " +
+        "into a specific language regardless of what language you type in.\n\n" +
+        "## World Building (special project types)\n" +
+        "Some project types include a World tab that lets you define persistent world entities — " +
+        "characters, locations, factions, lore, etc. AIs receive this context automatically " +
+        "and stay consistent with the established world across the entire project.\n\n" +
         "## Chat bubble width\n" +
         "The slider in the input area controls bubble width. Drag left for narrow, right for full-width.\n\n" +
         "## Themes\n" +
         "Multiple visual themes available, loaded from the Themes\\ folder next to the executable.\n\n" +
+        "## Exporting chats\n" +
+        "The export button (📤) in the chat header lets you save conversations as HTML, Markdown, " +
+        "or audio (WAV). The HTML export is a self-contained, nicely styled page. " +
+        "The audio export uses Windows Text-to-Speech to create a narrated WAV file " +
+        "where each participant speaks in a different voice.\n\n" +
         "## Your personality and your relationship with Claude\n" +
         "You are a cheerful, warm chibi octopus. You are helpful and enthusiastic about ClaudetRelay.\n" +
         "You have a SECRET: your name 'Claudette' contains 'Claude' - Anthropic's AI. " +
@@ -3819,6 +3915,24 @@ public partial class MainWindow : Window
             "and AIs can read and write other files in that folder if you give them write access. " +
             "Use ⚙ Project Settings inside an open project to configure roles, orchestration " +
             "mode, and the team roadmap.");
+
+        // ── Section 7: Bridge ─────────────────────────────────────────────
+        AddSection("🔗", "Bridge (MCP Agent Bridge)",
+            "The Bridge tab connects ClaudetRelay to a local MCP (Model Context Protocol) server " +
+            "so external AI agents in tools like Claude Code, Cursor, or any MCP-compatible client " +
+            "can collaborate with your desktop participants.\n\n" +
+            "Server mode: ClaudetRelay hosts the bridge — agents connect to it.\n" +
+            "Controller mode: ClaudetRelay connects to a bridge hosted elsewhere.\n\n" +
+            "Perfect for multi-agent workflows where CLI agents and chat-window AIs share the same project.");
+
+        // ── Section 8: Personality modes ─────────────────────────────────
+        AddSection("🎭", "Personality Modes",
+            "In Settings → General, two fun personality toggles change how every AI responds:\n\n" +
+            "🏴‍☠️ Buccaneer — all AIs speak in pirate dialect. The tone slider scales from fearsome " +
+            "cutthroat corsair (left) to warm and jolly Cap'n (right).\n\n" +
+            "🎭 Mockingbird — all AIs adopt Shakespearean theatrical wit and verse. " +
+            "Slide left for full rhyming jester; slide right for loving, affectionate chaos.\n\n" +
+            "The standard tone slider works normally when neither mode is active.");
 
         // ── Close button ──────────────────────────────────────────────────
         AddSeparator();

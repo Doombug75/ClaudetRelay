@@ -105,6 +105,7 @@
   <data name="ToolTip_RemoveParticipant"   xml:space="preserve"><value>Diesen Teilnehmer aus dem Projekt entfernen</value></data>
   <data name="MenuItem_ExportHtml"         xml:space="preserve"><value>🔄  Chatverlauf als HTML exportieren…</value></data>
   <data name="MenuItem_ExportMarkdown"     xml:space="preserve"><value>📝  Chatverlauf als Markdown exportieren…</value></data>
+  <data name="MenuItem_ExportAudio"        xml:space="preserve"><value>🔊  Chatverlauf als Audio (WAV) exportieren…</value></data>
   <data name="MenuItem_BrowseFiles"        xml:space="preserve"><value>📁  Projektdateien durchsuchen…</value></data>
   <data name="Dlg_ChooseProjectType"       xml:space="preserve"><value>Projekttyp auswählen</value></data>
   <data name="Dlg_ChooseTypeQuestion"      xml:space="preserve"><value>Was für ein Projekt ist das?</value></data>
@@ -146,8 +147,8 @@
   <data name="Btn_UnderstandCost"        xml:space="preserve"><value>Ich verstehe die Kosten- und Ratenlimit-Auswirkungen</value></data>
   <data name="Lbl_BridgeProject"         xml:space="preserve"><value>PROJEKT</value></data>
   <data name="Lbl_ActivityLog"           xml:space="preserve"><value>AKTIVITÄTSPROTOKOLL</value></data>
-  <data name="Lbl_ControllerParticipant" xml:space="preserve"><value>STEUERUNGS-TEILNEHMER</value></data>
-  <data name="Lbl_ControllerChat"        xml:space="preserve"><value>STEUERUNGS-CHAT</value></data>
+  <data name="Lbl_ControllerParticipant" xml:space="preserve"><value>CONTROLLER-TEILNEHMER</value></data>
+  <data name="Lbl_ControllerChat"        xml:space="preserve"><value>CONTROLLER-CHAT</value></data>
   <data name="Lbl_Agents"                xml:space="preserve"><value>AGENTEN</value></data>
   <data name="Lbl_Folders"               xml:space="preserve"><value>ORDNER</value></data>
   <data name="Lbl_TempWorkspace"         xml:space="preserve"><value>TEMP-ARBEITSBEREICH</value></data>

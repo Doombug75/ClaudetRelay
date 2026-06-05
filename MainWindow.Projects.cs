@@ -305,22 +305,25 @@ public partial class MainWindow
         };
 
         // ── Right-click context menu ───────────────────────────────────────
-        var ctxMenu    = new ContextMenu();
-        var exportHtml = new MenuItem { Header = Loc.S("MenuItem_ExportHtml") };
-        var exportMd   = new MenuItem { Header = Loc.S("MenuItem_ExportMarkdown") };
-        var browseItem = new MenuItem { Header = Loc.S("MenuItem_BrowseFiles") };
+        var ctxMenu      = new ContextMenu();
+        var exportHtml   = new MenuItem { Header = Loc.S("MenuItem_ExportHtml") };
+        var exportMd     = new MenuItem { Header = Loc.S("MenuItem_ExportMarkdown") };
+        var exportAudio  = new MenuItem { Header = Loc.S("MenuItem_ExportAudio") };
+        var browseItem   = new MenuItem { Header = Loc.S("MenuItem_BrowseFiles") };
 
         var capturedFolder = projFolder;
         var capturedMeta   = meta;
-        exportHtml.Click += (_, _) => ExportProject(capturedFolder, capturedMeta, "html");
-        exportMd.Click   += (_, _) => ExportProject(capturedFolder, capturedMeta, "md");
-        browseItem.Click += (_, _) =>
+        exportHtml.Click  += (_, _) => ExportProject(capturedFolder, capturedMeta, "html");
+        exportMd.Click    += (_, _) => ExportProject(capturedFolder, capturedMeta, "md");
+        exportAudio.Click += (_, _) => ExportProject(capturedFolder, capturedMeta, "wav");
+        browseItem.Click  += (_, _) =>
             System.Diagnostics.Process.Start(
                 new System.Diagnostics.ProcessStartInfo(capturedFolder)
                     { UseShellExecute = true });
 
         ctxMenu.Items.Add(exportHtml);
         ctxMenu.Items.Add(exportMd);
+        ctxMenu.Items.Add(exportAudio);
         ctxMenu.Items.Add(new Separator());
         ctxMenu.Items.Add(browseItem);
         card.ContextMenu = ctxMenu;
@@ -338,20 +341,27 @@ public partial class MainWindow
             return;
         }
 
-        var isHtml   = format == "html";
+        var isHtml  = format == "html";
+        var isAudio = format == "wav";
         var safeName = string.Join("_", meta.ProjectName
             .Split(SysIO.Path.GetInvalidFileNameChars())).Trim();
 
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
-            Title       = $"Export \"{meta.ProjectName}\"",
-            FileName    = $"{safeName}-export",
-            Filter      = isHtml
-                ? "HTML file (*.html)|*.html"
-                : "Markdown file (*.md)|*.md|Text file (*.txt)|*.txt",
-            DefaultExt  = format
+            Title      = $"Export \"{meta.ProjectName}\"",
+            FileName   = $"{safeName}-export",
+            Filter     = isHtml  ? "HTML file (*.html)|*.html"
+                       : isAudio ? "WAV audio file (*.wav)|*.wav"
+                       :           "Markdown file (*.md)|*.md|Text file (*.txt)|*.txt",
+            DefaultExt = format
         };
         if (dlg.ShowDialog() != true) return;
+
+        if (isAudio)
+        {
+            ExportAudio(meta.ProjectName, entries, dlg.FileName);
+            return;
+        }
 
         var fontSettings = SettingsService.Load();
         var content = isHtml
