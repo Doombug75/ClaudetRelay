@@ -187,7 +187,7 @@ public partial class MainWindow
         // "🗺 Boards" gallery tab
         var boardTab = new Button
         {
-            Content         = "🗺 Boards",
+            Content         = Properties.Loc.S("World_Boards"),
             FontSize        = 13,
             FontFamily      = new FontFamily("Segoe UI"),
             FontWeight      = _worldBoardsMode ? FontWeights.SemiBold : FontWeights.Normal,
@@ -291,13 +291,13 @@ public partial class MainWindow
         bool isLoreView = _worldActiveType == "Lore";
 
         if (factionVals.Count > 0 || hasMissingFaction)
-            AddFilterCombo("All Factions", factionVals, hasMissingFaction, "(no faction)",
+            AddFilterCombo(Properties.Loc.S("World_AllFactions"), factionVals, hasMissingFaction, Properties.Loc.S("World_NoFaction"),
                 () => _worldFilterFaction, v => _worldFilterFaction = v);
         if (arcVals.Count > 0 || hasMissingArc)
-            AddFilterCombo("All Arcs", arcVals, hasMissingArc, "(no arc)",
+            AddFilterCombo(Properties.Loc.S("World_AllArcs"), arcVals, hasMissingArc, Properties.Loc.S("World_NoArc"),
                 () => _worldFilterArc, v => _worldFilterArc = v);
         if (!isLoreView && (alignVals.Count > 0 || hasMissingAlignment))
-            AddFilterCombo("All Alignments", alignVals, hasMissingAlignment, "(no alignment)",
+            AddFilterCombo(Properties.Loc.S("World_AllAlignments"), alignVals, hasMissingAlignment, Properties.Loc.S("World_NoAlignment"),
                 () => _worldFilterAlignment, v => _worldFilterAlignment = v);
 
         if (isLoreView)
@@ -315,8 +315,8 @@ public partial class MainWindow
                 chk.Unchecked += (_, _) => { set(false); BuildWorldContent(); };
                 return chk;
             }
-            filterRow.Children.Add(MakeKnowledgeCheck("Common Knowledge",    _worldFilterCommonKnowledge,    v => _worldFilterCommonKnowledge    = v));
-            filterRow.Children.Add(MakeKnowledgeCheck("Historical Knowledge", _worldFilterHistoricalKnowledge, v => _worldFilterHistoricalKnowledge = v));
+            filterRow.Children.Add(MakeKnowledgeCheck(Properties.Loc.S("World_CommonKnowledge"),    _worldFilterCommonKnowledge,    v => _worldFilterCommonKnowledge    = v));
+            filterRow.Children.Add(MakeKnowledgeCheck(Properties.Loc.S("World_HistoricalKnowledge"), _worldFilterHistoricalKnowledge, v => _worldFilterHistoricalKnowledge = v));
         }
 
         // Sort buttons
@@ -332,7 +332,7 @@ public partial class MainWindow
         filterRow.Children.Add(MakeSortBtn("📅↑",  "date_asc"));
         filterRow.Children.Add(MakeSortBtn("📅↓",  "date_desc"));
 
-        var resetBtn = MakeFilePanelButton("↺ Reset", isPrimary: false);
+        var resetBtn = MakeFilePanelButton(Properties.Loc.S("World_Reset"), isPrimary: false);
         resetBtn.FontSize = 10; resetBtn.Padding = new Thickness(6, 3, 6, 3); resetBtn.Margin = new Thickness(4, 2, 0, 2);
         resetBtn.Click += (_, _) =>
         {
@@ -422,7 +422,7 @@ public partial class MainWindow
         {
             var noMatch = new TextBlock
             {
-                Text = "No results match the current filters. Click ↺ Reset to clear.",
+                Text = Properties.Loc.S("World_NoFilterResults"),
                 FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4)
             };
@@ -659,7 +659,7 @@ public partial class MainWindow
         void DoDelete()
         {
             if (MessageBox.Show($"Delete {entity.EntityType} '{entity.Name}'?",
-                    "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+                    Properties.Loc.S("World_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning)
                 != MessageBoxResult.Yes) return;
             // Delete thumbnails for portraits/images
             if (!string.IsNullOrWhiteSpace(entity.PortraitFileName))
@@ -672,7 +672,7 @@ public partial class MainWindow
 
         var ctx = new ContextMenu();
 
-        var editItem = new MenuItem { Header = "✏  Edit" };
+        var editItem = new MenuItem { Header = Properties.Loc.S("World_EditItem") };
         editItem.Click += (_, _) =>
         {
             if (_entityEditOpen) { ShowEntityReadOnlyDialog(entity); return; }
@@ -690,14 +690,14 @@ public partial class MainWindow
         ctx.Items.Add(editItem);
         ctx.Items.Add(new Separator());
 
-        var delItem = new MenuItem { Header = "🗑  Delete" };
+        var delItem = new MenuItem { Header = Properties.Loc.S("World_DeleteItem") };
         delItem.Click += (_, _) => DoDelete();
         ctx.Items.Add(delItem);
 
         // "Send to World Board" submenu – boards loaded lazily on open.
         // WPF only fires SubmenuOpened when Items.Count > 0, so we seed one placeholder item
         // to make the arrow appear; the handler replaces it with real entries.
-        var sendItem = new MenuItem { Header = "📌  Send to Board" };
+        var sendItem = new MenuItem { Header = Properties.Loc.S("World_SendToBoard") };
         sendItem.Items.Add(new MenuItem { Header = "…", IsEnabled = false }); // placeholder forces arrow
         sendItem.SubmenuOpened += (_, _) =>
         {
@@ -732,7 +732,7 @@ public partial class MainWindow
                     if (bData.Positions.ContainsKey(entity.Id))
                     {
                         MessageBox.Show($"'{entity.Name}' is already on board \"{capturedBoard.Name}\".",
-                            "Already on board", MessageBoxButton.OK, MessageBoxImage.Information);
+                            Properties.Loc.S("World_AlreadyOnBoard"), MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
                     // Place at a position snapped to the board's grid
@@ -743,7 +743,7 @@ public partial class MainWindow
                     bData.Positions[entity.Id] = new BoardPosition { X = 60, Y = placeY };
                     EntityBoardService.Save(projFolder, capturedBoard.Id, bData);
                     MessageBox.Show($"'{entity.Name}' added to board \"{capturedBoard.Name}\".",
-                        "Done", MessageBoxButton.OK, MessageBoxImage.Information);
+                        Properties.Loc.S("Btn_Done"), MessageBoxButton.OK, MessageBoxImage.Information);
                 };
                 sendItem.Items.Add(mi);
             }
@@ -1055,7 +1055,7 @@ public partial class MainWindow
         Grid.SetColumn(sortPanel, 0);
         sortRow.Children.Add(sortPanel);
 
-        var sortLbl = new TextBlock { Text = "Sort:", FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+        var sortLbl = new TextBlock { Text = Properties.Loc.S("Projects_Sort"), FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         sortLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
         sortPanel.Children.Add(sortLbl);
@@ -1072,7 +1072,7 @@ public partial class MainWindow
         sortPanel.Children.Add(MakeSortBtn("Date ↑",     "date_asc"));
         sortPanel.Children.Add(MakeSortBtn("Date ↓",     "date_desc"));
 
-        var addBoardBtn = MakeFilePanelButton("＋ New Board", isPrimary: true);
+        var addBoardBtn = MakeFilePanelButton(Properties.Loc.S("World_NewBoard"), isPrimary: true);
         addBoardBtn.FontSize = 12; addBoardBtn.Padding = new Thickness(14, 6, 14, 6);
         Grid.SetColumn(addBoardBtn, 1);
         sortRow.Children.Add(addBoardBtn);
@@ -1089,7 +1089,7 @@ public partial class MainWindow
         var filterRow = new StackPanel { Orientation = Orientation.Horizontal };
         toolStack.Children.Add(filterRow);
 
-        var filterLbl = new TextBlock { Text = "Filter:", FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+        var filterLbl = new TextBlock { Text = Properties.Loc.S("World_Filter"), FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         filterLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
         filterRow.Children.Add(filterLbl);
@@ -1133,7 +1133,7 @@ public partial class MainWindow
 
             var emptyTitle = new TextBlock
             {
-                Text = "No boards yet.", FontSize = 15, FontWeight = FontWeights.SemiBold,
+                Text = Properties.Loc.S("World_NoBoardsYet"), FontSize = 15, FontWeight = FontWeights.SemiBold,
                 FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 0, 0, 8)
             };
             emptyTitle.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
@@ -1141,7 +1141,7 @@ public partial class MainWindow
 
             var emptyHint = new TextBlock
             {
-                Text = "A board is a visual canvas where you connect characters, locations, factions and lore.\nClick '＋ New Board' above to create your first one.",
+                Text = Properties.Loc.S("World_NoBoardsHint"),
                 FontSize = 13, FontFamily = new FontFamily("Segoe UI"), TextWrapping = TextWrapping.Wrap
             };
             emptyHint.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
@@ -1234,7 +1234,7 @@ public partial class MainWindow
             // Context menu: rename, settings, delete
             var ctx = new ContextMenu();
 
-            var renameItem = new MenuItem { Header = "✏  Rename…" };
+            var renameItem = new MenuItem { Header = Properties.Loc.S("World_RenameBoard") };
             renameItem.Click += (_, _) =>
             {
                 var newName = ShowSimpleInputDialog("Rename Board", "Board name:", capturedBoard.Name);
@@ -1248,7 +1248,7 @@ public partial class MainWindow
             };
             ctx.Items.Add(renameItem);
 
-            var settingsItem = new MenuItem { Header = "⚙  Board Settings…" };
+            var settingsItem = new MenuItem { Header = Properties.Loc.S("World_BoardSettings") };
             settingsItem.Click += (_, _) =>
             {
                 if (ShowBoardSettingsDialog(capturedBoard))
@@ -1267,11 +1267,11 @@ public partial class MainWindow
 
             ctx.Items.Add(new Separator());
 
-            var deleteItem = new MenuItem { Header = "🗑  Delete Board" };
+            var deleteItem = new MenuItem { Header = Properties.Loc.S("World_DeleteBoard") };
             deleteItem.Click += (_, _) =>
             {
                 if (MessageBox.Show($"Delete board \"{capturedBoard.Name}\"?\nAll card positions and relations will be lost.",
-                        "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                        Properties.Loc.S("World_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
                 boards.Remove(capturedBoard);
                 WorldBoardRegistryService.Save(projFolder, boards);
                 if (_openBoardWindows.TryGetValue(capturedBoard.Id, out var bw)) bw.Close();
@@ -1327,7 +1327,7 @@ public partial class MainWindow
         scroll.Content = root;
 
         // Name
-        var nameLbl = new TextBlock { Text = "Board name", FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) };
+        var nameLbl = new TextBlock { Text = Properties.Loc.S("World_BoardName"), FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) };
         nameLbl.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
         root.Children.Add(nameLbl);
         var nameBox = new TextBox { Text = "New Board", FontSize = 13, Padding = new Thickness(8, 5, 8, 5), BorderThickness = new Thickness(1) };
@@ -1337,7 +1337,7 @@ public partial class MainWindow
         root.Children.Add(nameBox);
 
         // Symbol picker
-        var symLbl = new TextBlock { Text = "Symbol", FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 16, 0, 8) };
+        var symLbl = new TextBlock { Text = Properties.Loc.S("World_Symbol"), FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 16, 0, 8) };
         symLbl.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
         root.Children.Add(symLbl);
 
@@ -1372,7 +1372,7 @@ public partial class MainWindow
         UpdateSymSel();
 
         // Entity types
-        var etLbl = new TextBlock { Text = "Entity types on this board", FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 16, 0, 8) };
+        var etLbl = new TextBlock { Text = Properties.Loc.S("World_EntityTypes"), FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 16, 0, 8) };
         etLbl.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
         root.Children.Add(etLbl);
 
@@ -1394,11 +1394,11 @@ public partial class MainWindow
         // Buttons
         var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 20, 0, 0) };
         root.Children.Add(btnRow);
-        var cancelBtn = MakeFilePanelButton("Cancel", isPrimary: false);
+        var cancelBtn = MakeFilePanelButton(Properties.Loc.S("Btn_Cancel"), isPrimary: false);
         cancelBtn.Padding = new Thickness(14, 7, 14, 7);
         cancelBtn.Click  += (_, _) => win.DialogResult = false;
         btnRow.Children.Add(cancelBtn);
-        var createBtn = MakeFilePanelButton("Create Board", isPrimary: true);
+        var createBtn = MakeFilePanelButton(Properties.Loc.S("World_CreateBoard"), isPrimary: true);
         createBtn.Padding = new Thickness(14, 7, 14, 7);
         createBtn.Margin  = new Thickness(8, 0, 0, 0);
         createBtn.Click  += (_, _) =>
@@ -1444,7 +1444,7 @@ public partial class MainWindow
         scroll.Content = root;
 
         // Symbol picker
-        var symLbl = new TextBlock { Text = "Symbol", FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) };
+        var symLbl = new TextBlock { Text = Properties.Loc.S("World_Symbol"), FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 8) };
         symLbl.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
         root.Children.Add(symLbl);
 
@@ -1475,7 +1475,7 @@ public partial class MainWindow
         UpdateSymSel();
 
         // Entity types
-        var etLbl = new TextBlock { Text = "Entity types on this board", FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 16, 0, 8) };
+        var etLbl = new TextBlock { Text = Properties.Loc.S("World_EntityTypes"), FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 16, 0, 8) };
         etLbl.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
         root.Children.Add(etLbl);
 
@@ -1492,11 +1492,11 @@ public partial class MainWindow
         // Buttons
         var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 20, 0, 0) };
         root.Children.Add(btnRow);
-        var cancelBtn = MakeFilePanelButton("Cancel", isPrimary: false);
+        var cancelBtn = MakeFilePanelButton(Properties.Loc.S("Btn_Cancel"), isPrimary: false);
         cancelBtn.Padding = new Thickness(14, 7, 14, 7);
         cancelBtn.Click  += (_, _) => win.DialogResult = false;
         btnRow.Children.Add(cancelBtn);
-        var saveBtn = MakeFilePanelButton("Save", isPrimary: true);
+        var saveBtn = MakeFilePanelButton(Properties.Loc.S("Btn_Save"), isPrimary: true);
         saveBtn.Padding = new Thickness(14, 7, 14, 7);
         saveBtn.Margin  = new Thickness(8, 0, 0, 0);
         saveBtn.Click  += (_, _) =>

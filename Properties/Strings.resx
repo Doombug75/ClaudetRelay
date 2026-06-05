@@ -313,4 +313,107 @@
   <data name="Settings_Ch_Engaged"     xml:space="preserve"><value>Engaged</value></data>
   <data name="Settings_Ch_VeryChatty"  xml:space="preserve"><value>Very chatty</value></data>
 
+  <!-- ── Participants window ────────────────────────────────────────────── -->
+  <data name="Participants_Title"              xml:space="preserve"><value>Participants</value></data>
+  <data name="Participants_SortSlot"           xml:space="preserve"><value>Slot #</value></data>
+  <data name="Participants_SortName"           xml:space="preserve"><value>Name</value></data>
+  <data name="Participants_SortProvider"       xml:space="preserve"><value>Provider</value></data>
+  <data name="Participants_SortDate"           xml:space="preserve"><value>Date</value></data>
+  <data name="Participants_ActiveFirst"        xml:space="preserve"><value>Active first</value></data>
+  <data name="Participants_NoParticipantsHint" xml:space="preserve"><value>No participants yet.&#x0a;Click '＋ Add Participant' to create one.</value></data>
+  <data name="Participants_Active"             xml:space="preserve"><value>Active</value></data>
+  <data name="Participants_StatusReady"        xml:space="preserve"><value>● Ready</value></data>
+  <data name="Participants_StatusOffline"      xml:space="preserve"><value>○ Offline</value></data>
+  <data name="Participants_StatusNoKey"        xml:space="preserve"><value>⚠ No API key</value></data>
+  <data name="Participants_EditItem"           xml:space="preserve"><value>✏  Edit</value></data>
+  <data name="Participants_RemoveItem"         xml:space="preserve"><value>🗑  Remove</value></data>
+  <data name="Participants_AddTitle"           xml:space="preserve"><value>Add Participant</value></data>
+  <data name="Participants_EditTitle"          xml:space="preserve"><value>Edit Participant</value></data>
+  <data name="Participants_NameField"          xml:space="preserve"><value>DISPLAY NAME  (optional — leave blank to auto-generate)</value></data>
+  <data name="Participants_Provider"           xml:space="preserve"><value>PROVIDER</value></data>
+  <data name="Participants_Model"              xml:space="preserve"><value>MODEL</value></data>
+  <data name="Participants_ServerUrl"          xml:space="preserve"><value>SERVER URL</value></data>
+  <data name="Participants_RateLimiting"       xml:space="preserve"><value>RATE LIMITING</value></data>
+  <data name="Participants_LimitRpm"           xml:space="preserve"><value>Limit requests per minute</value></data>
+  <data name="Participants_RpmSuffix"          xml:space="preserve"><value> rpm  —  this model only</value></data>
+  <data name="Participants_StatusSection"      xml:space="preserve"><value>STATUS</value></data>
+  <data name="Participants_ActiveParticipates" xml:space="preserve"><value>Active — participates in conversations</value></data>
+  <data name="Participants_ApiKeyRequired"     xml:space="preserve"><value>API Key Required</value></data>
+  <data name="Participants_MissingModel"       xml:space="preserve"><value>Missing Model</value></data>
+  <data name="Participants_PleaseSelectModel"  xml:space="preserve"><value>Please enter or select a model.</value></data>
+  <data name="ModelInfo_Title"                 xml:space="preserve"><value>Model Info</value></data>
+  <data name="ModelInfo_Specialty"             xml:space="preserve"><value>SPECIALTY</value></data>
+  <data name="ModelInfo_Specs"                 xml:space="preserve"><value>SPECS</value></data>
+  <data name="ModelInfo_LiveDetails"           xml:space="preserve"><value>LIVE DETAILS</value></data>
+  <data name="ModelInfo_FetchingDetails"       xml:space="preserve"><value>Fetching live model details…</value></data>
+  <data name="ModelInfo_ContextWindow"         xml:space="preserve"><value>Context window</value></data>
+  <data name="ModelInfo_CostTier"              xml:space="preserve"><value>Cost tier</value></data>
+  <data name="ModelInfo_Family"                xml:space="preserve"><value>Family</value></data>
+  <data name="ModelInfo_Parameters"            xml:space="preserve"><value>Parameters</value></data>
+  <data name="ModelInfo_Quantization"          xml:space="preserve"><value>Quantization</value></data>
+  <data name="ModelInfo_Format"                xml:space="preserve"><value>Format</value></data>
+  <data name="ModelInfo_EstVram"               xml:space="preserve"><value>Est. VRAM</value></data>
+
+  <!-- ── World editor ───────────────────────────────────────────────────── -->
+  <data name="World_Boards"                    xml:space="preserve"><value>🗺 Boards</value></data>
+  <data name="World_AllFactions"               xml:space="preserve"><value>All Factions</value></data>
+  <data name="World_NoFaction"                 xml:space="preserve"><value>(no faction)</value></data>
+  <data name="World_AllArcs"                   xml:space="preserve"><value>All Arcs</value></data>
+  <data name="World_NoArc"                     xml:space="preserve"><value>(no arc)</value></data>
+  <data name="World_AllAlignments"             xml:space="preserve"><value>All Alignments</value></data>
+  <data name="World_NoAlignment"               xml:space="preserve"><value>(no alignment)</value></data>
+  <data name="World_CommonKnowledge"           xml:space="preserve"><value>Common Knowledge</value></data>
+  <data name="World_HistoricalKnowledge"       xml:space="preserve"><value>Historical Knowledge</value></data>
+  <data name="World_Reset"                     xml:space="preserve"><value>↺ Reset</value></data>
+  <data name="World_NoFilterResults"           xml:space="preserve"><value>No results match the current filters. Click ↺ Reset to clear.</value></data>
+  <data name="World_EditItem"                  xml:space="preserve"><value>✏  Edit</value></data>
+  <data name="World_DeleteItem"                xml:space="preserve"><value>🗑  Delete</value></data>
+  <data name="World_SendToBoard"               xml:space="preserve"><value>📌  Send to Board</value></data>
+  <data name="World_AlreadyOnBoard"            xml:space="preserve"><value>Already on board</value></data>
+  <data name="World_NoBoardsYet"               xml:space="preserve"><value>No boards yet.</value></data>
+  <data name="World_NoBoardsHint"              xml:space="preserve"><value>A board is a visual canvas where you connect characters, locations, factions and lore.&#x0a;Click '＋ New Board' above to create your first one.</value></data>
+  <data name="World_NewBoard"                  xml:space="preserve"><value>＋ New Board</value></data>
+  <data name="World_BoardName"                 xml:space="preserve"><value>Board name</value></data>
+  <data name="World_Symbol"                    xml:space="preserve"><value>Symbol</value></data>
+  <data name="World_EntityTypes"               xml:space="preserve"><value>Entity types on this board</value></data>
+  <data name="World_ConfirmDelete"             xml:space="preserve"><value>Confirm Delete</value></data>
+  <data name="World_RenameBoard"               xml:space="preserve"><value>✏  Rename…</value></data>
+  <data name="World_BoardSettings"             xml:space="preserve"><value>⚙  Board Settings…</value></data>
+  <data name="World_DeleteBoard"               xml:space="preserve"><value>🗑  Delete Board</value></data>
+  <data name="World_CreateBoard"               xml:space="preserve"><value>Create Board</value></data>
+  <data name="World_AddMember"                 xml:space="preserve"><value>Add Member</value></data>
+  <data name="World_Filter"                    xml:space="preserve"><value>Filter:</value></data>
+
+  <!-- ── Entity edit dialog ─────────────────────────────────────────────── -->
+  <data name="Entity_NameHint"                 xml:space="preserve"><value>NAME</value></data>
+  <data name="Entity_NameLabel"                xml:space="preserve"><value>Name</value></data>
+  <data name="Entity_KnowledgeType"            xml:space="preserve"><value>Knowledge type</value></data>
+  <data name="Entity_CommonKnowledge"          xml:space="preserve"><value>Common knowledge  (everyone may have heard this)</value></data>
+  <data name="Entity_HistoricalKnowledge"      xml:space="preserve"><value>Historical knowledge  (from the distant past)</value></data>
+  <data name="Entity_Notes"                    xml:space="preserve"><value>Notes</value></data>
+  <data name="Entity_NotesHint"                xml:space="preserve"><value>Freeform notes</value></data>
+  <data name="Entity_PortraitDrop"             xml:space="preserve"><value>Drop portrait&#x0a;or click to browse</value></data>
+  <data name="Entity_CropPortrait"             xml:space="preserve"><value>Crop portrait</value></data>
+  <data name="Entity_RemovePortrait"           xml:space="preserve"><value>Remove portrait</value></data>
+  <data name="Entity_ReferenceImage"           xml:space="preserve"><value>REFERENCE IMAGE</value></data>
+  <data name="Entity_DropImage"                xml:space="preserve"><value>Drop an image here, or click to browse</value></data>
+  <data name="Entity_OpenWith"                 xml:space="preserve"><value>Open with…</value></data>
+  <data name="Entity_RemoveImageTip"           xml:space="preserve"><value>Remove attached image</value></data>
+  <data name="Entity_FactionColour"            xml:space="preserve"><value>Faction Colour</value></data>
+  <data name="Entity_CharacterMembers"         xml:space="preserve"><value>Character Members</value></data>
+  <data name="Entity_LocationMembers"          xml:space="preserve"><value>Location Members</value></data>
+  <data name="Entity_AddCharacter"             xml:space="preserve"><value>＋ Add character</value></data>
+  <data name="Entity_AddLocation"              xml:space="preserve"><value>＋ Add location</value></data>
+  <data name="Entity_FactionMembership"        xml:space="preserve"><value>Faction Membership</value></data>
+  <data name="Entity_AddToFaction"             xml:space="preserve"><value>＋ Add to faction</value></data>
+  <data name="Entity_FactionsWithKnowledge"    xml:space="preserve"><value>Factions with this knowledge</value></data>
+  <data name="Entity_CharactersWhoKnow"        xml:space="preserve"><value>Characters who know this lore</value></data>
+  <data name="Entity_AddFaction"               xml:space="preserve"><value>＋ Add faction</value></data>
+  <data name="Entity_NameEmpty"                xml:space="preserve"><value>Name cannot be empty.</value></data>
+  <data name="Entity_Validation"               xml:space="preserve"><value>Validation</value></data>
+  <data name="Entity_AssignFaction"            xml:space="preserve"><value>Assign Faction</value></data>
+  <data name="Entity_AllAssigned"              xml:space="preserve"><value>All entries are already assigned.</value></data>
+  <data name="Entity_NothingToAdd"             xml:space="preserve"><value>Nothing to add</value></data>
+  <data name="Entity_Create"                   xml:space="preserve"><value>Create</value></data>
+
 </root>

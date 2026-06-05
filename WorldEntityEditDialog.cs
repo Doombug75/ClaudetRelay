@@ -120,7 +120,7 @@ public class WorldEntityEditDialog : Window
             Grid.SetColumn(nameSection, 0);
             headerGrid.Children.Add(nameSection);
 
-            var nameHint = new TextBlock { Text = "NAME", FontSize = 9, FontWeight = FontWeights.Bold, FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(2, 0, 0, 4) };
+            var nameHint = new TextBlock { Text = Properties.Loc.S("Entity_NameHint"), FontSize = 9, FontWeight = FontWeights.Bold, FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(2, 0, 0, 4) };
             nameHint.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
             nameSection.Children.Add(nameHint);
 
@@ -149,7 +149,7 @@ public class WorldEntityEditDialog : Window
         else
         {
             // Standard compact name field
-            var nameLbl = new TextBlock { Text = "Name", FontSize = 12, FontWeight = FontWeights.SemiBold, FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 0, 0, 4) };
+            var nameLbl = new TextBlock { Text = Properties.Loc.S("Entity_NameLabel"), FontSize = 12, FontWeight = FontWeights.SemiBold, FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 0, 0, 4) };
             nameLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
             root.Children.Add(nameLbl);
 
@@ -196,14 +196,14 @@ public class WorldEntityEditDialog : Window
         if (isLore)
         {
             // Knowledge-type checkboxes
-            var tagsLbl = new TextBlock { Text = "Knowledge type", FontSize = 12, FontWeight = FontWeights.SemiBold,
+            var tagsLbl = new TextBlock { Text = Properties.Loc.S("Entity_KnowledgeType"), FontSize = 12, FontWeight = FontWeights.SemiBold,
                 FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 14, 0, 6) };
             tagsLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
             root.Children.Add(tagsLbl);
 
             loreCommonCheck = new CheckBox
             {
-                Content     = "Common knowledge  (everyone may have heard this)",
+                Content     = Properties.Loc.S("Entity_CommonKnowledge"),
                 IsChecked   = entity.Fields.TryGetValue("CommonKnowledge", out var ck) && ck == "true",
                 FontSize    = 12, Margin = new Thickness(0, 0, 0, 6)
             };
@@ -212,7 +212,7 @@ public class WorldEntityEditDialog : Window
 
             loreHistoricalCheck = new CheckBox
             {
-                Content     = "Historical knowledge  (from the distant past)",
+                Content     = Properties.Loc.S("Entity_HistoricalKnowledge"),
                 IsChecked   = entity.Fields.TryGetValue("HistoricalKnowledge", out var hk) && hk == "true",
                 FontSize    = 12, Margin = new Thickness(0, 0, 0, 4)
             };
@@ -223,32 +223,33 @@ public class WorldEntityEditDialog : Window
             loreFactionIds = entity.FactionIds.ToList();
             allFactions    = WorldEntityService.List(projFolder, "Faction");
             BuildLocationFactionSection(root, projFolder, entity, allFactions, loreFactionIds,
-                heading: "Factions with this knowledge", addLabel: "＋ Add faction");
+                heading: Properties.Loc.S("Entity_FactionsWithKnowledge"),
+                addLabel: Properties.Loc.S("Entity_AddFaction"));
 
             // Characters who know this lore
             loreMemberIds = entity.MemberIds.ToList();
-            BuildMemberSection(root, projFolder, "Characters who know this lore", "Character",
-                loreMemberIds, "＋ Add character");
+            BuildMemberSection(root, projFolder, Properties.Loc.S("Entity_CharactersWhoKnow"), "Character",
+                loreMemberIds, Properties.Loc.S("Entity_AddCharacter"));
         }
 
         // ── Notes ──────────────────────────────────────────────────────────
-        var notesBox = AddField(root, "Notes", "Freeform notes", entity.Notes, isMultiline: true);
+        var notesBox = AddField(root, Properties.Loc.S("Entity_Notes"), Properties.Loc.S("Entity_NotesHint"), entity.Notes, isMultiline: true);
 
         // ── Buttons ────────────────────────────────────────────────────────
         var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 22, 0, 0) };
         root.Children.Add(btnRow);
 
-        var cancelBtn = MakeBtn("Cancel", false); cancelBtn.Padding = new Thickness(16, 8, 16, 8);
+        var cancelBtn = MakeBtn(Properties.Loc.S("Btn_Cancel"), false); cancelBtn.Padding = new Thickness(16, 8, 16, 8);
         cancelBtn.Click += (_, _) => DialogResult = false;
         btnRow.Children.Add(cancelBtn);
 
-        var saveBtn = MakeBtn(isNew ? "Create" : "Save", true);
+        var saveBtn = MakeBtn(isNew ? Properties.Loc.S("Entity_Create") : Properties.Loc.S("Btn_Save"), true);
         saveBtn.Padding = new Thickness(16, 8, 16, 8); saveBtn.Margin = new Thickness(8, 0, 0, 0);
         saveBtn.Click += (_, _) =>
         {
             if (string.IsNullOrWhiteSpace(nameBox.Text))
             {
-                MessageBox.Show("Name cannot be empty.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Properties.Loc.S("Entity_NameEmpty"), Properties.Loc.S("Entity_Validation"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             entity.Name  = nameBox.Text.Trim();
@@ -321,7 +322,7 @@ public class WorldEntityEditDialog : Window
         // Placeholder (shown when no portrait)
         var placeholder = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
         var plIcon = new TextBlock { Text = "👤", FontSize = 32, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 8) };
-        var plText = new TextBlock { Text = "Drop portrait\nor click to browse", FontSize = 10, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxWidth = 110 };
+        var plText = new TextBlock { Text = Properties.Loc.S("Entity_PortraitDrop"), FontSize = 10, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxWidth = 110 };
         plText.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
         placeholder.Children.Add(plIcon);
         placeholder.Children.Add(plText);
@@ -351,8 +352,8 @@ public class WorldEntityEditDialog : Window
             return b;
         }
 
-        var cropBtn   = MakeOverlayBtn("✂", "Crop portrait");
-        var removeBtn = MakeOverlayBtn("×", "Remove portrait");
+        var cropBtn   = MakeOverlayBtn("✂", Properties.Loc.S("Entity_CropPortrait"));
+        var removeBtn = MakeOverlayBtn("×", Properties.Loc.S("Entity_RemovePortrait"));
         btnOverlay.Children.Add(cropBtn);
         btnOverlay.Children.Add(removeBtn);
 
@@ -550,7 +551,7 @@ public class WorldEntityEditDialog : Window
     {
         var hdrLbl = new TextBlock
         {
-            Text = "REFERENCE IMAGE", FontSize = 10, FontWeight = FontWeights.Bold,
+            Text = Properties.Loc.S("Entity_ReferenceImage"), FontSize = 10, FontWeight = FontWeights.Bold,
             FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 16, 0, 6)
         };
         hdrLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
@@ -578,7 +579,7 @@ public class WorldEntityEditDialog : Window
         var plIcon = new TextBlock { Text = "🖼️", FontSize = 28, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 6) };
         var plText = new TextBlock
         {
-            Text = "Drop an image here, or click to browse",
+            Text = Properties.Loc.S("Entity_DropImage"),
             FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
             HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center
         };
@@ -617,7 +618,7 @@ public class WorldEntityEditDialog : Window
         openBtn.FontSize = 10; openBtn.Padding = new Thickness(8, 3, 8, 3);
         actionRow.Children.Add(openBtn);
 
-        var openWithBtn = MakeBtn("Open with…", false);
+        var openWithBtn = MakeBtn(Properties.Loc.S("Entity_OpenWith"), false);
         openWithBtn.FontSize = 10; openWithBtn.Padding = new Thickness(8, 3, 8, 3);
         openWithBtn.Margin = new Thickness(4, 0, 0, 0);
         actionRow.Children.Add(openWithBtn);
@@ -626,13 +627,13 @@ public class WorldEntityEditDialog : Window
         removeBtn.FontSize = 10; removeBtn.Padding = new Thickness(6, 3, 6, 3);
         removeBtn.Margin = new Thickness(6, 0, 0, 0);
         removeBtn.SetResourceReference(Button.ForegroundProperty, "AccentHighlightBrush");
-        removeBtn.ToolTip = "Remove attached image";
+        removeBtn.ToolTip = Properties.Loc.S("Entity_RemoveImageTip");
         actionRow.Children.Add(removeBtn);
 
         // Also a right-click context menu on the thumbnail
         var ctx = new ContextMenu();
         var ctxOpen     = new MenuItem { Header = "🔗  Open" };
-        var ctxOpenWith = new MenuItem { Header = "Open with…" };
+        var ctxOpenWith = new MenuItem { Header = Properties.Loc.S("Entity_OpenWith") };
         var ctxRemove   = new MenuItem { Header = "✕  Remove" };
         ctx.Items.Add(ctxOpen);
         ctx.Items.Add(ctxOpenWith);
@@ -798,7 +799,7 @@ public class WorldEntityEditDialog : Window
     {
 
         // ── Colour picker ──────────────────────────────────────────────────
-        var colorLbl = new TextBlock { Text = "Faction Colour", FontSize = 12, FontWeight = FontWeights.SemiBold, FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 14, 0, 6) };
+        var colorLbl = new TextBlock { Text = Properties.Loc.S("Entity_FactionColour"), FontSize = 12, FontWeight = FontWeights.SemiBold, FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 14, 0, 6) };
         colorLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
         root.Children.Add(colorLbl);
 
@@ -829,12 +830,12 @@ public class WorldEntityEditDialog : Window
         UpdateSwatchSel();
 
         // ── Character Members ──────────────────────────────────────────────
-        BuildMemberSection(root, projFolder, "Character Members", "Character",
-            workingMemberIds, addLabel: "＋ Add character");
+        BuildMemberSection(root, projFolder, Properties.Loc.S("Entity_CharacterMembers"), "Character",
+            workingMemberIds, addLabel: Properties.Loc.S("Entity_AddCharacter"));
 
         // ── Location Members ───────────────────────────────────────────────
-        BuildMemberSection(root, projFolder, "Location Members", "Location",
-            workingMemberIds, addLabel: "＋ Add location");
+        BuildMemberSection(root, projFolder, Properties.Loc.S("Entity_LocationMembers"), "Location",
+            workingMemberIds, addLabel: Properties.Loc.S("Entity_AddLocation"));
     }
 
     /// <summary>Builds a chip-panel section for one entity type's members within a faction.</summary>
@@ -895,9 +896,11 @@ public class WorldEntityEditDialog : Window
     /// <summary>Builds a faction-chip section. Used by Location (membership) and Lore (knowledge factions).</summary>
     private void BuildLocationFactionSection(StackPanel root, string projFolder, WorldEntity entity,
         List<WorldEntity> allFactions, List<string> locationFactionIds,
-        string heading = "Faction Membership", string addLabel = "＋ Add to faction")
+        string? heading = null, string? addLabel = null)
     {
         if (allFactions.Count == 0) return;
+        heading  ??= Properties.Loc.S("Entity_FactionMembership");
+        addLabel ??= Properties.Loc.S("Entity_AddToFaction");
 
         var lbl = new TextBlock { Text = heading, FontSize = 12, FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 14, 0, 6) };
@@ -951,7 +954,7 @@ public class WorldEntityEditDialog : Window
                 addChip.Child = addTb;
                 addChip.MouseLeftButtonDown += (_, _) =>
                 {
-                    var picked = ShowEntityPicker(allFactions, locationFactionIds, "Assign Faction");
+                    var picked = ShowEntityPicker(allFactions, locationFactionIds, Properties.Loc.S("Entity_AssignFaction"));
                     if (picked is not null && !locationFactionIds.Contains(picked.Id))
                         { locationFactionIds.Add(picked.Id); RefreshChips(); }
                 };
@@ -966,7 +969,7 @@ public class WorldEntityEditDialog : Window
     private WorldEntity? ShowEntityPicker(List<WorldEntity> entities, List<string> excludeIds, string title)
     {
         var eligible = entities.Where(e => !excludeIds.Contains(e.Id)).ToList();
-        if (eligible.Count == 0) { MessageBox.Show("All entries are already assigned.", "Nothing to add", MessageBoxButton.OK, MessageBoxImage.Information); return null; }
+        if (eligible.Count == 0) { MessageBox.Show(Properties.Loc.S("Entity_AllAssigned"), Properties.Loc.S("Entity_NothingToAdd"), MessageBoxButton.OK, MessageBoxImage.Information); return null; }
 
         WorldEntity? result = null;
         var win = new Window { Title = title, Width = 320, Height = Math.Min(480, 80 + eligible.Count * 42), MinHeight = 120, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ShowInTaskbar = false, ResizeMode = ResizeMode.CanResize };

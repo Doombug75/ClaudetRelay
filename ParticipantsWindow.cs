@@ -108,7 +108,7 @@ public class ParticipantsWindow : Window
 
         var zoom = UiZoomHelper.FromSettings();
 
-        Title                 = "Participants";
+        Title                 = Properties.Loc.S("Participants_Title");
         Width                 = 860 * zoom;
         Height                = 680 * zoom;
         MinWidth              = 600;
@@ -147,7 +147,7 @@ public class ParticipantsWindow : Window
         toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         toolBorder.Child = toolbar;
 
-        var addBtn = MakeBtn("＋ Add Participant", isPrimary: true);
+        var addBtn = MakeBtn(Properties.Loc.S("Btn_AddParticipant"), isPrimary: true);
         addBtn.Click += (_, _) =>
         {
             var p = new ParticipantConfig { DateAdded = DateTime.UtcNow };
@@ -170,7 +170,7 @@ public class ParticipantsWindow : Window
 
         var sortLbl = new TextBlock
         {
-            Text = "Sort:", FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+            Text = Properties.Loc.S("Projects_Sort"), FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0)
         };
         sortLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
@@ -188,15 +188,15 @@ public class ParticipantsWindow : Window
             };
             sortPanel.Children.Add(b);
         }
-        AddSort("Slot #",    "slot");
-        AddSort("Name",     "name");
-        AddSort("Provider", "provider");
-        AddSort("Date",     "date");
+        AddSort(Properties.Loc.S("Participants_SortSlot"),     "slot");
+        AddSort(Properties.Loc.S("Participants_SortName"),     "name");
+        AddSort(Properties.Loc.S("Participants_SortProvider"), "provider");
+        AddSort(Properties.Loc.S("Participants_SortDate"),     "date");
 
         // "Active at top" toggle
         var activeTopChk = new CheckBox
         {
-            Content   = "Active first",
+            Content   = Properties.Loc.S("Participants_ActiveFirst"),
             IsChecked = _activeAtTop,
             FontSize  = 11, FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
@@ -295,7 +295,7 @@ public class ParticipantsWindow : Window
         {
             var hint = new TextBlock
             {
-                Text = "No participants yet.\nClick '＋ Add Participant' to create one.",
+                Text = Properties.Loc.S("Participants_NoParticipantsHint"),
                 FontSize = 14, FontFamily = new FontFamily("Segoe UI"),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 20, 0, 0)
             };
@@ -365,7 +365,7 @@ public class ParticipantsWindow : Window
         // Active checkbox
         var toggle = new CheckBox
         {
-            Content = "Active", IsChecked = p.Enabled,
+            Content = Properties.Loc.S("Participants_Active"), IsChecked = p.Enabled,
             FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Right,
@@ -468,9 +468,9 @@ public class ParticipantsWindow : Window
             {
                 var (label, color) = statusText switch
                 {
-                    "Ready"      => ("● Ready",      Color.FromRgb( 80, 190,  80)),
-                    "Offline"    => ("○ Offline",    Color.FromRgb(180, 100,  60)),
-                    "No API key" => ("⚠ No API key", Color.FromRgb(200, 140,  40)),
+                    "Ready"      => (Properties.Loc.S("Participants_StatusReady"),   Color.FromRgb( 80, 190,  80)),
+                    "Offline"    => (Properties.Loc.S("Participants_StatusOffline"), Color.FromRgb(180, 100,  60)),
+                    "No API key" => (Properties.Loc.S("Participants_StatusNoKey"),   Color.FromRgb(200, 140,  40)),
                     var e when e.StartsWith("ERROR:") => (e, Color.FromRgb(210,  80,  60)),
                     _            => (statusText,      Color.FromRgb(150, 150, 150))
                 };
@@ -503,7 +503,7 @@ public class ParticipantsWindow : Window
         card.MouseLeftButtonDown += (_, _) => ShowModelInfo(p);
 
         var ctxMenu = new ContextMenu();
-        var editItem = new MenuItem { Header = "✏  Edit" };
+        var editItem = new MenuItem { Header = Properties.Loc.S("Participants_EditItem") };
         editItem.Click += (_, _) =>
         {
             var s = SettingsService.Load();
@@ -511,7 +511,7 @@ public class ParticipantsWindow : Window
             var live = s.Participants[origIdx];
             if (ShowEditDialog(live, isNew: false)) { SettingsService.Save(s); RebuildCards(); }
         };
-        var delItem = new MenuItem { Header = "🗑  Remove" };
+        var delItem = new MenuItem { Header = Properties.Loc.S("Participants_RemoveItem") };
         delItem.Click += (_, _) =>
         {
             if (MessageBox.Show($"Remove participant '{displayName}'?",
@@ -536,7 +536,7 @@ public class ParticipantsWindow : Window
     {
         var win = new Window
         {
-            Title = isNew ? "Add Participant" : "Edit Participant",
+            Title = isNew ? Properties.Loc.S("Participants_AddTitle") : Properties.Loc.S("Participants_EditTitle"),
             Width = 460, SizeToContent = SizeToContent.Height, MinHeight = 300,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner = this, ShowInTaskbar = false, ResizeMode = ResizeMode.NoResize
@@ -577,13 +577,13 @@ public class ParticipantsWindow : Window
         }
 
         // ── Name ────────────────────────────────────────────────────────────
-        root.Children.Add(Lbl("DISPLAY NAME  (optional — leave blank to auto-generate)"));
+        root.Children.Add(Lbl(Properties.Loc.S("Participants_NameField")));
         var nameBox = Tb(p.Name);
         nameBox.ToolTip = "Shown in chat bubbles. Blank = provider + slot number.";
         root.Children.Add(nameBox);
 
         // ── Provider ────────────────────────────────────────────────────────
-        root.Children.Add(Lbl("PROVIDER"));
+        root.Children.Add(Lbl(Properties.Loc.S("Participants_Provider")));
         var provCombo = new ComboBox { Margin = new Thickness(0, 0, 0, 0) };
         if (win.TryFindResource("ModernComboBox") is Style cs) provCombo.Style = cs;
         foreach (var prov in AllProviders) provCombo.Items.Add(prov);
@@ -592,7 +592,7 @@ public class ParticipantsWindow : Window
         root.Children.Add(provCombo);
 
         // ── Model (ComboBox + fetch button) ─────────────────────────────────
-        root.Children.Add(Lbl("MODEL"));
+        root.Children.Add(Lbl(Properties.Loc.S("Participants_Model")));
         var modelRow = new Grid();
         modelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         modelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -647,7 +647,7 @@ public class ParticipantsWindow : Window
         };
 
         // ── Server URL (Ollama variants only) — declared before fetchBtn.Click ──
-        var urlLbl = Lbl("SERVER URL");
+        var urlLbl = Lbl(Properties.Loc.S("Participants_ServerUrl"));
         bool NeedsUrl() => (provCombo.SelectedItem as string) == "Ollama";
         // "Ollama ☁" is always api.ollama.com — no custom URL field needed
 
@@ -732,7 +732,7 @@ public class ParticipantsWindow : Window
             var prov = (provCombo.SelectedItem as string) ?? "";
             if (!IsCloud(prov)) return;
 
-            rpmSection.Children.Add(Lbl("RATE LIMITING"));
+            rpmSection.Children.Add(Lbl(Properties.Loc.S("Participants_RateLimiting")));
 
             var rpmRow = new StackPanel
                 { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
@@ -740,7 +740,7 @@ public class ParticipantsWindow : Window
 
             var rpmChk = new CheckBox
             {
-                Content   = "Limit requests per minute",
+                Content   = Properties.Loc.S("Participants_LimitRpm"),
                 IsChecked = p.RpmEnabled,
                 FontSize  = 12, FontFamily = new FontFamily("Segoe UI"),
                 VerticalAlignment = VerticalAlignment.Center
@@ -761,7 +761,7 @@ public class ParticipantsWindow : Window
 
             var rpmSuffix = new TextBlock
             {
-                Text = " rpm  —  this model only",
+                Text = Properties.Loc.S("Participants_RpmSuffix"),
                 FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(4, 0, 0, 0)
@@ -790,10 +790,10 @@ public class ParticipantsWindow : Window
         provCombo.SelectionChanged += (_, _) => RebuildRpmSection();
 
         // ── Active ─────────────────────────────────────────────────────────
-        root.Children.Add(Lbl("STATUS"));
+        root.Children.Add(Lbl(Properties.Loc.S("Participants_StatusSection")));
         var enabledChk = new CheckBox
         {
-            Content    = "Active — participates in conversations",
+            Content    = Properties.Loc.S("Participants_ActiveParticipates"),
             IsChecked  = p.Enabled,
             FontSize   = 12, FontFamily = new FontFamily("Segoe UI"),
             Margin     = new Thickness(0, 4, 0, 0)
@@ -809,19 +809,20 @@ public class ParticipantsWindow : Window
         };
         root.Children.Add(btnRow);
 
-        var cancelBtn = MakeBtn("Cancel", isPrimary: false);
+        var cancelBtn = MakeBtn(Properties.Loc.S("Btn_Cancel"), isPrimary: false);
         cancelBtn.Padding = new Thickness(16, 8, 16, 8);
         cancelBtn.Click  += (_, _) => win.DialogResult = false;
         btnRow.Children.Add(cancelBtn);
 
-        var saveBtn = MakeBtn(isNew ? "Add" : "Save", isPrimary: true);
+        var saveBtn = MakeBtn(isNew ? Properties.Loc.S("Btn_Add") : Properties.Loc.S("Btn_Save"), isPrimary: true);
         saveBtn.Padding = new Thickness(16, 8, 16, 8);
         saveBtn.Margin  = new Thickness(8, 0, 0, 0);
         saveBtn.Click  += (_, _) =>
         {
             if (string.IsNullOrWhiteSpace(modelCombo.Text))
             {
-                MessageBox.Show("Please enter or select a model.", "Missing Model",
+                MessageBox.Show(Properties.Loc.S("Participants_PleaseSelectModel"),
+                    Properties.Loc.S("Participants_MissingModel"),
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -831,7 +832,7 @@ public class ParticipantsWindow : Window
             {
                 MessageBox.Show(
                     $"No API key is stored for {savingType}.\n\nOpen General Settings and add your key, or save this participant as inactive.",
-                    "API Key Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Properties.Loc.S("Participants_ApiKeyRequired"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             p.Name      = nameBox.Text.Trim();
@@ -918,7 +919,7 @@ public class ParticipantsWindow : Window
         var isOllama = p.Type == "Ollama";
         var win = new Window
         {
-            Title  = "Model Info",
+            Title  = Properties.Loc.S("ModelInfo_Title"),
             Width  = 400, SizeToContent = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner  = this, ShowInTaskbar = false, ResizeMode = ResizeMode.NoResize
@@ -951,30 +952,30 @@ public class ParticipantsWindow : Window
         var specialty = !string.IsNullOrWhiteSpace(p.SelfDescription)
             ? p.SelfDescription
             : ModelKnowledge.GetDescription(p.Type, p.Model);
-        AddInfoSection(root, "SPECIALTY", specialty);
+        AddInfoSection(root, Properties.Loc.S("ModelInfo_Specialty"), specialty);
 
         // Technical section
         var ctx = ModelKnowledge.GetContextWindow(p.Type, p.Model);
         var techLines = new List<(string, string)>();
-        if (ctx is not null) techLines.Add(("Context window", ctx));
+        if (ctx is not null) techLines.Add((Properties.Loc.S("ModelInfo_ContextWindow"), ctx));
         if (!isOllama)
         {
-            techLines.Add(("Cost tier", ModelKnowledge.GetCostTier(p.Type, p.Model)));
+            techLines.Add((Properties.Loc.S("ModelInfo_CostTier"), ModelKnowledge.GetCostTier(p.Type, p.Model)));
         }
         else
         {
             var vram = ModelKnowledge.EstimateVram(p.Model);
-            if (vram != "Unknown") techLines.Add(("Est. VRAM", vram));
+            if (vram != "Unknown") techLines.Add((Properties.Loc.S("ModelInfo_EstVram"), vram));
         }
         if (techLines.Count > 0)
-            AddInfoTable(root, "SPECS", techLines);
+            AddInfoTable(root, Properties.Loc.S("ModelInfo_Specs"), techLines);
 
         // For Ollama: async-populate live details from /api/show
         if (isOllama)
         {
             var livePanel = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
             root.Children.Add(livePanel);
-            var loadingTb = new TextBlock { Text = "Fetching live model details…", FontSize = 11, FontFamily = new FontFamily("Segoe UI") };
+            var loadingTb = new TextBlock { Text = Properties.Loc.S("ModelInfo_FetchingDetails"), FontSize = 11, FontFamily = new FontFamily("Segoe UI") };
             loadingTb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
             livePanel.Children.Add(loadingTb);
 
@@ -986,11 +987,11 @@ public class ParticipantsWindow : Window
                     livePanel.Children.Clear();
                     if (info is null) return;
                     var liveLines = new List<(string, string)>();
-                    if (!string.IsNullOrEmpty(info.Family))            liveLines.Add(("Family",        info.Family));
-                    if (!string.IsNullOrEmpty(info.ParameterSize))     liveLines.Add(("Parameters",    info.ParameterSize));
-                    if (!string.IsNullOrEmpty(info.QuantizationLevel)) liveLines.Add(("Quantization",  info.QuantizationLevel));
-                    if (!string.IsNullOrEmpty(info.Format))            liveLines.Add(("Format",        info.Format));
-                    if (liveLines.Count > 0) AddInfoTable(livePanel, "LIVE DETAILS", liveLines);
+                    if (!string.IsNullOrEmpty(info.Family))            liveLines.Add((Properties.Loc.S("ModelInfo_Family"),       info.Family));
+                    if (!string.IsNullOrEmpty(info.ParameterSize))     liveLines.Add((Properties.Loc.S("ModelInfo_Parameters"),   info.ParameterSize));
+                    if (!string.IsNullOrEmpty(info.QuantizationLevel)) liveLines.Add((Properties.Loc.S("ModelInfo_Quantization"), info.QuantizationLevel));
+                    if (!string.IsNullOrEmpty(info.Format))            liveLines.Add((Properties.Loc.S("ModelInfo_Format"),       info.Format));
+                    if (liveLines.Count > 0) AddInfoTable(livePanel, Properties.Loc.S("ModelInfo_LiveDetails"), liveLines);
                 }
                 catch { /* ignore — Ollama might not be running */ }
             };
@@ -1030,7 +1031,7 @@ public class ParticipantsWindow : Window
         }
 
         // Close button
-        var closeBtn = MakeBtn("Close", isPrimary: false);
+        var closeBtn = MakeBtn(Properties.Loc.S("Btn_Close"), isPrimary: false);
         closeBtn.Margin  = new Thickness(0, 20, 0, 0);
         closeBtn.Padding = new Thickness(20, 8, 20, 8);
         closeBtn.HorizontalAlignment = HorizontalAlignment.Right;
