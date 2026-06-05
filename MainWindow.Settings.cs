@@ -19,11 +19,11 @@ public partial class MainWindow
     {
         var menu = new ContextMenu();
 
-        var generalItem   = new MenuItem { Header = "⚙  General Settings" };
-        var foldersItem   = new MenuItem { Header = "📁  Folders Setup" };
-        var providersItem = new MenuItem { Header = "🔑  Providers Setup" };
-        var infoItem      = new MenuItem { Header = "ℹ  Info" };
-        var versionItem   = new MenuItem { Header = "📋  Version" };
+        var generalItem   = new MenuItem { Header = Properties.Loc.S("Menu_GeneralSettings") };
+        var foldersItem   = new MenuItem { Header = Properties.Loc.S("Menu_FoldersSetup") };
+        var providersItem = new MenuItem { Header = Properties.Loc.S("Menu_ProvidersSetup") };
+        var infoItem      = new MenuItem { Header = Properties.Loc.S("Menu_Info") };
+        var versionItem   = new MenuItem { Header = Properties.Loc.S("Menu_Version") };
 
         generalItem  .Click += (_, _) => OpenGeneralSettings();
         foldersItem  .Click += (_, _) => ShowFoldersSetupDialog();
@@ -82,7 +82,7 @@ public partial class MainWindow
 
         var win = new Window
         {
-            Title                 = "Folders Setup",
+            Title                 = Properties.Loc.S("Folders_Title"),
             Width                 = 480,
             SizeToContent         = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -97,7 +97,7 @@ public partial class MainWindow
         // ── Heading ────────────────────────────────────────────────────────
         var heading = new TextBlock
         {
-            Text       = "PROJECTS FOLDER",
+            Text       = Properties.Loc.S("Folders_Projects"),
             FontSize   = 11,
             FontWeight = FontWeights.Bold,
             Margin     = new Thickness(0, 0, 0, 6)
@@ -128,10 +128,10 @@ public partial class MainWindow
 
         var browseBtn = new Button
         {
-            Content = "📁  Browse",
+            Content = Properties.Loc.S("Btn_Browse"),
             Padding = new Thickness(12, 8, 12, 8),
             Margin  = new Thickness(6, 0, 0, 0),
-            ToolTip = "Choose folder"
+            ToolTip = Properties.Loc.S("Folders_ChooseFolder")
         };
         browseBtn.Style = (Style)FindResource("ModernButton");
         browseBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
@@ -140,7 +140,7 @@ public partial class MainWindow
         {
             var dlg = new Microsoft.Win32.OpenFolderDialog
             {
-                Title            = "Select Projects Folder",
+                Title            = Properties.Loc.S("Folders_SelectProjects"),
                 InitialDirectory = string.IsNullOrWhiteSpace(folderTb.Text) ? defaultFolder : folderTb.Text
             };
             if (dlg.ShowDialog(win) == true)
@@ -149,7 +149,7 @@ public partial class MainWindow
 
         var defaultBtn = new Button
         {
-            Content = "↩  Default",
+            Content = Properties.Loc.S("Btn_Default"),
             Padding = new Thickness(12, 8, 12, 8),
             Margin  = new Thickness(6, 0, 0, 0),
             ToolTip = defaultFolder
@@ -172,7 +172,7 @@ public partial class MainWindow
 
         var hint = new TextBlock
         {
-            Text         = $"Default: {defaultFolder}",
+            Text         = $"{Properties.Loc.S("Folders_Default")}: {defaultFolder}",
             FontSize     = 11,
             FontFamily   = new System.Windows.Media.FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap,
@@ -187,7 +187,7 @@ public partial class MainWindow
         // ── BACKUP FOLDER ──────────────────────────────────────────────────
         var backupHeading = new TextBlock
         {
-            Text       = "BACKUP FOLDER",
+            Text       = Properties.Loc.S("Folders_Backup"),
             FontSize   = 11,
             FontWeight = FontWeights.Bold,
             Margin     = new Thickness(0, 0, 0, 6)
@@ -217,10 +217,10 @@ public partial class MainWindow
 
         var backupBrowseBtn = new Button
         {
-            Content = "📁  Browse",
+            Content = Properties.Loc.S("Btn_Browse"),
             Padding = new Thickness(12, 8, 12, 8),
             Margin  = new Thickness(6, 0, 0, 0),
-            ToolTip = "Choose backup folder"
+            ToolTip = Properties.Loc.S("Folders_ChooseBackup")
         };
         backupBrowseBtn.Style = (Style)FindResource("ModernButton");
         backupBrowseBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
@@ -229,7 +229,7 @@ public partial class MainWindow
         {
             var dlg = new Microsoft.Win32.OpenFolderDialog
             {
-                Title            = "Select Backup Folder",
+                Title            = Properties.Loc.S("Folders_SelectBackup"),
                 InitialDirectory = string.IsNullOrWhiteSpace(backupTb.Text) ? defaultFolder : backupTb.Text
             };
             if (dlg.ShowDialog(win) == true)
@@ -238,10 +238,10 @@ public partial class MainWindow
 
         var backupClearBtn = new Button
         {
-            Content = "✕  Clear",
+            Content = Properties.Loc.S("Btn_ClearX"),
             Padding = new Thickness(12, 8, 12, 8),
             Margin  = new Thickness(6, 0, 0, 0),
-            ToolTip = "Disable backups (no backup prompt on project close)"
+            ToolTip = Properties.Loc.S("Folders_BackupClearTip")
         };
         backupClearBtn.Style = (Style)FindResource("ModernButton");
         backupClearBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
@@ -261,9 +261,7 @@ public partial class MainWindow
 
         var backupHint = new TextBlock
         {
-            Text         = "ZIPs of the project folder are saved here. " +
-                           "Leave empty to disable backup prompts. " +
-                           "The folder is created automatically if it does not exist.",
+            Text         = Properties.Loc.S("Folders_BackupHint"),
             FontSize     = 11,
             FontFamily   = new System.Windows.Media.FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap,
@@ -274,7 +272,7 @@ public partial class MainWindow
         // ── Save ───────────────────────────────────────────────────────────
         var saveBtn = new Button
         {
-            Content             = "Save",
+            Content             = Properties.Loc.S("Btn_Save"),
             HorizontalAlignment = HorizontalAlignment.Right,
             Padding             = new Thickness(20, 8, 20, 8)
         };
@@ -645,7 +643,7 @@ public partial class MainWindow
     {
         var win = new Window
         {
-            Title                 = "About ClaudetRelay",
+            Title                 = Properties.Loc.S("About_Title"),
             Width                 = 360,
             SizeToContent         = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -666,7 +664,7 @@ public partial class MainWindow
         });
         panel.Children.Add(new TextBlock
         {
-            Text = "Multi-AI group chat relay",
+            Text = Properties.Loc.S("About_Subtitle"),
             FontSize = 13, FontFamily = new System.Windows.Media.FontFamily("Segoe UI"),
             Foreground = (Brush)FindResource("ContentDimBrush"),
             Margin = new Thickness(0, 0, 0, 20)
@@ -678,7 +676,7 @@ public partial class MainWindow
         });
         panel.Children.Add(new TextBlock
         {
-            Text = "by H.-R. Matthes and Claude Code",
+            Text = Properties.Loc.S("About_Author"),
             FontSize = 13, FontFamily = new System.Windows.Media.FontFamily("Segoe UI"),
             Foreground = (Brush)FindResource("ContentTextBrush"),
             Margin = new Thickness(0, 0, 0, 20)
@@ -686,7 +684,7 @@ public partial class MainWindow
 
         var closeBtn = new Button
         {
-            Content = "Close", IsDefault = true,
+            Content = Properties.Loc.S("Btn_Close"), IsDefault = true,
             Height = 34, Padding = new Thickness(20, 0, 20, 0),
             Style = (Style)FindResource("ModernButton"),
             Background = (Brush)FindResource("PrimaryAccentBrush"),
@@ -711,7 +709,7 @@ public partial class MainWindow
 
         var win = new Window
         {
-            Title                 = "Version",
+            Title                 = Properties.Loc.S("Version_Title"),
             Width                 = 300,
             SizeToContent         = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -732,14 +730,14 @@ public partial class MainWindow
         });
         panel.Children.Add(new TextBlock
         {
-            Text = $"Version {verStr}",
+            Text = $"{Properties.Loc.S("Version_Label")} {verStr}",
             FontSize = 13, FontFamily = new System.Windows.Media.FontFamily("Segoe UI"),
             Foreground = (Brush)FindResource("ContentTextBrush"),
             Margin = new Thickness(0, 0, 0, 4)
         });
         panel.Children.Add(new TextBlock
         {
-            Text = $"Build  {built:yyyy-MM-dd}",
+            Text = $"{Properties.Loc.S("Version_Build")}  {built:yyyy-MM-dd}",
             FontSize = 12, FontFamily = new System.Windows.Media.FontFamily("Segoe UI"),
             Foreground = (Brush)FindResource("ContentDimBrush"),
             Margin = new Thickness(0, 0, 0, 18)
@@ -747,7 +745,7 @@ public partial class MainWindow
 
         var closeBtn = new Button
         {
-            Content = "Close", IsDefault = true,
+            Content = Properties.Loc.S("Btn_Close"), IsDefault = true,
             Height = 32, Padding = new Thickness(16, 0, 16, 0),
             Style = (Style)FindResource("ModernButton"),
             Background = (Brush)FindResource("ControlBgBrush"),

@@ -267,4 +267,50 @@
   <data name="ToolTip_SortLastOpened"   xml:space="preserve"><value>Sort by last opened date</value></data>
   <data name="ToolTip_RefreshProjects"  xml:space="preserve"><value>Refresh project list (reload from disk)</value></data>
 
+  <!-- ── Options menu ─────────────────────────────────────────────────── -->
+  <data name="Menu_GeneralSettings"    xml:space="preserve"><value>⚙  General Settings</value></data>
+  <data name="Menu_FoldersSetup"       xml:space="preserve"><value>📁  Folders Setup</value></data>
+  <data name="Menu_ProvidersSetup"     xml:space="preserve"><value>🔑  Providers Setup</value></data>
+  <data name="Menu_Info"               xml:space="preserve"><value>ℹ  Info</value></data>
+  <data name="Menu_Version"            xml:space="preserve"><value>📋  Version</value></data>
+
+  <!-- ── Folders dialog additional ────────────────────────────────────── -->
+  <data name="Folders_ChooseFolder"    xml:space="preserve"><value>Choose folder</value></data>
+  <data name="Folders_SelectProjects"  xml:space="preserve"><value>Select Projects Folder</value></data>
+  <data name="Folders_ChooseBackup"    xml:space="preserve"><value>Choose backup folder</value></data>
+  <data name="Folders_SelectBackup"    xml:space="preserve"><value>Select Backup Folder</value></data>
+  <data name="Folders_Default"         xml:space="preserve"><value>Default</value></data>
+  <data name="Folders_BackupHint"      xml:space="preserve"><value>ZIPs of the project folder are saved here. Leave empty to disable backup prompts. The folder is created automatically if it does not exist.</value></data>
+
+  <!-- ── About / Version dialogs ──────────────────────────────────────── -->
+  <data name="About_Title"             xml:space="preserve"><value>About ClaudetRelay</value></data>
+  <data name="About_Subtitle"          xml:space="preserve"><value>Multi-AI group chat relay</value></data>
+  <data name="About_Author"            xml:space="preserve"><value>by H.-R. Matthes and Claude Code</value></data>
+  <data name="Version_Title"           xml:space="preserve"><value>Version</value></data>
+  <data name="Version_Label"           xml:space="preserve"><value>Version</value></data>
+  <data name="Version_Build"           xml:space="preserve"><value>Build</value></data>
+
+  <!-- ── Settings: Response Length slider ─────────────────────────────── -->
+  <data name="Settings_RL_Left"        xml:space="preserve"><value>Brief</value></data>
+  <data name="Settings_RL_Right"       xml:space="preserve"><value>Detailed</value></data>
+  <data name="Settings_RL_VeryBrief"   xml:space="preserve"><value>Very brief</value></data>
+  <data name="Settings_RL_Short"       xml:space="preserve"><value>Short</value></data>
+  <data name="Settings_RL_Concise"     xml:space="preserve"><value>Concise</value></data>
+  <data name="Settings_RL_Default"     xml:space="preserve"><value>Model default</value></data>
+  <data name="Settings_RL_Moderate"    xml:space="preserve"><value>Moderate</value></data>
+  <data name="Settings_RL_Thorough"    xml:space="preserve"><value>Thorough</value></data>
+  <data name="Settings_RL_VeryDetailed" xml:space="preserve"><value>Very detailed</value></data>
+  <data name="Settings_ResponseLengthHint" xml:space="preserve"><value>50 = model default (no instruction injected)  ·  Only applies in general chat — project settings always take priority.</value></data>
+
+  <!-- ── Settings: Chattiness slider ──────────────────────────────────── -->
+  <data name="Settings_Ch_Left"        xml:space="preserve"><value>Silent</value></data>
+  <data name="Settings_Ch_Right"       xml:space="preserve"><value>Chatty</value></data>
+  <data name="Settings_Ch_Silent"      xml:space="preserve"><value>Silent</value></data>
+  <data name="Settings_Ch_Reserved"    xml:space="preserve"><value>Reserved</value></data>
+  <data name="Settings_Ch_Focused"     xml:space="preserve"><value>Focused</value></data>
+  <data name="Settings_Ch_Balanced"    xml:space="preserve"><value>Balanced</value></data>
+  <data name="Settings_Ch_Conversational" xml:space="preserve"><value>Conversational</value></data>
+  <data name="Settings_Ch_Engaged"     xml:space="preserve"><value>Engaged</value></data>
+  <data name="Settings_Ch_VeryChatty"  xml:space="preserve"><value>Very chatty</value></data>
+
 </root>

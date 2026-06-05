@@ -377,7 +377,7 @@ public partial class SettingsWindow : Window
         var responseLengthLabel = new TextBlock
         {
             Style  = (Style)FindResource("SLabel"),
-            Text   = "RESPONSE LENGTH",
+            Text   = Loc.S("Settings_ResponseLength"),
             Margin = new Thickness(0, 4, 0, 6)
         };
 
@@ -409,8 +409,8 @@ public partial class SettingsWindow : Window
         responseLengthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         responseLengthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         responseLengthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var rlLeft  = MakeHintText("Brief");
-        var rlRight = MakeHintText("Detailed");
+        var rlLeft  = MakeHintText(Loc.S("Settings_RL_Left"));
+        var rlRight = MakeHintText(Loc.S("Settings_RL_Right"));
         Grid.SetColumn(rlLeft,                 0);
         Grid.SetColumn(responseLengthSlider,   1);
         Grid.SetColumn(rlRight,                2);
@@ -418,8 +418,7 @@ public partial class SettingsWindow : Window
         responseLengthRow.Children.Add(responseLengthSlider);
         responseLengthRow.Children.Add(rlRight);
 
-        var responseLengthHint = MakeHintText(
-            "50 = model default (no instruction injected)  ·  Only applies in general chat — project settings always take priority.");
+        var responseLengthHint = MakeHintText(Loc.S("Settings_ResponseLengthHint"));
 
         // ── Chattiness ──────────────────────────────────────────────────────
         var chattinessSep = new Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 12) };
@@ -428,7 +427,7 @@ public partial class SettingsWindow : Window
         var chattinessLabel = new TextBlock
         {
             Style  = (Style)FindResource("SLabel"),
-            Text   = "CHATTINESS",
+            Text   = Loc.S("Settings_Chattiness"),
             Margin = new Thickness(0, 4, 0, 6)
         };
 
@@ -459,8 +458,8 @@ public partial class SettingsWindow : Window
         chattinessRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         chattinessRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         chattinessRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var clLeft  = MakeHintText("Silent");
-        var clRight = MakeHintText("Chatty");
+        var clLeft  = MakeHintText(Loc.S("Settings_Ch_Left"));
+        var clRight = MakeHintText(Loc.S("Settings_Ch_Right"));
         Grid.SetColumn(clLeft,             0);
         Grid.SetColumn(chattinessSlider,   1);
         Grid.SetColumn(clRight,            2);
@@ -468,9 +467,7 @@ public partial class SettingsWindow : Window
         chattinessRow.Children.Add(chattinessSlider);
         chattinessRow.Children.Add(clRight);
 
-        var chattinessHint = MakeHintText(
-            "Controls how eagerly participants join the conversation. " +
-            "Silent = only answer when addressed directly. Chatty = always keep the discussion going.");
+        var chattinessHint = MakeHintText(Loc.S("Settings_ChattinessHint"));
 
         // ── Language ────────────────────────────────────────────────────────
         var langSep = new Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 12) };
@@ -1549,24 +1546,24 @@ public partial class SettingsWindow : Window
 
     private static string FormatResponseLengthLabel(int v) => v switch
     {
-        < 10  => "Very brief",
-        < 30  => "Short",
-        < 45  => "Concise",
-        <= 55 => "Model default",
-        < 70  => "Moderate",
-        < 90  => "Thorough",
-        _     => "Very detailed"
+        < 10  => Loc.S("Settings_RL_VeryBrief"),
+        < 30  => Loc.S("Settings_RL_Short"),
+        < 45  => Loc.S("Settings_RL_Concise"),
+        <= 55 => Loc.S("Settings_RL_Default"),
+        < 70  => Loc.S("Settings_RL_Moderate"),
+        < 90  => Loc.S("Settings_RL_Thorough"),
+        _     => Loc.S("Settings_RL_VeryDetailed")
     };
 
     internal static string FormatChattinessLabel(int v) => v switch
     {
-        < 15  => "Silent",
-        < 30  => "Reserved",
-        < 45  => "Focused",
-        <= 55 => "Balanced",
-        < 70  => "Conversational",
-        < 85  => "Engaged",
-        _     => "Very chatty"
+        < 15  => Loc.S("Settings_Ch_Silent"),
+        < 30  => Loc.S("Settings_Ch_Reserved"),
+        < 45  => Loc.S("Settings_Ch_Focused"),
+        <= 55 => Loc.S("Settings_Ch_Balanced"),
+        < 70  => Loc.S("Settings_Ch_Conversational"),
+        < 85  => Loc.S("Settings_Ch_Engaged"),
+        _     => Loc.S("Settings_Ch_VeryChatty")
     };
 
     private TextBlock MakeHintText(string text) => new TextBlock

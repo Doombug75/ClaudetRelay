@@ -574,15 +574,12 @@ public partial class MainWindow : Window
                                          Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
             var htmlItem  = new MenuItem { Header = "🔄  Export as HTML…" };
             var mdItem    = new MenuItem { Header = "📝  Export as Markdown…" };
-            var audioItem = new MenuItem { Header = "🔊  Export as Audio (WAV)…" };
             var capturedFolder = _currentProjectFolder;
             var capturedMeta   = _currentProject;
             htmlItem.Click  += (_, _) => ExportProject(capturedFolder, capturedMeta, "html");
             mdItem.Click    += (_, _) => ExportProject(capturedFolder, capturedMeta, "md");
-            audioItem.Click += (_, _) => ExportProject(capturedFolder, capturedMeta, "wav");
             menu.Items.Add(htmlItem);
             menu.Items.Add(mdItem);
-            menu.Items.Add(audioItem);
             menu.IsOpen = true;
             return;
         }
@@ -600,37 +597,26 @@ public partial class MainWindow : Window
                                       Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
         var html2  = new MenuItem { Header = "🔄  Export as HTML…" };
         var md2    = new MenuItem { Header = "📝  Export as Markdown…" };
-        var audio2 = new MenuItem { Header = "🔊  Export as Audio (WAV)…" };
         html2.Click  += (_, _) => ExportGeneralChat(entries, "html");
         md2.Click    += (_, _) => ExportGeneralChat(entries, "md");
-        audio2.Click += (_, _) => ExportGeneralChat(entries, "wav");
         menu2.Items.Add(html2);
         menu2.Items.Add(md2);
-        menu2.Items.Add(audio2);
         menu2.IsOpen = true;
     }
 
     private void ExportGeneralChat(List<ChatLogEntry> entries, string format)
     {
-        var isHtml  = format == "html";
-        var isAudio = format == "wav";
+        var isHtml   = format == "html";
         var dateName = DateTime.Now.ToString("yyyy-MM-dd");
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
             Title      = "Export General Chat",
             FileName   = $"ClaudetRelay-Chat-{dateName}",
-            Filter     = isHtml  ? "HTML file (*.html)|*.html"
-                       : isAudio ? "WAV audio file (*.wav)|*.wav"
-                       :           "Markdown file (*.md)|*.md|Text file (*.txt)|*.txt",
+            Filter     = isHtml ? "HTML file (*.html)|*.html"
+                                : "Markdown file (*.md)|*.md|Text file (*.txt)|*.txt",
             DefaultExt = format
         };
         if (dlg.ShowDialog() != true) return;
-
-        if (isAudio)
-        {
-            ExportAudio("General Chat", entries, dlg.FileName);
-            return;
-        }
 
         var fs = SettingsService.Load();
         var content = isHtml
@@ -647,60 +633,6 @@ public partial class MainWindow : Window
         if (result == MessageBoxResult.Yes)
             System.Diagnostics.Process.Start(
                 new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true });
-    }
-
-    /// <summary>
-    /// Runs TTS export on a background thread and shows progress/result to the user.
-    /// </summary>
-    private async void ExportAudio(string title, List<ChatLogEntry> entries, string outputPath)
-    {
-        var msgCount = entries.Count(e => e.SenderType != "System");
-
-        // Progress dialog
-        var bgBrush = (Brush)FindResource("ContentBgBrush");
-        var progWin = new Window
-        {
-            Title                 = "Generating audio…",
-            Width                 = 380,
-            SizeToContent         = SizeToContent.Height,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Owner                 = this,
-            ResizeMode            = ResizeMode.NoResize,
-            ShowInTaskbar         = false,
-            Background            = bgBrush
-        };
-        ApplyThemeToDialog(progWin);
-        var progPanel = new StackPanel { Margin = new Thickness(28, 24, 28, 24) };
-        var progLabel = new TextBlock
-        {
-            Text         = $"Synthesising {msgCount} messages using Windows TTS…\nThis may take a moment.",
-            FontFamily   = new FontFamily("Segoe UI"),
-            FontSize     = 13,
-            TextWrapping = TextWrapping.Wrap
-        };
-        progLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
-        progPanel.Children.Add(progLabel);
-        progWin.Content = progPanel;
-        progWin.Show();
-
-        try
-        {
-            await Task.Run(() => ExportService.GenerateAudio(title, entries, outputPath));
-            progWin.Close();
-
-            var result = MessageBox.Show(
-                $"Audio exported to\n{outputPath}\n\nOpen the file now?",
-                "Export complete", MessageBoxButton.YesNo, MessageBoxImage.Information);
-            if (result == MessageBoxResult.Yes)
-                System.Diagnostics.Process.Start(
-                    new System.Diagnostics.ProcessStartInfo(outputPath) { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            progWin.Close();
-            MessageBox.Show($"Audio export failed:\n{ex.Message}",
-                            "Export error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
     }
 
     // ── Simple input dialog ────────────────────────────────────────────────

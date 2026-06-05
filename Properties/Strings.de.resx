@@ -52,7 +52,7 @@
   <data name="Btn_CloseProject"  xml:space="preserve"><value>✕ Schließen</value></data>
   <data name="Btn_AddParticipant" xml:space="preserve"><value>+ Teilnehmer hinzufügen</value></data>
   <data name="Btn_ClearChat"     xml:space="preserve"><value>🗑  Chat leeren</value></data>
-  <data name="Btn_Config"        xml:space="preserve"><value>👤  Einrichten</value></data>
+  <data name="Btn_Config"        xml:space="preserve"><value>👤  Einrichtung</value></data>
 
   <!-- ── Settings window ────────────────────────────────────────────────── -->
   <data name="Settings_Title"             xml:space="preserve"><value>Allgemeine Einstellungen</value></data>
@@ -266,5 +266,51 @@
   <data name="ToolTip_SortAlpha"        xml:space="preserve"><value>Alphabetisch sortieren</value></data>
   <data name="ToolTip_SortLastOpened"   xml:space="preserve"><value>Nach zuletzt geöffnetem Datum sortieren</value></data>
   <data name="ToolTip_RefreshProjects"  xml:space="preserve"><value>Projektliste aktualisieren (von Festplatte neu laden)</value></data>
+
+  <!-- ── Options menu ─────────────────────────────────────────────────── -->
+  <data name="Menu_GeneralSettings"    xml:space="preserve"><value>⚙  Allgemeine Einstellungen</value></data>
+  <data name="Menu_FoldersSetup"       xml:space="preserve"><value>📁  Ordner-Einrichtung</value></data>
+  <data name="Menu_ProvidersSetup"     xml:space="preserve"><value>🔑  Anbieter-Einrichtung</value></data>
+  <data name="Menu_Info"               xml:space="preserve"><value>ℹ  Info</value></data>
+  <data name="Menu_Version"            xml:space="preserve"><value>📋  Version</value></data>
+
+  <!-- ── Folders dialog additional ────────────────────────────────────── -->
+  <data name="Folders_ChooseFolder"    xml:space="preserve"><value>Ordner auswählen</value></data>
+  <data name="Folders_SelectProjects"  xml:space="preserve"><value>Projektordner auswählen</value></data>
+  <data name="Folders_ChooseBackup"    xml:space="preserve"><value>Sicherungsordner auswählen</value></data>
+  <data name="Folders_SelectBackup"    xml:space="preserve"><value>Sicherungsordner auswählen</value></data>
+  <data name="Folders_Default"         xml:space="preserve"><value>Standard</value></data>
+  <data name="Folders_BackupHint"      xml:space="preserve"><value>ZIP-Dateien des Projektordners werden hier gespeichert. Leer lassen, um Sicherungsabfragen zu deaktivieren. Der Ordner wird automatisch erstellt, wenn er nicht vorhanden ist.</value></data>
+
+  <!-- ── About / Version dialogs ──────────────────────────────────────── -->
+  <data name="About_Title"             xml:space="preserve"><value>Über ClaudetRelay</value></data>
+  <data name="About_Subtitle"          xml:space="preserve"><value>Multi-KI-Gruppen-Chat-Relay</value></data>
+  <data name="About_Author"            xml:space="preserve"><value>von H.-R. Matthes und Claude Code</value></data>
+  <data name="Version_Title"           xml:space="preserve"><value>Version</value></data>
+  <data name="Version_Label"           xml:space="preserve"><value>Version</value></data>
+  <data name="Version_Build"           xml:space="preserve"><value>Build</value></data>
+
+  <!-- ── Settings: Response Length slider ─────────────────────────────── -->
+  <data name="Settings_RL_Left"        xml:space="preserve"><value>Kurz</value></data>
+  <data name="Settings_RL_Right"       xml:space="preserve"><value>Ausführlich</value></data>
+  <data name="Settings_RL_VeryBrief"   xml:space="preserve"><value>Sehr kurz</value></data>
+  <data name="Settings_RL_Short"       xml:space="preserve"><value>Kurz</value></data>
+  <data name="Settings_RL_Concise"     xml:space="preserve"><value>Prägnant</value></data>
+  <data name="Settings_RL_Default"     xml:space="preserve"><value>Modell-Standard</value></data>
+  <data name="Settings_RL_Moderate"    xml:space="preserve"><value>Moderat</value></data>
+  <data name="Settings_RL_Thorough"    xml:space="preserve"><value>Gründlich</value></data>
+  <data name="Settings_RL_VeryDetailed" xml:space="preserve"><value>Sehr ausführlich</value></data>
+  <data name="Settings_ResponseLengthHint" xml:space="preserve"><value>50 = Modell-Standard (keine Anweisung eingefügt)  ·  Gilt nur im allgemeinen Chat — Projekteinstellungen haben immer Vorrang.</value></data>
+
+  <!-- ── Settings: Chattiness slider ──────────────────────────────────── -->
+  <data name="Settings_Ch_Left"        xml:space="preserve"><value>Still</value></data>
+  <data name="Settings_Ch_Right"       xml:space="preserve"><value>Redselig</value></data>
+  <data name="Settings_Ch_Silent"      xml:space="preserve"><value>Still</value></data>
+  <data name="Settings_Ch_Reserved"    xml:space="preserve"><value>Zurückhaltend</value></data>
+  <data name="Settings_Ch_Focused"     xml:space="preserve"><value>Fokussiert</value></data>
+  <data name="Settings_Ch_Balanced"    xml:space="preserve"><value>Ausgewogen</value></data>
+  <data name="Settings_Ch_Conversational" xml:space="preserve"><value>Gesprächig</value></data>
+  <data name="Settings_Ch_Engaged"     xml:space="preserve"><value>Engagiert</value></data>
+  <data name="Settings_Ch_VeryChatty"  xml:space="preserve"><value>Sehr redselig</value></data>
 
 </root>
