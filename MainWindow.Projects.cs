@@ -4199,7 +4199,7 @@ public partial class MainWindow
         var win = new Window
         {
             Title                 = $"{Properties.Loc.S("ProjSettings_Title")} - {projectName}",
-            Width                 = 520,
+            Width                 = 580,
             SizeToContent         = SizeToContent.Height,
             Owner                 = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,

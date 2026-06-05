@@ -632,8 +632,8 @@
   <data name="ProjSettings_MaxDepthTip"       xml:space="preserve"><value>Positive ganze Zahl. 1 = nur auf Nutzer antworten (keine KI-zu-KI-Verkettung).</value></data>
   <data name="ProjSettings_MaxDepthHint"      xml:space="preserve"><value>Wie viele KI-zu-KI-Antwortrunden erlaubt sind, bevor der Nutzer eine neue Nachricht senden muss.</value></data>
   <data name="ProjSettings_ResponseLength"    xml:space="preserve"><value>STANDARDANTWORTLÄNGE</value></data>
-  <data name="ProjSettings_ApplyAll"          xml:space="preserve"><value>Auf alle anwenden</value></data>
-  <data name="ProjSettings_ApplyAllTip"       xml:space="preserve"><value>Antwortlänge für alle Teilnehmer in diesem Projekt überschreiben</value></data>
+  <data name="ProjSettings_ApplyAll"          xml:space="preserve"><value>Auf alle</value></data>
+  <data name="ProjSettings_ApplyAllTip"       xml:space="preserve"><value>Antwortlänge auf alle Teilnehmer in diesem Projekt anwenden</value></data>
   <data name="ProjSettings_Chattiness"        xml:space="preserve"><value>GESPRÄCHIGKEIT</value></data>
   <data name="ProjSettings_ChattinessHint"    xml:space="preserve"><value>Überschreibt die globale Gesprächigkeitseinstellung für dieses Projekt. Still = nur antworten wenn angesprochen. Gesprächig = immer weiter diskutieren.</value></data>
   <data name="ProjSettings_ParticipantRoles"  xml:space="preserve"><value>TEILNEHMERROLLEN</value></data>
