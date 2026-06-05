@@ -641,6 +641,24 @@
   <data name="ProjSettings_ActiveInScene"     xml:space="preserve"><value>In dieser Szene aktiv</value></data>
   <data name="ProjSettings_EditBtn"           xml:space="preserve"><value>✏ Bearbeiten</value></data>
 
+  <!-- ── Wave 8+: Autonomy Mode slider ── -->
+  <data name="ProjSettings_AutonomyMode"      xml:space="preserve"><value>AUTONOMIEMODUS</value></data>
+  <data name="Autonomy_0_Short"               xml:space="preserve"><value>Assistent</value></data>
+  <data name="Autonomy_1_Short"               xml:space="preserve"><value>Kooperativ</value></data>
+  <data name="Autonomy_2_Short"               xml:space="preserve"><value>Gelenkt</value></data>
+  <data name="Autonomy_3_Short"               xml:space="preserve"><value>Kreativmodus</value></data>
+  <data name="Autonomy_4_Short"               xml:space="preserve"><value>CHAOS!</value></data>
+  <data name="Autonomy_0_Name"                xml:space="preserve"><value>Assistenzmodus</value></data>
+  <data name="Autonomy_1_Name"                xml:space="preserve"><value>Kooperativmodus</value></data>
+  <data name="Autonomy_2_Name"                xml:space="preserve"><value>Gelenkter Kreativmodus</value></data>
+  <data name="Autonomy_3_Name"                xml:space="preserve"><value>Kreativmodus</value></data>
+  <data name="Autonomy_4_Name"                xml:space="preserve"><value>Komplettkreativitätschaos!</value></data>
+  <data name="Autonomy_0_Desc"                xml:space="preserve"><value>Hilft nur auf Anfrage. Schlägt vor, brainstormt und erledigt Aufgaben, die du direkt zuweist. Ändert niemals eine Datei ohne deine ausdrückliche Zustimmung zu jeder einzelnen Aktion.</value></data>
+  <data name="Autonomy_1_Desc"                xml:space="preserve"><value>Fragt nach Details und brainstormt gemeinsam mit dir. Jede endgültige Entscheidung liegt bei dir. Ändert niemals eine Datei ohne deine ausdrückliche Bestätigung.</value></data>
+  <data name="Autonomy_2_Desc"                xml:space="preserve"><value>Ermittelt Anforderungen, schlägt Ideen vor und präsentiert dann einen vollständigen Plan zur Freigabe. Nach der Genehmigung: arbeitet strikt nach Roadmap (Meilensteine → Aufgaben, Schritt für Schritt).</value></data>
+  <data name="Autonomy_3_Desc"                xml:space="preserve"><value>Fragt zuerst, ob Kontext vorbereitet werden soll (Roadmap, INPUT-Ordner, Welteditor) oder ob direkt begonnen werden soll. Auf dein Signal: nutzt alles Bereitgestellte, bleibt konsistent mit Eingaben, folgt der Roadmap in Reihenfolge.</value></data>
+  <data name="Autonomy_4_Desc"                xml:space="preserve"><value>Sag einfach „Los". Prüft alle verfügbaren Kontexte (INPUT-Dateien, Weltdaten) und legt los. Mutig und kreativ – bleibt logisch kohärent, aber ohne schrittweise Genehmigung.</value></data>
+
   <!-- ── Wave 8: Response length labels ── -->
   <data name="Len_OneLiner"                   xml:space="preserve"><value>Einzeiler</value></data>
   <data name="Len_Brief"                      xml:space="preserve"><value>Kurz</value></data>

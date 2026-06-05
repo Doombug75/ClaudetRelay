@@ -4546,6 +4546,110 @@ public partial class MainWindow
         };
         root.Children.Add(sep);
 
+        // ── Autonomy Mode ──────────────────────────────────────────────────
+        var autonomyLabel = new TextBlock
+        {
+            Text       = Properties.Loc.S("ProjSettings_AutonomyMode"),
+            FontSize   = 11, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(0, 0, 0, 10),
+            Foreground = (Brush)FindResource("ContentDimBrush")
+        };
+        root.Children.Add(autonomyLabel);
+
+        // Mode name display (updates as slider moves)
+        string[] autonomyNames =
+        [
+            Properties.Loc.S("Autonomy_0_Name"), Properties.Loc.S("Autonomy_1_Name"),
+            Properties.Loc.S("Autonomy_2_Name"), Properties.Loc.S("Autonomy_3_Name"),
+            Properties.Loc.S("Autonomy_4_Name")
+        ];
+        string[] autonomyDescs =
+        [
+            Properties.Loc.S("Autonomy_0_Desc"), Properties.Loc.S("Autonomy_1_Desc"),
+            Properties.Loc.S("Autonomy_2_Desc"), Properties.Loc.S("Autonomy_3_Desc"),
+            Properties.Loc.S("Autonomy_4_Desc")
+        ];
+        string[] autonomyShorts =
+        [
+            Properties.Loc.S("Autonomy_0_Short"), Properties.Loc.S("Autonomy_1_Short"),
+            Properties.Loc.S("Autonomy_2_Short"), Properties.Loc.S("Autonomy_3_Short"),
+            Properties.Loc.S("Autonomy_4_Short")
+        ];
+
+        int currentAutonomy = Math.Clamp(ps.AutonomyMode, 0, 4);
+
+        var autonomyNameTb = new TextBlock
+        {
+            Text                = autonomyNames[currentAutonomy],
+            FontSize            = 13, FontWeight = FontWeights.SemiBold,
+            FontFamily          = new FontFamily("Segoe UI"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin              = new Thickness(0, 0, 0, 4)
+        };
+        autonomyNameTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+        root.Children.Add(autonomyNameTb);
+
+        var autonomySlider = new Slider
+        {
+            Minimum             = 0, Maximum = 4,
+            Value               = currentAutonomy,
+            TickFrequency       = 1,
+            IsSnapToTickEnabled = true,
+            TickPlacement       = System.Windows.Controls.Primitives.TickPlacement.BottomRight,
+            Margin              = new Thickness(0, 0, 0, 2)
+        };
+        root.Children.Add(autonomySlider);
+
+        // 5 tick labels in a uniform grid below the slider
+        var tickGrid = new System.Windows.Controls.Primitives.UniformGrid
+        {
+            Columns = 5, Margin = new Thickness(0, 0, 0, 8)
+        };
+        for (int ti = 0; ti < 5; ti++)
+        {
+            var captured = ti;
+            var tickTb = new TextBlock
+            {
+                Text              = autonomyShorts[ti],
+                FontSize          = 10, FontFamily = new FontFamily("Segoe UI"),
+                TextAlignment     = TextAlignment.Center,
+                TextWrapping      = TextWrapping.NoWrap,
+                Cursor            = Cursors.Hand
+            };
+            tickTb.SetResourceReference(TextBlock.ForegroundProperty,
+                ti == currentAutonomy ? "AccentHighlightBrush" : "SidebarDimBrush");
+            tickTb.MouseLeftButtonDown += (_, _) => autonomySlider.Value = captured;
+            tickGrid.Children.Add(tickTb);
+        }
+        root.Children.Add(tickGrid);
+
+        // Description text
+        var autonomyDescTb = new TextBlock
+        {
+            Text         = autonomyDescs[currentAutonomy],
+            FontSize     = 11, FontFamily = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 16)
+        };
+        autonomyDescTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+        root.Children.Add(autonomyDescTb);
+
+        // Wire slider updates
+        autonomySlider.ValueChanged += (_, e) =>
+        {
+            int v = (int)Math.Round(e.NewValue);
+            autonomyNameTb.Text = autonomyNames[v];
+            autonomyDescTb.Text = autonomyDescs[v];
+            // refresh tick highlight
+            for (int ti2 = 0; ti2 < tickGrid.Children.Count; ti2++)
+            {
+                if (tickGrid.Children[ti2] is TextBlock tb2)
+                    tb2.SetResourceReference(TextBlock.ForegroundProperty,
+                        ti2 == v ? "AccentHighlightBrush" : "SidebarDimBrush");
+            }
+        };
+
         // ── Participant Roles ──────────────────────────────────────────────
         var rolesLabel = new TextBlock
         {
@@ -4946,6 +5050,9 @@ public partial class MainWindow
 
             // Collect chattiness override
             ps.DefaultChattiness = (int)defChatSlider.Value;
+
+            // Collect autonomy mode
+            ps.AutonomyMode = (int)Math.Round(autonomySlider.Value);
 
             // Collect roles
             ps.Roles.Clear();

@@ -3011,6 +3011,7 @@ public partial class MainWindow : Window
                 // Projects override this via per-participant role settings.
                 (_projectSettings is null ? BuildResponseLengthInstruction(_globalResponseLength) : "") +
                 BuildTeamContextInstruction(forOllama: forUi) +
+                (_projectSettings is not null ? BuildAutonomyModeInstruction(_projectSettings.AutonomyMode) : "") +
                 BuildLanguageInstruction(_projectLanguage) +
                 (string.IsNullOrEmpty(_projectLanguage) ? BuildUiLanguageInstruction(_uiLanguageName) : "") +
                 BuildInputFilesContext(_currentProjectFolder) +
@@ -3082,6 +3083,7 @@ public partial class MainWindow : Window
             // Projects override this via per-participant role settings.
             (_projectSettings is null ? BuildResponseLengthInstruction(_globalResponseLength) : "") +
             BuildTeamContextInstruction(forCloud: forUi) +
+            (_projectSettings is not null ? BuildAutonomyModeInstruction(_projectSettings.AutonomyMode) : "") +
             BuildLanguageInstruction(_projectLanguage) +
             (string.IsNullOrEmpty(_projectLanguage) ? BuildUiLanguageInstruction(_uiLanguageName) : "") +
             BuildInputFilesContext(_currentProjectFolder) +
@@ -4562,6 +4564,44 @@ public partial class MainWindow : Window
                  "If you have nothing new to add, respond with exactly: PASS",
         _     => "Only respond if your input is clearly essential to this discussion. " +
                  "Otherwise, respond with exactly: PASS"
+    };
+
+    // ── Autonomy mode instruction ─────────────────────────────────────────
+
+    private static string BuildAutonomyModeInstruction(int mode) => mode switch
+    {
+        0 =>
+            "\n\nOPERATING MODE — Assistant Mode: Act as a helpful assistant. " +
+            "Respond to requests, suggest ideas, and help with tasks the user explicitly assigns. " +
+            "CRITICAL: Never create, modify, or delete any file without the user's explicit approval for each individual action. " +
+            "Always present your plan first and wait for a clear confirmation before executing any change.",
+
+        1 =>
+            "\n\nOPERATING MODE — Cooperative Mode: Ask the user for details about their goals and requirements. " +
+            "Brainstorm ideas and options together. Every final decision belongs to the user. " +
+            "CRITICAL: Never create, modify, or delete any file without explicit user confirmation. " +
+            "Present all plans and proposals, then wait for approval before making any changes.",
+
+        2 =>
+            "\n\nOPERATING MODE — Directed Creativity Mode: Discuss requirements with the user and suggest ideas and approaches. " +
+            "When you have sufficient information and a concrete plan, present the complete plan clearly and ask the user for confirmation before starting. " +
+            "Once the user approves: execute the work following the roadmap in strict order — " +
+            "if milestones and items are present, complete them in exactly the order they are listed, one by one.",
+
+        3 =>
+            "\n\nOPERATING MODE — Creative Mode: Begin by asking the user whether they want to first set up context " +
+            "(via the roadmap, INPUT folder, or world editor) or whether work should begin now. " +
+            "Once the user gives the go-ahead: draw on everything provided — roadmap, INPUT folder files, world editor data — " +
+            "to produce creative, high-quality output. Verify all output for consistency with the input materials. " +
+            "If a roadmap with milestones and items exists, follow it in exactly the listed order.",
+
+        4 =>
+            "\n\nOPERATING MODE — Complete Creativity Chaos! Ask the user for \"Go.\" " +
+            "Then check for input files, world editor data, and any other provided context — and use all of it. " +
+            "Be bold and inventive. Maintain logical coherence and check for logic errors, " +
+            "but proceed creatively without requiring step-by-step approval for every action.",
+
+        _ => ""
     };
 
     // ── Language instruction ───────────────────────────────────────────────

@@ -185,6 +185,16 @@ public class ProjectSettings
     /// </summary>
     public List<BridgeAgent>? SavedBridgeAgents { get; set; } = null;
 
+    /// <summary>
+    /// How much creative autonomy the AI has in this project (0–4).
+    ///   0 = Assistant  — only acts on explicit instructions, never writes files without approval
+    ///   1 = Cooperative — brainstorms and plans; every decision stays with the user  (default)
+    ///   2 = Directed Creativity — plans first, asks for go-ahead, then works in roadmap order
+    ///   3 = Creative — uses roadmap/INPUT/world data; asks once to start, then creates in order
+    ///   4 = Creativity Chaos — maximum autonomy; creative but still logically coherent
+    /// </summary>
+    public int AutonomyMode { get; set; } = 1;
+
     /// <summary>Looks up the role for a participant by provider + model (case-insensitive).
     /// Creates and registers a new empty role if none exists, using
     /// <see cref="DefaultResponseLength"/> as the initial ResponseLength.</summary>

@@ -641,6 +641,24 @@
   <data name="ProjSettings_ActiveInScene"     xml:space="preserve"><value>Active in this scene</value></data>
   <data name="ProjSettings_EditBtn"           xml:space="preserve"><value>✏ Edit</value></data>
 
+  <!-- ── Wave 8+: Autonomy Mode slider ── -->
+  <data name="ProjSettings_AutonomyMode"      xml:space="preserve"><value>AUTONOMY MODE</value></data>
+  <data name="Autonomy_0_Short"               xml:space="preserve"><value>Assistant</value></data>
+  <data name="Autonomy_1_Short"               xml:space="preserve"><value>Cooperative</value></data>
+  <data name="Autonomy_2_Short"               xml:space="preserve"><value>Directed</value></data>
+  <data name="Autonomy_3_Short"               xml:space="preserve"><value>Creative</value></data>
+  <data name="Autonomy_4_Short"               xml:space="preserve"><value>CHAOS!</value></data>
+  <data name="Autonomy_0_Name"                xml:space="preserve"><value>Assistant Mode</value></data>
+  <data name="Autonomy_1_Name"                xml:space="preserve"><value>Cooperative Mode</value></data>
+  <data name="Autonomy_2_Name"                xml:space="preserve"><value>Directed Creativity Mode</value></data>
+  <data name="Autonomy_3_Name"                xml:space="preserve"><value>Creative Mode</value></data>
+  <data name="Autonomy_4_Name"                xml:space="preserve"><value>Complete Creativity Chaos!</value></data>
+  <data name="Autonomy_0_Desc"                xml:space="preserve"><value>Helps only on request. Suggests, brainstorms, and executes tasks you directly assign. Never changes any file without your explicit approval for each action.</value></data>
+  <data name="Autonomy_1_Desc"                xml:space="preserve"><value>Asks for details and brainstorms together with you. Every final decision is yours. Never changes any file without your explicit confirmation.</value></data>
+  <data name="Autonomy_2_Desc"                xml:space="preserve"><value>Gathers requirements, proposes ideas, then presents a complete plan and asks for your go-ahead. Once approved: works through the roadmap in strict order (milestones → items, one by one).</value></data>
+  <data name="Autonomy_3_Desc"                xml:space="preserve"><value>Asks whether to set up context first (roadmap, INPUT folder, world editor) or jump straight in. Once you say go: draws on everything provided, stays consistent with inputs, follows the roadmap in order.</value></data>
+  <data name="Autonomy_4_Desc"                xml:space="preserve"><value>Just say "Go." Checks all available context (INPUT files, world data) and runs with it. Bold and creative — still logically coherent, but no step-by-step approval.</value></data>
+
   <!-- ── Wave 8: Response length labels ── -->
   <data name="Len_OneLiner"                   xml:space="preserve"><value>One-liner</value></data>
   <data name="Len_Brief"                      xml:space="preserve"><value>Brief</value></data>
