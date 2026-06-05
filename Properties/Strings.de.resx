@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
+              </xsd:sequence>
+              <xsd:attribute name="name"  type="xsd:string" use="required"/>
+              <xsd:attribute name="xml:space" use="optional"/>
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter</value></resheader>
+
+  <!-- ── Navigation ──────────────────────────────────────────────────────── -->
+  <data name="Nav_Chat"      xml:space="preserve"><value>💬  Chat</value></data>
+  <data name="Nav_Projects"  xml:space="preserve"><value>📁  Projekte</value></data>
+  <data name="Nav_Bridge"    xml:space="preserve"><value>🔌  Bridge</value></data>
+  <data name="Nav_ChatView"  xml:space="preserve"><value>Chat</value></data>
+  <data name="Nav_World"     xml:space="preserve"><value>🌍 Welt</value></data>
+  <data name="Nav_Roadmap"   xml:space="preserve"><value>📊 Fahrplan</value></data>
+  <data name="Nav_Files"     xml:space="preserve"><value>📂 Dateien</value></data>
+
+  <!-- ── Common buttons ─────────────────────────────────────────────────── -->
+  <data name="Btn_Send"          xml:space="preserve"><value>Senden</value></data>
+  <data name="Btn_SaveAll"       xml:space="preserve"><value>Alles speichern  ✓</value></data>
+  <data name="Btn_Save"          xml:space="preserve"><value>Speichern</value></data>
+  <data name="Btn_Cancel"        xml:space="preserve"><value>Abbrechen</value></data>
+  <data name="Btn_Close"         xml:space="preserve"><value>Schließen</value></data>
+  <data name="Btn_Add"           xml:space="preserve"><value>Hinzufügen</value></data>
+  <data name="Btn_Remove"        xml:space="preserve"><value>Entfernen</value></data>
+  <data name="Btn_Browse"        xml:space="preserve"><value>📁  Durchsuchen</value></data>
+  <data name="Btn_Default"       xml:space="preserve"><value>↩  Standard</value></data>
+  <data name="Btn_ClearX"        xml:space="preserve"><value>✕  Löschen</value></data>
+  <data name="Btn_Refresh"       xml:space="preserve"><value>Aktualisieren</value></data>
+  <data name="Btn_Done"          xml:space="preserve"><value>Fertig</value></data>
+  <data name="Btn_NewProject"    xml:space="preserve"><value>＋ Neues Projekt</value></data>
+  <data name="Btn_Open"          xml:space="preserve"><value>Öffnen</value></data>
+  <data name="Btn_Delete"        xml:space="preserve"><value>Löschen</value></data>
+  <data name="Btn_Export"        xml:space="preserve"><value>Exportieren</value></data>
+  <data name="Btn_Backup"        xml:space="preserve"><value>Sicherung</value></data>
+  <data name="Btn_CloseProject"  xml:space="preserve"><value>✕ Schließen</value></data>
+  <data name="Btn_AddParticipant" xml:space="preserve"><value>+ Teilnehmer hinzufügen</value></data>
+  <data name="Btn_ClearChat"     xml:space="preserve"><value>🗑  Chat leeren</value></data>
+  <data name="Btn_Config"        xml:space="preserve"><value>👤  Einrichten</value></data>
+
+  <!-- ── Settings window ────────────────────────────────────────────────── -->
+  <data name="Settings_Title"             xml:space="preserve"><value>Allgemeine Einstellungen</value></data>
+  <data name="Settings_SaveStatus"        xml:space="preserve"><value>Gespeichert.</value></data>
+  <data name="Settings_YourName"          xml:space="preserve"><value>IHR NAME</value></data>
+  <data name="Settings_NameHint"          xml:space="preserve"><value>Wird auf Ihren Chat-Blasen angezeigt</value></data>
+  <data name="Settings_ResponseTone"      xml:space="preserve"><value>ANTWORT-TON</value></data>
+  <data name="Settings_ToneNeutral"       xml:space="preserve"><value>Neutral</value></data>
+  <data name="Settings_ToneFriendly"      xml:space="preserve"><value>Freundlich</value></data>
+  <data name="Settings_ToneHint"          xml:space="preserve"><value>0 = streng neutral  ·  50 = Modell-Standard (keine Änderung)  ·  100 = sehr freundlich</value></data>
+  <data name="Settings_PersonalityMode"   xml:space="preserve"><value>PERSÖNLICHKEITSMODUS</value></data>
+  <data name="Settings_ModeNeutral"       xml:space="preserve"><value>Neutral</value></data>
+  <data name="Settings_ModeMockingbird"   xml:space="preserve"><value>🐦 Mockingbird</value></data>
+  <data name="Settings_ModeBuccaneer"     xml:space="preserve"><value>🏴‍☠️ Freibeuter</value></data>
+  <data name="Settings_ModeNeutralTip"    xml:space="preserve"><value>Standard-Antwortton — vom Schieberegler oben gesteuert.</value></data>
+  <data name="Settings_ModeMockingbirdTip" xml:space="preserve"><value>Theatralischer Witz und liebevolles Chaos. Auf eigene Gefahr.</value></data>
+  <data name="Settings_ModeBuccaneerTip"  xml:space="preserve"><value>Arrr! Voller Piraten-Jargon für alle Teilnehmer. Yarrr!</value></data>
+  <data name="Settings_AiDialogueTurns"   xml:space="preserve"><value>KI-DIALOGRUNDEN</value></data>
+  <data name="Settings_AiDialogueHint"    xml:space="preserve"><value>Maximale Anzahl von Antwortrunden bei aktiviertem 💬 Mehrfach-Dialog (3–100). Teilnehmer hören automatisch auf, wenn sie nichts Neues mehr beizutragen haben.</value></data>
+  <data name="Settings_ResponseLength"    xml:space="preserve"><value>ANTWORTLÄNGE</value></data>
+  <data name="Settings_Chattiness"        xml:space="preserve"><value>GESPRÄCHIGKEIT</value></data>
+  <data name="Settings_ChattinessHint"    xml:space="preserve"><value>Wie bereitwillig Teilnehmer unaufgefordert in ein Gespräch einsteigen. 0 = nur antworten wenn direkt angesprochen · 100 = immer mitmachen</value></data>
+  <data name="Settings_Language"          xml:space="preserve"><value>SPRACHE</value></data>
+  <data name="Settings_LanguageHint"      xml:space="preserve"><value>Wird nach einem Neustart der Anwendung wirksam.</value></data>
+  <data name="Settings_ChatAppearance"    xml:space="preserve"><value>CHAT-DARSTELLUNG</value></data>
+  <data name="Settings_FontSize"          xml:space="preserve"><value>SCHRIFTGRÖSSE</value></data>
+  <data name="Settings_BubbleWidth"       xml:space="preserve"><value>BLASENBREITE</value></data>
+  <data name="Settings_UiZoom"            xml:space="preserve"><value>BENUTZEROBERFLÄCHEN-ZOOM</value></data>
+
+  <!-- ── Folders dialog ─────────────────────────────────────────────────── -->
+  <data name="Folders_Title"         xml:space="preserve"><value>Ordner-Einrichtung</value></data>
+  <data name="Folders_Projects"      xml:space="preserve"><value>PROJEKTORDNER</value></data>
+  <data name="Folders_Backup"        xml:space="preserve"><value>SICHERUNGSORDNER</value></data>
+  <data name="Folders_BackupClearTip" xml:space="preserve"><value>Sicherungen deaktivieren (keine Sicherungsabfrage beim Schließen von Projekten)</value></data>
+
+  <!-- ── Projects tab ───────────────────────────────────────────────────── -->
+  <data name="Projects_Title"        xml:space="preserve"><value>Projekte</value></data>
+  <data name="Projects_Sort"         xml:space="preserve"><value>Sortierung:</value></data>
+  <data name="Projects_SortAZ"       xml:space="preserve"><value>A–Z</value></data>
+  <data name="Projects_SortDate"     xml:space="preserve"><value>Aktuell</value></data>
+  <data name="Projects_SortType"     xml:space="preserve"><value>Typ</value></data>
+  <data name="Projects_NoProjects"   xml:space="preserve"><value>Noch keine Projekte. Klicken Sie auf ＋ Neues Projekt, um eines zu erstellen.</value></data>
+
+  <!-- ── Bridge tab ─────────────────────────────────────────────────────── -->
+  <data name="Bridge_ModeLabel"      xml:space="preserve"><value>MODUS</value></data>
+  <data name="Bridge_McpServer"      xml:space="preserve"><value>MCP-Server</value></data>
+  <data name="Bridge_ModelController" xml:space="preserve"><value>Modell-Regler</value></data>
+  <data name="Bridge_Agents"         xml:space="preserve"><value>Agenten</value></data>
+  <data name="Bridge_Folders"        xml:space="preserve"><value>Ordner</value></data>
+  <data name="Bridge_Log"            xml:space="preserve"><value>Protokoll</value></data>
+
+  <!-- ── System / chat messages ─────────────────────────────────────────── -->
+  <data name="Sys_ProjectClosed"     xml:space="preserve"><value>Projekt geschlossen. Starten Sie einen neuen Chat oder öffnen Sie ein Projekt über die Registerkarte „Projekte".</value></data>
+  <data name="Sys_Welcome"           xml:space="preserve"><value>Willkommen! Konfigurieren Sie Teilnehmer über das Einstellungsmenü und beginnen Sie dann zu chatten.</value></data>
+  <data name="Sys_ClearedChat"       xml:space="preserve"><value>Chat geleert.</value></data>
+  <data name="Sys_ExportedChat"      xml:space="preserve"><value>Chat exportiert.</value></data>
+
+  <!-- ── Language names ─────────────────────────────────────────────────── -->
+  <data name="Lang_English"  xml:space="preserve"><value>English</value></data>
+  <data name="Lang_German"   xml:space="preserve"><value>Deutsch</value></data>
+
+</root>

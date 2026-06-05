@@ -264,7 +264,8 @@
                 Background="{DynamicResource ControlHoverBrush}"
                 Padding="22,12">
             <StackPanel Orientation="Horizontal">
-                <Button Content="Save All  ✓"
+                <Button x:Name="SaveAllButton"
+                        Content="Save All  ✓"
                         Style="{StaticResource SButton}"
                         MinWidth="150"
                         Click="SaveAll_Click"/>

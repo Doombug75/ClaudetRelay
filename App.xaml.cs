@@ -1,9 +1,12 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
+using ClaudetRelay.Services;
 
 namespace ClaudetRelay;
 
@@ -11,6 +14,21 @@ public partial class App : Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
+        // ── Apply UI language from settings (must be first — before any UI is created) ──
+        var langCode = SettingsService.Load().Language;
+        if (!string.IsNullOrWhiteSpace(langCode))
+        {
+            try
+            {
+                var culture = new CultureInfo(langCode);
+                Thread.CurrentThread.CurrentCulture   = culture;
+                Thread.CurrentThread.CurrentUICulture = culture;
+                CultureInfo.DefaultThreadCurrentCulture   = culture;
+                CultureInfo.DefaultThreadCurrentUICulture = culture;
+            }
+            catch (CultureNotFoundException) { /* unknown code — silently stay English */ }
+        }
+
         // ── Dependency checks — run BEFORE any theme resources are loaded ──
         // All dialogs here use only SystemColors / system fonts so they look
         // native regardless of which (if any) theme the user has selected.

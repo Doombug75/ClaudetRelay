@@ -157,6 +157,13 @@ public class AppSettings
     /// </summary>
     public bool BuccaneerMode { get; set; } = false;
 
+    /// <summary>
+    /// UI language code, e.g. "en" or "de".
+    /// Applied as <c>CurrentUICulture</c> at startup — restart required for changes.
+    /// Empty string means "en" (English / neutral fallback).
+    /// </summary>
+    public string Language { get; set; } = "";
+
     /// <summary>Configured participants shown in the card grid.</summary>
     public List<ParticipantConfig> Participants { get; set; } = [];
 

@@ -30,6 +30,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Localization resource files: override manifest resource names so ResourceManager
+         can find them as "ClaudetRelay.Properties.Strings" (neutral) and ".de" (German). -->
+    <EmbeddedResource Update="Properties\Strings.resx">
+      <LogicalName>ClaudetRelay.Properties.Strings.resources</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Properties\Strings.de.resx">
+      <LogicalName>ClaudetRelay.Properties.Strings.de.resources</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Themes loaded at runtime from the file system — copy .oxsuit files to output -->
     <Content Include="Themes\*.oxsuit">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

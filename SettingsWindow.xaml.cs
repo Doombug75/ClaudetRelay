@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using ClaudetRelay.Properties;
 using ClaudetRelay.Services;
 
 namespace ClaudetRelay;
@@ -64,9 +65,10 @@ public partial class SettingsWindow : Window
     private RadioButton  _modeMockingbirdBtn   = null!;
     private RadioButton  _modeBuccaneerBtn     = null!;
     private TextBox      _dialogueTurnsBox     = null!;
-    private Slider    _responseLengthSlider = null!;
-    private Slider    _chattinessSlider     = null!;
-    private Slider    _zoomSlider           = null!;
+    private Slider       _responseLengthSlider = null!;
+    private Slider       _chattinessSlider     = null!;
+    private Slider       _zoomSlider           = null!;
+    private ComboBox     _languageCombo        = null!;
 
     // ── Constructor ────────────────────────────────────────────────────────
 
@@ -109,6 +111,9 @@ public partial class SettingsWindow : Window
         else
         {
             // General settings only — participants are now managed in the card-grid window
+            Title                 = $"{Loc.S("Settings_Title")} · ClaudetRelay";
+            WindowTitleBlock.Text = Loc.S("Settings_Title");
+            SaveAllButton.Content = Loc.S("Btn_SaveAll");
             BuildGeneralTab(settings);
         }
     }
@@ -153,7 +158,7 @@ public partial class SettingsWindow : Window
 
     private void BuildGeneralTab(AppSettings settings)
     {
-        var nameLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "YOUR NAME" };
+        var nameLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = Loc.S("Settings_YourName") };
 
         var (userNameOuter, userNameInput) = MakeTextInput(
             string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName);
@@ -163,7 +168,7 @@ public partial class SettingsWindow : Window
 
         var nameHint = new TextBlock
         {
-            Text         = "Shown on your own chat bubbles",
+            Text         = Loc.S("Settings_NameHint"),
             FontSize     = 11,
             FontFamily   = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap,
@@ -176,7 +181,7 @@ public partial class SettingsWindow : Window
         var toneLabel = new TextBlock
         {
             Style  = (Style)FindResource("SLabel"),
-            Text   = "RESPONSE TONE",
+            Text   = Loc.S("Settings_ResponseTone"),
             Margin = new Thickness(0, 18, 0, 6)
         };
 
@@ -212,8 +217,8 @@ public partial class SettingsWindow : Window
         toneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         toneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         toneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var toneLeft = MakeHintText("Neutral");
-        var toneRight = MakeHintText("Friendly");
+        var toneLeft = MakeHintText(Loc.S("Settings_ToneNeutral"));
+        var toneRight = MakeHintText(Loc.S("Settings_ToneFriendly"));
         Grid.SetColumn(toneLeft,   0);
         Grid.SetColumn(toneSlider, 1);
         Grid.SetColumn(toneRight,  2);
@@ -221,13 +226,13 @@ public partial class SettingsWindow : Window
         toneRow.Children.Add(toneSlider);
         toneRow.Children.Add(toneRight);
 
-        var toneHint = MakeHintText("0 = strictly neutral  ·  50 = model default (no change)  ·  100 = very friendly");
+        var toneHint = MakeHintText(Loc.S("Settings_ToneHint"));
 
         // ── PERSONALITY MODE (Neutral / Mockingbird / Buccaneer) ───────────
         var personalityLabel = new TextBlock
         {
             Style  = (Style)FindResource("SLabel"),
-            Text   = "PERSONALITY MODE",
+            Text   = Loc.S("Settings_PersonalityMode"),
             Margin = new Thickness(0, 14, 0, 6)
         };
 
@@ -270,9 +275,9 @@ public partial class SettingsWindow : Window
             return rb;
         }
 
-        var btnNeutral    = MakePersonalityBtn("Neutral",          "Standard response tone — controlled by the slider above.");
-        var btnMockingbird = MakePersonalityBtn("🐦 Mockingbird", "Theatrical wit and loving chaos. Use at own risk.");
-        var btnBuccaneer   = MakePersonalityBtn("🏴‍☠️ Buccaneer", "Arrr! Full pirate-speak for every participant. Yarrr!");
+        var btnNeutral     = MakePersonalityBtn(Loc.S("Settings_ModeNeutral"),     Loc.S("Settings_ModeNeutralTip"));
+        var btnMockingbird = MakePersonalityBtn(Loc.S("Settings_ModeMockingbird"), Loc.S("Settings_ModeMockingbirdTip"));
+        var btnBuccaneer   = MakePersonalityBtn(Loc.S("Settings_ModeBuccaneer"),   Loc.S("Settings_ModeBuccaneerTip"));
 
         _modeNeutralBtn     = btnNeutral;
         _modeMockingbirdBtn = btnMockingbird;
@@ -302,13 +307,11 @@ public partial class SettingsWindow : Window
         var dialogueLabel = new TextBlock
         {
             Style  = (Style)FindResource("SLabel"),
-            Text   = "AI DIALOGUE TURNS",
+            Text   = Loc.S("Settings_AiDialogueTurns"),
             Margin = new Thickness(0, 4, 0, 6)
         };
 
-        var dialogueHint = MakeHintText(
-            "Maximum number of reply turns when 💬 multi-round dialogue is enabled " +
-            "(3 – 100). Participants automatically stop when they have nothing new to add.");
+        var dialogueHint = MakeHintText(Loc.S("Settings_AiDialogueHint"));
 
         // Slider + TextBox row (same bidirectional pattern as font-size in Chat Appearance)
         var dialogueTurnsValue = Math.Clamp(settings.AiDialogueMaxTurns, 3, 100);
@@ -469,6 +472,41 @@ public partial class SettingsWindow : Window
             "Controls how eagerly participants join the conversation. " +
             "Silent = only answer when addressed directly. Chatty = always keep the discussion going.");
 
+        // ── Language ────────────────────────────────────────────────────────
+        var langSep = new Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 12) };
+        langSep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
+
+        var langLabel = new TextBlock
+        {
+            Style  = (Style)FindResource("SLabel"),
+            Text   = Loc.S("Settings_Language"),
+            Margin = new Thickness(0, 0, 0, 6)
+        };
+
+        var langCombo = new ComboBox
+        {
+            FontSize   = 13,
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(0, 0, 0, 4),
+            Width      = 180,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        langCombo.Items.Add(new ComboBoxItem { Content = "English", Tag = "" });
+        langCombo.Items.Add(new ComboBoxItem { Content = "Deutsch", Tag = "de" });
+
+        // Select current language
+        var currentLang = settings.Language ?? "";
+        var selectedIndex = 0;
+        for (int li = 0; li < langCombo.Items.Count; li++)
+        {
+            if ((string)((ComboBoxItem)langCombo.Items[li]).Tag == currentLang)
+            { selectedIndex = li; break; }
+        }
+        langCombo.SelectedIndex = selectedIndex;
+        _languageCombo = langCombo;
+
+        var langHint = MakeHintText(Loc.S("Settings_LanguageHint"));
+
         // ── UI Zoom ─────────────────────────────────────────────────────────
         var zoomSep = new Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 12) };
         zoomSep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
@@ -537,6 +575,10 @@ public partial class SettingsWindow : Window
         root.Children.Add(chattinessValueLabel);
         root.Children.Add(chattinessRow);
         root.Children.Add(chattinessHint);
+        root.Children.Add(langSep);
+        root.Children.Add(langLabel);
+        root.Children.Add(langCombo);
+        root.Children.Add(langHint);
         root.Children.Add(zoomSep);
         root.Children.Add(zoomLabel);
         root.Children.Add(zoomValueLabel);
@@ -548,7 +590,7 @@ public partial class SettingsWindow : Window
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = root
         };
-        var tab = new TabItem { Header = "General", Content = scroll };
+        var tab = new TabItem { Header = Loc.S("Settings_Title"), Content = scroll };
         ParticipantsTabControl.Items.Add(tab);
     }
 
@@ -1338,7 +1380,7 @@ public partial class SettingsWindow : Window
                     WindowsCredentialManager.Save(pkf.Provider, key);
             }
             SettingsService.Save(settings);
-            SaveStatusLabel.Text = "Saved ✓";
+            SaveStatusLabel.Text = Loc.S("Settings_SaveStatus");
             DialogResult = true;
             return;
         }
@@ -1350,6 +1392,7 @@ public partial class SettingsWindow : Window
         settings.ToneLevel            = (int)_toneSlider.Value;
         settings.MockingbirdMode      = _modeMockingbirdBtn.IsChecked == true;
         settings.BuccaneerMode        = _modeBuccaneerBtn.IsChecked   == true;
+        settings.Language             = (_languageCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
         settings.AiDialogueMaxTurns   = int.TryParse(_dialogueTurnsBox.Text, out var dTurns)
                                         && dTurns is >= 3 and <= 100 ? dTurns : 10;
         settings.GlobalResponseLength = (int)_responseLengthSlider.Value;
