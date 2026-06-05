@@ -170,6 +170,7 @@ public partial class MainWindow : Window
     private bool                                 _buccaneeerMode        = false;
     private double                               _chatBubbleWidthPct    = 78.0;
     private string                               _projectLanguage       = "";
+    private string                               _uiLanguageName        = ""; // full name from app settings, e.g. "Deutsch"
     private int                                  _maxDialogDepth        = 1;
     private bool                                 _aiDialogueEnabled     = false;
     private int                                  _aiDialogueMaxTurns    = 10;

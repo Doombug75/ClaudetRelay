@@ -3012,6 +3012,7 @@ public partial class MainWindow : Window
                 (_projectSettings is null ? BuildResponseLengthInstruction(_globalResponseLength) : "") +
                 BuildTeamContextInstruction(forOllama: forUi) +
                 BuildLanguageInstruction(_projectLanguage) +
+                (string.IsNullOrEmpty(_projectLanguage) ? BuildUiLanguageInstruction(_uiLanguageName) : "") +
                 BuildInputFilesContext(_currentProjectFolder) +
                 BuildWorldEntityContext() +
                 BuildToneInstruction(_toneLevel, _mockingbirdMode, _buccaneeerMode, _projectLanguage) +
@@ -3082,6 +3083,7 @@ public partial class MainWindow : Window
             (_projectSettings is null ? BuildResponseLengthInstruction(_globalResponseLength) : "") +
             BuildTeamContextInstruction(forCloud: forUi) +
             BuildLanguageInstruction(_projectLanguage) +
+            (string.IsNullOrEmpty(_projectLanguage) ? BuildUiLanguageInstruction(_uiLanguageName) : "") +
             BuildInputFilesContext(_currentProjectFolder) +
             BuildWorldEntityContext() +
             BuildToneInstruction(_toneLevel, _mockingbirdMode, _buccaneeerMode, _projectLanguage) +
@@ -4568,6 +4570,36 @@ public partial class MainWindow : Window
         string.IsNullOrWhiteSpace(language)
             ? ""
             : $"\n\nAlways respond in {language}, regardless of the language used in the conversation.";
+
+    /// <summary>
+    /// Maps a UI language ISO code (e.g. "de") to a full language name for AI instructions.
+    /// Returns empty string for English / unknown codes (model default — no injection needed).
+    /// </summary>
+    private static string UiLanguageCodeToName(string code) => code switch
+    {
+        "de" => "Deutsch",
+        "fr" => "Français",
+        "es" => "Español",
+        "it" => "Italiano",
+        "pt" => "Português",
+        "nl" => "Nederlands",
+        "pl" => "Polski",
+        "ru" => "Русский",
+        "ja" => "日本語",
+        "zh" => "中文",
+        _    => ""  // English or unrecognised — model default, no instruction
+    };
+
+    /// <summary>
+    /// Soft language default: respond in <paramref name="languageName"/> unless the user
+    /// addresses the model in a different language.  Used for the global UI language setting
+    /// (as opposed to the per-project hard override in <see cref="BuildLanguageInstruction"/>).
+    /// </summary>
+    private static string BuildUiLanguageInstruction(string languageName) =>
+        string.IsNullOrWhiteSpace(languageName)
+            ? ""
+            : $"\n\nYour default response language is {languageName}. " +
+              $"Respond in {languageName} unless the user addresses you in a different language.";
 
     // ── INPUT file context ─────────────────────────────────────────────────
 

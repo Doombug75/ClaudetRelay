@@ -45,6 +45,7 @@ public partial class MainWindow
         _aiDialogueEnabled    = settings.AiDialogueEnabled;
         _aiDialogueMaxTurns   = Math.Clamp(settings.AiDialogueMaxTurns, 3, 100);
         _globalResponseLength = Math.Clamp(settings.GlobalResponseLength, 0, 100);
+        _uiLanguageName       = UiLanguageCodeToName(settings.Language ?? "");
         UpdateAiDialogueButton();
 
         // Rate limiters
@@ -106,6 +107,7 @@ public partial class MainWindow
         _aiDialogueEnabled    = settings.AiDialogueEnabled;
         _aiDialogueMaxTurns   = Math.Clamp(settings.AiDialogueMaxTurns, 3, 100);
         _globalResponseLength = Math.Clamp(settings.GlobalResponseLength, 0, 100);
+        _uiLanguageName       = UiLanguageCodeToName(settings.Language ?? "");
         UpdateAiDialogueButton();
 
         foreach (var p in settings.Participants.Where(p => p.Enabled))
