@@ -216,4 +216,55 @@
   <data name="Lang_English"  xml:space="preserve"><value>English</value></data>
   <data name="Lang_German"   xml:space="preserve"><value>Deutsch</value></data>
 
+  <!-- ── Main window sidebar ───────────────────────────────────────────── -->
+  <data name="Sidebar_MultiAiChat"      xml:space="preserve"><value>Multi-KI-Chat</value></data>
+  <data name="Sidebar_Participants"     xml:space="preserve"><value>TEILNEHMER</value></data>
+  <data name="Sidebar_Theme"            xml:space="preserve"><value>THEMA</value></data>
+  <!-- Btn_Config / Btn_ClearChat / Btn_AddParticipant already defined in Common buttons above -->
+
+  <!-- ── Welcome hint ─────────────────────────────────────────────────── -->
+  <data name="Welcome_Title"            xml:space="preserve"><value>Noch keine Teilnehmer 🐙</value></data>
+  <data name="Welcome_TopRightMenu"     xml:space="preserve"><value> Menü oben rechts</value></data>
+  <data name="Welcome_ApiKeys"          xml:space="preserve"><value>     → Anbieter — API-Schlüssel eingeben&#x0a;</value></data>
+  <data name="Welcome_ConfigBtn"        xml:space="preserve"><value> Schaltfläche unten&#x0a;</value></data>
+  <data name="Welcome_ConfigModels"     xml:space="preserve"><value>     → Modelle konfigurieren&#x0a;</value></data>
+  <data name="Welcome_ForHelp"          xml:space="preserve"><value> oben für Hilfe 🐙</value></data>
+
+  <!-- ── Chat header sub-view buttons ─────────────────────────────────── -->
+  <data name="ChatHeader_Title"         xml:space="preserve"><value>Chat</value></data>
+  <data name="Btn_ChatView"             xml:space="preserve"><value>💬 Chat</value></data>
+  <data name="Btn_World"                xml:space="preserve"><value>🌍 Welt</value></data>
+  <data name="Btn_Roadmap"              xml:space="preserve"><value>📊 Roadmap</value></data>
+  <data name="Btn_Files"                xml:space="preserve"><value>📂 Dateien</value></data>
+  <!-- Btn_CloseProject already defined in Common buttons above -->
+
+  <!-- ── Projects panel ───────────────────────────────────────────────── -->
+  <!-- Projects_Title / Projects_Sort already defined in Projects tab above -->
+  <data name="Btn_SortAlphabetical"     xml:space="preserve"><value>A–Z</value></data>
+  <data name="Btn_SortLastOpened"       xml:space="preserve"><value>Zuletzt geöffnet</value></data>
+  <data name="Btn_RefreshProjects"      xml:space="preserve"><value>🔄 Aktualisieren</value></data>
+  <!-- Btn_NewProject / Btn_Open / Btn_Delete already defined in Common buttons above -->
+
+  <!-- ── Input area ───────────────────────────────────────────────────── -->
+  <data name="Placeholder_Message"      xml:space="preserve"><value>Nachricht eingeben...  (Enter ↵ senden  •  Umschalt+Enter für neue Zeile)</value></data>
+  <!-- Btn_Send already defined in Common buttons above -->
+  <data name="Btn_ReSend"               xml:space="preserve"><value>↺ Nochmals senden</value></data>
+
+  <!-- ── Tooltips (main window) ───────────────────────────────────────── -->
+  <data name="ToolTip_Config"           xml:space="preserve"><value>Chat-Teilnehmer, Einstellungen und Benutzernamen konfigurieren</value></data>
+  <data name="ToolTip_ClaudetteBtn"     xml:space="preserve"><value>Klick mich für Hilfe! 🐙</value></data>
+  <data name="ToolTip_ExportChat"       xml:space="preserve"><value>Chatverlauf als HTML, Markdown oder Audio exportieren…</value></data>
+  <data name="ToolTip_ChatFont"         xml:space="preserve"><value>Schriftart und Schriftgröße</value></data>
+  <data name="ToolTip_AiDialogue"       xml:space="preserve"><value>Mehrrunden-KI-Dialog — Teilnehmer lesen und antworten aufeinander</value></data>
+  <data name="ToolTip_ChatView"         xml:space="preserve"><value>Projekt-Chat anzeigen</value></data>
+  <data name="ToolTip_World"            xml:space="preserve"><value>Charaktere, Fraktionen, Orte und Weltlore</value></data>
+  <data name="ToolTip_Roadmap"          xml:space="preserve"><value>Projekt-Roadmap</value></data>
+  <data name="ToolTip_Files"            xml:space="preserve"><value>Projektdateien durchsuchen und verwalten</value></data>
+  <data name="ToolTip_Backup"           xml:space="preserve"><value>ZIP-Backup dieses Projekts jetzt erstellen</value></data>
+  <data name="ToolTip_CloseProject"     xml:space="preserve"><value>Aktuelles Projekt speichern und schließen</value></data>
+  <!-- ToolTip_ProjectSettings already defined in Projects tab above -->
+  <data name="ToolTip_SortAlpha"        xml:space="preserve"><value>Alphabetisch sortieren</value></data>
+  <data name="ToolTip_SortLastOpened"   xml:space="preserve"><value>Nach zuletzt geöffnetem Datum sortieren</value></data>
+  <data name="ToolTip_RefreshProjects"  xml:space="preserve"><value>Projektliste aktualisieren (von Festplatte neu laden)</value></data>
+
 </root>

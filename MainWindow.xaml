@@ -346,12 +346,14 @@
                 <!-- Footer -->
                 <StackPanel DockPanel.Dock="Bottom" Margin="14,0,14,16">
                     <Rectangle Height="1" Fill="{DynamicResource ControlBgBrush}" Margin="0,0,0,12"/>
-                    <Button Content="👤  Config"
+                    <Button x:Name="SettingsButton"
+                            Content="👤  Config"
                             Style="{StaticResource SidebarButton}"
                             Margin="0,0,0,7"
                             ToolTip="Configure Chat Participants, Chat Settings and User Name"
                             Click="SettingsButton_Click"/>
-                    <Button Content="🗑  Clear Chat"
+                    <Button x:Name="ClearChatButton"
+                            Content="🗑  Clear Chat"
                             Style="{StaticResource SidebarButton}"
                             Margin="0,0,0,6"
                             Click="ClearChat_Click"/>
@@ -379,7 +381,8 @@
                                     <Run Text="Claudet" Foreground="{DynamicResource PrimaryAccentBrush}"/>
                                     <Run Text=" "/><Run Text="Relay" Foreground="{DynamicResource TertiaryAccentBrush}"/>
                                 </TextBlock>
-                                <TextBlock Text="Multi-AI Chat" FontSize="10"
+                                <TextBlock x:Name="MultiAiSubtitle"
+                                           Text="Multi-AI Chat" FontSize="10"
                                            Foreground="{DynamicResource SidebarDimBrush}"/>
                             </StackPanel>
                         </StackPanel>
@@ -401,7 +404,8 @@
                         </Border>
 
                         <!-- ── Participants ── -->
-                        <TextBlock Text="PARTICIPANTS" FontSize="10" FontWeight="Bold"
+                        <TextBlock x:Name="ParticipantsLabel"
+                                   Text="PARTICIPANTS" FontSize="10" FontWeight="Bold"
                                    Foreground="{DynamicResource SidebarDimBrush}" Margin="2,0,0,10"/>
 
                         <!-- ── Welcome hint (visible when no participants are configured) ── -->
@@ -412,7 +416,8 @@
                                 BorderThickness="1" CornerRadius="8"
                                 Padding="13,12,13,13" Margin="0,0,0,10">
                             <StackPanel>
-                                <TextBlock Text="No participants yet 🐙"
+                                <TextBlock x:Name="WelcomeTitle"
+                                           Text="No participants yet 🐙"
                                            FontSize="16" FontWeight="SemiBold"
                                            FontFamily="Segoe UI"
                                            Foreground="{DynamicResource ContentTextBrush}"
@@ -422,16 +427,16 @@
                                            TextWrapping="Wrap" LineHeight="21">
                                     <Run Text="1. "/>
                                     <Run Text="● ● ●" FontWeight="Bold" Foreground="{DynamicResource PrimaryAccentBrush}"/>
-                                    <Run Text=" top-right menu"/>
+                                    <Run x:Name="WelcomeRun_TopRight" Text=" top-right menu"/>
                                     <Run Text="&#x0a;"/>
-                                    <Run Text="     → Providers — enter API keys&#x0a;"/>
+                                    <Run x:Name="WelcomeRun_ApiKeys" Text="     → Providers — enter API keys&#x0a;"/>
                                     <Run Text="2. "/>
                                     <Run Text="👤 Config" FontWeight="Bold" Foreground="{DynamicResource ContentTextBrush}"/>
-                                    <Run Text=" button below&#x0a;"/>
-                                    <Run Text="     → configure models&#x0a;"/>
+                                    <Run x:Name="WelcomeRun_ConfigBtn" Text=" button below&#x0a;"/>
+                                    <Run x:Name="WelcomeRun_ConfigModels" Text="     → configure models&#x0a;"/>
                                     <Run Text="3. Click "/>
                                     <Run Text="Claudette" FontWeight="Bold" Foreground="{DynamicResource PrimaryAccentBrush}"/>
-                                    <Run Text=" above for help 🐙"/>
+                                    <Run x:Name="WelcomeRun_ForHelp" Text=" above for help 🐙"/>
                                 </TextBlock>
                             </StackPanel>
                         </Border>
@@ -447,7 +452,8 @@
                                 Click="AddParticipantButton_Click"/>
 
                         <!-- ── Theme ── -->
-                        <TextBlock Text="THEME" FontSize="10" FontWeight="Bold"
+                        <TextBlock x:Name="ThemeLabel"
+                                   Text="THEME" FontSize="10" FontWeight="Bold"
                                    Foreground="{DynamicResource SidebarDimBrush}" Margin="2,0,0,10"/>
                         <ComboBox x:Name="ThemeComboBox"
                                   Style="{StaticResource ModernComboBox}"
@@ -678,7 +684,8 @@
 
                 <!-- Projects subheader -->
                 <Border Grid.Row="0" Background="{DynamicResource SidebarBgBrush}" Padding="22,13">
-                    <TextBlock Text="Projects" FontSize="15" FontWeight="SemiBold"
+                    <TextBlock x:Name="ProjectsTitle"
+                               Text="Projects" FontSize="15" FontWeight="SemiBold"
                                FontFamily="Segoe UI" Foreground="{DynamicResource SidebarTextBrush}"/>
                 </Border>
                 <Rectangle Grid.Row="0" Height="1" VerticalAlignment="Bottom"
@@ -687,7 +694,8 @@
                 <!-- Sort toolbar -->
                 <Border Grid.Row="1" Background="{DynamicResource SidebarBgBrush}" Padding="16,10,16,10">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Sort:" FontSize="12" FontFamily="Segoe UI"
+                        <TextBlock x:Name="SortLabel"
+                                   Text="Sort:" FontSize="12" FontFamily="Segoe UI"
                                    VerticalAlignment="Center" Margin="0,0,8,0"
                                    Foreground="{DynamicResource SidebarDimBrush}"/>
                         <Button x:Name="SortAlphabetButton" Content="A–Z" FontSize="11"

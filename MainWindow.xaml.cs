@@ -197,6 +197,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ApplyLocalization();
         LoadThemesIntoComboBox();
         Loaded += async (_, _) =>
         {
@@ -246,6 +247,73 @@ public partial class MainWindow : Window
 
     // ── Initialization ─────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Applies the current UI language to every hardcoded string in MainWindow.xaml.
+    /// Called once after InitializeComponent() so the culture is already set.
+    /// </summary>
+    private void ApplyLocalization()
+    {
+        // ── Sidebar ───────────────────────────────────────────────────────
+        MultiAiSubtitle.Text      = Properties.Loc.S("Sidebar_MultiAiChat");
+        ParticipantsLabel.Text    = Properties.Loc.S("Sidebar_Participants");
+        ThemeLabel.Text           = Properties.Loc.S("Sidebar_Theme");
+        SettingsButton.Content    = Properties.Loc.S("Btn_Config");
+        ClearChatButton.Content   = Properties.Loc.S("Btn_ClearChat");
+        AddParticipantButton.Content = Properties.Loc.S("Btn_AddParticipant");
+        SettingsButton.ToolTip    = Properties.Loc.S("ToolTip_Config");
+        ClaudetteButton.ToolTip   = Properties.Loc.S("ToolTip_ClaudetteBtn");
+
+        // ── Welcome hint ─────────────────────────────────────────────────
+        WelcomeTitle.Text             = Properties.Loc.S("Welcome_Title");
+        WelcomeRun_TopRight.Text      = Properties.Loc.S("Welcome_TopRightMenu");
+        WelcomeRun_ApiKeys.Text       = Properties.Loc.S("Welcome_ApiKeys");
+        WelcomeRun_ConfigBtn.Text     = Properties.Loc.S("Welcome_ConfigBtn");
+        WelcomeRun_ConfigModels.Text  = Properties.Loc.S("Welcome_ConfigModels");
+        WelcomeRun_ForHelp.Text       = Properties.Loc.S("Welcome_ForHelp");
+
+        // ── Tab bar ───────────────────────────────────────────────────────
+        ChatTabButton.Content     = Properties.Loc.S("Nav_Chat");
+        ProjectsTabButton.Content = Properties.Loc.S("Nav_Projects");
+        BridgeTabButton.Content   = Properties.Loc.S("Nav_Bridge");
+
+        // ── Chat header ───────────────────────────────────────────────────
+        ChatHeaderTitle.Text        = Properties.Loc.S("ChatHeader_Title");
+        ChatViewButton.Content      = Properties.Loc.S("Btn_ChatView");
+        WorldButton.Content         = Properties.Loc.S("Btn_World");
+        RoadmapButton.Content       = Properties.Loc.S("Btn_Roadmap");
+        FilesButton.Content         = Properties.Loc.S("Btn_Files");
+        CloseProjectButton.Content  = Properties.Loc.S("Btn_CloseProject");
+
+        ExportChatButton.ToolTip    = Properties.Loc.S("ToolTip_ExportChat");
+        ChatFontButton.ToolTip      = Properties.Loc.S("ToolTip_ChatFont");
+        AiDialogueButton.ToolTip    = Properties.Loc.S("ToolTip_AiDialogue");
+        ChatViewButton.ToolTip      = Properties.Loc.S("ToolTip_ChatView");
+        WorldButton.ToolTip         = Properties.Loc.S("ToolTip_World");
+        RoadmapButton.ToolTip       = Properties.Loc.S("ToolTip_Roadmap");
+        FilesButton.ToolTip         = Properties.Loc.S("ToolTip_Files");
+        BackupButton.ToolTip        = Properties.Loc.S("ToolTip_Backup");
+        CloseProjectButton.ToolTip  = Properties.Loc.S("ToolTip_CloseProject");
+        ProjectSettingsButton.ToolTip = Properties.Loc.S("ToolTip_ProjectSettings");  // from Projects tab section
+
+        // ── Projects panel ────────────────────────────────────────────────
+        ProjectsTitle.Text          = Properties.Loc.S("Projects_Title");
+        SortLabel.Text              = Properties.Loc.S("Projects_Sort");
+        SortAlphabetButton.Content  = Properties.Loc.S("Btn_SortAlphabetical");
+        SortLastOpenedButton.Content = Properties.Loc.S("Btn_SortLastOpened");
+        RefreshProjectsButton.Content = Properties.Loc.S("Btn_RefreshProjects");
+        NewProjectButton.Content    = Properties.Loc.S("Btn_NewProject");
+        OpenProjectButton.Content   = Properties.Loc.S("Btn_Open");
+        DeleteProjectButton.Content = Properties.Loc.S("Btn_Delete");
+
+        SortAlphabetButton.ToolTip   = Properties.Loc.S("ToolTip_SortAlpha");
+        SortLastOpenedButton.ToolTip = Properties.Loc.S("ToolTip_SortLastOpened");
+        RefreshProjectsButton.ToolTip = Properties.Loc.S("ToolTip_RefreshProjects");
+
+        // ── Input area ────────────────────────────────────────────────────
+        PlaceholderText.Text        = Properties.Loc.S("Placeholder_Message");
+        SendButton.Content          = Properties.Loc.S("Btn_Send");
+        AIRespondButton.Content     = Properties.Loc.S("Btn_ReSend");
+    }
 
     // ── Tab switching ──────────────────────────────────────────────────────
 
