@@ -1580,21 +1580,31 @@ public partial class MainWindow : Window
     // ── One-time migration: ParticipantSuperRoles.xml → project.json ────────
 
     /// <summary>
-    /// If the project still has a legacy ParticipantSuperRoles.xml but no ParticipantRolePlan
-    /// in project.json, reads the XML and migrates the data in-place, then saves project.json.
+    /// If the project still has legacy SuperRoles/SuperPowers files but no ParticipantRolePlan
+    /// in project.json, migrates the role data into project.json and deletes the old files.
     /// </summary>
     private void TryMigrateLegacySuperRoles()
     {
         if (_currentProject is null || _currentProjectFolder is null) return;
-        if (_currentProject.ParticipantRolePlan is { Count: > 0 }) return;   // already migrated
+        if (_currentProject.ParticipantRolePlan is { Count: > 0 })
+        {
+            // Plan already in project.json — just clean up any leftover legacy files silently
+            DeleteLegacySuperPowersFiles();
+            return;
+        }
 
         var xmlPath = SysIO.Path.Combine(_currentProjectFolder, "PROJECTSETTINGS",
                                          "ParticipantSuperRoles.xml");
-        if (!SysIO.File.Exists(xmlPath)) return;
+        if (!SysIO.File.Exists(xmlPath))
+        {
+            // No roles XML — still clean up orphaned SuperPowers.xaml if present
+            DeleteLegacySuperPowersFiles();
+            return;
+        }
 
         try
         {
-            var doc    = System.Xml.Linq.XDocument.Load(xmlPath);
+            var doc      = System.Xml.Linq.XDocument.Load(xmlPath);
             var migrated = doc.Root?
                 .Elements("Role")
                 .Where(e => e.Attribute("name")?.Value is { Length: > 0 })
@@ -1606,7 +1616,8 @@ public partial class MainWindow : Window
             if (migrated is { Count: > 0 })
             {
                 _currentProject.ParticipantRolePlan = new Dictionary<string, string>(migrated);
-                // Also read the fingerprint from SuperPowers.xaml if still present
+
+                // Grab fingerprint from SuperPowers.xaml before deleting it
                 var spPath = GetSuperPowersPath();
                 if (spPath is not null && SysIO.File.Exists(spPath))
                 {
@@ -1617,12 +1628,34 @@ public partial class MainWindow : Window
                     }
                     catch { }
                 }
+
                 ProjectService.SaveProject(_currentProjectFolder, _currentProject);
                 _superRoles = null;
-                AddSystemMessage("🔄  Migrated participant role plan from legacy file to project settings.");
+
+                // Delete both legacy files now that the data is safely in project.json
+                DeleteLegacySuperPowersFiles();
+
+                AddSystemMessage("🔄  Migrated participant role plan to project settings — legacy files removed.");
             }
         }
         catch { /* best-effort migration */ }
+    }
+
+    /// <summary>
+    /// Deletes ParticipantSuperRoles.xml and ParticipantSuperPowers.xaml from PROJECTSETTINGS/
+    /// if they exist. Silent — never throws.
+    /// </summary>
+    private void DeleteLegacySuperPowersFiles()
+    {
+        if (_currentProjectFolder is null) return;
+        var settingsDir = SysIO.Path.Combine(_currentProjectFolder, "PROJECTSETTINGS");
+        foreach (var legacy in new[]
+            { "ParticipantSuperRoles.xml", "ParticipantSuperPowers.xaml" })
+        {
+            var path = SysIO.Path.Combine(settingsDir, legacy);
+            try { if (SysIO.File.Exists(path)) SysIO.File.Delete(path); }
+            catch { /* best-effort */ }
+        }
     }
 
     /// <summary>
