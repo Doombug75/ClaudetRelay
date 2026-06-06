@@ -4818,6 +4818,22 @@ public partial class MainWindow : Window
                      "to create nested overviews. Handy for continent → region → city drill-downs, " +
                      "or faction → sub-faction hierarchies.");
 
+        AddSubHeader("Board canvas controls");
+        AddBody(
+            "  🖱 Left-drag a card / pin / frame  →  move it\n" +
+            "  🖱 Left-drag on empty space  →  rubber-band multi-select (draws a selection box)\n" +
+            "  🖱 Left-click on empty space  →  deselect all\n" +
+            "  🖱 Right-drag on empty space  →  pan / scroll the canvas\n" +
+            "  🖱 Right-click on empty space  →  add context menu (entity, text, pin, frame)\n" +
+            "  🖱 Right-click a card  →  remove from board / edit\n" +
+            "  Shift-click or Ctrl-click  →  add card to current selection\n" +
+            "  Drag any card in a selection  →  moves all selected cards together\n" +
+            "  Del key  →  remove selected card(s) from board (never deletes from library)\n" +
+            "  Double-click a board pin  →  open that board in a new window\n" +
+            "  Resize grip (bottom-right corner)  →  resize a card, pin, or frame\n" +
+            "  Add Relation toolbar button  →  click first object, then second to draw a line\n" +
+            "       Works between any combination of cards, frames, and board pins.");
+
         // ── 🔗 Bridge ─────────────────────────────────────────────────────
         BeginSection("🔗", "Bridge tab  (MCP Agent Bridge)", autoBridge);
 
