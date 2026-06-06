@@ -678,87 +678,9 @@ public class WorldBoardWindow : Window
             catch { }
         }
 
-        // ── Render frames (z=0, added first so relations/cards render above) ─
+        // ── Render frames (z=0, added first so pins/cards render above) ─
         foreach (var bf in _boardData.Frames.ToList())
             RenderBoardFrame(canvas, bf);
-
-        // ── Render relations (z=0) + caption badges (z=1) ─────────────────
-        foreach (var rel in _boardData.Relations)
-        {
-            var fp = _boardData.Positions[rel.FromId];
-            var tp = _boardData.Positions[rel.ToId];
-            var x1 = fp.X + (fp.CardWidth  > 0 ? fp.CardWidth  : 160) / 2; var y1 = fp.Y + EstCardH / 2;
-            var x2 = tp.X + (tp.CardWidth  > 0 ? tp.CardWidth  : 160) / 2; var y2 = tp.Y + EstCardH / 2;
-            RenderRelationVisuals(canvas, rel.Id, x1, y1, x2, y2, rel);
-
-            if (string.IsNullOrWhiteSpace(rel.Caption)) goto skipBadge;
-            var captionBadge = new Border
-            {
-                CornerRadius = new CornerRadius(4), Padding = new Thickness(5, 2, 5, 2),
-                BorderThickness = new Thickness(1), Cursor = Cursors.Hand
-            };
-            captionBadge.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
-            captionBadge.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
-            var captionText = new TextBlock
-            {
-                Text = rel.Caption, FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
-                TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 140
-            };
-            captionText.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
-            captionBadge.Child = captionText;
-            Canvas.SetLeft(captionBadge, (x1 + x2) / 2 - 30);
-            Canvas.SetTop (captionBadge, (y1 + y2) / 2 - 12);
-            Panel.SetZIndex(captionBadge, 1);
-
-            var capturedRel = rel;
-            var ctx = new ContextMenu();
-            var editRelItem = new MenuItem { Header = Properties.Loc.S("Board_EditRelation") };
-            editRelItem.Click += (_, _) =>
-            {
-                var result = ShowRelationDialog(capturedRel.Caption, capturedRel.LegendLabel,
-                    capturedRel.LineStyle, capturedRel.LineColor, capturedRel.Thickness,
-                    capturedRel.HasArrow, Properties.Loc.S("Board_EditRelationTitle"));
-                if (result is not null)
-                {
-                    capturedRel.Caption     = result.Caption;
-                    capturedRel.LegendLabel = result.LegendLabel;
-                    capturedRel.LineStyle   = result.LineStyle;
-                    capturedRel.LineColor   = result.LineColor;
-                    capturedRel.Thickness   = result.Thickness;
-                    capturedRel.HasArrow    = result.HasArrow;
-                    MaybeAddLegendPreset(result);
-                    EntityBoardService.Save(_projFolder, _board.Id, _boardData);
-                    BuildBoardContent();
-                }
-            };
-            var delRelItem = new MenuItem { Header = Properties.Loc.S("Board_DeleteRelation") };
-            delRelItem.Click += (_, _) =>
-            {
-                _boardData.Relations.Remove(capturedRel);
-                EntityBoardService.Save(_projFolder, _board.Id, _boardData);
-                BuildBoardContent();
-            };
-            ctx.Items.Add(editRelItem);
-            if (capturedRel.HasArrow)
-            {
-                var flipRelItem = new MenuItem { Header = Properties.Loc.S("Board_FlipArrow") };
-                flipRelItem.Click += (_, _) =>
-                {
-                    (capturedRel.FromId, capturedRel.ToId) = (capturedRel.ToId, capturedRel.FromId);
-                    capturedRel.Waypoints.Reverse();
-                    (capturedRel.StartsAtJunction, capturedRel.EndsAtJunction) =
-                        (capturedRel.EndsAtJunction, capturedRel.StartsAtJunction);
-                    EntityBoardService.Save(_projFolder, _board.Id, _boardData);
-                    BuildBoardContent();
-                };
-                ctx.Items.Add(flipRelItem);
-            }
-            ctx.Items.Add(delRelItem);
-            captionBadge.ContextMenu = ctx;
-            canvas.Children.Add(captionBadge);
-            _boardCaptionBadges[rel.Id] = captionBadge;
-            skipBadge: ;
-        }
 
         // ── Render text boxes (z=2) ───────────────────────────────────────
         foreach (var tb in _boardData.TextBoxes)
@@ -1055,6 +977,84 @@ public class WorldBoardWindow : Window
                 pinCtx.Items.Add(removeItem);
                 pin.ContextMenu = pinCtx;
             }
+        }
+
+        // ── Render relations (z=1, added after pins so they render above) ────
+        foreach (var rel in _boardData.Relations)
+        {
+            var fp = _boardData.Positions[rel.FromId];
+            var tp = _boardData.Positions[rel.ToId];
+            var x1 = fp.X + (fp.CardWidth  > 0 ? fp.CardWidth  : 160) / 2; var y1 = fp.Y + EstCardH / 2;
+            var x2 = tp.X + (tp.CardWidth  > 0 ? tp.CardWidth  : 160) / 2; var y2 = tp.Y + EstCardH / 2;
+            RenderRelationVisuals(canvas, rel.Id, x1, y1, x2, y2, rel);
+
+            if (string.IsNullOrWhiteSpace(rel.Caption)) goto skipBadge;
+            var captionBadge = new Border
+            {
+                CornerRadius = new CornerRadius(4), Padding = new Thickness(5, 2, 5, 2),
+                BorderThickness = new Thickness(1), Cursor = Cursors.Hand
+            };
+            captionBadge.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
+            captionBadge.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+            var captionText = new TextBlock
+            {
+                Text = rel.Caption, FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+                TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 140
+            };
+            captionText.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+            captionBadge.Child = captionText;
+            Canvas.SetLeft(captionBadge, (x1 + x2) / 2 - 30);
+            Canvas.SetTop (captionBadge, (y1 + y2) / 2 - 12);
+            Panel.SetZIndex(captionBadge, 1);
+
+            var capturedRel = rel;
+            var ctx = new ContextMenu();
+            var editRelItem = new MenuItem { Header = Properties.Loc.S("Board_EditRelation") };
+            editRelItem.Click += (_, _) =>
+            {
+                var result = ShowRelationDialog(capturedRel.Caption, capturedRel.LegendLabel,
+                    capturedRel.LineStyle, capturedRel.LineColor, capturedRel.Thickness,
+                    capturedRel.HasArrow, Properties.Loc.S("Board_EditRelationTitle"));
+                if (result is not null)
+                {
+                    capturedRel.Caption     = result.Caption;
+                    capturedRel.LegendLabel = result.LegendLabel;
+                    capturedRel.LineStyle   = result.LineStyle;
+                    capturedRel.LineColor   = result.LineColor;
+                    capturedRel.Thickness   = result.Thickness;
+                    capturedRel.HasArrow    = result.HasArrow;
+                    MaybeAddLegendPreset(result);
+                    EntityBoardService.Save(_projFolder, _board.Id, _boardData);
+                    BuildBoardContent();
+                }
+            };
+            var delRelItem = new MenuItem { Header = Properties.Loc.S("Board_DeleteRelation") };
+            delRelItem.Click += (_, _) =>
+            {
+                _boardData.Relations.Remove(capturedRel);
+                EntityBoardService.Save(_projFolder, _board.Id, _boardData);
+                BuildBoardContent();
+            };
+            ctx.Items.Add(editRelItem);
+            if (capturedRel.HasArrow)
+            {
+                var flipRelItem = new MenuItem { Header = Properties.Loc.S("Board_FlipArrow") };
+                flipRelItem.Click += (_, _) =>
+                {
+                    (capturedRel.FromId, capturedRel.ToId) = (capturedRel.ToId, capturedRel.FromId);
+                    capturedRel.Waypoints.Reverse();
+                    (capturedRel.StartsAtJunction, capturedRel.EndsAtJunction) =
+                        (capturedRel.EndsAtJunction, capturedRel.StartsAtJunction);
+                    EntityBoardService.Save(_projFolder, _board.Id, _boardData);
+                    BuildBoardContent();
+                };
+                ctx.Items.Add(flipRelItem);
+            }
+            ctx.Items.Add(delRelItem);
+            captionBadge.ContextMenu = ctx;
+            canvas.Children.Add(captionBadge);
+            _boardCaptionBadges[rel.Id] = captionBadge;
+            skipBadge: ;
         }
 
         // ── Canvas right-click rubber-band selection ───────────────────────
