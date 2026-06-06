@@ -718,17 +718,23 @@ public class WorldBoardWindow : Window
                 if (_boardConnectMode) { HandleBoardConnectClick(capturedId); e.Handled = true; return; }
                 if (e.ClickCount >= 2) { ShowEntityReadOnlyDialog(capturedEntity); e.Handled = true; return; }
 
-                // Selection: Shift+click toggles, plain click sets exclusive selection
-                if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+                // Selection: Ctrl+click adds, Shift+click toggles, plain click sets exclusive selection
+                if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+                {
+                    // Ctrl+click: add to selection or remove if already selected
                     ToggleSelection(capturedId);
+                }
+                else if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+                {
+                    // Shift+click: toggle selection
+                    ToggleSelection(capturedId);
+                }
                 else
                 {
-                    if (!_selectedIds.Contains(capturedId))
-                    {
-                        _selectedIds.Clear();
-                        _selectedIds.Add(capturedId);
-                        RefreshSelectionVisuals();
-                    }
+                    // Plain click: exclusive selection
+                    _selectedIds.Clear();
+                    _selectedIds.Add(capturedId);
+                    RefreshSelectionVisuals();
                 }
 
                 isDragging = true;
