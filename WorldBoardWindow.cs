@@ -885,14 +885,25 @@ public class WorldBoardWindow : Window
                     if (_boardData.Positions.TryGetValue(sid, out var bp2)) { bp2.X = sx; bp2.Y = sy; }
                     else _boardData.Positions[sid] = new BoardPosition { X = sx, Y = sy };
                 }
-                // Bring the actively dragged card to front:
-                // bump its ZOrder above all others (persists across rebuilds) and
-                // immediately re-add it at the end of canvas children so it renders
-                // on top within ZIndex=2 without waiting for a full rebuild.
+                // Bring dragged card and its contained cards to front.
+                // The host card is re-added first, then contained cards on top of it,
+                // so cards placed ON the host stay visually above it after the drag.
+                int newMaxZ = _boardData.Positions.Values.DefaultIfEmpty()
+                                  .Max(p => p?.ZOrder ?? 0);
                 if (_boardData.Positions.TryGetValue(capturedId, out var bpFront))
-                    bpFront.ZOrder = _boardData.Positions.Values.Max(p => p.ZOrder) + 1;
+                    bpFront.ZOrder = ++newMaxZ;
                 _boardCanvas!.Children.Remove(card);
                 _boardCanvas!.Children.Add(card);
+                foreach (var cid in containedCardIds)
+                {
+                    if (_boardData.Positions.TryGetValue(cid, out var bpChild))
+                        bpChild.ZOrder = ++newMaxZ;
+                    if (_boardCards.TryGetValue(cid, out var cc))
+                    {
+                        _boardCanvas!.Children.Remove(cc);
+                        _boardCanvas!.Children.Add(cc);
+                    }
+                }
                 EntityBoardService.Save(_projFolder, _board.Id, _boardData);
                 e.Handled = true;
             };
