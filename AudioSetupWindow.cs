@@ -235,21 +235,9 @@ public sealed class AudioSetupWindow : Window
 
     private ComboBox MakeCombo()
     {
-        var cb = new ComboBox
-        {
-            FontFamily = new FontFamily("Segoe UI"),
-            FontSize   = 12,
-            Margin     = new Thickness(0, 0, 0, 20),
-        };
-        cb.SetResourceReference(ForegroundProperty,            "ContentTextBrush");
-        cb.SetResourceReference(BackgroundProperty,            "ControlBgBrush");
-        cb.SetResourceReference(BorderBrushProperty,           "ControlBorderBrush");
-        // Fix dropdown popup background
-        cb.Loaded += (_, _) =>
-        {
-            if (cb.Template?.FindName("toggleButton",  cb) is System.Windows.Controls.Primitives.ToggleButton tb)
-                tb.SetResourceReference(BackgroundProperty, "ControlBgBrush");
-        };
+        var cb = new ComboBox { Margin = new Thickness(0, 0, 0, 20) };
+        // Use the app-wide ModernComboBox style which has a proper themed template
+        cb.SetResourceReference(StyleProperty, "ModernComboBox");
         return cb;
     }
 

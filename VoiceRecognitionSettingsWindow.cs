@@ -525,11 +525,9 @@ public sealed class VoiceRecognitionSettingsWindow : Window
 
     private ComboBox MakeCombo()
     {
-        var cb = new ComboBox { FontFamily = new FontFamily("Segoe UI"), FontSize = 12,
-                                Margin = new Thickness(0, 0, 0, 10) };
-        cb.SetResourceReference(ForegroundProperty,  "ContentTextBrush");
-        cb.SetResourceReference(BackgroundProperty,  "ControlBgBrush");
-        cb.SetResourceReference(BorderBrushProperty, "ControlBorderBrush");
+        var cb = new ComboBox { Margin = new Thickness(0, 0, 0, 10) };
+        // Use the app-wide ModernComboBox style which has a proper themed template
+        cb.SetResourceReference(StyleProperty, "ModernComboBox");
         return cb;
     }
 
