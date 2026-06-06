@@ -217,6 +217,15 @@ public partial class MainWindow : Window
         LoadThemesIntoComboBox();
         Loaded += async (_, _) =>
         {
+            // ── First-run: prompt for nickname if this is the first launch ──
+            // (Must be done after window is loaded so theme resources are available)
+            var settings = SettingsService.Load();
+            if (settings.UserName == "User")  // unchanged default
+            {
+                ShowNicknameDialog();
+                settings = SettingsService.Load();  // reload in case it was saved
+            }
+
             ApplyTitleBarTheme();                    // colour the OS title bar to match the theme
             StartClaudetteBlinkAnimation();          // draw attention to the Claudette button
             LoadProjectTypes();
@@ -450,6 +459,161 @@ public partial class MainWindow : Window
     }
 
 
+
+    // ── First-run nickname dialog ──────────────────────────────────────────
+
+    /// <summary>
+    /// Shows the first-run dialog asking the user to set their nickname.
+    /// Must be called after window is loaded so theme resources are available.
+    /// </summary>
+    private void ShowNicknameDialog()
+    {
+        var title      = Properties.Loc.S("FirstRun_Nickname_Title");
+        var question   = Properties.Loc.S("FirstRun_Nickname_Question");
+        var okLabel    = Properties.Loc.S("FirstRun_Nickname_OK");
+        var cancelLabel = Properties.Loc.S("FirstRun_Nickname_Cancel");
+
+        var win = new Window
+        {
+            Title                 = title,
+            WindowStyle           = WindowStyle.SingleBorderWindow,
+            ResizeMode            = ResizeMode.NoResize,
+            Width                 = 420,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            ShowInTaskbar         = true,
+            Owner = this  // Set MainWindow as owner
+        };
+
+        // Use this window's theme resources
+        if (TryFindResource("SidebarBgBrush") is Brush bg)
+            win.Background = bg;
+        var themeDicts = Resources.MergedDictionaries.Where(d => d.Source?.OriginalString.Contains("oxsuit") ?? false).ToList();
+        foreach (var dict in themeDicts)
+            win.Resources.MergedDictionaries.Add(dict);
+
+        var panel = new StackPanel { Margin = new Thickness(22, 20, 22, 20) };
+
+        // ── Heading ────────────────────────────────────────────────────────
+        var titleTb = new TextBlock
+        {
+            Text         = title,
+            FontFamily   = new FontFamily("Segoe UI"),
+            FontSize     = 15,
+            FontWeight   = FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 16)
+        };
+        titleTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+        panel.Children.Add(titleTb);
+
+        // ── Question ───────────────────────────────────────────────────────
+        var questionTb = new TextBlock
+        {
+            Text         = question,
+            FontFamily   = new FontFamily("Segoe UI"),
+            FontSize     = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 8)
+        };
+        questionTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+        panel.Children.Add(questionTb);
+
+        // ── Text input ─────────────────────────────────────────────────────
+        var textBox = new TextBox
+        {
+            FontFamily       = new FontFamily("Segoe UI"),
+            FontSize         = 13,
+            Padding          = new Thickness(8, 6, 8, 6),
+            Height           = 36,
+            Margin           = new Thickness(0, 0, 0, 16),
+            BorderThickness  = new Thickness(1),
+            IsUndoEnabled    = false
+        };
+        textBox.SetResourceReference(TextBox.BackgroundProperty,   "InputBgBrush");
+        textBox.SetResourceReference(TextBox.ForegroundProperty,   "InputTextBrush");
+        textBox.SetResourceReference(TextBox.BorderBrushProperty,  "InputBorderBrush");
+        textBox.SetResourceReference(TextBox.CaretBrushProperty,   "InputTextBrush");
+        panel.Children.Add(textBox);
+
+        // ── Button row ─────────────────────────────────────────────────────
+        var buttonPanel = new StackPanel
+        {
+            Orientation         = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+
+        var okButton = new Button
+        {
+            Content    = okLabel,
+            Width      = 92,
+            Height     = 32,
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize   = 12,
+            IsDefault  = true,
+            Margin     = new Thickness(0, 0, 8, 0)
+        };
+        okButton.SetResourceReference(Button.StyleProperty, "SButton");
+
+        var cancelButton = new Button
+        {
+            Content    = cancelLabel,
+            Width      = 92,
+            Height     = 32,
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize   = 12,
+            IsCancel   = true
+        };
+        cancelButton.SetResourceReference(Button.StyleProperty, "SButtonSecondary");
+
+        okButton.Click += (_, _) =>
+        {
+            try
+            {
+                var name = textBox.Text.Trim();
+                if (!string.IsNullOrEmpty(name))
+                {
+                    var settings = Services.SettingsService.Load();
+                    settings.UserName = name;
+                    Services.SettingsService.Save(settings);
+                    win.DialogResult = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving nickname: {ex.Message}");
+                MessageBox.Show($"Error saving name: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        };
+        cancelButton.Click += (_, _) => win.DialogResult = false;
+
+        textBox.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Return)
+            {
+                try
+                {
+                    okButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    e.Handled = true;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error handling Return key: {ex.Message}");
+                    MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        };
+
+        buttonPanel.Children.Add(okButton);
+        buttonPanel.Children.Add(cancelButton);
+        panel.Children.Add(buttonPanel);
+
+        win.Content = panel;
+        win.ShowDialog();
+
+        // Move focus into the textbox once the window is visible
+        win.Loaded += (_, _) => textBox.Focus();
+    }
 
     // World-building editor methods live in MainWindow.World.cs
 
