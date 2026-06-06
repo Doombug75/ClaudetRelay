@@ -164,7 +164,7 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 - **Faction dots on character cards** — coloured dots on each character card show faction membership at a glance
 - **Board view** — free-canvas board for arranging all entity types spatially; drag cards, draw named relations between entities, and auto-arrange
 - **Nested boards** — boards can contain boards; build hierarchy as deep as your world requires
-- **Relation lines** — eight line styles (solid, dashed, dotted, double variants), custom captions, legend entries, and colour-coded strokes
+- **Relation lines & arrows** — eight line styles (solid, dashed, dotted, double variants), optional arrowheads, custom captions, legend entries, and colour-coded strokes; lines are segmentable so you can split and re-route them around cards
 - **Quick-add from board** — add any entity type directly from the board toolbar without switching views
 
 ### MCP / Bridge
