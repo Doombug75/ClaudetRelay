@@ -335,6 +335,34 @@
   <data name="Audio_Volume"             xml:space="preserve"><value>Volume</value></data>
   <data name="Audio_VoiceBackendTitle"  xml:space="preserve"><value>Speech Backend</value></data>
   <data name="Audio_ManageModels"       xml:space="preserve"><value>Manage Models…</value></data>
+  <data name="Audio_InputDevice"        xml:space="preserve"><value>Input Device (Microphone)</value></data>
+
+  <!-- ── Voice Recognition / Dictation ────────────────────────────────── -->
+  <data name="Asr_MenuTitle"            xml:space="preserve"><value>🎙  Voice Recognition</value></data>
+  <data name="Asr_WindowTitle"          xml:space="preserve"><value>Voice Recognition Settings</value></data>
+  <data name="Asr_ModelSection"         xml:space="preserve"><value>ASR Model</value></data>
+  <data name="Asr_ModelFolder"          xml:space="preserve"><value>Model Folder</value></data>
+  <data name="Asr_ModelName"            xml:space="preserve"><value>Active Model</value></data>
+  <data name="Asr_NoModel"              xml:space="preserve"><value>(no model selected)</value></data>
+  <data name="Asr_ModelType"            xml:space="preserve"><value>Model Type</value></data>
+  <data name="Asr_ActivationSection"    xml:space="preserve"><value>Activation Mode</value></data>
+  <data name="Asr_AlwaysOn"             xml:space="preserve"><value>Always On  (mic button toggles listening)</value></data>
+  <data name="Asr_PushToTalk"           xml:space="preserve"><value>Push to Talk</value></data>
+  <data name="Asr_VoiceActivated"       xml:space="preserve"><value>Voice Activated  (starts when loud enough)</value></data>
+  <data name="Asr_PttKey"               xml:space="preserve"><value>Push-to-Talk Key</value></data>
+  <data name="Asr_PttRecord"            xml:space="preserve"><value>Click, then press the desired key…</value></data>
+  <data name="Asr_PttCtrl"              xml:space="preserve"><value>Ctrl</value></data>
+  <data name="Asr_PttShift"             xml:space="preserve"><value>Shift</value></data>
+  <data name="Asr_PttAlt"               xml:space="preserve"><value>Alt</value></data>
+  <data name="Asr_ThresholdSection"     xml:space="preserve"><value>Activation Threshold</value></data>
+  <data name="Asr_ThresholdHint"        xml:space="preserve"><value>Drag the marker to set when voice detection triggers. Green = clear speech, Orange = clipping risk.</value></data>
+  <data name="Asr_MicLevel"             xml:space="preserve"><value>Microphone Level</value></data>
+  <data name="Asr_BrowseFolder"         xml:space="preserve"><value>Browse…</value></data>
+  <data name="Asr_ManageModels"         xml:space="preserve"><value>Manage ASR Models…</value></data>
+  <data name="Asr_NoModelWarning"       xml:space="preserve"><value>No ASR model loaded. Select a model folder and model name, then click OK.</value></data>
+  <data name="Asr_MicBtn_Idle"          xml:space="preserve"><value>🎙  Dictation Off</value></data>
+  <data name="Asr_MicBtn_On"            xml:space="preserve"><value>🔴  Listening…</value></data>
+  <data name="Asr_MicBtn_Processing"    xml:space="preserve"><value>⏳  Transcribing…</value></data>
 
   <!-- ── Folders dialog additional ────────────────────────────────────── -->
   <data name="Folders_ChooseFolder"    xml:space="preserve"><value>Choose folder</value></data>

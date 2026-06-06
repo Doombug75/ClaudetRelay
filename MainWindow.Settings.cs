@@ -100,12 +100,15 @@ public partial class MainWindow
     {
         var audioItem = new MenuItem { Header = Properties.Loc.S("Audio_AudioSetup") };
         var voiceItem = new MenuItem { Header = Properties.Loc.S("Audio_VoiceSettings") };
+        var asrItem   = new MenuItem { Header = Properties.Loc.S("Asr_MenuTitle") };
 
         audioItem.Click += (_, _) => OpenAudioSetup();
         voiceItem.Click += (_, _) => OpenVoiceSettings();
+        asrItem  .Click += (_, _) => OpenVoiceRecognitionSettings();
 
         menu.Items.Add(audioItem);
         menu.Items.Add(voiceItem);
+        menu.Items.Add(asrItem);
     }
 
     private void InitVoiceBackend()
@@ -140,6 +143,13 @@ public partial class MainWindow
     internal void OpenVoiceModelManager()
     {
         var win = new VoiceModelManagerWindow(_currentThemePath) { Owner = this };
+        win.SourceInitialized += (_, _) => ApplyTitleBarTheme(win);
+        win.ShowDialog();
+    }
+
+    internal void OpenVoiceRecognitionSettings()
+    {
+        var win = new VoiceRecognitionSettingsWindow(_currentThemePath, _dictation) { Owner = this };
         win.SourceInitialized += (_, _) => ApplyTitleBarTheme(win);
         win.ShowDialog();
     }

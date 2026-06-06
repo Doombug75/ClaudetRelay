@@ -795,14 +795,24 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Column 0: Whisper/recipient picker button (left side) -->
-                        <Button x:Name="PrivateMsgButton" Grid.Column="0"
-                                Content="🤫"
-                                Style="{StaticResource ModernButton}"
-                                Background="{DynamicResource ControlBgBrush}"
-                                Foreground="{DynamicResource SidebarDimBrush}"
-                                FontSize="13" Width="42" Padding="4,9" Margin="0,0,6,0"
-                                Click="PrivateMsgButton_Click"/>
+                        <!-- Column 0: Mic (dictation) button above whisper/recipient picker -->
+                        <StackPanel Grid.Column="0" Orientation="Vertical" Margin="0,0,6,0">
+                            <Button x:Name="MicButton"
+                                    Content="🎙"
+                                    Style="{StaticResource ModernButton}"
+                                    Background="{DynamicResource ControlBgBrush}"
+                                    Foreground="{DynamicResource SidebarDimBrush}"
+                                    FontSize="13" Width="42" Padding="4,9" Margin="0,0,0,4"
+                                    ToolTip="Dictation (Voice Recognition)"
+                                    Click="MicButton_Click"/>
+                            <Button x:Name="PrivateMsgButton"
+                                    Content="🤫"
+                                    Style="{StaticResource ModernButton}"
+                                    Background="{DynamicResource ControlBgBrush}"
+                                    Foreground="{DynamicResource SidebarDimBrush}"
+                                    FontSize="13" Width="42" Padding="4,9"
+                                    Click="PrivateMsgButton_Click"/>
+                        </StackPanel>
 
                         <!-- Column 1: Message input box (center) -->
                         <Border Grid.Column="1" Background="{DynamicResource InputBgBrush}"

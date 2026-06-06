@@ -13,8 +13,10 @@ namespace ClaudetRelay;
 public sealed class AudioSetupWindow : Window
 {
     private readonly string? _themePath;
-    private readonly List<(string Label, string Key)> _devices = [];
+    private readonly List<(string Label, string Key)> _outDevices = [];
+    private readonly List<(string Label, string Key)> _inDevices  = [];
     private ComboBox? _deviceCombo;
+    private ComboBox? _inputCombo;
     private Slider?   _volumeSlider;
 
     public AudioSetupWindow(string? themePath)
@@ -52,32 +54,42 @@ public sealed class AudioSetupWindow : Window
         // ── Output device ──────────────────────────────────────────────────
         root.Children.Add(SectionHeading("🔊  " + Properties.Loc.S("Audio_OutputDevice")));
 
-        _devices.Add((Properties.Loc.S("Audio_DefaultDevice"), ""));
+        _outDevices.Add((Properties.Loc.S("Audio_DefaultDevice"), ""));
         for (int i = 0; i < WaveOut.DeviceCount; i++)
         {
             var name = WaveOut.GetCapabilities(i).ProductName;
-            _devices.Add((name, name));
+            _outDevices.Add((name, name));
         }
 
-        _deviceCombo = new ComboBox
-        {
-            FontFamily = new FontFamily("Segoe UI"),
-            FontSize   = 12,
-            Margin     = new Thickness(0, 0, 0, 20),
-        };
-        _deviceCombo.SetResourceReference(ForegroundProperty, "ContentTextBrush");
-        _deviceCombo.SetResourceReference(BackgroundProperty, "ControlBgBrush");
-
-        foreach (var (label, _) in _devices)
+        _deviceCombo = MakeCombo();
+        foreach (var (label, _) in _outDevices)
             _deviceCombo.Items.Add(label);
 
-        var savedKey = s.AudioOutputDevice;
-        var idx = string.IsNullOrEmpty(savedKey)
-            ? 0
-            : _devices.FindIndex(d => d.Key == savedKey);
-        _deviceCombo.SelectedIndex = idx < 0 ? 0 : idx;
-
+        var savedOut = s.AudioOutputDevice;
+        var outIdx = string.IsNullOrEmpty(savedOut) ? 0
+                     : _outDevices.FindIndex(d => d.Key == savedOut);
+        _deviceCombo.SelectedIndex = outIdx < 0 ? 0 : outIdx;
         root.Children.Add(_deviceCombo);
+
+        // ── Input device ───────────────────────────────────────────────────
+        root.Children.Add(SectionHeading("🎙  " + Properties.Loc.S("Audio_InputDevice")));
+
+        _inDevices.Add((Properties.Loc.S("Audio_DefaultDevice"), ""));
+        for (int i = 0; i < NAudio.Wave.WaveInEvent.DeviceCount; i++)
+        {
+            var name = NAudio.Wave.WaveInEvent.GetCapabilities(i).ProductName;
+            _inDevices.Add((name, name));
+        }
+
+        _inputCombo = MakeCombo();
+        foreach (var (label, _) in _inDevices)
+            _inputCombo.Items.Add(label);
+
+        var savedIn = s.AudioInputDevice;
+        var inIdx = string.IsNullOrEmpty(savedIn) ? 0
+                    : _inDevices.FindIndex(d => d.Key == savedIn);
+        _inputCombo.SelectedIndex = inIdx < 0 ? 0 : inIdx;
+        root.Children.Add(_inputCombo);
 
         // ── Volume ─────────────────────────────────────────────────────────
         root.Children.Add(SectionHeading("🔉  " + Properties.Loc.S("Audio_Volume")));
@@ -164,8 +176,14 @@ public sealed class AudioSetupWindow : Window
         if (_deviceCombo is not null)
         {
             var i = _deviceCombo.SelectedIndex;
-            s.AudioOutputDevice = i >= 0 && i < _devices.Count ? _devices[i].Key : "";
+            s.AudioOutputDevice = i >= 0 && i < _outDevices.Count ? _outDevices[i].Key : "";
             VoiceOutputService.DeviceNumber = FindDeviceNumber(s.AudioOutputDevice);
+        }
+
+        if (_inputCombo is not null)
+        {
+            var i = _inputCombo.SelectedIndex;
+            s.AudioInputDevice = i >= 0 && i < _inDevices.Count ? _inDevices[i].Key : "";
         }
 
         if (_volumeSlider is not null)
@@ -191,6 +209,26 @@ public sealed class AudioSetupWindow : Window
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    private ComboBox MakeCombo()
+    {
+        var cb = new ComboBox
+        {
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize   = 12,
+            Margin     = new Thickness(0, 0, 0, 20),
+        };
+        cb.SetResourceReference(ForegroundProperty,            "ContentTextBrush");
+        cb.SetResourceReference(BackgroundProperty,            "ControlBgBrush");
+        cb.SetResourceReference(BorderBrushProperty,           "ControlBorderBrush");
+        // Fix dropdown popup background
+        cb.Loaded += (_, _) =>
+        {
+            if (cb.Template?.FindName("toggleButton",  cb) is System.Windows.Controls.Primitives.ToggleButton tb)
+                tb.SetResourceReference(BackgroundProperty, "ControlBgBrush");
+        };
+        return cb;
+    }
 
     private TextBlock SectionHeading(string text)
     {

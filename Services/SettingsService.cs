@@ -199,16 +199,43 @@ public class AppSettings
     /// </summary>
     public int VoicevoxPort { get; set; } = 50021;
 
-    /// <summary>
-    /// ProductName of the preferred audio output device.
-    /// Empty string = OS default device (first WaveOut device).
-    /// </summary>
+    /// <summary>ProductName of the preferred audio output device. Empty = OS default.</summary>
     public string AudioOutputDevice { get; set; } = "";
 
-    /// <summary>
-    /// Master playback volume for TTS output. Range 0.0–1.0. Default 1.0 (100 %).
-    /// </summary>
+    /// <summary>ProductName of the preferred audio input (microphone) device. Empty = OS default.</summary>
+    public string AudioInputDevice { get; set; } = "";
+
+    /// <summary>Master playback volume for TTS output. Range 0.0–1.0. Default 1.0 (100 %).</summary>
     public double AudioVolume { get; set; } = 1.0;
+
+    // ── Voice recognition / dictation ──────────────────────────────────────
+
+    /// <summary>Folder containing downloaded ASR model subfolders.</summary>
+    public string AsrModelsFolder { get; set; } = "";
+
+    /// <summary>Subfolder name of the active ASR model inside AsrModelsFolder.</summary>
+    public string AsrModelName { get; set; } = "";
+
+    /// <summary>ASR model type: "whisper" or "sense_voice".</summary>
+    public string AsrModelType { get; set; } = "whisper";
+
+    /// <summary>Dictation activation mode: "AlwaysOn", "PushToTalk", or "VoiceActivated".</summary>
+    public string AsrActivationMode { get; set; } = "AlwaysOn";
+
+    /// <summary>Key name for push-to-talk (e.g. "Space", "F12"). Matches System.Windows.Input.Key enum names.</summary>
+    public string PushToTalkKey { get; set; } = "Space";
+
+    /// <summary>Ctrl modifier required for push-to-talk.</summary>
+    public bool PushToTalkCtrl { get; set; } = false;
+
+    /// <summary>Shift modifier required for push-to-talk.</summary>
+    public bool PushToTalkShift { get; set; } = false;
+
+    /// <summary>Alt modifier required for push-to-talk.</summary>
+    public bool PushToTalkAlt { get; set; } = false;
+
+    /// <summary>RMS threshold (0–1) for voice-activated mode. Speech above this level triggers recording.</summary>
+    public float VoiceActivationThreshold { get; set; } = 0.04f;
 
     /// <summary>
     /// UI language code, e.g. "" (English) or "de" (German).

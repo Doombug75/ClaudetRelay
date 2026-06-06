@@ -179,6 +179,9 @@ public partial class MainWindow : Window
     private ProjectSettings?                     _projectSettings;
     private ParticipantsWindow?                  _participantsWindow;
     private Window?                              _helpWindow;
+    // ── Dictation / voice recognition ────────────────────────────────────
+    private readonly DictationService            _dictation = new();
+    private bool                                 _dictationActive = false;
     // ── Private-message target (null = broadcast to all) ──────────────────
     private OllamaParticipantUI?                 _privateMsgOllamaTarget;
     private CloudAIParticipantUI?                _privateMsgCloudTarget;
@@ -257,6 +260,9 @@ public partial class MainWindow : Window
             await CheckAllStatusAsync();
             StartStatusTimer();
             StartCheckoutMonitor();  // Monitor for stale file checkouts
+
+            // ── Dictation service wiring ──────────────────────────────────
+            InitDictationService();
         };
         // Recalculate bubble MaxWidth whenever the chat area resizes (e.g. window drag / maximize).
         //
@@ -626,6 +632,112 @@ public partial class MainWindow : Window
 
         // Move focus into the textbox once the window is visible
         win.Loaded += (_, _) => textBox.Focus();
+    }
+
+    // ── Dictation / Voice Recognition ─────────────────────────────────────
+
+    private void InitDictationService()
+    {
+        // Wire up events
+        _dictation.TextAvailable += text =>
+            Dispatcher.Invoke(() =>
+            {
+                // Append transcribed text to input box with space separator
+                var current = InputTextBox.Text;
+                InputTextBox.Text = string.IsNullOrWhiteSpace(current)
+                    ? text
+                    : current.TrimEnd() + " " + text;
+                InputTextBox.CaretIndex = InputTextBox.Text.Length;
+                InputTextBox.Focus();
+            });
+
+        _dictation.StateChanged += state =>
+            Dispatcher.Invoke(() => UpdateMicButton(state));
+
+        // Wire PTT key: listen on main window PreviewKeyDown/Up
+        PreviewKeyDown += (_, e) =>
+        {
+            if (!_dictationActive) return;
+            var s = SettingsService.Load();
+            if (s.AsrActivationMode != "PushToTalk") return;
+            if (IsPttKeyMatch(e, s)) { _dictation.PttDown(); e.Handled = false; }
+        };
+        PreviewKeyUp += (_, e) =>
+        {
+            if (!_dictationActive) return;
+            var s = SettingsService.Load();
+            if (s.AsrActivationMode != "PushToTalk") return;
+            if (IsPttKeyMatch(e, s)) _dictation.PttUp();
+        };
+    }
+
+    private static bool IsPttKeyMatch(KeyEventArgs e, AppSettings s)
+    {
+        if (!Enum.TryParse<Key>(s.PushToTalkKey, out var pttKey)) return false;
+        var k = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (k != pttKey) return false;
+        bool ctrl  = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+        bool shift = (Keyboard.Modifiers & ModifierKeys.Shift)   != 0;
+        bool alt   = (Keyboard.Modifiers & ModifierKeys.Alt)     != 0;
+        return ctrl == s.PushToTalkCtrl && shift == s.PushToTalkShift && alt == s.PushToTalkAlt;
+    }
+
+    private void MicButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_dictationActive)
+        {
+            _dictation.Deactivate();
+            _dictationActive = false;
+            UpdateMicButton(DictationState.Idle);
+        }
+        else
+        {
+            var s = SettingsService.Load();
+
+            // Load/reload model if needed
+            if (!string.IsNullOrEmpty(s.AsrModelName) && !string.IsNullOrEmpty(s.AsrModelsFolder))
+            {
+                var modelFolder = System.IO.Path.Combine(s.AsrModelsFolder, s.AsrModelName);
+                _dictation.LoadModel(s.AsrModelType, modelFolder);
+            }
+
+            var mode = s.AsrActivationMode switch
+            {
+                "PushToTalk"     => DictationActivationMode.PushToTalk,
+                "VoiceActivated" => DictationActivationMode.VoiceActivated,
+                _                => DictationActivationMode.AlwaysOn
+            };
+            var device = DictationService.FindInputDeviceNumber(s.AudioInputDevice);
+            _dictation.Configure(mode, s.VoiceActivationThreshold, device);
+            _dictation.Activate();
+            _dictationActive = true;
+        }
+    }
+
+    private void UpdateMicButton(DictationState state)
+    {
+        if (MicButton is null) return;
+        switch (state)
+        {
+            case DictationState.Idle:
+                MicButton.Content    = "🎙";
+                MicButton.ToolTip    = Properties.Loc.S("Asr_MicBtn_Idle");
+                MicButton.SetResourceReference(BackgroundProperty, "ControlBgBrush");
+                MicButton.SetResourceReference(ForegroundProperty, "SidebarDimBrush");
+                break;
+            case DictationState.Listening:
+                MicButton.Content    = "🔴";
+                MicButton.ToolTip    = Properties.Loc.S("Asr_MicBtn_On");
+                MicButton.Background = new SolidColorBrush(Color.FromArgb(60, 220, 50, 50));
+                MicButton.SetResourceReference(ForegroundProperty, "ContentTextBrush");
+                break;
+            case DictationState.Processing:
+                MicButton.Content    = "⏳";
+                MicButton.ToolTip    = Properties.Loc.S("Asr_MicBtn_Processing");
+                MicButton.Background = new SolidColorBrush(Color.FromArgb(60, 200, 160, 20));
+                MicButton.SetResourceReference(ForegroundProperty, "ContentTextBrush");
+                break;
+        }
     }
 
     // World-building editor methods live in MainWindow.World.cs
