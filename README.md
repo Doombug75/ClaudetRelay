@@ -39,6 +39,24 @@ Each entity has a rich set of fields (role, alignment, backstory, arc, resources
 
 AI agents can read the world state, suggest new entities, and write directly into the project's entity files. They see the same structured data you see.
 
+#### Board canvas controls
+
+| Action | How |
+|---|---|
+| **Move a card / pin / frame** | Left-click and drag |
+| **Pan the canvas** | Right-click and drag on empty space |
+| **Select one card** | Left-click the card |
+| **Add to selection** | Shift-click or Ctrl-click additional cards |
+| **Rubber-band multi-select** | Left-click and drag on empty canvas space — draws a selection box; everything it touches is selected |
+| **Deselect all** | Left-click on empty canvas space |
+| **Move multiple cards** | Select them first, then drag any one of them — all move together |
+| **Add a relation line** | Click **Add Relation** in the toolbar, then click the first object, then the second — works between cards, frames, and board pins |
+| **Delete / remove from board** | Select card(s) and press **Del** — removes from board only, never from the library |
+| **Open nested board** | Double-click a board pin |
+| **Resize a card or pin** | Drag the grip in the bottom-right corner |
+| **Right-click a card** | Context menu: remove from board, edit entity |
+| **Right-click empty space** | Context menu: add entity, text box, board pin, or frame |
+
 ---
 
 ### Behaviour controls — directed or autonomous
@@ -162,7 +180,7 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 - **Portrait support** — add portrait images to characters; duplicate-safe filename handling keeps the entity list clean
 - **Faction membership** — characters can belong to multiple factions; each faction gets a colour badge from a 15-colour palette
 - **Faction dots on character cards** — coloured dots on each character card show faction membership at a glance
-- **Board view** — free-canvas board for arranging all entity types spatially; drag cards, draw named relations between entities, and auto-arrange
+- **Board view** — free-canvas board for arranging all entity types spatially; drag cards, rubber-band multi-select, right-drag to pan, draw named relations between entities, and auto-arrange
 - **Nested boards** — boards can contain boards; build hierarchy as deep as your world requires
 - **Relation lines & arrows** — eight line styles (solid, dashed, dotted, double variants), optional arrowheads, custom captions, legend entries, and colour-coded strokes; lines are segmentable so you can split and re-route them around cards
 - **Quick-add from board** — add any entity type directly from the board toolbar without switching views
