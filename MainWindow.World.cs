@@ -658,14 +658,44 @@ public partial class MainWindow
         // ── Context menu: edit + delete + send to board ───────────────────
         void DoDelete()
         {
-            if (MessageBox.Show($"Delete {entity.EntityType} '{entity.Name}'?",
-                    Properties.Loc.S("World_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning)
-                != MessageBoxResult.Yes) return;
+            // Build confirmation message — include board names if this entity is placed on any board
+            var msg = string.Format(Properties.Loc.S("World_DeleteConfirmBody"),
+                                    WorldEntitySchemas.LocalizeEntityType(entity.EntityType),
+                                    entity.Name);
+
+            var allBoards     = WorldBoardRegistryService.Load(projFolder);
+            var boardsWithIt  = allBoards
+                .Where(b => EntityBoardService.Load(projFolder, b.Id).Positions.ContainsKey(entity.Id))
+                .Select(b => b.Name)
+                .ToList();
+
+            if (boardsWithIt.Count > 0)
+            {
+                var bulletList = string.Join("\n", boardsWithIt.Select(n => $"  •  {n}"));
+                msg += string.Format(Properties.Loc.S("World_DeleteStillOnBoards"),
+                                     boardsWithIt.Count, bulletList);
+            }
+
+            if (MessageBox.Show(msg, Properties.Loc.S("World_ConfirmDelete"),
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                    MessageBoxResult.No) != MessageBoxResult.Yes) return;
+
+            // Remove from every board it lives on
+            foreach (var b in boardsWithIt)
+            {
+                var bd = allBoards.First(x => x.Name == b);
+                var data = EntityBoardService.Load(projFolder, bd.Id);
+                data.Positions.Remove(entity.Id);
+                data.Relations.RemoveAll(r => r.FromId == entity.Id || r.ToId == entity.Id);
+                EntityBoardService.Save(projFolder, bd.Id, data);
+            }
+
             // Delete thumbnails for portraits/images
             if (!string.IsNullOrWhiteSpace(entity.PortraitFileName))
                 ThumbnailService.DeleteThumb(WorldEntityService.GetPortraitPath(projFolder, entity.PortraitFileName));
             if (!string.IsNullOrWhiteSpace(entity.ImageFileName))
                 ThumbnailService.DeleteThumb(WorldEntityService.GetImagePath(projFolder, entity.ImageFileName));
+
             WorldEntityService.Delete(projFolder, entity);
             refresh();
         }

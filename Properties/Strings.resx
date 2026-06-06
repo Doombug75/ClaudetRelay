@@ -439,6 +439,12 @@
   <data name="World_Symbol"                    xml:space="preserve"><value>Symbol</value></data>
   <data name="World_EntityTypes"               xml:space="preserve"><value>Entity types on this board</value></data>
   <data name="World_ConfirmDelete"             xml:space="preserve"><value>Confirm Delete</value></data>
+  <data name="World_DeleteConfirmBody"         xml:space="preserve"><value>Delete {0} "{1}"?</value></data>
+  <data name="World_DeleteStillOnBoards"       xml:space="preserve"><value>
+This entity is still placed on {0} board(s):
+{1}
+
+It will be removed from those boards automatically.</value></data>
   <data name="World_RenameBoard"               xml:space="preserve"><value>✏  Rename…</value></data>
   <data name="World_BoardSettings"             xml:space="preserve"><value>⚙  Board Settings…</value></data>
   <data name="World_DeleteBoard"               xml:space="preserve"><value>🗑  Delete Board</value></data>
