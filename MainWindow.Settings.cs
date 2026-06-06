@@ -113,6 +113,17 @@ public partial class MainWindow
         menu.Items.Add(modelsItem);
     }
 
+    private void InitVoiceBackend()
+    {
+        var s = Services.SettingsService.Load();
+        Services.VoiceOutputService.ActiveBackend = s.VoiceBackend switch
+        {
+            "Sherpa"   => new Services.SherpaOnnxTtsBackend(s.SherpaModelFolder),
+            "Voicevox" => new Services.VoicevoxTtsBackend(s.VoicevoxPort),
+            _          => new Services.WindowsTtsBackend(),
+        };
+    }
+
     private void SwitchVoiceBackend(string key)
     {
         var s = Services.SettingsService.Load();
