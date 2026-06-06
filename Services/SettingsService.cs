@@ -171,6 +171,19 @@ public class AppSettings
     public bool VoiceOutputEnabled { get; set; } = false;
 
     /// <summary>
+    /// When true (default), a new AI message immediately stops whatever is currently
+    /// playing and speaks the new message. When false, messages queue up and play
+    /// one after another — ideal for "tell me a story" multi-response sessions.
+    /// </summary>
+    public bool VoiceInterruptOnNewMessage { get; set; } = true;
+
+    /// <summary>
+    /// Maximum number of characters fed to TTS per message. Longer texts are truncated
+    /// with "…" to keep playback snappy. Range 100–5000, default 700.
+    /// </summary>
+    public int VoiceSpeechMaxChars { get; set; } = 700;
+
+    /// <summary>
     /// UI language code, e.g. "en" or "de".
     /// Applied as <c>CurrentUICulture</c> at startup — restart required for changes.
     /// Empty string means "en" (English / neutral fallback).

@@ -69,6 +69,8 @@ public partial class SettingsWindow : Window
     private Slider       _chattinessSlider     = null!;
     private Slider       _zoomSlider           = null!;
     private ComboBox     _languageCombo        = null!;
+    private CheckBox     _voiceInterruptChk    = null!;
+    private TextBox      _voiceMaxBox          = null!;
 
     // ── Constructor ────────────────────────────────────────────────────────
 
@@ -581,6 +583,77 @@ public partial class SettingsWindow : Window
         root.Children.Add(zoomValueLabel);
         root.Children.Add(zoomRow);
         root.Children.Add(zoomHint);
+
+        // ── Voice output settings ───────────────────────────────────────────
+        var voiceSep = new Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 12) };
+        voiceSep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
+        root.Children.Add(voiceSep);
+
+        var voiceLabel = new TextBlock
+        {
+            Text = "🔊  VOICE OUTPUT", FontSize = 11, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 0, 0, 10)
+        };
+        voiceLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+        root.Children.Add(voiceLabel);
+
+        // Interrupt checkbox
+        var voiceInterruptChk = new CheckBox
+        {
+            Content   = "Stop current speech when a new message arrives",
+            IsChecked = settings.VoiceInterruptOnNewMessage,
+            FontSize  = 13, FontFamily = new FontFamily("Segoe UI"),
+            Margin    = new Thickness(0, 0, 0, 4)
+        };
+        voiceInterruptChk.SetResourceReference(CheckBox.ForegroundProperty, "ContentTextBrush");
+        root.Children.Add(voiceInterruptChk);
+
+        var voiceInterruptHint = MakeHintText(
+            "On: each new bubble immediately interrupts the previous one.\n" +
+            "Off: messages queue up — perfect for story mode where you want " +
+            "every response read aloud in sequence.");
+        root.Children.Add(voiceInterruptHint);
+
+        // Max chars row
+        var voiceMaxRow = new StackPanel
+            { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 4) };
+        var voiceMaxLabel = new TextBlock
+        {
+            Text = "Max characters per message: ", FontSize = 13,
+            FontFamily = new FontFamily("Segoe UI"), VerticalAlignment = VerticalAlignment.Center
+        };
+        voiceMaxLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+        voiceMaxRow.Children.Add(voiceMaxLabel);
+
+        var voiceMaxBox = new TextBox
+        {
+            Text  = settings.VoiceSpeechMaxChars.ToString(),
+            Width = 64, FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
+            TextAlignment = TextAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Padding = new Thickness(6, 2, 6, 2)
+        };
+        if (TryFindResource("ModernTextBox") is Style vmbs) voiceMaxBox.Style = vmbs;
+        voiceMaxBox.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsAsciiDigit);
+        voiceMaxRow.Children.Add(voiceMaxBox);
+
+        var voiceMaxSuffix = new TextBlock
+        {
+            Text = " chars", FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        voiceMaxSuffix.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+        voiceMaxRow.Children.Add(voiceMaxSuffix);
+        root.Children.Add(voiceMaxRow);
+
+        var voiceMaxHint = MakeHintText(
+            "Messages longer than this are truncated before being sent to the TTS engine. " +
+            "Range 100–5000. Default: 700.");
+        root.Children.Add(voiceMaxHint);
+
+        // Wire save for these two controls (appended to the existing save path)
+        _voiceInterruptChk = voiceInterruptChk;
+        _voiceMaxBox       = voiceMaxBox;
 
         var scroll = new ScrollViewer
         {
@@ -1395,6 +1468,10 @@ public partial class SettingsWindow : Window
         settings.GlobalResponseLength = (int)_responseLengthSlider.Value;
         settings.GlobalChattiness     = (int)_chattinessSlider.Value;
         settings.UiZoom               = Math.Clamp(_zoomSlider.Value / 100.0, 0.5, 3.0);
+        settings.VoiceInterruptOnNewMessage =
+            _voiceInterruptChk?.IsChecked ?? settings.VoiceInterruptOnNewMessage;
+        if (int.TryParse(_voiceMaxBox?.Text, out var vmChars) && vmChars is >= 100 and <= 5000)
+            settings.VoiceSpeechMaxChars = vmChars;
 
         settings.Participants.Clear();
 

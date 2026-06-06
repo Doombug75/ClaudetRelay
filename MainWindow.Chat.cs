@@ -4572,18 +4572,21 @@ public partial class MainWindow : Window
                  "Otherwise, respond with exactly: PASS"
     };
 
-    // ── Voice output toggle ───────────────────────────────────────────────
+    // ── Voice output toggle + skip ────────────────────────────────────────
 
     private void VoiceOutputToggleButton_Click(object sender, RoutedEventArgs e)
     {
         var s = SettingsService.Load();
         s.VoiceOutputEnabled = !s.VoiceOutputEnabled;
         SettingsService.Save(s);
-        if (!s.VoiceOutputEnabled) VoiceOutputService.StopCurrent();
-        UpdateVoiceToggleButton();
+        if (!s.VoiceOutputEnabled) VoiceOutputService.StopAll();
+        UpdateVoiceButtons();
     }
 
-    private void UpdateVoiceToggleButton()
+    private void VoiceSkipButton_Click(object sender, RoutedEventArgs e) =>
+        VoiceOutputService.Skip();
+
+    private void UpdateVoiceButtons()
     {
         var enabled = SettingsService.Load().VoiceOutputEnabled;
         VoiceOutputToggleButton.Content = enabled ? "🔊" : "🔇";
@@ -4592,14 +4595,25 @@ public partial class MainWindow : Window
             enabled ? "AccentHighlightBrush" : "SidebarDimBrush");
         VoiceOutputToggleButton.ToolTip = enabled
             ? "Voice output ON — click to mute"
-            : "Voice output OFF — click to enable";
+            : "Voice output OFF — click to unmute";
+
+        // Skip button visible only when enabled AND something is playing or queued
+        var showSkip = enabled && (VoiceOutputService.IsPlaying || VoiceOutputService.QueueCount > 0);
+        VoiceSkipButton.Visibility = showSkip ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void SubscribeVoiceStateChanged()
+    {
+        VoiceOutputService.StateChanged += () =>
+            Dispatcher.InvokeAsync(UpdateVoiceButtons);
     }
 
     // ── Voice output ──────────────────────────────────────────────────────
 
     /// <summary>
-    /// Speaks <paramref name="text"/> for a participant if voice output is enabled globally
-    /// and the participant has a VoiceName configured.
+    /// Enqueues <paramref name="text"/> for TTS playback if voice output is enabled
+    /// and the participant has a VoiceName configured. Reads interrupt + max-chars
+    /// from settings so <see cref="VoiceOutputService"/> stays settings-agnostic.
     /// </summary>
     private static void SpeakMessageIfEnabled(string model, string provider, string text)
     {
@@ -4611,7 +4625,9 @@ public partial class MainWindow : Window
                 string.Equals(p.Type,  provider, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(p.Model, model,    StringComparison.OrdinalIgnoreCase));
             if (pc is null || string.IsNullOrWhiteSpace(pc.VoiceName)) return;
-            VoiceOutputService.SpeakAsync(text, pc.VoiceName);
+
+            var clean = VoiceOutputService.CleanForSpeech(text, s.VoiceSpeechMaxChars);
+            VoiceOutputService.Enqueue(clean, pc.VoiceName, s.VoiceInterruptOnNewMessage);
         }
         catch { /* voice output is always best-effort */ }
     }

@@ -287,7 +287,8 @@ public partial class MainWindow : Window
 
         ExportChatButton.ToolTip    = Properties.Loc.S("ToolTip_ExportChat");
         ChatFontButton.ToolTip      = Properties.Loc.S("ToolTip_ChatFont");
-        UpdateVoiceToggleButton();
+        SubscribeVoiceStateChanged();
+        UpdateVoiceButtons();
         AiDialogueButton.ToolTip    = Properties.Loc.S("ToolTip_AiDialogue");
         ChatViewButton.ToolTip      = Properties.Loc.S("ToolTip_ChatView");
         WorldButton.ToolTip         = Properties.Loc.S("ToolTip_World");
