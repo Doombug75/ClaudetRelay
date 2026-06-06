@@ -1004,9 +1004,9 @@ public class WorldBoardWindow : Window
                 System.Diagnostics.Debug.WriteLine($"Rendering relation {rel.Id}: From({rel.FromId}) at ({fx},{fy}) To({rel.ToId}) at ({tx},{ty})");
 
                 var x1 = fx + fw / 2;
-                var y1 = fy + EstCardH / 2;
+                var y1 = fy + fh / 2;
                 var x2 = tx + tw / 2;
-                var y2 = ty + EstCardH / 2;
+                var y2 = ty + th / 2;
 
                 // Calculate relation Z-Index as highest connected card's ZOrder + 1
                 int maxCardZOrder = Math.Max(fz, tz);
@@ -3883,14 +3883,33 @@ public class WorldBoardWindow : Window
         return (cx, cy);
     }
 
-    /// <summary>Returns the card border point aimed toward (toX,toY), using actual rendered card size.</summary>
+    /// <summary>Returns the border point aimed toward (toX,toY), using actual rendered size for cards/pins, stored size for frames.</summary>
     private (double, double) LiveBorderPoint(string entityId, double toX, double toY)
     {
         var (cx, cy) = GetBoardCardCenter(entityId);
-        if (!_boardCards.TryGetValue(entityId, out var card)) return (cx, cy);
-        double hw = (card.ActualWidth  > 0 ? card.ActualWidth  : 160) / 2;
-        double hh = (card.ActualHeight > 0 ? card.ActualHeight :  80) / 2;
-        return BorderIntersect(cx, cy, hw, hh, toX, toY);
+
+        // Card: use actual rendered size
+        if (_boardCards.TryGetValue(entityId, out var card))
+        {
+            double hw = (card.ActualWidth  > 0 ? card.ActualWidth  : 160) / 2;
+            double hh = (card.ActualHeight > 0 ? card.ActualHeight :  80) / 2;
+            return BorderIntersect(cx, cy, hw, hh, toX, toY);
+        }
+
+        // Pin: use actual rendered size
+        if (_boardPins.TryGetValue(entityId, out var pin))
+        {
+            double hw = (pin.ActualWidth  > 0 ? pin.ActualWidth  : 160) / 2;
+            double hh = (pin.ActualHeight > 0 ? pin.ActualHeight :  80) / 2;
+            return BorderIntersect(cx, cy, hw, hh, toX, toY);
+        }
+
+        // Frame: use stored size
+        var frame = _boardData.Frames.FirstOrDefault(f => f.Id == entityId);
+        if (frame != null)
+            return BorderIntersect(cx, cy, frame.Width / 2, frame.Height / 2, toX, toY);
+
+        return (cx, cy);
     }
 
     private Polygon BuildArrowhead(double x1, double y1, double x2, double y2, double thickness, string lineColor)
