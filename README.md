@@ -176,7 +176,7 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 - **Configurable tool access** — enable or disable individual MCP tools per mode from the Bridge settings window
 
 ### Themes
-- **101 built-in themes** — Catppuccin, Tokyo Night, Dracula, Gruvbox, Leatherbound series, Skyrim, Deep Rock Galactic, planetary series, Warhammer 40K factions, and many more
+- **101 built-in colour themes** — includes well-known community palettes (Catppuccin, Tokyo Night, Dracula, Gruvbox) and a large collection of original themes with colour palettes *inspired by* the look of leatherbound books, our planets seen from space, classic fantasy landscapes, deep underground caves, vast battlefields, and more — all purely colour work, no licensed artwork or UI assets
 - **OXSUIT 1.0 format** — themes are plain `.oxsuit` XML files, drop them into the `Themes/` folder for instant loading — no restart required
 - **[OXSUIT Theminator](https://github.com/Doombug75/Theminator)** — free standalone visual theme editor for creating and previewing themes interactively
 
