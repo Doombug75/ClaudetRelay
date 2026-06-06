@@ -430,8 +430,6 @@
   <data name="World_NoFilterResults"           xml:space="preserve"><value>No results match the current filters. Click ↺ Reset to clear.</value></data>
   <data name="World_EditItem"                  xml:space="preserve"><value>✏  Edit</value></data>
   <data name="World_DeleteItem"                xml:space="preserve"><value>🗑  Delete</value></data>
-  <data name="World_DeleteConfirm"             xml:space="preserve"><value>Permanently delete "{0}"? This cannot be undone.</value></data>
-  <data name="World_DeleteManyConfirm"         xml:space="preserve"><value>Permanently delete {0} entities? This cannot be undone.</value></data>
   <data name="World_SendToBoard"               xml:space="preserve"><value>📌  Send to Board</value></data>
   <data name="World_AlreadyOnBoard"            xml:space="preserve"><value>Already on board</value></data>
   <data name="World_NoBoardsYet"               xml:space="preserve"><value>No boards yet.</value></data>
@@ -510,6 +508,8 @@
   <data name="Board_PinBoard"                  xml:space="preserve"><value>📋 Pin board…</value></data>
   <data name="Board_AddFrame"                  xml:space="preserve"><value>🔲 Add frame</value></data>
   <data name="Board_RemoveFromBoard"           xml:space="preserve"><value>✕ Remove from board</value></data>
+  <data name="Board_RemoveConfirmConnections"  xml:space="preserve"><value>This card has {0} connection line(s) that will also be removed. Remove from board?</value></data>
+  <data name="Board_RemoveManyConfirmConnections" xml:space="preserve"><value>{0} cards have connection lines that will also be removed. Remove from board?</value></data>
   <data name="Board_GridSettingsTitle"         xml:space="preserve"><value>Grid Settings</value></data>
   <data name="Board_GridDisplay"               xml:space="preserve"><value>Grid display</value></data>
   <data name="Board_ShowGridLines"             xml:space="preserve"><value>Show grid lines</value></data>

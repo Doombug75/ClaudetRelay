@@ -907,7 +907,7 @@ public class WorldBoardWindow : Window
                 var pin = BuildBoardPin(pinBoard, pinPos);
                 Canvas.SetLeft(pin, pinPos.X);
                 Canvas.SetTop (pin, pinPos.Y);
-                Panel.SetZIndex(pin, 2);
+                Panel.SetZIndex(pin, 1);   // below entity cards (z=2) — always acts as background
                 canvas.Children.Add(pin);
                 _boardPins[capBoardId] = pin;
 
@@ -1174,37 +1174,37 @@ public class WorldBoardWindow : Window
     /// <summary>
     /// Confirms and permanently deletes the given entity IDs from the world and the board.
     /// </summary>
-    private void DeleteEntities(IEnumerable<string> ids)
+    /// <summary>
+    /// Removes the given entity IDs from the board (positions + any touching
+    /// relation lines).  Does NOT delete the entities from the world library.
+    /// A confirmation is shown only when the removed cards have connection lines.
+    /// </summary>
+    private void RemoveFromBoard(IEnumerable<string> ids)
     {
         var idList = ids.ToList();
         if (idList.Count == 0) return;
 
-        var allEntities = _board.EntityTypes
-            .SelectMany(et => WorldEntityService.List(_projFolder, et))
-            .ToList();
+        int relCount = _boardData.Relations.Count(
+            r => idList.Contains(r.FromId) || idList.Contains(r.ToId));
 
-        var toDelete = idList
-            .Select(id => allEntities.FirstOrDefault(e => e.Id == id))
-            .Where(e => e is not null)
-            .ToList();
-
-        if (toDelete.Count == 0) return;
-
-        var msg = toDelete.Count == 1
-            ? string.Format(Properties.Loc.S("World_DeleteConfirm"), toDelete[0]!.Name)
-            : string.Format(Properties.Loc.S("World_DeleteManyConfirm"), toDelete.Count);
-
-        if (MessageBox.Show(msg, Properties.Loc.S("World_DeleteItem"),
-                MessageBoxButton.YesNo, MessageBoxImage.Warning,
-                MessageBoxResult.No) != MessageBoxResult.Yes)
-            return;
-
-        foreach (var ent in toDelete)
+        if (relCount > 0)
         {
-            WorldEntityService.Delete(_projFolder, ent!);
-            _boardData.Positions.Remove(ent!.Id);
-            _boardData.Relations.RemoveAll(r => r.FromId == ent.Id || r.ToId == ent.Id);
-            _selectedIds.Remove(ent.Id);
+            var msg = idList.Count == 1
+                ? string.Format(Properties.Loc.S("Board_RemoveConfirmConnections"), relCount)
+                : string.Format(Properties.Loc.S("Board_RemoveManyConfirmConnections"),
+                                idList.Count, relCount);
+
+            if (MessageBox.Show(msg, Properties.Loc.S("Board_RemoveFromBoard"),
+                    MessageBoxButton.YesNo, MessageBoxImage.Question,
+                    MessageBoxResult.No) != MessageBoxResult.Yes)
+                return;
+        }
+
+        foreach (var id in idList)
+        {
+            _boardData.Positions.Remove(id);
+            _boardData.Relations.RemoveAll(r => r.FromId == id || r.ToId == id);
+            _selectedIds.Remove(id);
         }
 
         EntityBoardService.Save(_projFolder, _board.Id, _boardData);
@@ -1213,10 +1213,10 @@ public class WorldBoardWindow : Window
 
     private void OnBoardKeyDown(object sender, KeyEventArgs e)
     {
-        // Delete / Backspace — delete selected entities (no modifier needed)
+        // Delete / Backspace — remove selected cards from board (no modifier needed)
         if (e.Key is Key.Delete or Key.Back && _selectedIds.Count > 0)
         {
-            DeleteEntities(_selectedIds.ToList());
+            RemoveFromBoard(_selectedIds.ToList());
             e.Handled = true;
             return;
         }
@@ -2348,17 +2348,10 @@ public class WorldBoardWindow : Window
             e.Handled = true;
         };
 
-        // Remove-from-board context menu item
+        // Context menu: remove from board + edit
         var ctx = new ContextMenu();
         var removeItem = new MenuItem { Header = Properties.Loc.S("Board_RemoveFromBoard") };
-        removeItem.Click += (_, _) =>
-        {
-            _boardData.Positions.Remove(entity.Id);
-            // Also remove relations touching this entity
-            _boardData.Relations.RemoveAll(r => r.FromId == entity.Id || r.ToId == entity.Id);
-            EntityBoardService.Save(_projFolder, _board.Id, _boardData);
-            BuildBoardContent();
-        };
+        removeItem.Click += (_, _) => RemoveFromBoard(new[] { entity.Id });
         ctx.Items.Add(removeItem);
         var editItem = new MenuItem { Header = Properties.Loc.S("World_EditItem") };
         editItem.Click += (_, _) =>
@@ -2375,10 +2368,6 @@ public class WorldBoardWindow : Window
             }
         };
         ctx.Items.Add(editItem);
-        ctx.Items.Add(new Separator());
-        var deleteItem = new MenuItem { Header = Properties.Loc.S("World_DeleteItem") };
-        deleteItem.Click += (_, _) => DeleteEntities(new[] { entity.Id });
-        ctx.Items.Add(deleteItem);
         card.ContextMenu = ctx;
 
         return card;
