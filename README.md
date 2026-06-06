@@ -106,6 +106,10 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 ## Screenshots
 
 <p align="center">
+  <img src="Assets/ScreenLibrary.png" width="49%" alt="World builder library"/>
+  <img src="Assets/ScreenBoard.png" width="49%" alt="World builder board"/>
+</p>
+<p align="center">
   <img src="Assets/ScreenChat01.png" width="49%" alt="Multi-agent chat"/>
   <img src="Assets/ScreenProjectChat.png" width="49%" alt="Project chat"/>
 </p>
@@ -123,7 +127,7 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 </p>
 <p align="center">
   <img src="Assets/ScreenRoadmap01.png" width="49%" alt="Roadmap view"/>
-  <img src="Assets/ScreenRoadmap02.png" width="49%" alt="Roadmap milestone detail"/>
+  <img src="Assets/ScreenMCPServer.png" width="49%" alt="Roadmap milestone detail"/>
 </p>
 <p align="center">
   <img src="Assets/ScreenClaudetteHelp.png" width="49%" alt="Claudette help assistant"/>
