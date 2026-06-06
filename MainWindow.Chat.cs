@@ -4885,12 +4885,15 @@ public partial class MainWindow : Window
                 "Models are stored in an ASR/ folder next to the .exe by default. " +
                 "Whisper models support ~100 languages including German and English. " +
                 "SenseVoice is faster but supports English, Chinese, Japanese and Korean only.");
-        AddHighlight("⚠  ASR models load into your GPU's VRAM — just like local AI models. " +
-                     "If you are running local Ollama models at the same time, they share the same VRAM pool. " +
-                     "Ollama will move inactive models from VRAM to RAM to make space, but this causes a " +
-                     "reload delay the next time that model is called. " +
-                     "For the smoothest experience when running local agents, choose a small ASR model " +
-                     "(tiny or base) or use Push-to-Talk mode so the ASR model is only active when needed.");
+        AddHighlight("💡  ASR models run entirely on CPU using system RAM — they do not use your GPU or VRAM " +
+                     "and do not compete with Ollama models for GPU resources. " +
+                     "The model is loaded into RAM the first time you activate dictation and stays there " +
+                     "until you close the app. The microphone stays open in all activation modes " +
+                     "(needed for the level meter), but the heavy CPU work — the actual transcription — " +
+                     "only happens when a recording chunk is submitted: on PTT key release, " +
+                     "after a silence in Voice Activated mode, or at the end of each chunk in Always On mode. " +
+                     "If CPU headroom is tight while local agents are running, Push-to-Talk keeps " +
+                     "transcription bursts short and predictable.");
 
         // ── Close ─────────────────────────────────────────────────────────
         currentTarget = root;   // back to root so the button lands outside any section
