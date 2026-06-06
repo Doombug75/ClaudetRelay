@@ -4873,6 +4873,25 @@ public partial class MainWindow : Window
         AddBody("Switching a radio button applies the backend immediately so you can hear the " +
                 "difference without closing the dialog.");
 
+        AddSubHeader("🎙 Voice Recognition  (Dictation Mode)");
+        AddBody("The 🎙 button to the left of the chat input toggles dictation. " +
+                "Spoken words are transcribed offline and inserted into the input field. " +
+                "Three activation modes:\n" +
+                "  Always On — microphone records continuously while dictation is active.\n" +
+                "  Push to Talk — hold a configurable key (default: Space) to record.\n" +
+                "  Voice Activated — recording starts automatically when your voice exceeds " +
+                "a configurable volume threshold and stops after a short silence.");
+        AddBody("ASR models are downloaded via ●●● → 🎙 Voice Recognition → ⬇ Manage ASR Models. " +
+                "Models are stored in an ASR/ folder next to the .exe by default. " +
+                "Whisper models support ~100 languages including German and English. " +
+                "SenseVoice is faster but supports English, Chinese, Japanese and Korean only.");
+        AddHighlight("⚠  ASR models load into your GPU's VRAM — just like local AI models. " +
+                     "If you are running local Ollama models at the same time, they share the same VRAM pool. " +
+                     "Ollama will move inactive models from VRAM to RAM to make space, but this causes a " +
+                     "reload delay the next time that model is called. " +
+                     "For the smoothest experience when running local agents, choose a small ASR model " +
+                     "(tiny or base) or use Push-to-Talk mode so the ASR model is only active when needed.");
+
         // ── Close ─────────────────────────────────────────────────────────
         currentTarget = root;   // back to root so the button lands outside any section
         AddRule(topMargin: 12, bottomMargin: 14);

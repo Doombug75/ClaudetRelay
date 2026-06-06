@@ -25,26 +25,26 @@ public sealed class AsrModelManagerWindow : Window
     [
         // Whisper — multilingual (includes German), recommended
         new("sherpa-onnx-whisper-tiny",
-            "Whisper", "EN/DE/+98 langs · tiny  (~1 GB RAM)",    "★★★",     78,
+            "Whisper", "EN/DE/+98 langs · tiny  (~1 GB VRAM)",    "★★★",     78,
             "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.tar.bz2"),
         new("sherpa-onnx-whisper-base",
-            "Whisper", "EN/DE/+98 langs · base  (~1 GB RAM)",    "★★★★",   142,
+            "Whisper", "EN/DE/+98 langs · base  (~1 GB VRAM)",    "★★★★",   142,
             "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-base.tar.bz2"),
         new("sherpa-onnx-whisper-small",
-            "Whisper", "EN/DE/+98 langs · small  (~2 GB RAM)",   "★★★★",   466,
+            "Whisper", "EN/DE/+98 langs · small  (~2 GB VRAM)",   "★★★★",   466,
             "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-small.tar.bz2"),
         new("sherpa-onnx-whisper-medium",
-            "Whisper", "EN/DE/+98 langs · medium  (~5 GB RAM)",  "★★★★★", 1500,
+            "Whisper", "EN/DE/+98 langs · medium  (~5 GB VRAM)",  "★★★★★", 1500,
             "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-medium.tar.bz2"),
         new("sherpa-onnx-whisper-large-v3-turbo",
-            "Whisper", "EN/DE/+98 langs · large turbo  (~6 GB RAM)",  "★★★★★", 1600,
+            "Whisper", "EN/DE/+98 langs · large turbo  (~6 GB VRAM)",  "★★★★★", 1600,
             "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-large-v3-turbo.tar.bz2"),
         new("sherpa-onnx-whisper-large-v3",
-            "Whisper", "EN/DE/+98 langs · large v3  (~10 GB RAM)", "★★★★★", 3100,
+            "Whisper", "EN/DE/+98 langs · large v3  (~10 GB VRAM)", "★★★★★", 3100,
             "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-large-v3.tar.bz2"),
         // SenseVoice — fast, EN/ZH/JA/KO only
         new("sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
-            "SenseVoice", "EN/ZH/JA/KO · fast  (~1 GB RAM)",    "★★★★",   130,
+            "SenseVoice", "EN/ZH/JA/KO · fast  (~1 GB VRAM)",    "★★★★",   130,
             "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2"),
     ];
 
