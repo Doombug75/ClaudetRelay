@@ -50,41 +50,7 @@ public partial class MainWindow
     {
         var settings = Services.SettingsService.Load();
 
-        // ── Voice output toggle ────────────────────────────────────────────
-        var toggleItem = new MenuItem
-        {
-            Header      = settings.VoiceOutputEnabled
-                ? Properties.Loc.S("Audio_VoiceOff")
-                : Properties.Loc.S("Audio_VoiceOn"),
-            IsEnabled   = true,
-        };
-        toggleItem.Click += (_, _) =>
-        {
-            var s = Services.SettingsService.Load();
-            s.VoiceOutputEnabled = !s.VoiceOutputEnabled;
-            Services.SettingsService.Save(s);
-            UpdateVoiceButtons();
-        };
-
-        // ── Skip / Stop ────────────────────────────────────────────────────
-        var skipItem = new MenuItem
-        {
-            Header    = Properties.Loc.S("Audio_Skip"),
-            IsEnabled = Services.VoiceOutputService.IsPlaying || Services.VoiceOutputService.QueueCount > 0,
-        };
-        skipItem.Click += (_, _) => Services.VoiceOutputService.Skip();
-
-        var stopItem = new MenuItem
-        {
-            Header    = Properties.Loc.S("Audio_StopAll"),
-            IsEnabled = Services.VoiceOutputService.IsPlaying || Services.VoiceOutputService.QueueCount > 0,
-        };
-        stopItem.Click += (_, _) => Services.VoiceOutputService.StopAll();
-
-        menu.Items.Add(toggleItem);
-        menu.Items.Add(skipItem);
-        menu.Items.Add(stopItem);
-        menu.Items.Add(new Separator());
+        // Toggle/skip/stop live in the input area buttons — not duplicated here.
 
         // ── Backend submenu ────────────────────────────────────────────────
         var backendItem = new MenuItem { Header = Properties.Loc.S("Audio_Backend") };

@@ -314,9 +314,9 @@ public partial class MainWindow : Window
         RefreshProjectsButton.ToolTip = Properties.Loc.S("ToolTip_RefreshProjects");
 
         // ── Input area ────────────────────────────────────────────────────
-        PlaceholderText.Text        = Properties.Loc.S("Placeholder_Message");
-        SendButton.Content          = Properties.Loc.S("Btn_Send");
-        AIRespondButton.Content     = Properties.Loc.S("Btn_ReSend");
+        PlaceholderText.Text = Properties.Loc.S("Placeholder_Message");
+        SendButton.Content   = Properties.Loc.S("Btn_Send");
+        // AIRespondButton content is managed by UpdateVoiceButtons() — no static assignment here
     }
 
     // ── Tab switching ──────────────────────────────────────────────────────

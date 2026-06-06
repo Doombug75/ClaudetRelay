@@ -4581,32 +4581,64 @@ public partial class MainWindow : Window
 
     // ── Voice output toggle + skip ────────────────────────────────────────
 
-    private void VoiceOutputToggleButton_Click(object sender, RoutedEventArgs e)
+    // ── Input-area audio buttons ───────────────────────────────────────────
+    // AIRespondButton (↺) and AudioControlButton (🔊) sit above the Send button.
+    // While audio is playing they repurpose themselves as ⏭ Skip and ⏹ Stop All.
+
+    private void AIRespondOrSkip_Click(object sender, RoutedEventArgs e)
     {
-        var s = SettingsService.Load();
-        s.VoiceOutputEnabled = !s.VoiceOutputEnabled;
-        SettingsService.Save(s);
-        if (!s.VoiceOutputEnabled) VoiceOutputService.StopAll();
-        UpdateVoiceButtons();
+        if (VoiceOutputService.IsPlaying || VoiceOutputService.QueueCount > 0)
+            VoiceOutputService.Skip();
+        else
+            AIRespond_Click(sender, e);
     }
 
-    private void VoiceSkipButton_Click(object sender, RoutedEventArgs e) =>
-        VoiceOutputService.Skip();
+    private void AudioControlButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (VoiceOutputService.IsPlaying || VoiceOutputService.QueueCount > 0)
+        {
+            VoiceOutputService.StopAll();
+        }
+        else
+        {
+            var s = SettingsService.Load();
+            s.VoiceOutputEnabled = !s.VoiceOutputEnabled;
+            SettingsService.Save(s);
+            if (!s.VoiceOutputEnabled) VoiceOutputService.StopAll();
+            UpdateVoiceButtons();
+        }
+    }
 
     private void UpdateVoiceButtons()
     {
         var enabled = SettingsService.Load().VoiceOutputEnabled;
-        VoiceOutputToggleButton.Content = enabled ? "🔊" : "🔇";
-        VoiceOutputToggleButton.SetResourceReference(
-            System.Windows.Controls.Button.ForegroundProperty,
-            enabled ? "AccentHighlightBrush" : "SidebarDimBrush");
-        VoiceOutputToggleButton.ToolTip = enabled
-            ? "Voice output ON — click to mute"
-            : "Voice output OFF — click to unmute";
+        var playing = enabled && (VoiceOutputService.IsPlaying || VoiceOutputService.QueueCount > 0);
 
-        // Skip button visible only when enabled AND something is playing or queued
-        var showSkip = enabled && (VoiceOutputService.IsPlaying || VoiceOutputService.QueueCount > 0);
-        VoiceSkipButton.Visibility = showSkip ? Visibility.Visible : Visibility.Collapsed;
+        if (playing)
+        {
+            AIRespondButton.Content = "⏭";
+            AIRespondButton.ToolTip = Properties.Loc.S("Audio_Skip");
+            AIRespondButton.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+            AIRespondButton.SetResourceReference(Button.ForegroundProperty, "ContentTextBrush");
+
+            AudioControlButton.Content = "⏹";
+            AudioControlButton.ToolTip = Properties.Loc.S("Audio_StopAll");
+            AudioControlButton.SetResourceReference(Button.ForegroundProperty, "ContentTextBrush");
+        }
+        else
+        {
+            AIRespondButton.Content = "↺";
+            AIRespondButton.ToolTip = Properties.Loc.S("Btn_ReSend");
+            AIRespondButton.SetResourceReference(Button.BackgroundProperty, "SecondaryAccentBrush");
+            AIRespondButton.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
+
+            AudioControlButton.Content = enabled ? "🔊" : "🔇";
+            AudioControlButton.ToolTip = enabled
+                ? "Voice output ON — click to mute"
+                : "Voice output OFF — click to unmute";
+            AudioControlButton.SetResourceReference(Button.ForegroundProperty,
+                enabled ? "AccentHighlightBrush" : "SidebarDimBrush");
+        }
     }
 
     private void SubscribeVoiceStateChanged()

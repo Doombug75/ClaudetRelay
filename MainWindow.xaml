@@ -543,25 +543,6 @@
 
                         <!-- Chat-only utility buttons — hidden when a project sub-panel is active -->
                         <StackPanel x:Name="ChatOnlyButtonsPanel" Orientation="Horizontal">
-                            <Button x:Name="VoiceOutputToggleButton"
-                                    Content="🔊"
-                                    Style="{StaticResource ModernButton}"
-                                    Background="{DynamicResource ControlBgBrush}"
-                                    Foreground="{DynamicResource SidebarDimBrush}"
-                                    FontSize="13" Padding="10,5"
-                                    Margin="0,0,4,0"
-                                    Click="VoiceOutputToggleButton_Click"
-                                    ToolTip="Toggle voice output on / off"/>
-                            <Button x:Name="VoiceSkipButton"
-                                    Content="⏭"
-                                    Style="{StaticResource ModernButton}"
-                                    Background="{DynamicResource ControlBgBrush}"
-                                    Foreground="{DynamicResource SidebarDimBrush}"
-                                    FontSize="13" Padding="10,5"
-                                    Margin="0,0,6,0"
-                                    Visibility="Collapsed"
-                                    Click="VoiceSkipButton_Click"
-                                    ToolTip="Skip current message — play next"/>
                             <Button x:Name="ExportChatButton"
                                     Content="📄"
                                     Style="{StaticResource ModernButton}"
@@ -814,18 +795,37 @@
                                            IsHitTestVisible="False"/>
                             </Grid>
                         </Border>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
-                            <Button x:Name="SendButton" Content="Send"
+                        <!-- Column 1: small context buttons above a full-width Send button.
+                             While audio is playing the two small buttons repurpose themselves
+                             as ⏭ Skip and ⏹ Stop (UpdateVoiceButtons handles this). -->
+                        <Grid Grid.Column="1" VerticalAlignment="Bottom">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                                <Button x:Name="AIRespondButton"
+                                        Content="↺"
+                                        Style="{StaticResource ModernButton}"
+                                        Background="{DynamicResource SecondaryAccentBrush}"
+                                        Foreground="{DynamicResource AccentTextBrush}"
+                                        FontWeight="Bold" Width="42" Padding="4,9"
+                                        Click="AIRespondOrSkip_Click"/>
+                                <Button x:Name="AudioControlButton"
+                                        Content="🔊"
+                                        Style="{StaticResource ModernButton}"
+                                        Background="{DynamicResource ControlBgBrush}"
+                                        Foreground="{DynamicResource SidebarDimBrush}"
+                                        FontSize="13" Width="42" Padding="4,9"
+                                        Margin="6,0,0,0"
+                                        Click="AudioControlButton_Click"/>
+                            </StackPanel>
+                            <Button x:Name="SendButton" Grid.Row="1"
+                                    Content="Send"
                                     Style="{StaticResource SendButton}"
-                                    MinWidth="82" Margin="0,0,8,0"
+                                    HorizontalAlignment="Stretch"
                                     Click="SendButton_Click"/>
-                            <Button x:Name="AIRespondButton" Content="↺ Re-Send"
-                                    Style="{StaticResource ModernButton}"
-                                    Background="{DynamicResource SecondaryAccentBrush}"
-                                    Foreground="{DynamicResource AccentTextBrush}"
-                                    FontWeight="Bold" MinWidth="62"
-                                    Click="AIRespond_Click"/>
-                        </StackPanel>
+                        </Grid>
                     </Grid>
                 </StackPanel>
             </Border>
