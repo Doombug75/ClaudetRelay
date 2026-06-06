@@ -19,12 +19,33 @@ public partial class App : Application
         // ── Apply UI language from settings (must be first — before any UI is created) ──
         //
         // Three-state contract (Language property in settings):
-        //   null  — never configured: let the OS locale rule (first launch shows native language)
+        //   null  — never configured: auto-detect from OS and save if supported
         //   ""    — user explicitly chose English: force "en" so de-DE OS doesn't bleed through
         //   "de"  — user explicitly chose German (or other code): force that culture
         //
-        var langCode = SettingsService.Load().Language;
-        if (langCode is not null)                          // null = OS default → don't touch culture
+        // Supported language codes (must match Strings.XX.resx files that exist):
+        var supportedLanguages = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "de" };
+
+        var settings = SettingsService.Load();
+        if (settings.Language is null)
+        {
+            // First launch — auto-detect from OS
+            var twoLetter = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.ToLowerInvariant();
+            if (supportedLanguages.Contains(twoLetter))
+            {
+                // OS language is supported — save it so menu reflects the correct choice
+                settings.Language = twoLetter;
+                SettingsService.Save(settings);
+            }
+            else
+            {
+                // OS language not supported — default to English, save "" explicitly
+                settings.Language = "";
+                SettingsService.Save(settings);
+            }
+        }
+
+        var langCode = settings.Language;
         {
             var cultureName = langCode.Length == 0 ? "en" : langCode;   // "" → "en"
             try

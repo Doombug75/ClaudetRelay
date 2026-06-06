@@ -32,8 +32,23 @@ public partial class MainWindow
         versionItem  .Click += (_, _) => ShowAboutVersionDialog();
 
         // ── Language submenu ───────────────────────────────────────────────
-        var currentLang = Services.SettingsService.Load().Language ?? "";
-        var langItem    = new MenuItem { Header = "🌐  " + Properties.Loc.S("Menu_Language") };
+        var storedLang = Services.SettingsService.Load().Language;
+
+        // When null (first launch / OS default), reflect actual running culture
+        // so the checkmark lands on the correct language in the menu.
+        string effectiveLang;
+        if (storedLang is null)
+        {
+            var twoLetter = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName
+                                .ToLowerInvariant();
+            effectiveLang = twoLetter == "en" ? "" : twoLetter;
+        }
+        else
+        {
+            effectiveLang = storedLang;
+        }
+
+        var langItem = new MenuItem { Header = "🌐  " + Properties.Loc.S("Menu_Language") };
 
         void AddLang(string label, string code)
         {
@@ -41,7 +56,7 @@ public partial class MainWindow
             {
                 Header      = label,
                 IsCheckable = true,
-                IsChecked   = string.Equals(currentLang, code, StringComparison.OrdinalIgnoreCase),
+                IsChecked   = string.Equals(effectiveLang, code, StringComparison.OrdinalIgnoreCase),
             };
             item.Click += (_, _) => SetLanguage(code);
             langItem.Items.Add(item);
