@@ -1202,7 +1202,7 @@ public class WorldBoardWindow : Window
 
             if (selBox.Width > 6 || selBox.Height > 6)
             {
-                // Rubber-band: select all cards intersecting the box
+                // Rubber-band: select entity cards, board pins and frames intersecting the box
                 _selectedIds.Clear();
                 foreach (var (eid, ecard) in _boardCards)
                 {
@@ -1211,6 +1211,19 @@ public class WorldBoardWindow : Window
                             ecard.ActualWidth  > 0 ? ecard.ActualWidth  : 160,
                             ecard.ActualHeight > 0 ? ecard.ActualHeight :  80)))
                         _selectedIds.Add(eid);
+                }
+                foreach (var (pid, pin) in _boardPins)
+                {
+                    var px = Canvas.GetLeft(pin); var py = Canvas.GetTop(pin);
+                    if (selBox.IntersectsWith(new Rect(px, py,
+                            pin.ActualWidth  > 0 ? pin.ActualWidth  : 160,
+                            pin.ActualHeight > 0 ? pin.ActualHeight :  80)))
+                        _selectedIds.Add(pid);
+                }
+                foreach (var bf in _boardData.Frames)
+                {
+                    if (selBox.IntersectsWith(new Rect(bf.X, bf.Y, bf.Width, bf.Height)))
+                        _selectedIds.Add(bf.Id);
                 }
                 RefreshSelectionVisuals();
             }
@@ -1253,23 +1266,59 @@ public class WorldBoardWindow : Window
 
     private void RefreshSelectionVisuals()
     {
-        // Cards: highlight selected, dim unselected when there's a selection
         bool anySelected = _selectedIds.Count > 0;
+        var accentBrush = (Brush)(TryFindResource("AccentHighlightBrush") ?? new SolidColorBrush(Colors.DodgerBlue));
+
+        // Entity cards
         foreach (var (eid, ecard) in _boardCards)
         {
             bool isSelected = _selectedIds.Contains(eid);
             ecard.Opacity = anySelected && !isSelected ? 0.45 : 1.0;
             if (isSelected)
             {
-                ecard.BorderBrush     = (Brush)(TryFindResource("AccentHighlightBrush") ?? new SolidColorBrush(Colors.DodgerBlue));
+                ecard.BorderBrush     = accentBrush;
                 ecard.BorderThickness = new Thickness(2);
             }
             else
             {
-                // Restore default border
                 ecard.ClearValue(Border.BorderBrushProperty);
                 ecard.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
                 ecard.BorderThickness = new Thickness(1);
+            }
+        }
+
+        // Board pins
+        foreach (var (pid, pin) in _boardPins)
+        {
+            bool isSelected = _selectedIds.Contains(pid);
+            pin.Opacity = anySelected && !isSelected ? 0.45 : 1.0;
+            if (isSelected)
+            {
+                pin.BorderBrush     = accentBrush;
+                pin.BorderThickness = new Thickness(2);
+            }
+            else
+            {
+                pin.ClearValue(Border.BorderBrushProperty);
+                pin.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+                pin.BorderThickness = new Thickness(1);
+            }
+        }
+
+        // Frames — find header border by frame ID stored in Tag
+        foreach (var bf in _boardData.Frames)
+        {
+            bool isSelected = _selectedIds.Contains(bf.Id);
+            // Find the rendered header border for this frame via Tag
+            var headerEl = _boardCanvas?.Children.OfType<Border>()
+                .FirstOrDefault(b => b.Tag is string t && t == bf.Id);
+            if (headerEl != null)
+            {
+                headerEl.Opacity = anySelected && !isSelected ? 0.45 : 1.0;
+                if (isSelected)
+                    headerEl.BorderBrush = accentBrush;
+                else
+                    headerEl.ClearValue(Border.BorderBrushProperty);
             }
         }
         // Lines: highlight only when BOTH endpoints are selected; hovered line is always bright
@@ -1968,7 +2017,8 @@ public class WorldBoardWindow : Window
             Height       = 22,
             CornerRadius = new CornerRadius(8, 8, 0, 0),
             Background   = new SolidColorBrush(Color.FromArgb(65, frameColor.R, frameColor.G, frameColor.B)),
-            Cursor       = Cursors.SizeAll
+            Cursor       = Cursors.SizeAll,
+            Tag          = bf.Id   // used by RefreshSelectionVisuals to find this header
         };
         var labelBlock = new TextBlock
         {
