@@ -979,14 +979,21 @@ public class WorldBoardWindow : Window
             }
         }
 
-        // ── Render relations (z=1, added after pins so they render above) ────
+        // ── Render relations (dynamic z-index based on connected cards) ────
         foreach (var rel in _boardData.Relations)
         {
             var fp = _boardData.Positions[rel.FromId];
             var tp = _boardData.Positions[rel.ToId];
             var x1 = fp.X + (fp.CardWidth  > 0 ? fp.CardWidth  : 160) / 2; var y1 = fp.Y + EstCardH / 2;
             var x2 = tp.X + (tp.CardWidth  > 0 ? tp.CardWidth  : 160) / 2; var y2 = tp.Y + EstCardH / 2;
-            RenderRelationVisuals(canvas, rel.Id, x1, y1, x2, y2, rel);
+
+            // Calculate relation Z-Index as highest connected card's ZOrder + 1
+            int fromZOrder = _boardData.Positions.TryGetValue(rel.FromId, out var fpos) ? fpos.ZOrder : 0;
+            int toZOrder   = _boardData.Positions.TryGetValue(rel.ToId, out var tpos) ? tpos.ZOrder : 0;
+            int maxCardZOrder = Math.Max(fromZOrder, toZOrder);
+            int relationZIndex = 2 + maxCardZOrder;  // cards are z=2, add their ZOrder to get dynamic height
+
+            RenderRelationVisuals(canvas, rel.Id, x1, y1, x2, y2, rel, relationZIndex);
 
             if (string.IsNullOrWhiteSpace(rel.Caption)) goto skipBadge;
             var captionBadge = new Border
@@ -1005,7 +1012,7 @@ public class WorldBoardWindow : Window
             captionBadge.Child = captionText;
             Canvas.SetLeft(captionBadge, (x1 + x2) / 2 - 30);
             Canvas.SetTop (captionBadge, (y1 + y2) / 2 - 12);
-            Panel.SetZIndex(captionBadge, 3);
+            Panel.SetZIndex(captionBadge, relationZIndex);
 
             var capturedRel = rel;
             var ctx = new ContextMenu();
@@ -3398,7 +3405,7 @@ public class WorldBoardWindow : Window
     // ── Relation multi-segment rendering ──────────────────────────────────
 
     private void RenderRelationVisuals(Canvas canvas, string relId,
-        double x1, double y1, double x2, double y2, BoardRelation rel)
+        double x1, double y1, double x2, double y2, BoardRelation rel, int relationZIndex = 3)
     {
         bool       isDouble  = IsDoubleLine(rel.LineStyle);
         var        dashArray = GetDashArray(rel.LineStyle);
@@ -3446,7 +3453,7 @@ public class WorldBoardWindow : Window
                     StrokeThickness=thickness, Opacity=0.85, Stroke=brush,
                     StrokeStartLineCap=cap, StrokeEndLineCap=cap };
                 if (dashArray is not null) { ln.StrokeDashArray = dashArray; ln.StrokeDashCap = cap; }
-                Panel.SetZIndex(ln, 3); canvas.Children.Add(ln);
+                Panel.SetZIndex(ln, relationZIndex); canvas.Children.Add(ln);
                 return ln;
             }
             var l1 = MakeSeg(ox, oy);
@@ -3511,7 +3518,7 @@ public class WorldBoardWindow : Window
                 Stroke = Brushes.Transparent,
                 Cursor = Cursors.Hand
             };
-            Panel.SetZIndex(hitZone, 3);
+            Panel.SetZIndex(hitZone, relationZIndex);
             canvas.Children.Add(hitZone);
             string capturedHoverRelId = relId;
             hitZone.MouseEnter += (_, _) => { _hoverRelId = capturedHoverRelId; RefreshSelectionVisuals(); };
@@ -3532,7 +3539,7 @@ public class WorldBoardWindow : Window
             if (pts[^1].IsNormalWp)
                 (tipX, tipY) = MoveToward(pts[^1].X, pts[^1].Y, pts[^2].X, pts[^2].Y, TrimR);
             var arrow = BuildArrowhead(pts[^2].X, pts[^2].Y, tipX, tipY, thickness, rel.LineColor);
-            Panel.SetZIndex(arrow, 3); canvas.Children.Add(arrow);
+            Panel.SetZIndex(arrow, relationZIndex); canvas.Children.Add(arrow);
             _boardArrows[relId] = arrow;
         }
 
@@ -3562,7 +3569,7 @@ public class WorldBoardWindow : Window
                 bub.StrokeDashArray = dashArray;
                 bub.StrokeDashCap   = cap;
             }
-            Panel.SetZIndex(bub, 3);
+            Panel.SetZIndex(bub, relationZIndex + 1);
             Canvas.SetLeft(bub, wp.X-BR); Canvas.SetTop(bub, wp.Y-BR);
             canvas.Children.Add(bub); bubbles.Add(bub);
 
