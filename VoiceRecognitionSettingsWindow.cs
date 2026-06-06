@@ -112,9 +112,13 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         folderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         folderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+        // Pre-fill with default path on first use so "Manage ASR Models" just works
+        var defaultAsrFolder = System.IO.Path.Combine(AppContext.BaseDirectory, "ASR");
+        var initialFolder    = string.IsNullOrEmpty(s.AsrModelsFolder) ? defaultAsrFolder : s.AsrModelsFolder;
+
         _folderBox = new TextBox
         {
-            Text            = s.AsrModelsFolder,
+            Text            = initialFolder,
             FontFamily      = new FontFamily("Segoe UI"),
             FontSize        = 12,
             Padding         = new Thickness(6, 4, 6, 4),
@@ -147,7 +151,7 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         root.Children.Add(SmallLabel(Properties.Loc.S("Asr_ModelName")));
         _modelCombo = MakeCombo();
         _modelCombo.Margin = new Thickness(0, 0, 0, 4);
-        RefreshModelList(s.AsrModelsFolder);
+        RefreshModelList(initialFolder);
         root.Children.Add(_modelCombo);
 
         // Model type combo
@@ -184,13 +188,18 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         downloadHint.SetResourceReference(ForegroundProperty, "ContentDimBrush");
         root.Children.Add(downloadHint);
 
-        var manageBtn = MakeBtn(Properties.Loc.S("Asr_ManageModels"), false);
+        // "Manage ASR Models" is the primary action — use accent color so it's obvious
+        var manageBtn = MakeBtn("⬇  " + Properties.Loc.S("Asr_ManageModels"), true);
         manageBtn.HorizontalAlignment = HorizontalAlignment.Left;
         manageBtn.Margin = new Thickness(0, 0, 0, 20);
         manageBtn.Click += (_, _) =>
         {
             var w = new AsrModelManagerWindow(_themePath) { Owner = this };
             w.ShowDialog();
+            // Sync folder back from settings (manager may have updated it)
+            var updated = SettingsService.Load().AsrModelsFolder;
+            if (!string.IsNullOrEmpty(updated) && _folderBox is not null)
+                _folderBox.Text = updated;
             RefreshModelList(_folderBox?.Text ?? "");
         };
         root.Children.Add(manageBtn);
@@ -465,7 +474,8 @@ public sealed class VoiceRecognitionSettingsWindow : Window
     {
         var s = SettingsService.Load();
 
-        s.AsrModelsFolder = _folderBox?.Text ?? "";
+        // Persist the folder even if the user never manually browsed (default pre-fill)
+        s.AsrModelsFolder = _folderBox?.Text.Trim() ?? "";
         s.AsrModelName    = _modelCombo?.SelectedIndex > 0 ? _modelCombo.SelectedItem?.ToString() ?? "" : "";
         s.AsrModelType    = _typeCombo?.SelectedIndex == 1 ? "sense_voice" : "whisper";
 
