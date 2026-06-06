@@ -140,7 +140,7 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 - **Chattiness** — per-chat and per-project slider controlling how eagerly participants join without being prompted
 - **Response length** — global default; can be overridden per participant inside a project
 - **AI-to-AI dialogue** — enable multi-round dialogue so participants can read and reply to each other before the next user message; configurable turn limit
-- **Grounded responses** — system prompt injection prevents models from inventing personal traits, hobbies, or relationships unless a role instruction explicitly allows it
+- **Grounded responses** — system prompt injection discourages models from inventing personal traits, hobbies, or relationships unless a role instruction explicitly allows it *(effectiveness varies by model)*
 - **Rate limiting** — per-provider RPM throttling to stay within API quotas
 - **Secure key storage** — API keys stored exclusively in Windows Credential Manager, never written to disk
 
