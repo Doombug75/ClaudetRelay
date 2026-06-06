@@ -262,12 +262,13 @@ public partial class App : Application
         // ── Text input ─────────────────────────────────────────────────────
         var textBox = new TextBox
         {
-            FontFamily    = new FontFamily("Segoe UI"),
-            FontSize      = 13,
-            Padding       = new Thickness(8, 6, 8, 6),
-            Height        = 36,
-            Margin        = new Thickness(0, 0, 0, 16),
-            IsUndoEnabled = false
+            FontFamily       = new FontFamily("Segoe UI"),
+            FontSize         = 13,
+            Padding          = new Thickness(8, 6, 8, 6),
+            Height           = 36,
+            Margin           = new Thickness(0, 0, 0, 16),
+            BorderThickness  = new Thickness(1),
+            IsUndoEnabled    = false
         };
         textBox.SetResourceReference(TextBox.BackgroundProperty,   "InputBgBrush");
         textBox.SetResourceReference(TextBox.ForegroundProperty,   "InputTextBrush");
