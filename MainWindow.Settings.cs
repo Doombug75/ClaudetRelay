@@ -36,12 +36,101 @@ public partial class MainWindow
         menu.Items.Add(foldersItem);
         menu.Items.Add(providersItem);
         menu.Items.Add(new Separator());
+        BuildAudioMenuItems(menu);
+        menu.Items.Add(new Separator());
         menu.Items.Add(infoItem);
         menu.Items.Add(versionItem);
 
         menu.PlacementTarget = (Button)sender;
         menu.Placement       = PlacementMode.Bottom;
         menu.IsOpen          = true;
+    }
+
+    private void BuildAudioMenuItems(ContextMenu menu)
+    {
+        var settings = Services.SettingsService.Load();
+
+        // ── Voice output toggle ────────────────────────────────────────────
+        var toggleItem = new MenuItem
+        {
+            Header      = settings.VoiceOutputEnabled
+                ? Properties.Loc.S("Audio_VoiceOff")
+                : Properties.Loc.S("Audio_VoiceOn"),
+            IsEnabled   = true,
+        };
+        toggleItem.Click += (_, _) =>
+        {
+            var s = Services.SettingsService.Load();
+            s.VoiceOutputEnabled = !s.VoiceOutputEnabled;
+            Services.SettingsService.Save(s);
+            UpdateVoiceButtons();
+        };
+
+        // ── Skip / Stop ────────────────────────────────────────────────────
+        var skipItem = new MenuItem
+        {
+            Header    = Properties.Loc.S("Audio_Skip"),
+            IsEnabled = Services.VoiceOutputService.IsPlaying || Services.VoiceOutputService.QueueCount > 0,
+        };
+        skipItem.Click += (_, _) => Services.VoiceOutputService.Skip();
+
+        var stopItem = new MenuItem
+        {
+            Header    = Properties.Loc.S("Audio_StopAll"),
+            IsEnabled = Services.VoiceOutputService.IsPlaying || Services.VoiceOutputService.QueueCount > 0,
+        };
+        stopItem.Click += (_, _) => Services.VoiceOutputService.StopAll();
+
+        menu.Items.Add(toggleItem);
+        menu.Items.Add(skipItem);
+        menu.Items.Add(stopItem);
+        menu.Items.Add(new Separator());
+
+        // ── Backend submenu ────────────────────────────────────────────────
+        var backendItem = new MenuItem { Header = Properties.Loc.S("Audio_Backend") };
+
+        void AddBackend(string label, string key)
+        {
+            var item = new MenuItem
+            {
+                Header      = label,
+                IsCheckable = true,
+                IsChecked   = string.Equals(settings.VoiceBackend, key, StringComparison.OrdinalIgnoreCase),
+            };
+            item.Click += (_, _) => SwitchVoiceBackend(key);
+            backendItem.Items.Add(item);
+        }
+
+        AddBackend(Properties.Loc.S("Audio_BackendWindows"),  "Windows");
+        AddBackend(Properties.Loc.S("Audio_BackendSherpa"),   "Sherpa");
+        AddBackend(Properties.Loc.S("Audio_BackendVoicevox"), "Voicevox");
+
+        menu.Items.Add(backendItem);
+
+        // ── Voice Model Manager ────────────────────────────────────────────
+        var modelsItem = new MenuItem { Header = Properties.Loc.S("Audio_VoiceModels") };
+        modelsItem.Click += (_, _) => OpenVoiceModelManager();
+        menu.Items.Add(modelsItem);
+    }
+
+    private void SwitchVoiceBackend(string key)
+    {
+        var s = Services.SettingsService.Load();
+        s.VoiceBackend = key;
+        Services.SettingsService.Save(s);
+
+        Services.VoiceOutputService.ActiveBackend = key switch
+        {
+            "Sherpa"   => new Services.SherpaOnnxTtsBackend(s.SherpaModelFolder),
+            "Voicevox" => new Services.VoicevoxTtsBackend(s.VoicevoxPort),
+            _          => new Services.WindowsTtsBackend(),
+        };
+    }
+
+    internal void OpenVoiceModelManager()
+    {
+        var win = new VoiceModelManagerWindow(_currentThemePath) { Owner = this };
+        win.ShowDialog();
     }
 
     private void OpenGeneralSettings()

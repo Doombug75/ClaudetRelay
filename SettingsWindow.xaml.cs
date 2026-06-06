@@ -1702,6 +1702,7 @@ public partial class SettingsWindow : Window
             "Mistral"        => new MistralService(apiKey),
             "xAI Grok"       => new XAIGrokService(apiKey),
             "OpenAI ChatGPT" => new OpenAIService(apiKey),
+            "LM Studio ☁"    => new LmStudioService(LmStudioService.DefaultCloudUrl, apiKey),
             _                => new AnthropicService(apiKey)
         };
 

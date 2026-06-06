@@ -273,6 +273,30 @@
   <data name="Menu_Info"               xml:space="preserve"><value>ℹ  Info</value></data>
   <data name="Menu_Version"            xml:space="preserve"><value>📋  Version</value></data>
 
+  <!-- ── Audio menu ────────────────────────────────────────────────────── -->
+  <data name="Audio_VoiceOn"            xml:space="preserve"><value>🔊  Voice Output On</value></data>
+  <data name="Audio_VoiceOff"           xml:space="preserve"><value>🔇  Voice Output Off</value></data>
+  <data name="Audio_Skip"               xml:space="preserve"><value>⏭  Skip Current</value></data>
+  <data name="Audio_StopAll"            xml:space="preserve"><value>⏹  Stop All</value></data>
+  <data name="Audio_Backend"            xml:space="preserve"><value>🎤  Voice Backend</value></data>
+  <data name="Audio_BackendWindows"     xml:space="preserve"><value>Windows TTS</value></data>
+  <data name="Audio_BackendSherpa"      xml:space="preserve"><value>Sherpa-onnx (offline)</value></data>
+  <data name="Audio_BackendVoicevox"    xml:space="preserve"><value>VOICEVOX</value></data>
+  <data name="Audio_VoiceModels"        xml:space="preserve"><value>🎙  Voice Model Manager</value></data>
+  <data name="Audio_ModelFolder"        xml:space="preserve"><value>Sherpa-onnx Model Folder</value></data>
+  <data name="Audio_CuratedModels"      xml:space="preserve"><value>Curated Voice Models</value></data>
+  <data name="Audio_Installed"          xml:space="preserve"><value>Installed</value></data>
+  <data name="Audio_Install"            xml:space="preserve"><value>Install</value></data>
+  <data name="Audio_Remove"             xml:space="preserve"><value>Remove</value></data>
+  <data name="Audio_NoFolderSelected"   xml:space="preserve"><value>Please select a model folder first.</value></data>
+  <data name="Audio_ConfirmRemove"      xml:space="preserve"><value>Remove voice model</value></data>
+  <data name="Audio_VoicevoxPort"       xml:space="preserve"><value>VOICEVOX Port:</value></data>
+  <data name="Audio_DownloadVoicevox"   xml:space="preserve"><value>Download VOICEVOX</value></data>
+  <data name="Audio_SherpaReady"        xml:space="preserve"><value>Sherpa-onnx ready — models found</value></data>
+  <data name="Audio_SherpaNoModels"     xml:space="preserve"><value>No models installed yet</value></data>
+  <data name="Audio_VoicevoxRunning"    xml:space="preserve"><value>VOICEVOX connected</value></data>
+  <data name="Audio_VoicevoxNotRunning" xml:space="preserve"><value>VOICEVOX not running</value></data>
+
   <!-- ── Folders dialog additional ────────────────────────────────────── -->
   <data name="Folders_ChooseFolder"    xml:space="preserve"><value>Choose folder</value></data>
   <data name="Folders_SelectProjects"  xml:space="preserve"><value>Select Projects Folder</value></data>

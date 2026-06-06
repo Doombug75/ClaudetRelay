@@ -27,7 +27,8 @@ public abstract class OpenAICompatibleService : ICloudAIService
     {
         _baseUrl = baseUrl.TrimEnd('/');
         _http    = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        if (!string.IsNullOrEmpty(apiKey))
+            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         if (httpReferer is not null) _http.DefaultRequestHeaders.Add("HTTP-Referer", httpReferer);
         if (appTitle   is not null) _http.DefaultRequestHeaders.Add("X-Title",       appTitle);
     }

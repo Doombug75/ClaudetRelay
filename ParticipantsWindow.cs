@@ -31,6 +31,9 @@ public class ParticipantsWindow : Window
     [
         "Ollama",         // Local Ollama — native API, server URL required
         "Ollama ☁",       // Ollama Cloud (api.ollama.com) — API key required, no custom URL
+        "vLLM",           // vLLM inference server — server URL required, API key optional
+        "LM Studio",      // LM Studio local — server URL required, no API key needed
+        "LM Studio ☁",    // LM Studio Cloud — API key required, no custom URL
         "Anthropic",
         "Google AI",
         "Groq",
@@ -51,16 +54,26 @@ public class ParticipantsWindow : Window
         "Mistral"         => Color.FromRgb(100, 116, 139),
         "xAI Grok"        => Color.FromRgb(147,  51, 234),
         "OpenAI ChatGPT"  => Color.FromRgb( 16, 185, 129),
-        "Ollama ☁"        => Color.FromRgb( 20, 184, 166),   // teal
+        "Ollama ☁"        => Color.FromRgb( 20, 184, 166),
+        "vLLM"            => Color.FromRgb( 34, 197,  94),   // green
+        "LM Studio"       => Color.FromRgb(234, 179,   8),   // amber
+        "LM Studio ☁"     => Color.FromRgb(202, 138,   4),   // darker amber
         _                 => Color.FromRgb( 37,  99, 235),   // blue = Ollama / unknown
     };
 
     // ── Cloud vs local helpers ─────────────────────────────────────────────
 
-    // "Ollama ☁" is a cloud provider (API key, fixed endpoint at api.ollama.com).
-    // Plain "Ollama" is local (server URL required, no API key).
+    // Local (URL-based, no API key required): Ollama, vLLM, LM Studio
+    // Cloud (API key required): everything else including "LM Studio ☁"
     private static bool IsCloud(string provider) =>
-        provider is not "Ollama";
+        provider is not "Ollama" and not "vLLM" and not "LM Studio";
+
+    private static string DefaultServerUrl(string provider) => provider switch
+    {
+        "vLLM"      => Services.VllmService.DefaultUrl,
+        "LM Studio" => Services.LmStudioService.DefaultLocalUrl,
+        _           => "http://localhost:11434"
+    };
 
     private static string RpmHint(string provider) => provider switch
     {
@@ -85,7 +98,7 @@ public class ParticipantsWindow : Window
         "Mistral"         => MistralService.DefaultModels,
         "xAI Grok"        => XAIGrokService.DefaultModels,
         "OpenAI ChatGPT"  => OpenAIService.DefaultModels,
-        _                 => []    // Ollama variants: fetched live
+        _                 => []    // Ollama / vLLM / LM Studio variants: fetched live
     };
 
     // ── Constructor ────────────────────────────────────────────────────────
@@ -439,10 +452,10 @@ public class ParticipantsWindow : Window
             inner.Children.Add(modelTb);
         }
 
-        // Ollama server URL — only show if non-default
-        if (p.Type == "Ollama"
+        // Server URL — show for URL-based providers when non-default
+        if (p.Type is "Ollama" or "vLLM" or "LM Studio"
             && !string.IsNullOrWhiteSpace(p.ServerUrl)
-            && p.ServerUrl != "http://localhost:11434")
+            && p.ServerUrl != DefaultServerUrl(p.Type))
         {
             var urlTb = new TextBlock
             {
@@ -641,28 +654,41 @@ public class ParticipantsWindow : Window
             fetchStatus.Text = "";
             var prov = (provCombo.SelectedItem as string) ?? "";
             PopulateDefaults(prov);
-            // Both Ollama variants have no static model list — kick off a live fetch automatically
-            if (prov is "Ollama" or "Ollama ☁")
+            // Providers with no static model list — kick off a live fetch automatically
+            if (prov is "Ollama" or "Ollama ☁" or "vLLM" or "LM Studio")
                 fetchBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         };
 
-        // ── Server URL (Ollama variants only) — declared before fetchBtn.Click ──
+        // ── Server URL (URL-based providers: Ollama, vLLM, LM Studio) ──────────
         var urlLbl = Lbl(Properties.Loc.S("Participants_ServerUrl"));
-        bool NeedsUrl() => (provCombo.SelectedItem as string) == "Ollama";
-        // "Ollama ☁" is always api.ollama.com — no custom URL field needed
+        bool NeedsUrl() => (provCombo.SelectedItem as string) is "Ollama" or "vLLM" or "LM Studio";
 
         urlLbl.Visibility = NeedsUrl() ? Visibility.Visible : Visibility.Collapsed;
         root.Children.Add(urlLbl);
 
-        var urlBox = Tb(!string.IsNullOrWhiteSpace(p.ServerUrl) ? p.ServerUrl : "http://localhost:11434");
-        urlBox.ToolTip    = "Base URL of the Ollama server  (e.g. http://localhost:11434)";
+        var initialUrl = !string.IsNullOrWhiteSpace(p.ServerUrl)
+            ? p.ServerUrl
+            : DefaultServerUrl((provCombo.SelectedItem as string) ?? "Ollama");
+        var urlBox = Tb(initialUrl);
+        urlBox.ToolTip    = $"Base URL of the server  (e.g. {DefaultServerUrl((provCombo.SelectedItem as string) ?? "Ollama")})";
         urlBox.Visibility = NeedsUrl() ? Visibility.Visible : Visibility.Collapsed;
         root.Children.Add(urlBox);
 
         provCombo.SelectionChanged += (_, _) =>
         {
-            var vis = NeedsUrl() ? Visibility.Visible : Visibility.Collapsed;
+            var prov2 = (provCombo.SelectedItem as string) ?? "";
+            var vis   = NeedsUrl() ? Visibility.Visible : Visibility.Collapsed;
             urlLbl.Visibility = vis; urlBox.Visibility = vis;
+
+            if (NeedsUrl())
+            {
+                // Swap to the provider's default URL if it's still showing another provider's default
+                var knownDefaults = new[] { "http://localhost:11434",
+                    Services.VllmService.DefaultUrl, Services.LmStudioService.DefaultLocalUrl };
+                if (knownDefaults.Any(d => string.Equals(urlBox.Text.Trim(), d, StringComparison.OrdinalIgnoreCase)))
+                    urlBox.Text = DefaultServerUrl(prov2);
+                urlBox.ToolTip = $"Base URL of the {prov2} server  (e.g. {DefaultServerUrl(prov2)})";
+            }
         };
 
         // CancellationTokenSource tied to the dialog lifetime.
@@ -689,15 +715,24 @@ public class ParticipantsWindow : Window
                 {
                     models = await new OllamaService(serverUrl).GetModelsAsync(ct);
                 }
+                else if (prov == "vLLM")
+                {
+                    models = await new Services.VllmService(serverUrl).GetModelsAsync(ct);
+                }
+                else if (prov == "LM Studio")
+                {
+                    models = await new Services.LmStudioService(serverUrl).GetModelsAsync(ct);
+                }
                 else
                 {
                     var apiKey = WindowsCredentialManager.Load(prov) ?? "";
                     models = prov switch
                     {
-                        "Ollama ☁"  => await new OllamaOpenAIService(apiKey).GetModelsAsync(ct),
+                        "Ollama ☁"       => await new OllamaOpenAIService(apiKey).GetModelsAsync(ct),
                         "Anthropic"      => await new AnthropicService(apiKey).GetModelsAsync(ct),
                         "Google AI"      => await new GoogleAIService(apiKey).GetModelsAsync(ct),
                         "OpenRouter"     => await new OpenRouterService(apiKey).GetModelsAsync(ct),
+                        "LM Studio ☁"    => await new Services.LmStudioService(Services.LmStudioService.DefaultCloudUrl, apiKey).GetModelsAsync(ct),
                         _                => [.. DefaultModels(prov)]
                     };
                 }
@@ -717,7 +752,7 @@ public class ParticipantsWindow : Window
 
         // Auto-fetch on dialog open for providers that have no static model list
         var initialProv = (provCombo.SelectedItem as string) ?? "";
-        if (initialProv is "Ollama" or "Ollama ☁")
+        if (initialProv is "Ollama" or "Ollama ☁" or "vLLM" or "LM Studio")
             fetchBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
         // ── Rate limiting (cloud providers only) ─────────────────────────────
@@ -923,8 +958,9 @@ public class ParticipantsWindow : Window
             p.Name      = nameBox.Text.Trim();
             p.Type      = (provCombo.SelectedItem as string) ?? "Ollama";
             p.Model     = modelCombo.Text.Trim();
-            p.ServerUrl = NeedsUrl() ? (urlBox?.Text.Trim() ?? "http://localhost:11434")
-                                     : "http://localhost:11434";
+            p.ServerUrl = NeedsUrl()
+                ? (urlBox?.Text.Trim() is { Length: > 0 } u ? u : DefaultServerUrl(p.Type))
+                : "";
             p.Enabled      = enabledChk.IsChecked == true;
             p.LastApiError = "";   // allow a fresh fetch attempt after save
 

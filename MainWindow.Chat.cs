@@ -3952,7 +3952,8 @@ public partial class MainWindow : Window
 
     // ── Service factories ──────────────────────────────────────────────────
 
-    private static ICloudAIService CreateCloudAIService(string provider, string apiKey) =>
+    private static ICloudAIService CreateCloudAIService(
+        string provider, string apiKey, string serverUrl = "") =>
         provider switch
         {
             "Ollama ☁"       => new OllamaOpenAIService(apiKey),
@@ -3962,6 +3963,9 @@ public partial class MainWindow : Window
             "Mistral"        => new MistralService(apiKey),
             "xAI Grok"       => new XAIGrokService(apiKey),
             "OpenAI ChatGPT" => new OpenAIService(apiKey),
+            "vLLM"           => new VllmService(serverUrl, apiKey),
+            "LM Studio"      => new LmStudioService(serverUrl, apiKey),
+            "LM Studio ☁"    => new LmStudioService(LmStudioService.DefaultCloudUrl, apiKey),
             _                => new AnthropicService(apiKey)
         };
 
@@ -3975,6 +3979,9 @@ public partial class MainWindow : Window
         "xAI Grok"       => XAIGrokService.DefaultModels,
         "OpenAI ChatGPT" => OpenAIService.DefaultModels,
         "Ollama ☁"       => OllamaOpenAIService.DefaultModels,
+        "vLLM"           => [],   // fetched live from /v1/models
+        "LM Studio"      => [],
+        "LM Studio ☁"    => [],
         _                => AnthropicService.DefaultModels
     };
 

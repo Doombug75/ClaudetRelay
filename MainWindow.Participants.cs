@@ -245,7 +245,7 @@ public partial class MainWindow
                 if (p.Type == "Ollama")
                     AddOllamaParticipant(p.Model, p.ServerUrl, p.Name);
                 else
-                    AddCloudAIParticipant(p.Type, p.Model, p.Name);
+                    AddCloudAIParticipant(p.Type, p.Model, p.Name, p.ServerUrl);
             }
         }
 
@@ -255,14 +255,16 @@ public partial class MainWindow
         _ = CheckAllStatusAsync();
     }
 
-    private void AddCloudAIParticipant(string provider, string model = "", string customName = "")
+    private void AddCloudAIParticipant(string provider, string model = "", string customName = "", string serverUrl = "")
     {
         if (_cloudAIParticipants.Count >= 20) return;
 
-        var apiKey = WindowsCredentialManager.Load(provider) ?? "";
-        if (string.IsNullOrWhiteSpace(apiKey)) return;
+        var apiKey   = WindowsCredentialManager.Load(provider) ?? "";
+        bool needsKey = provider is not "Ollama ☁" // Ollama ☁ uses key, but vLLM/LM Studio may not
+            && provider is not "vLLM" and not "LM Studio";
+        if (needsKey && string.IsNullOrWhiteSpace(apiKey)) return;
 
-        var service = CreateCloudAIService(provider, apiKey);
+        var service = CreateCloudAIService(provider, apiKey, serverUrl);
         if (!string.IsNullOrEmpty(model)) service.CurrentModel = model;
 
         var participant = new CloudAIParticipant

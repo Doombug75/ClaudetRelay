@@ -2033,7 +2033,7 @@ public partial class MainWindow : Window
                 else
                 {
                     var key = WindowsCredentialManager.Load(capturedAgent.Provider) ?? "";
-                    svc = CreateCloudAIService(capturedAgent.Provider, key);
+                    svc = CreateCloudAIService(capturedAgent.Provider, key, capturedAgent.ServerUrl);
                     svc.CurrentModel = capturedAgent.Model;
                 }
 
@@ -2075,7 +2075,7 @@ public partial class MainWindow : Window
                 else
                 {
                     var key = WindowsCredentialManager.Load(capturedAgent.Provider) ?? "";
-                    dynSvc = CreateCloudAIService(capturedAgent.Provider, key);
+                    dynSvc = CreateCloudAIService(capturedAgent.Provider, key, capturedAgent.ServerUrl);
                     dynSvc.CurrentModel = capturedAgent.Model;
                 }
                 return async (msg, c) =>

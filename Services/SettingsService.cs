@@ -184,6 +184,22 @@ public class AppSettings
     public int VoiceSpeechMaxChars { get; set; } = 700;
 
     /// <summary>
+    /// Active TTS backend: "Windows", "Sherpa", or "Voicevox".
+    /// </summary>
+    public string VoiceBackend { get; set; } = "Windows";
+
+    /// <summary>
+    /// Folder that contains Sherpa-onnx model subdirectories.
+    /// Empty = backend unavailable until the user configures a folder.
+    /// </summary>
+    public string SherpaModelFolder { get; set; } = "";
+
+    /// <summary>
+    /// Port on which the VOICEVOX-compatible engine is listening. Default 50021.
+    /// </summary>
+    public int VoicevoxPort { get; set; } = 50021;
+
+    /// <summary>
     /// UI language code, e.g. "en" or "de".
     /// Applied as <c>CurrentUICulture</c> at startup — restart required for changes.
     /// Empty string means "en" (English / neutral fallback).
