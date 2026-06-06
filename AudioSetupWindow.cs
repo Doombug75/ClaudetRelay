@@ -43,6 +43,7 @@ public sealed class AudioSetupWindow : Window
 
         OverrideSystemColorsForCombos();
         BuildUI();
+        UiZoomHelper.Apply(this, UiZoomHelper.FromSettings());
     }
 
     /// <summary>

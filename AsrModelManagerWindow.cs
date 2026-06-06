@@ -77,6 +77,7 @@ public sealed class AsrModelManagerWindow : Window
         SourceInitialized += (_, _) => ApplyTitleBar();
 
         BuildUI();
+        UiZoomHelper.Apply(this, UiZoomHelper.FromSettings());
     }
 
     private void ApplyTitleBar()

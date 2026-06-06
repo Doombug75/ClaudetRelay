@@ -104,8 +104,8 @@ public partial class SettingsWindow : Window
         if (providerModeOnly)
         {
             // Providers-only view: just the API key tab
-            Title                  = $"{Loc.S("Providers_Title")} · ClaudetRelay";
-            WindowTitleBlock.Text  = Loc.S("Providers_Title");
+            Title                  = $"{Loc.S("Providers_Title")} ☁ · ClaudetRelay";
+            WindowTitleBlock.Text  = $"{Loc.S("Providers_Title")} ☁";
             BuildProvidersTab();
         }
         else
@@ -613,10 +613,15 @@ public partial class SettingsWindow : Window
     private void BuildProvidersTab()
     {
         // Alphabetical order — easy to scan, easy to extend
+        // Internal keys use the canonical provider name (including ☁ where relevant);
+        // the ☁ is stripped from individual tab headers — the window title carries it.
         var providers = new[]
         {
-            "Anthropic", "Google AI", "Groq", "Mistral",
-            "Ollama ☁", "OpenAI ChatGPT", "OpenRouter", "xAI Grok"
+            "Anthropic", "Cerebras", "DeepInfra", "DeepSeek",
+            "Fireworks AI", "Google AI", "Groq",
+            "LM Studio ☁", "Mistral", "Nvidia NIM",
+            "Ollama ☁", "OpenAI ChatGPT", "OpenRouter",
+            "Perplexity AI", "Together AI", "xAI Grok"
         };
 
         foreach (var provider in providers)
@@ -759,11 +764,14 @@ public partial class SettingsWindow : Window
             Content = root
         };
 
-        // Short tab header — no need to repeat "ChatGPT" or "Grok" brand names in the tab bar
+        // Short tab header — strip ☁ (the window title already carries it) and
+        // abbreviate well-known brand names to keep the tab bar readable.
         var tabHeader = provider switch
         {
             "OpenAI ChatGPT" => "OpenAI",
             "xAI Grok"       => "xAI",
+            "Ollama ☁"       => "Ollama",
+            "LM Studio ☁"    => "LM Studio",
             _                => provider
         };
         ParticipantsTabControl.Items.Add(new TabItem { Header = tabHeader, Content = scroll });
@@ -832,10 +840,23 @@ public partial class SettingsWindow : Window
 
         var typeLabel = new TextBlock { Style = (Style)FindResource("SLabel"), Text = "TYPE" };
         var typeCombo = new ComboBox { Style = (Style)FindResource("SComboBox") };
-        foreach (var t in new[] { "Ollama", "Ollama ☁", "Anthropic", "OpenAI ChatGPT", "Google AI", "Groq", "xAI Grok", "OpenRouter", "Mistral" })
+        foreach (var t in new[] {
+            // ── Local servers (URL-based, no API key) ──
+            "Ollama", "vLLM", "LM Studio",
+            "llama.cpp", "LocalAI", "Jan", "text-gen-webui",
+            "GPT4All", "TabbyAPI", "llamafile", "KoboldCpp",
+            // ── Cloud / API-key providers ──
+            "Ollama ☁", "LM Studio ☁",
+            "Anthropic", "OpenAI ChatGPT", "Google AI",
+            "Groq", "xAI Grok", "OpenRouter", "Mistral",
+            "Together AI", "Fireworks AI", "DeepSeek",
+            "Cerebras", "Perplexity AI", "DeepInfra", "Nvidia NIM" })
         {
-            // "Ollama" is local — no cloud symbol. "Ollama ☁" already has one. All others are cloud.
-            var display = t == "Ollama" || t == "Ollama ☁" ? t : $"{t} ☁";
+            // Local providers show as-is; cloud providers get a ☁ suffix (unless they already have one).
+            bool isLocalServer = t is "Ollama" or "vLLM" or "LM Studio"
+                or "llama.cpp" or "LocalAI" or "Jan" or "text-gen-webui"
+                or "GPT4All" or "TabbyAPI" or "llamafile" or "KoboldCpp";
+            var display = (isLocalServer || t.EndsWith("☁")) ? t : $"{t} ☁";
             typeCombo.Items.Add(new ComboBoxItem { Content = display, Tag = t });
         }
         SelectComboByContent(typeCombo, config.Type);
@@ -1275,11 +1296,17 @@ public partial class SettingsWindow : Window
 
     // ── Section visibility helper ──────────────────────────────────────────
 
+    // Returns true for all local URL-based providers (no API key, needs server URL field).
+    private static bool IsLocalUrlBased(string provider) => provider is
+        "Ollama" or "vLLM" or "LM Studio" or
+        "llama.cpp" or "LocalAI" or "Jan" or "text-gen-webui" or
+        "GPT4All" or "TabbyAPI" or "llamafile" or "KoboldCpp";
+
     private static void ApplySectionVisibility(ParticipantForm form)
     {
-        bool isOllama = form.CurrentProvider == "Ollama";
-        form.OllamaSection .Visibility = isOllama  ? Visibility.Visible : Visibility.Collapsed;
-        form.CloudAISection.Visibility = !isOllama ? Visibility.Visible : Visibility.Collapsed;
+        bool isLocal = IsLocalUrlBased(form.CurrentProvider);
+        form.OllamaSection .Visibility = isLocal  ? Visibility.Visible : Visibility.Collapsed;
+        form.CloudAISection.Visibility = !isLocal ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ── Test buttons ───────────────────────────────────────────────────────
@@ -1292,35 +1319,46 @@ public partial class SettingsWindow : Window
         try
         {
             var url = form.ServerUrlBox.Text.Trim();
-            if (string.IsNullOrEmpty(url)) url = "http://localhost:11434";
+            if (string.IsNullOrEmpty(url)) url = LocalDefaultUrl(form.CurrentProvider);
 
-            using var svc = new OllamaService(url);
-            var ok = await svc.IsAvailableAsync();
+            bool ok;
+            List<string> models;
+
+            if (form.CurrentProvider == "Ollama")
+            {
+                using var svc = new OllamaService(url);
+                ok     = await svc.IsAvailableAsync();
+                models = ok ? await svc.GetModelsAsync() : [];
+            }
+            else
+            {
+                // All other local URL-based servers (vLLM, LM Studio, llama.cpp, Jan, etc.)
+                // expose the same OpenAI-compatible /v1/models endpoint.
+                using var svc = new Services.VllmService(url);
+                ok     = await svc.IsAvailableAsync();
+                models = ok ? await svc.GetModelsAsync() : [];
+            }
 
             form.OllamaTestLabel.SetResourceReference(TextBlock.ForegroundProperty,
                 ok ? "SecondaryAccentBrush" : "AccentHighlightBrush");
             form.OllamaTestLabel.Text = ok ? Loc.S("Providers_Online") : Loc.S("Providers_Offline");
 
-            if (ok)
+            if (ok && models.Count > 0)
             {
                 try
                 {
-                    var models = await svc.GetModelsAsync();
-                    if (models.Count > 0)
+                    var current = (form.OllamaModelCombo.SelectedItem as ComboBoxItem)
+                                    ?.Content?.ToString() ?? "";
+                    form.OllamaModelCombo.Items.Clear();
+                    foreach (var m in models)
                     {
-                        var current = (form.OllamaModelCombo.SelectedItem as ComboBoxItem)
-                                        ?.Content?.ToString() ?? "";
-                        form.OllamaModelCombo.Items.Clear();
-                        foreach (var m in models)
-                        {
-                            var item = new ComboBoxItem { Content = m };
-                            form.OllamaModelCombo.Items.Add(item);
-                            if (m == current) form.OllamaModelCombo.SelectedItem = item;
-                        }
-                        if (form.OllamaModelCombo.SelectedItem is null &&
-                            form.OllamaModelCombo.Items.Count > 0)
-                            form.OllamaModelCombo.SelectedIndex = 0;
+                        var item = new ComboBoxItem { Content = m };
+                        form.OllamaModelCombo.Items.Add(item);
+                        if (m == current) form.OllamaModelCombo.SelectedItem = item;
                     }
+                    if (form.OllamaModelCombo.SelectedItem is null &&
+                        form.OllamaModelCombo.Items.Count > 0)
+                        form.OllamaModelCombo.SelectedIndex = 0;
                 }
                 catch { /* keep list as-is */ }
             }
@@ -1331,6 +1369,22 @@ public partial class SettingsWindow : Window
             form.OllamaTestLabel.Text = $"Error: {ex.Message}";
         }
     }
+
+    /// <summary>Returns the default local URL for a URL-based provider.</summary>
+    private static string LocalDefaultUrl(string provider) => provider switch
+    {
+        "vLLM"           => Services.VllmService.DefaultUrl,
+        "LM Studio"      => Services.LmStudioService.DefaultLocalUrl,
+        "llama.cpp"      => Services.LlamaCppService.DefaultUrl,
+        "LocalAI"        => Services.LocalAIService.DefaultUrl,
+        "Jan"            => Services.JanService.DefaultUrl,
+        "text-gen-webui" => Services.TextGenWebUIService.DefaultUrl,
+        "GPT4All"        => Services.GPT4AllService.DefaultUrl,
+        "TabbyAPI"       => Services.TabbyAPIService.DefaultUrl,
+        "llamafile"      => Services.LlamafileService.DefaultUrl,
+        "KoboldCpp"      => Services.KoboldCppService.DefaultUrl,
+        _                => "http://localhost:11434"   // Ollama default
+    };
 
     private async Task TestCloudAIAsync(ParticipantForm form)
     {
@@ -1416,14 +1470,15 @@ public partial class SettingsWindow : Window
 
         foreach (var form in _forms)
         {
-            var isOllama = form.CurrentProvider == "Ollama";
+            var isLocal = IsLocalUrlBased(form.CurrentProvider);
 
-            var model = isOllama
+            var model = isLocal
                 ? (form.OllamaModelCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? ""
                 : (form.CloudModelCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
 
             var serverUrl = form.ServerUrlBox.Text.Trim();
-            if (string.IsNullOrEmpty(serverUrl) && isOllama) serverUrl = "http://localhost:11434";
+            if (string.IsNullOrEmpty(serverUrl) && isLocal)
+                serverUrl = LocalDefaultUrl(form.CurrentProvider);
 
             settings.Participants.Add(new ParticipantConfig
             {
@@ -1501,13 +1556,21 @@ public partial class SettingsWindow : Window
         hint.Text = provider switch
         {
             "Anthropic"      => "Get your key at console.anthropic.com",
+            "Cerebras"       => "Free tier at inference.cerebras.ai — ultra-fast inference, no credit card required!",
+            "DeepInfra"      => "Get your key at deepinfra.com — affordable open-model hosting",
+            "DeepSeek"       => "Get your key at platform.deepseek.com — very competitive pricing",
+            "Fireworks AI"   => "Get your key at fireworks.ai — free credits available on sign-up",
             "Google AI"      => "Free tier at aistudio.google.com — no credit card required!",
             "Groq"           => "Free tier at console.groq.com — no credit card required!",
-            "OpenRouter"     => "Get your key at openrouter.ai/keys",
+            "LM Studio ☁"    => "Get your key at lmstudio.ai — required for LM Studio Cloud API access",
             "Mistral"        => "Get your key at console.mistral.ai",
-            "xAI Grok"       => "Get your key at console.x.ai — requires credit card",
-            "OpenAI ChatGPT" => "Get your key at platform.openai.com — requires credit card",
+            "Nvidia NIM"     => "Get your NGC API key at build.nvidia.com — free credits available",
             "Ollama ☁"       => "Get your API key from your Ollama cloud provider account.",
+            "OpenAI ChatGPT" => "Get your key at platform.openai.com — requires credit card",
+            "OpenRouter"     => "Get your key at openrouter.ai/keys",
+            "Perplexity AI"  => "Get your key at www.perplexity.ai/settings/api — requires credit card",
+            "Together AI"    => "Get your key at api.together.xyz — $25 free credits on sign-up!",
+            "xAI Grok"       => "Get your key at console.x.ai — requires credit card",
             _                => ""
         };
     }
@@ -1621,13 +1684,21 @@ public partial class SettingsWindow : Window
     private static string[] GetDefaultModels(string provider) => provider switch
     {
         "Anthropic"      => AnthropicService.DefaultModels,
+        "Cerebras"       => CerebrasService.DefaultModels,
+        "DeepInfra"      => DeepInfraService.DefaultModels,
+        "DeepSeek"       => DeepSeekService.DefaultModels,
+        "Fireworks AI"   => FireworksAIService.DefaultModels,
         "Google AI"      => GoogleAIService.DefaultModels,
         "Groq"           => GroqService.DefaultModels,
-        "OpenRouter"     => OpenRouterService.DefaultModels,
         "Mistral"        => MistralService.DefaultModels,
-        "xAI Grok"       => XAIGrokService.DefaultModels,
-        "OpenAI ChatGPT" => OpenAIService.DefaultModels,
+        "Nvidia NIM"     => NvidiaNIMService.DefaultModels,
         "Ollama ☁"       => OllamaOpenAIService.DefaultModels,
+        "OpenAI ChatGPT" => OpenAIService.DefaultModels,
+        "OpenRouter"     => OpenRouterService.DefaultModels,
+        "Perplexity AI"  => PerplexityAIService.DefaultModels,
+        "Together AI"    => TogetherAIService.DefaultModels,
+        "xAI Grok"       => XAIGrokService.DefaultModels,
+        // LM Studio Cloud: no fixed model list — user fetches live via Test button
         _                => []
     };
 
@@ -1642,6 +1713,13 @@ public partial class SettingsWindow : Window
             "xAI Grok"       => new XAIGrokService(apiKey),
             "OpenAI ChatGPT" => new OpenAIService(apiKey),
             "LM Studio ☁"    => new LmStudioService(LmStudioService.DefaultCloudUrl, apiKey),
+            "Together AI"    => new TogetherAIService(apiKey),
+            "Fireworks AI"   => new FireworksAIService(apiKey),
+            "DeepSeek"       => new DeepSeekService(apiKey),
+            "Cerebras"       => new CerebrasService(apiKey),
+            "Perplexity AI"  => new PerplexityAIService(apiKey),
+            "DeepInfra"      => new DeepInfraService(apiKey),
+            "Nvidia NIM"     => new NvidiaNIMService(apiKey),
             _                => new AnthropicService(apiKey)
         };
 

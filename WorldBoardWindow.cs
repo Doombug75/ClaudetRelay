@@ -219,8 +219,6 @@ public class WorldBoardWindow : Window
 
     public void BuildBoardContent()
     {
-        const double EstCardH = 90;
-
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -3299,6 +3297,7 @@ public class WorldBoardWindow : Window
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         win.Content = root;
+        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
 
         var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(14, 10, 14, 10) };
         Grid.SetRow(scroll, 0);

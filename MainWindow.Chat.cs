@@ -4422,6 +4422,7 @@ public partial class MainWindow : Window
         var root = new StackPanel { Margin = new Thickness(26, 22, 26, 22) };
         scroll.Content = root;
         win.Content    = scroll;
+        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
 
         // ── Header ────────────────────────────────────────────────────────
         var header = new Grid { Margin = new Thickness(0, 0, 0, 18) };
@@ -4491,6 +4492,7 @@ public partial class MainWindow : Window
             var em = new TextBlock { Text = emoji, FontSize = 17,
                                      Margin = new Thickness(0, 0, 8, 0),
                                      VerticalAlignment = VerticalAlignment.Center };
+            em.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
             var ti = new TextBlock { Text = title, FontFamily = new FontFamily("Segoe UI"),
                                      FontSize = 14, FontWeight = FontWeights.SemiBold,
                                      VerticalAlignment = VerticalAlignment.Center };
@@ -4519,6 +4521,7 @@ public partial class MainWindow : Window
                 Text = emoji, FontSize = 17,
                 Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center,
             };
+            emTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
             var titleTb = new TextBlock
             {
                 Text = title, FontFamily = new FontFamily("Segoe UI"),
@@ -5404,6 +5407,21 @@ public partial class MainWindow : Window
             "vLLM"           => new VllmService(serverUrl, apiKey),
             "LM Studio"      => new LmStudioService(serverUrl, apiKey),
             "LM Studio ☁"    => new LmStudioService(LmStudioService.DefaultCloudUrl, apiKey),
+            "llama.cpp"      => new LlamaCppService(serverUrl, apiKey),
+            "LocalAI"        => new LocalAIService(serverUrl, apiKey),
+            "Jan"            => new JanService(serverUrl, apiKey),
+            "text-gen-webui" => new TextGenWebUIService(serverUrl, apiKey),
+            "GPT4All"        => new GPT4AllService(serverUrl, apiKey),
+            "TabbyAPI"       => new TabbyAPIService(serverUrl, apiKey),
+            "llamafile"      => new LlamafileService(serverUrl, apiKey),
+            "KoboldCpp"      => new KoboldCppService(serverUrl, apiKey),
+            "Together AI"    => new TogetherAIService(apiKey),
+            "Fireworks AI"   => new FireworksAIService(apiKey),
+            "DeepSeek"       => new DeepSeekService(apiKey),
+            "Cerebras"       => new CerebrasService(apiKey),
+            "Perplexity AI"  => new PerplexityAIService(apiKey),
+            "DeepInfra"      => new DeepInfraService(apiKey),
+            "Nvidia NIM"     => new NvidiaNIMService(apiKey),
             _                => new AnthropicService(apiKey)
         };
 
@@ -5417,9 +5435,24 @@ public partial class MainWindow : Window
         "xAI Grok"       => XAIGrokService.DefaultModels,
         "OpenAI ChatGPT" => OpenAIService.DefaultModels,
         "Ollama ☁"       => OllamaOpenAIService.DefaultModels,
-        "vLLM"           => [],   // fetched live from /v1/models
+        "vLLM"           => [],   // all local servers: fetched live from /v1/models
         "LM Studio"      => [],
         "LM Studio ☁"    => [],
+        "llama.cpp"      => [],
+        "LocalAI"        => [],
+        "Jan"            => [],
+        "text-gen-webui" => [],
+        "GPT4All"        => [],
+        "TabbyAPI"       => [],
+        "llamafile"      => [],
+        "KoboldCpp"      => [],
+        "Together AI"    => TogetherAIService.DefaultModels,
+        "Fireworks AI"   => FireworksAIService.DefaultModels,
+        "DeepSeek"       => DeepSeekService.DefaultModels,
+        "Cerebras"       => CerebrasService.DefaultModels,
+        "Perplexity AI"  => PerplexityAIService.DefaultModels,
+        "DeepInfra"      => DeepInfraService.DefaultModels,
+        "Nvidia NIM"     => NvidiaNIMService.DefaultModels,
         _                => AnthropicService.DefaultModels
     };
 

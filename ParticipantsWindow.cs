@@ -34,13 +34,28 @@ public class ParticipantsWindow : Window
         "vLLM",           // vLLM inference server — server URL required, API key optional
         "LM Studio",      // LM Studio local — server URL required, no API key needed
         "LM Studio ☁",    // LM Studio Cloud — API key required, no custom URL
+        "llama.cpp",      // llama.cpp HTTP server — server URL required, no API key needed
+        "LocalAI",        // LocalAI — server URL required, no API key needed
+        "Jan",            // Jan desktop app server — server URL required, no API key needed
+        "text-gen-webui", // oobabooga text-generation-webui — server URL required
+        "GPT4All",        // GPT4All local server — server URL required, no API key needed
+        "TabbyAPI",       // TabbyAPI (GPTQ/EXL2) — server URL required, API key optional
+        "llamafile",      // llamafile (Mozilla) — server URL required, no API key needed
+        "KoboldCpp",      // KoboldCpp — server URL required, no API key needed
         "Anthropic",
         "Google AI",
         "Groq",
         "OpenRouter",
         "Mistral",
         "xAI Grok",
-        "OpenAI ChatGPT"
+        "OpenAI ChatGPT",
+        "Together AI",
+        "Fireworks AI",
+        "DeepSeek",
+        "Cerebras",
+        "Perplexity AI",
+        "DeepInfra",
+        "Nvidia NIM",
     ];
 
     // ── Provider colour palette ────────────────────────────────────────────
@@ -58,22 +73,55 @@ public class ParticipantsWindow : Window
         "vLLM"            => Color.FromRgb( 34, 197,  94),   // green
         "LM Studio"       => Color.FromRgb(234, 179,   8),   // amber
         "LM Studio ☁"     => Color.FromRgb(202, 138,   4),   // darker amber
+        "llama.cpp"       => Color.FromRgb( 20, 184, 166),   // teal
+        "LocalAI"         => Color.FromRgb( 14, 165, 233),   // sky blue
+        "Jan"             => Color.FromRgb(139,  92, 246),   // violet
+        "text-gen-webui"  => Color.FromRgb(101, 163,  13),   // lime
+        "GPT4All"         => Color.FromRgb(  5, 150, 105),   // emerald
+        "TabbyAPI"        => Color.FromRgb(244,  63,  94),   // rose
+        "llamafile"       => Color.FromRgb(234,  88,  12),   // orange
+        "KoboldCpp"       => Color.FromRgb(192,  38, 211),   // fuchsia
+        "Together AI"     => Color.FromRgb( 99, 179, 237),   // cornflower
+        "Fireworks AI"    => Color.FromRgb(252, 129,  74),   // salmon-orange
+        "DeepSeek"        => Color.FromRgb( 59, 130, 246),   // blue
+        "Cerebras"        => Color.FromRgb( 16, 212, 128),   // mint
+        "Perplexity AI"   => Color.FromRgb( 32, 178, 170),   // light-sea-green
+        "DeepInfra"       => Color.FromRgb(113,  86, 217),   // slate-purple
+        "Nvidia NIM"      => Color.FromRgb(118, 185,   0),   // nvidia green
         _                 => Color.FromRgb( 37,  99, 235),   // blue = Ollama / unknown
     };
 
     // ── Cloud vs local helpers ─────────────────────────────────────────────
 
-    // Local (URL-based, no API key required): Ollama, vLLM, LM Studio
+    // Local (URL-based, no API key required): Ollama, vLLM, LM Studio, llama.cpp, etc.
     // Cloud (API key required): everything else including "LM Studio ☁"
-    private static bool IsCloud(string provider) =>
-        provider is not "Ollama" and not "vLLM" and not "LM Studio";
+    private static bool IsCloud(string provider) => provider is not (
+        "Ollama" or "vLLM" or "LM Studio" or
+        "llama.cpp" or "LocalAI" or "Jan" or "text-gen-webui" or
+        "GPT4All" or "TabbyAPI" or "llamafile" or "KoboldCpp");
 
     private static string DefaultServerUrl(string provider) => provider switch
     {
-        "vLLM"      => Services.VllmService.DefaultUrl,
-        "LM Studio" => Services.LmStudioService.DefaultLocalUrl,
-        _           => "http://localhost:11434"
+        "vLLM"           => Services.VllmService.DefaultUrl,
+        "LM Studio"      => Services.LmStudioService.DefaultLocalUrl,
+        "llama.cpp"      => Services.LlamaCppService.DefaultUrl,
+        "LocalAI"        => Services.LocalAIService.DefaultUrl,
+        "Jan"            => Services.JanService.DefaultUrl,
+        "text-gen-webui" => Services.TextGenWebUIService.DefaultUrl,
+        "GPT4All"        => Services.GPT4AllService.DefaultUrl,
+        "TabbyAPI"       => Services.TabbyAPIService.DefaultUrl,
+        "llamafile"      => Services.LlamafileService.DefaultUrl,
+        "KoboldCpp"      => Services.KoboldCppService.DefaultUrl,
+        _                => "http://localhost:11434"
     };
+
+    /// <summary>
+    /// Returns the human-readable label for the provider dropdown.
+    /// Cloud providers get a ☁ suffix so users can tell at a glance which need an API key.
+    /// Providers whose internal name already ends with ☁ are left unchanged.
+    /// </summary>
+    private static string ProviderDisplayName(string provider)
+        => (provider.EndsWith("☁") || !IsCloud(provider)) ? provider : $"{provider} ☁";
 
     private static string RpmHint(string provider) => provider switch
     {
@@ -456,7 +504,7 @@ public class ParticipantsWindow : Window
         }
 
         // Server URL — show for URL-based providers when non-default
-        if (p.Type is "Ollama" or "vLLM" or "LM Studio"
+        if (!IsCloud(p.Type) && p.Type != "Ollama ☁"
             && !string.IsNullOrWhiteSpace(p.ServerUrl)
             && p.ServerUrl != DefaultServerUrl(p.Type))
         {
@@ -563,11 +611,11 @@ public class ParticipantsWindow : Window
             win.Resources.MergedDictionaries.Add(rd);
         win.SetResourceReference(BackgroundProperty, "ContentBgBrush");
         win.SourceInitialized += (_, _) => TryApplyTitleBarTo(win);
-        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
 
         var scroll = new ScrollViewer
             { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(24, 20, 24, 20) };
         win.Content = scroll;
+        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
 
         var root = new StackPanel();
         scroll.Content = root;
@@ -602,10 +650,15 @@ public class ParticipantsWindow : Window
         root.Children.Add(Lbl(Properties.Loc.S("Participants_Provider")));
         var provCombo = new ComboBox { Margin = new Thickness(0, 0, 0, 0) };
         if (win.TryFindResource("ModernComboBox") is Style cs) provCombo.Style = cs;
-        foreach (var prov in AllProviders) provCombo.Items.Add(prov);
-        provCombo.SelectedItem = AllProviders.FirstOrDefault(x =>
-            string.Equals(x, p.Type, StringComparison.OrdinalIgnoreCase)) ?? AllProviders[0];
+        foreach (var prov in AllProviders)
+            provCombo.Items.Add(new ComboBoxItem { Content = ProviderDisplayName(prov), Tag = prov });
+        provCombo.SelectedItem = provCombo.Items.Cast<ComboBoxItem>()
+            .FirstOrDefault(i => string.Equals(i.Tag?.ToString(), p.Type, StringComparison.OrdinalIgnoreCase))
+            ?? provCombo.Items[0];
         root.Children.Add(provCombo);
+
+        // Reads the internal provider key (without display ☁ suffix) from the selected ComboBoxItem.
+        string ProvKey() => (provCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
 
         // ── Model (ComboBox + fetch button) ─────────────────────────────────
         root.Children.Add(Lbl(Properties.Loc.S("Participants_Model")));
@@ -649,37 +702,38 @@ public class ParticipantsWindow : Window
             if (defaults.Length > 0 && string.IsNullOrEmpty(modelCombo.Text))
                 modelCombo.Text = defaults[0];
         }
-        PopulateDefaults((provCombo.SelectedItem as string) ?? "");
+        PopulateDefaults(ProvKey());
 
         // Re-populate when provider changes; auto-fetch for providers with no static defaults
         provCombo.SelectionChanged += (_, _) =>
         {
             fetchStatus.Text = "";
-            var prov = (provCombo.SelectedItem as string) ?? "";
+            var prov = ProvKey();
             PopulateDefaults(prov);
             // Providers with no static model list — kick off a live fetch automatically
-            if (prov is "Ollama" or "Ollama ☁" or "vLLM" or "LM Studio")
+            if (!IsCloud(prov))
                 fetchBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         };
 
-        // ── Server URL (URL-based providers: Ollama, vLLM, LM Studio) ──────────
+        // ── Server URL (URL-based providers: all local inference servers) ──────
         var urlLbl = Lbl(Properties.Loc.S("Participants_ServerUrl"));
-        bool NeedsUrl() => (provCombo.SelectedItem as string) is "Ollama" or "vLLM" or "LM Studio";
+        bool NeedsUrl() => !IsCloud(ProvKey())
+                        && (provCombo.SelectedItem as string) is not "Ollama ☁";
 
         urlLbl.Visibility = NeedsUrl() ? Visibility.Visible : Visibility.Collapsed;
         root.Children.Add(urlLbl);
 
         var initialUrl = !string.IsNullOrWhiteSpace(p.ServerUrl)
             ? p.ServerUrl
-            : DefaultServerUrl((provCombo.SelectedItem as string) ?? "Ollama");
+            : DefaultServerUrl(ProvKey());
         var urlBox = Tb(initialUrl);
-        urlBox.ToolTip    = $"Base URL of the server  (e.g. {DefaultServerUrl((provCombo.SelectedItem as string) ?? "Ollama")})";
+        urlBox.ToolTip    = $"Base URL of the server  (e.g. {DefaultServerUrl(ProvKey())})";
         urlBox.Visibility = NeedsUrl() ? Visibility.Visible : Visibility.Collapsed;
         root.Children.Add(urlBox);
 
         provCombo.SelectionChanged += (_, _) =>
         {
-            var prov2 = (provCombo.SelectedItem as string) ?? "";
+            var prov2 = ProvKey();
             var vis   = NeedsUrl() ? Visibility.Visible : Visibility.Collapsed;
             urlLbl.Visibility = vis; urlBox.Visibility = vis;
 
@@ -703,7 +757,7 @@ public class ParticipantsWindow : Window
         // Fetch button: live API call (wired here so urlBox is in scope)
         fetchBtn.Click += async (_, _) =>
         {
-            var prov      = (provCombo.SelectedItem as string) ?? "";
+            var prov      = ProvKey();
             var serverUrl = urlBox.Text.Trim();
             if (string.IsNullOrEmpty(serverUrl)) serverUrl = "http://localhost:11434";
 
@@ -725,13 +779,11 @@ public class ParticipantsWindow : Window
                 {
                     models = await new OllamaService(serverUrl).GetModelsAsync(ct);
                 }
-                else if (prov == "vLLM")
+                else if (NeedsUrl())
                 {
+                    // All other URL-based OpenAI-compatible local servers
+                    // (vLLM, LM Studio, llama.cpp, LocalAI, Jan, text-gen-webui, etc.)
                     models = await new Services.VllmService(serverUrl).GetModelsAsync(ct);
-                }
-                else if (prov == "LM Studio")
-                {
-                    models = await new Services.LmStudioService(serverUrl).GetModelsAsync(ct);
                 }
                 else
                 {
@@ -762,9 +814,10 @@ public class ParticipantsWindow : Window
 
         // Auto-fetch on dialog open for providers that have no static model list
         // Only auto-fetch if: (a) local provider (Ollama/vLLM/LM Studio) OR (b) cloud provider with API key
-        var initialProv = (provCombo.SelectedItem as string) ?? "";
-        bool shouldAutoFetch = initialProv is "Ollama" or "vLLM" or "LM Studio"
-            || (initialProv is "Ollama ☁" && WindowsCredentialManager.Load(initialProv) is not null);
+        var initialProv = ProvKey();
+        // Auto-fetch on open: all local servers (no API key needed) + cloud providers that have a key
+        bool shouldAutoFetch = !IsCloud(initialProv)
+            || (IsCloud(initialProv) && WindowsCredentialManager.Load(initialProv) is not null);
         if (shouldAutoFetch)
             fetchBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
@@ -777,7 +830,7 @@ public class ParticipantsWindow : Window
         void RebuildRpmSection()
         {
             rpmSection.Children.Clear();
-            var prov = (provCombo.SelectedItem as string) ?? "";
+            var prov = ProvKey();
             if (!IsCloud(prov)) return;
 
             rpmSection.Children.Add(Lbl(Properties.Loc.S("Participants_RateLimiting")));
@@ -889,7 +942,7 @@ public class ParticipantsWindow : Window
             voiceStatus.Text      = $"{spinFrames[0]}  Asking…";
             voiceSpinTimer.Start();
 
-            var prov = (provCombo.SelectedItem as string) ?? p.Type;
+            var prov = ProvKey();
             var mdl  = string.IsNullOrWhiteSpace(modelCombo.Text) ? p.Model : modelCombo.Text.Trim();
             var url  = NeedsUrl() ? urlBox.Text.Trim() : "http://localhost:11434";
             if (string.IsNullOrWhiteSpace(url)) url = "http://localhost:11434";
@@ -959,7 +1012,7 @@ public class ParticipantsWindow : Window
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            var savingType = (provCombo.SelectedItem as string) ?? "";
+            var savingType = ProvKey();
             if (enabledChk.IsChecked == true && IsCloud(savingType)
                 && string.IsNullOrWhiteSpace(WindowsCredentialManager.Load(savingType)))
             {
@@ -969,7 +1022,7 @@ public class ParticipantsWindow : Window
                 return;
             }
             p.Name      = nameBox.Text.Trim();
-            p.Type      = (provCombo.SelectedItem as string) ?? "Ollama";
+            p.Type      = ProvKey();
             p.Model     = modelCombo.Text.Trim();
             p.ServerUrl = NeedsUrl()
                 ? (urlBox?.Text.Trim() is { Length: > 0 } u ? u : DefaultServerUrl(p.Type))
@@ -1069,10 +1122,10 @@ public class ParticipantsWindow : Window
             win.Resources.MergedDictionaries.Add(rd);
         win.SetResourceReference(BackgroundProperty, "ContentBgBrush");
         win.SourceInitialized += (_, _) => TryApplyTitleBarTo(win);
-        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
 
         var root = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
         win.Content = root;
+        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
 
         // Header
         var provDot = new Ellipse { Width = 10, Height = 10, Fill = new SolidColorBrush(ProviderColor(p.Type)), Margin = new Thickness(0,0,8,0), VerticalAlignment = VerticalAlignment.Center };

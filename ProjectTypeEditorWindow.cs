@@ -170,6 +170,7 @@ internal sealed class ProjectTypeEditorWindow : Window
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(210) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         Content = root;
+        UiZoomHelper.Apply(this, UiZoomHelper.FromSettings());
 
         // ── Left panel ────────────────────────────────────────────────────
         var leftPanel = new DockPanel { Background = Br("SidebarBgBrush") };

@@ -68,6 +68,7 @@ public sealed class VoiceModelManagerWindow : Window
         }
 
         BuildUI();
+        UiZoomHelper.Apply(this, UiZoomHelper.FromSettings());
         _ = RefreshStatusAsync();
     }
 

@@ -74,6 +74,7 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         OverrideSystemColorsForCombos();
 
         BuildUI();
+        UiZoomHelper.Apply(this, UiZoomHelper.FromSettings());
 
         // Subscribe to level events for the meter
         _dictation.LevelChanged += OnLevelChanged;

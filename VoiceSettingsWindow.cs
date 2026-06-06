@@ -46,6 +46,7 @@ public sealed class VoiceSettingsWindow : Window
         }
 
         BuildUI();
+        UiZoomHelper.Apply(this, UiZoomHelper.FromSettings());
     }
 
     private void BuildUI()

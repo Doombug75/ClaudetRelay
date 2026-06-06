@@ -106,6 +106,7 @@ public class PortraitCropDialog : Window
         SourceInitialized += (_, _) => ParticipantsWindow.TryApplyTitleBarTo(this);
 
         BuildUI();
+        UiZoomHelper.Apply(this, UiZoomHelper.FromSettings());
     }
 
     // ── UI ─────────────────────────────────────────────────────────────────

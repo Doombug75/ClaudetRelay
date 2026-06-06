@@ -96,8 +96,8 @@ public static class PdfFileWriter
         {
             Doc  = doc;
             Page = doc.AddPage();
-            Page.Width  = PageW;
-            Page.Height = PageH;
+            Page.Width  = XUnit.FromPoint(PageW);
+            Page.Height = XUnit.FromPoint(PageH);
             Gfx  = XGraphics.FromPdfPage(Page);
             Y    = MarginT;
         }
@@ -107,8 +107,8 @@ public static class PdfFileWriter
         {
             Gfx.Dispose();
             Page = Doc.AddPage();
-            Page.Width  = PageW;
-            Page.Height = PageH;
+            Page.Width  = XUnit.FromPoint(PageW);
+            Page.Height = XUnit.FromPoint(PageH);
             Gfx  = XGraphics.FromPdfPage(Page);
             Y    = MarginT;
         }

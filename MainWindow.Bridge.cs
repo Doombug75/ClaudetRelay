@@ -381,6 +381,7 @@ public partial class MainWindow : Window
 
             var panel = new StackPanel { Margin = new Thickness(20, 16, 20, 20) };
             win.Content = panel;
+            UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
 
             var hdr = new TextBlock
             {
@@ -1638,6 +1639,7 @@ public partial class MainWindow : Window
             warnWin.SetResourceReference(Window.BackgroundProperty, "ContentBgBrush");
             var warnRoot = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
             warnWin.Content = warnRoot;
+            UiZoomHelper.Apply(warnWin, UiZoomHelper.FromSettings());
 
             var warnTitle = new TextBlock
             {
@@ -1735,6 +1737,7 @@ public partial class MainWindow : Window
 
         var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(20, 16, 20, 16) };
         win.Content = scroll;
+        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
         var root = new StackPanel();
         scroll.Content = root;
 
@@ -3644,7 +3647,11 @@ public partial class MainWindow : Window
                 // Set trigger_responses=false for messages directed at the human user (questions,
                 // clarifications, summaries) to avoid other AIs piling on uninvited.
                 if (triggerResponses)
+                {
+#pragma warning disable CS4014   // intentional fire-and-forget — dispatcher runs independently
                     Dispatcher.InvokeAsync(async () => await TriggerAiResponsesAsync());
+#pragma warning restore CS4014
+                }
 
                 var preview = message.Length > 80 ? message[..80] + "…" : message;
                 return $"✓ Posted as '{name}': \"{preview}\"{(triggerResponses ? "" : " (no AI responses triggered)")}";
@@ -3882,6 +3889,7 @@ public partial class MainWindow : Window
             Padding = new Thickness(20)
         };
         win.Content = scroll;
+        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
 
         var root = new StackPanel();
         scroll.Content = root;
@@ -3978,7 +3986,7 @@ public partial class MainWindow : Window
                     Text = toolDesc, FontSize = 10, FontWeight = FontWeights.Bold,
                     FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 8, 0, 3)
                 };
-                catLbl.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+                catLbl.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
                 currentCol.Children.Add(catLbl);
                 continue;
             }
@@ -4325,7 +4333,7 @@ public partial class MainWindow : Window
                     FontFamily = new FontFamily("Segoe UI"),
                     Margin = new Thickness(0, 10, 0, 4)
                 };
-                catLbl.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+                catLbl.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
                 currentCol.Children.Add(catLbl);
                 continue;
             }

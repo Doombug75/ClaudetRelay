@@ -408,6 +408,7 @@ public partial class MainWindow
         panel.Children.Add(saveBtn);
 
         win.Content = panel;
+        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
         win.ShowDialog();
     }
 
@@ -429,6 +430,9 @@ public partial class MainWindow
         UiZoomHelper.Apply(this, zoom, scaleWindow: false);
         if (_participantsWindow is { IsVisible: true })
             UiZoomHelper.Apply(_participantsWindow, zoom, scaleWindow: false);
+        // Push the zoom factor into app resources so ContextMenu / MenuItem styles
+        // can scale themselves via DynamicResource binding on their LayoutTransform.
+        Application.Current.Resources["UiZoomFactor"] = zoom;
     }
 
     /// <summary>
@@ -806,6 +810,7 @@ public partial class MainWindow
         panel.Children.Add(closeBtn);
 
         win.Content = panel;
+        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
         win.ShowDialog();
     }
 
@@ -866,6 +871,7 @@ public partial class MainWindow
         panel.Children.Add(closeBtn);
 
         win.Content = panel;
+        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
         win.ShowDialog();
     }
 

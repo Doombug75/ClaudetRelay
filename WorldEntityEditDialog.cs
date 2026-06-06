@@ -89,6 +89,7 @@ public class WorldEntityEditDialog : Window
                                     isCharacter ? 22 : 24, 16)
         };
         Content = scroll;
+        UiZoomHelper.Apply(this, UiZoomHelper.FromSettings());
 
         var root = new StackPanel();
         scroll.Content = root;

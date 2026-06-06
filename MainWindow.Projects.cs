@@ -3031,7 +3031,6 @@ public partial class MainWindow
         string currentFile = imageFileName;
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(16, 0, 16, 0) };
 
-        Border thumbBorder;
         System.Windows.Controls.Image? thumbImg = null;
 
         void Refresh()
@@ -5238,6 +5237,7 @@ public partial class MainWindow
             Content   = root
         };
         win.Content = scroll;
+        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
 
         saveBtn.Click += (_, _) =>
         {

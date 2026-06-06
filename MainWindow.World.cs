@@ -529,16 +529,13 @@ public partial class MainWindow
         // ── Thumbnail column ───────────────────────────────────────────────
         // Character: portrait (3:4),  Location: square image,  Faction: image or colour strip
         string? imgPath = null;
-        double thumbH   = ThumbW;
         if (isChar && !string.IsNullOrWhiteSpace(entity.PortraitFileName))
         {
             imgPath = WorldEntityService.GetPortraitPath(projFolder, entity.PortraitFileName);
-            thumbH  = ThumbW * 4.0 / 3.0;  // 3:4 portrait
         }
         else if ((isLoc || isFac) && !string.IsNullOrWhiteSpace(entity.ImageFileName))
         {
             imgPath = WorldEntityService.GetImagePath(projFolder, entity.ImageFileName);
-            thumbH  = ThumbW;
         }
 
         var thumbCol = new Border
@@ -1356,6 +1353,7 @@ public partial class MainWindow
 
         var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(24, 20, 24, 20) };
         win.Content = scroll;
+        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
         var root = new StackPanel();
         scroll.Content = root;
 
@@ -1397,6 +1395,7 @@ public partial class MainWindow
             };
             sb.SetResourceReference(Border.BackgroundProperty, "ControlBgBrush");
             var st = new TextBlock { Text = sym, FontSize = 22, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            st.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
             sb.Child = st;
             sb.MouseLeftButtonDown += (_, _) => { selectedSymbol = capturedSym; UpdateSymSel(); };
             symBorders.Add(sb);
@@ -1473,6 +1472,7 @@ public partial class MainWindow
 
         var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(24, 20, 24, 20) };
         win.Content = scroll;
+        UiZoomHelper.Apply(win, UiZoomHelper.FromSettings());
         var root = new StackPanel();
         scroll.Content = root;
 
@@ -1500,6 +1500,7 @@ public partial class MainWindow
             var sb = new Border { Width = 44, Height = 44, CornerRadius = new CornerRadius(6), Margin = new Thickness(0, 0, 6, 6), Cursor = Cursors.Hand, Tag = sym };
             sb.SetResourceReference(Border.BackgroundProperty, "ControlBgBrush");
             var st = new TextBlock { Text = sym, FontSize = 22, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            st.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
             sb.Child = st;
             sb.MouseLeftButtonDown += (_, _) => { selectedSymbol = capturedSym; UpdateSymSel(); };
             symBorders.Add(sb);
