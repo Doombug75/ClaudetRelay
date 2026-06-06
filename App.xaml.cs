@@ -308,13 +308,21 @@ public partial class App : Application
 
         okButton.Click += (_, _) =>
         {
-            var name = textBox.Text.Trim();
-            if (!string.IsNullOrEmpty(name))
+            try
             {
-                var settings = SettingsService.Load();
-                settings.UserName = name;
-                SettingsService.Save(settings);
-                win.DialogResult = true;
+                var name = textBox.Text.Trim();
+                if (!string.IsNullOrEmpty(name))
+                {
+                    var settings = SettingsService.Load();
+                    settings.UserName = name;
+                    SettingsService.Save(settings);
+                    win.DialogResult = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving nickname: {ex.Message}");
+                MessageBox.Show($"Error saving name: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         };
         cancelButton.Click += (_, _) => win.DialogResult = false;
@@ -323,8 +331,16 @@ public partial class App : Application
         {
             if (e.Key == Key.Return)
             {
-                okButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                e.Handled = true;
+                try
+                {
+                    okButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    e.Handled = true;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error handling Return key: {ex.Message}");
+                    MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         };
 
