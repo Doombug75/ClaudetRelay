@@ -1549,7 +1549,8 @@ public partial class MainWindow : Window
         var ext = System.IO.Path.GetExtension(filePath).ToLowerInvariant();
         bool isDoc = ext is ".md"   or ".txt"  or ".rst"  or ".html" or ".htm" or ".csv"
                        or ".docx" or ".xlsx" or ".pptx"                               // OOXML
-                       or ".odt"  or ".ods"  or ".odp";                               // ODF
+                       or ".odt"  or ".ods"  or ".odp"                                // ODF
+                       or ".pdf";                                                      // PDF
 
         if (!isDoc)
             return FileCheckoutRegistry.CheckoutMode.ReadWrite;  // code/config: always exclusive
@@ -6207,14 +6208,31 @@ public partial class MainWindow : Window
             var path = m.Groups[1].Value.Trim();
 
             string? content;
-            if (Services.OfficeFileReader.IsSupported(path))
+            string  formatNote = "";
+
+            if (Services.PdfFileReader.IsSupported(path))
+            {
+                // PDF — extract text via PdfPig
+                var full = SysIO.Path.GetFullPath(SysIO.Path.Combine(projFolder, path));
+                if (!ProjectService.IsPathSafe(full, projFolder) || !SysIO.File.Exists(full))
+                    content = null;
+                else
+                {
+                    content    = Services.PdfFileReader.TryExtractText(full);
+                    formatNote = " (extracted from PDF)";
+                }
+            }
+            else if (Services.OfficeFileService.IsSupported(path))
             {
                 // Binary Office/ODF format — extract readable text instead of raw bytes.
                 var full = SysIO.Path.GetFullPath(SysIO.Path.Combine(projFolder, path));
                 if (!ProjectService.IsPathSafe(full, projFolder) || !SysIO.File.Exists(full))
                     content = null;
                 else
-                    content = Services.OfficeFileReader.TryExtractText(full);
+                {
+                    content    = Services.OfficeFileService.TryExtractText(full);
+                    formatNote = " (extracted from Office file)";
+                }
             }
             else
             {
@@ -6227,8 +6245,6 @@ public partial class MainWindow : Window
                 return $"*(⚠ not found: {path})*";
             }
 
-            // Note format in status message for Office files
-            var formatNote = Services.OfficeFileReader.IsSupported(path) ? " (extracted from Office file)" : "";
             AddSystemMessage($"📂  {senderName} read: {path}{formatNote}");
 
             // Inject into shared history so all subsequent AI responses can see the content
@@ -6236,6 +6252,95 @@ public partial class MainWindow : Window
                 $"[File content: {path}]\n\n{content}", "System"));
             hadReadOps = true;
             return $"*(→ read: {path})*";
+        });
+
+        // ── Write PDF output ───────────────────────────────────────────────
+        // Syntax: <outputpdf file="report.pdf">...markdown content...</outputpdf>
+        response = new Regex(
+            @"<outputpdf\s+file=""([^""]+)"">\s*([\s\S]*?)\s*</outputpdf>",
+            RegexOptions.IgnoreCase).Replace(response, m =>
+        {
+            var fileName = SanitizeFileName(m.Groups[1].Value, "output.pdf");
+            // Ensure the extension is always .pdf
+            if (!fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                fileName += ".pdf";
+
+            if (!hasWriteAccess)
+            {
+                AddSystemMessage(
+                    $"🔒  {senderName} → OUTPUT/{fileName} blocked (no write access). " +
+                    $"{coName} can write this file.");
+                return $"*(🔒 PDF write blocked — {senderName} needs {coName} to write OUTPUT/{fileName})*";
+            }
+
+            var relPath = SysIO.Path.Combine("OUTPUT", fileName);
+            var full    = SysIO.Path.GetFullPath(SysIO.Path.Combine(projFolder, relPath));
+            if (!ProjectService.IsPathSafe(full, projFolder))
+            {
+                AddSystemMessage($"⚠  {senderName} → OUTPUT/{fileName} rejected (path escape).");
+                return $"*(⚠ rejected: path not allowed)*";
+            }
+
+            SysIO.Directory.CreateDirectory(SysIO.Path.GetDirectoryName(full)!);
+
+            if (Services.PdfFileWriter.TryWrite(full, m.Groups[2].Value, out var pdfErr))
+                AddSystemMessage($"📄  {senderName} → OUTPUT/{fileName}  (PDF)");
+            else
+                AddSystemMessage($"⚠  {senderName} → OUTPUT/{fileName} failed: {pdfErr}");
+
+            return $"*(→ OUTPUT/{fileName})*";
+        });
+
+        // ── Write Office / ODF output ──────────────────────────────────────
+        // Syntax: <outputoffice file="report.docx">...markdown...</outputoffice>
+        // Supported extensions: .docx .odt .xlsx .ods
+        response = new Regex(
+            @"<outputoffice\s+file=""([^""]+)"">\s*([\s\S]*?)\s*</outputoffice>",
+            RegexOptions.IgnoreCase).Replace(response, m =>
+        {
+            var rawName = m.Groups[1].Value;
+            if (!Services.OfficeFileService.CanWrite(rawName))
+            {
+                AddSystemMessage($"⚠  {senderName} → unsupported Office format '{rawName}'. " +
+                                 "Use .docx, .odt, .xlsx, or .ods.");
+                return $"*(⚠ unsupported format: {rawName})*";
+            }
+
+            var fileName = SanitizeFileName(rawName, "output.docx");
+            if (!hasWriteAccess)
+            {
+                AddSystemMessage(
+                    $"🔒  {senderName} → OUTPUT/{fileName} blocked (no write access). " +
+                    $"{coName} can write this file.");
+                return $"*(🔒 Office write blocked — {senderName} needs {coName} to write OUTPUT/{fileName})*";
+            }
+
+            var relPath = SysIO.Path.Combine("OUTPUT", fileName);
+            var full    = SysIO.Path.GetFullPath(SysIO.Path.Combine(projFolder, relPath));
+            if (!ProjectService.IsPathSafe(full, projFolder))
+            {
+                AddSystemMessage($"⚠  {senderName} → OUTPUT/{fileName} rejected (path escape).");
+                return $"*(⚠ rejected: path not allowed)*";
+            }
+
+            SysIO.Directory.CreateDirectory(SysIO.Path.GetDirectoryName(full)!);
+
+            var ext = SysIO.Path.GetExtension(fileName).ToLowerInvariant();
+            var label = ext switch
+            {
+                ".docx" => "Word document",
+                ".odt"  => "LibreOffice Writer document",
+                ".xlsx" => "Excel spreadsheet",
+                ".ods"  => "LibreOffice Calc spreadsheet",
+                _       => "Office file"
+            };
+
+            if (Services.OfficeFileService.TryWrite(full, m.Groups[2].Value, out var offErr))
+                AddSystemMessage($"📄  {senderName} → OUTPUT/{fileName}  ({label})");
+            else
+                AddSystemMessage($"⚠  {senderName} → OUTPUT/{fileName} failed: {offErr}");
+
+            return $"*(→ OUTPUT/{fileName})*";
         });
 
         // ── List folder contents ───────────────────────────────────────────

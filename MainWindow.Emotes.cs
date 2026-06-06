@@ -163,12 +163,22 @@ public partial class MainWindow
         "\nBe considerate: request read-only when reading, read-write only when modifying. " +
         "This allows parallel work when multiple participants are researching the same topic." +
         "\n\n### Readable file formats" +
-        "\nYou can read the following types from the INPUT/ folder:" +
+        "\nYou can read the following types from the INPUT/ folder using <readfile path=\"INPUT/...\"/>:" +
         "\n• Plain text: .txt, .md, .rst, .html, .csv" +
+        "\n• PDF documents: .pdf (text extracted page by page)" +
         "\n• Word documents: .docx (text and tables extracted automatically)" +
         "\n• Excel spreadsheets: .xlsx (each sheet rendered as a Markdown table)" +
         "\n• PowerPoint presentations: .pptx (slide text, one section per slide)" +
         "\n• LibreOffice Writer: .odt  •  Calc: .ods  •  Impress: .odp" +
-        "\nLegacy Office formats (.doc, .xls, .ppt) are NOT supported — ask the user to" +
-        " re-save as a modern format first.";
+        "\nLegacy Office formats (.doc, .xls, .ppt) are NOT supported — ask the user to re-save first." +
+        "\n\n### Writing output files" +
+        "\nYou can generate formatted output documents in OUTPUT/:" +
+        "\n  <outputpdf    file=\"report.pdf\">...markdown...</outputpdf>   — PDF (A4, styled)" +
+        "\n  <outputoffice file=\"report.docx\">...markdown...</outputoffice> — Word document" +
+        "\n  <outputoffice file=\"report.odt\">...markdown...</outputoffice>  — LibreOffice Writer" +
+        "\n  <outputoffice file=\"data.xlsx\">...markdown...</outputoffice>   — Excel (tables → sheets)" +
+        "\n  <outputoffice file=\"data.ods\">...markdown...</outputoffice>    — LibreOffice Calc" +
+        "\nAll writers accept Markdown: headings, **bold**, *italic*, `code`, lists, tables, code blocks." +
+        "\nFor .xlsx and .ods each Markdown table becomes its own sheet, named after the preceding heading." +
+        "\nUse these when the user asks for a document, report, or data file as output.";
 }

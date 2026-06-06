@@ -4,17 +4,96 @@
 
 # ClaudetRelay
 
-**Multi-agent AI workspace for Windows**
+**Multi-agent AI workspace for creative projects on Windows**
 
-*Many minds. One conversation.*
+*Brainstorm. Build. Organise. Create.*
 
 </div>
 
 ---
 
-Run up to 20 AI participants from different providers in the same conversation — assign roles, let them collaborate on structured projects, and orchestrate who speaks when.
+ClaudetRelay is a **creative project workspace** powered by a team of AI participants.
+Whether you are writing a novel, designing an RPG campaign, building a game, or mapping out a software project — you direct a group of AI agents who brainstorm, plan, research, and generate documents alongside you.
 
-Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq, OpenRouter, xAI Grok) and local models via Ollama side by side. Each participant gets its own persona, tone, and role. You direct the conversation — or step back and let the agents coordinate among themselves.
+Unlike a simple chatbot, ClaudetRelay organises your work into **structured projects** with their own file systems, roadmaps, world-builder databases, and agent rosters. Everything the AI produces is saved as real, plain files you can open, edit, and diff in any tool — no locked-in database, no hidden state.
+
+---
+
+### What can you do with it?
+
+| Use case | How ClaudetRelay helps |
+|---|---|
+| **RPG world building** | Build a campaign setting with Characters, Locations, Factions, and Lore. Visualise relationships on a free-canvas board. Let AI agents invent NPCs, histories, and plot hooks on demand. |
+| **Fiction & story writing** | Assign one agent as your plot architect, another as a character voice, a third as continuity checker. Run them in parallel and compare their takes. |
+| **Game design** | Use the roadmap to track milestones, let AI agents produce design docs, dialogue trees, and balance spreadsheets — all saved as real files in your project folder. |
+| **Software planning** | Break a codebase into tasks on the roadmap, have agents draft specs, architecture diagrams, and READMEs, output them as PDF or Word docs. |
+| **Brainstorming & research** | Throw a question to six models at once and compare answers side by side. Use a Coordinator agent to synthesise the best ideas from the group. |
+
+---
+
+### Boards on boards — the World Builder
+
+The heart of ClaudetRelay for creative projects is the **World Builder** — a spatial canvas where you place entity cards (Characters, Locations, Factions, Lore items) and draw named relation lines between them.
+
+Each entity has a rich set of fields (role, alignment, backstory, arc, resources, skills, portrait…). Cards can carry **nested boards** — so a Faction card can open its own internal board listing its members and their relationships. You build as deep as your world needs.
+
+AI agents can read the world state, suggest new entities, and write directly into the project's entity files. They see the same structured data you see.
+
+---
+
+### Behaviour sliders — directed or autonomous
+
+Each participant has a set of **sliders** that control how it contributes:
+
+- **Chattiness** — how eagerly it joins without being asked
+- **Tone** — formal ↔ casual, or locked to a personality mode (Mockingbird / Buccaneer)
+- **Response length** — concise ↔ exhaustive
+- **Role** — Coordinator (summarises, delegates) or Reasoner (executes, creates)
+
+Point them at pure creative output and step back — or keep tight control and use them as smart research assistants. The same app supports both styles.
+
+---
+
+### Transparent file output
+
+Every file the AI produces lands in your project's folder as a real file:
+
+```
+MyProject/
+  INPUT/       ← files you give the agents to read
+  OUTPUT/       ← files agents generate
+  PROJECTPLAN/  ← roadmap, design docs, notes
+  AI-Characters/ ← per-project agent persona files
+```
+
+Agents can **read** `.txt`, `.md`, `.pdf`, `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp` from INPUT and **write** formatted output to OUTPUT:
+
+| Output tag | Format |
+|---|---|
+| `<output file="notes.md">` | Plain Markdown |
+| `<outputpdf file="report.pdf">` | PDF (A4, styled headings, tables, code blocks) |
+| `<outputoffice file="report.docx">` | Word document |
+| `<outputoffice file="report.odt">` | LibreOffice Writer |
+| `<outputoffice file="data.xlsx">` | Excel (each Markdown table → its own sheet) |
+| `<outputoffice file="data.ods">` | LibreOffice Calc |
+
+No conversion tools, no LibreOffice install, no Adobe — everything is generated natively from Markdown.
+
+---
+
+### Connect any AI provider
+
+| Cloud | Local |
+|---|---|
+| Anthropic Claude | Ollama (any model) |
+| OpenAI GPT | *(LM Studio — planned)* |
+| Google Gemini | |
+| Mistral | |
+| Groq | |
+| OpenRouter | |
+| xAI Grok | |
+
+Mix cloud and local agents in the same project. Run a fast local model for first drafts and a large cloud model for final polish. API keys are stored exclusively in Windows Credential Manager — never written to disk.
 
 ---
 
@@ -47,7 +126,7 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 
 ---
 
-## Features
+## Full Feature List
 
 ### Conversation
 - **Multi-provider, multi-agent chat** — up to 20 participants from any mix of cloud providers and local Ollama models in a single shared conversation
@@ -62,7 +141,10 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 ### Projects
 - **Project system** — named projects with typed templates (Novel, Theatre, Software, Game, Business, and more), per-project participant configuration, and persistent chat history
 - **Roadmap** — built-in project roadmap with milestones, priorities, and progress tracking
-- **AI file operations** — agents can read, write, and list files within the project folder
+- **File browser** — collapsible folder sections with search filter; browse INPUT, OUTPUT, PROJECTPLAN folders inside the app
+- **File checkout** — read-only and read-write file locking so multiple agents can research in parallel without overwriting each other; smart idle-timeout reminder system
+- **AI file reading** — agents can read `.txt`, `.md`, `.rst`, `.html`, `.csv`, `.pdf`, `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp` directly from INPUT
+- **AI file writing** — agents can write Markdown, PDF, Word, LibreOffice Writer, Excel, and LibreOffice Calc files to OUTPUT with a single tag
 - **Backup** — one-click ZIP backup of any project
 - **Export** — save conversations as HTML or Markdown
 
@@ -71,18 +153,19 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 - **Character fields** — Role, Age, Level/Classes, Alignment, Background, Goal, Flaw, Arc, Voice, Health/Resources, Attributes, and Skills
 - **Portrait support** — add portrait images to characters; duplicate-safe filename handling keeps the entity list clean
 - **Faction membership** — characters can belong to multiple factions; each faction gets a colour badge from a 15-colour palette
-- **Faction dots on character cards** — coloured dots on each character card show faction membership at a glance; wraps gracefully beyond ten factions
+- **Faction dots on character cards** — coloured dots on each character card show faction membership at a glance
 - **Board view** — free-canvas board for arranging all entity types spatially; drag cards, draw named relations between entities, and auto-arrange
+- **Nested boards** — boards can contain boards; build hierarchy as deep as your world requires
 - **Relation lines** — eight line styles (solid, dashed, dotted, double variants), custom captions, legend entries, and colour-coded strokes
 - **Quick-add from board** — add any entity type directly from the board toolbar without switching views
 
 ### MCP / Bridge
 - **MCP Server mode** — expose ClaudetRelay as a Model Context Protocol server; connect Claude Desktop, Claude Code, or any MCP-compatible client
-- **MCP chat participation** — external clients (Claude Desktop, Claude Code) can read chat history and post messages as named participants via `chat_get_history`, `chat_post_message`, and `chat_wait_for_round` tools; enable per-project via the participant menu
+- **MCP chat participation** — external clients can read chat history and post messages as named participants via `chat_get_history`, `chat_post_message`, and `chat_wait_for_round` tools
 - **Bridge agents** — register local Ollama models or cloud models as named Bridge agents; send tasks silently via `bridge_post_to_agents` without routing through the chat
-- **Project agent roster** — save a Bridge agent roster per project; load it with one click when a project is open and restore the global roster automatically on close
-- **Model Controller** — route and coordinate multiple local models through a cloud controller with a dedicated sub-tab UI; keeps heavy token work on-device
-- **Configurable tool access** — enable or disable individual MCP tools per mode (Server vs. Controller) from the Bridge settings window
+- **Project agent roster** — save a Bridge agent roster per project; load it with one click when a project is open
+- **Model Controller** — route and coordinate multiple local models through a cloud controller
+- **Configurable tool access** — enable or disable individual MCP tools per mode from the Bridge settings window
 
 ### Themes
 - **101 built-in themes** — Catppuccin, Tokyo Night, Dracula, Gruvbox, Leatherbound series, Skyrim, Deep Rock Galactic, planetary series, Warhammer 40K factions, and many more
@@ -95,7 +178,7 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 
 - Windows 10 / 11
 - .NET 10 Desktop Runtime
-- At least one API key (Anthropic, OpenAI, Google Gemini, Mistral, Groq, OpenRouter, xAI Grok) **OR** a running [Ollama](https://ollama.com) instance
+- At least one API key **OR** a running [Ollama](https://ollama.com) instance
 
 ---
 
@@ -103,11 +186,12 @@ Connect cloud providers (Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq,
 
 | Feature | Notes |
 |---|---|
+| **Voice input** | Push-to-talk and voice-activation using a locally-running speech recogniser — no cloud required |
 | **Voice output** | Text-to-speech playback of AI responses |
 | **Multi-language UI** | German as the first additional language alongside English |
 | **LM Studio support** | Local model provider via LM Studio's OpenAI-compatible endpoint |
-| ~~**Codebase refactor**~~ | ~~Split `MainWindow.xaml.cs` into focused partial classes for better maintainability~~ ✅ Done — 18 800 lines split into 6 focused partial classes; `xaml.cs` reduced to 363 lines |
-| ~~**Buccaneer mode**~~ | ~~Exclusive pirate-speak personality mode (à la Mockingbird). Needs slider redesign to accommodate three mutually exclusive modes: Neutral / Mockingbird / Buccaneer.~~ ✅ Done — three-way pill toggle in General Settings (Neutral · 🐦 Mockingbird · 🏴‍☠️ Buccaneer); tone slider relabels dynamically per mode |
+| ~~**Codebase refactor**~~ | ✅ Done — 18 800 lines split into 6 focused partial classes |
+| ~~**Buccaneer mode**~~ | ✅ Done — three-way pill toggle (Neutral · 🐦 Mockingbird · 🏴‍☠️ Buccaneer) |
 
 ---
 
