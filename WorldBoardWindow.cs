@@ -939,7 +939,7 @@ public class WorldBoardWindow : Window
 
                 pin.MouseLeftButtonDown += (_, e) =>
                 {
-                    if (_boardConnectMode) { e.Handled = true; return; }
+                    if (_boardConnectMode) { HandleBoardConnectClick(capBoardId); e.Handled = true; return; }
                     if (e.ClickCount >= 2)
                     {
                         var capTheme = _themePath;
@@ -1975,7 +1975,7 @@ public class WorldBoardWindow : Window
 
         headerBorder.MouseLeftButtonDown += (_, e) =>
         {
-            if (_boardConnectMode) return;
+            if (_boardConnectMode) { HandleBoardConnectClick(bf.Id); e.Handled = true; return; }
             frameDrag = true; frameMoved = false;
             var raw = e.GetPosition(canvas);
             frameDragOff = new Point(raw.X - bf.X, raw.Y - bf.Y);
