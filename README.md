@@ -133,7 +133,7 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 ## Full Feature List
 
 ### Conversation
-- **Multi-provider, multi-agent chat** — up to 20 participants from any mix of cloud providers and local Ollama models in a single shared conversation
+- **Multi-provider, multi-agent chat** — any number of participants from any mix of cloud providers and local models in a single shared conversation; each participant gets its own card in the UI
 - **Orchestration modes** — All Respond, Coordinator First, Coordinator Summarizes
 - **Roles & personas** — Coordinator and Reasoner roles, custom names, answer-as aliases, and saveable character files per participant
 - **Tone** — global formal ↔ casual slider; or lock to Mockingbird (warm/dramatic) or Buccaneer (pirate) personality mode
