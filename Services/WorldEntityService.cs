@@ -377,6 +377,13 @@ public class BoardPosition
     public double CardWidth  { get; set; } = 0;
     /// <summary>User-resized card height. 0 = auto.</summary>
     public double CardHeight { get; set; } = 0;
+    /// <summary>
+    /// Stacking order within the board canvas. Cards with a higher ZOrder are
+    /// rendered on top of cards with a lower ZOrder (both share Canvas ZIndex=2).
+    /// Bumped by 1 each time the user drops this card so the last-moved card is
+    /// always in front. Default 0 = rely on canvas children order.
+    /// </summary>
+    public int ZOrder { get; set; } = 0;
 }
 
 /// <summary>Visual style of a relation line on the board.</summary>

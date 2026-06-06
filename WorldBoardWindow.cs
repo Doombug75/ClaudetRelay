@@ -764,8 +764,9 @@ public class WorldBoardWindow : Window
         foreach (var tb in _boardData.TextBoxes)
             RenderBoardTextBox(canvas, tb);
 
-        // ── Render entity cards (z=2) ──────────────────────────────────────
-        foreach (var entity in displayedEntities)
+        // ── Render entity cards (z=2, ordered by ZOrder so last-placed is on top) ──
+        foreach (var entity in displayedEntities
+            .OrderBy(e => _boardData.Positions.TryGetValue(e.Id, out var zp) ? zp.ZOrder : 0))
         {
             var pos  = _boardData.Positions[entity.Id];
             var card = BuildBoardCard(entity, boardFactions);
@@ -884,6 +885,14 @@ public class WorldBoardWindow : Window
                     if (_boardData.Positions.TryGetValue(sid, out var bp2)) { bp2.X = sx; bp2.Y = sy; }
                     else _boardData.Positions[sid] = new BoardPosition { X = sx, Y = sy };
                 }
+                // Bring the actively dragged card to front:
+                // bump its ZOrder above all others (persists across rebuilds) and
+                // immediately re-add it at the end of canvas children so it renders
+                // on top within ZIndex=2 without waiting for a full rebuild.
+                if (_boardData.Positions.TryGetValue(capturedId, out var bpFront))
+                    bpFront.ZOrder = _boardData.Positions.Values.Max(p => p.ZOrder) + 1;
+                _boardCanvas!.Children.Remove(card);
+                _boardCanvas!.Children.Add(card);
                 EntityBoardService.Save(_projFolder, _board.Id, _boardData);
                 e.Handled = true;
             };
@@ -911,15 +920,17 @@ public class WorldBoardWindow : Window
                 canvas.Children.Add(pin);
                 _boardPins[capBoardId] = pin;
 
-                // ── Pin drag ──────────────────────────────────────────────
-                bool pinDrag   = false;
-                var  pinOffset = new Point();
+                // ── Pin drag (carries contained entity cards and nested pins) ──
+                bool pinDrag           = false;
+                var  pinOffset         = new Point();
+                var  pinContainedCards = new List<string>();
+                var  pinContainedPins  = new List<string>();
+
                 pin.MouseLeftButtonDown += (_, e) =>
                 {
                     if (_boardConnectMode) { e.Handled = true; return; }
                     if (e.ClickCount >= 2)
                     {
-                        // Open the board in a new window
                         var capTheme = _themePath;
                         var w = new WorldBoardWindow(_projFolder, capBoard, capTheme);
                         w.Owner = this; w.Show();
@@ -927,16 +938,55 @@ public class WorldBoardWindow : Window
                     }
                     pinDrag   = true;
                     pinOffset = e.GetPosition(pin);
+
+                    // Snapshot entity cards and other pins whose top-left is inside this pin
+                    pinContainedCards.Clear();
+                    pinContainedPins.Clear();
+                    var myX = Canvas.GetLeft(pin);
+                    var myY = Canvas.GetTop(pin);
+                    var myW = pin.ActualWidth  > 0 ? pin.ActualWidth  : 160;
+                    var myH = pin.ActualHeight > 0 ? pin.ActualHeight :  80;
+                    foreach (var (cid, cc) in _boardCards)
+                    {
+                        var cx = Canvas.GetLeft(cc); var cy = Canvas.GetTop(cc);
+                        if (cx >= myX && cy >= myY && cx <= myX + myW && cy <= myY + myH)
+                            pinContainedCards.Add(cid);
+                    }
+                    foreach (var (cid, cp) in _boardPins)
+                    {
+                        if (cid == capBoardId) continue;
+                        var cx = Canvas.GetLeft(cp); var cy = Canvas.GetTop(cp);
+                        if (cx >= myX && cy >= myY && cx <= myX + myW && cy <= myY + myH)
+                            pinContainedPins.Add(cid);
+                    }
+
                     pin.CaptureMouse();
                     e.Handled = true;
                 };
                 pin.MouseMove += (_, e) =>
                 {
                     if (!pinDrag) return;
-                    var pt = e.GetPosition(_boardCanvas);
-                    var nx = Snap(Math.Max(0, pt.X - pinOffset.X));
-                    var ny = Snap(Math.Max(0, pt.Y - pinOffset.Y));
+                    var pt  = e.GetPosition(_boardCanvas);
+                    var nx  = Snap(Math.Max(0, pt.X - pinOffset.X));
+                    var ny  = Snap(Math.Max(0, pt.Y - pinOffset.Y));
+                    var dx  = nx - Canvas.GetLeft(pin);
+                    var dy  = ny - Canvas.GetTop(pin);
                     Canvas.SetLeft(pin, nx); Canvas.SetTop(pin, ny);
+                    // Move contained entity cards
+                    foreach (var cid in pinContainedCards)
+                    {
+                        if (!_boardCards.TryGetValue(cid, out var cc)) continue;
+                        var cx = Canvas.GetLeft(cc) + dx; var cy = Canvas.GetTop(cc) + dy;
+                        Canvas.SetLeft(cc, cx); Canvas.SetTop(cc, cy);
+                        UpdateBoardLines(cid, cx, cy);
+                    }
+                    // Move contained nested pins
+                    foreach (var cid in pinContainedPins)
+                    {
+                        if (!_boardPins.TryGetValue(cid, out var cp)) continue;
+                        Canvas.SetLeft(cp, Canvas.GetLeft(cp) + dx);
+                        Canvas.SetTop (cp, Canvas.GetTop (cp) + dy);
+                    }
                     e.Handled = true;
                 };
                 pin.MouseLeftButtonUp += (_, e) =>
@@ -944,8 +994,24 @@ public class WorldBoardWindow : Window
                     if (!pinDrag) return;
                     pinDrag = false;
                     pin.ReleaseMouseCapture();
+                    // Save pin position
                     if (_boardData.BoardPinPositions.TryGetValue(capBoardId, out var pp))
                     { pp.X = Canvas.GetLeft(pin); pp.Y = Canvas.GetTop(pin); }
+                    // Save contained entity card positions
+                    foreach (var cid in pinContainedCards)
+                    {
+                        if (!_boardCards.TryGetValue(cid, out var cc)) continue;
+                        var sx = Canvas.GetLeft(cc); var sy = Canvas.GetTop(cc);
+                        if (_boardData.Positions.TryGetValue(cid, out var bp2)) { bp2.X = sx; bp2.Y = sy; }
+                        else _boardData.Positions[cid] = new BoardPosition { X = sx, Y = sy };
+                    }
+                    // Save contained nested pin positions
+                    foreach (var cid in pinContainedPins)
+                    {
+                        if (_boardPins.TryGetValue(cid, out var cp)
+                            && _boardData.BoardPinPositions.TryGetValue(cid, out var pp2))
+                        { pp2.X = Canvas.GetLeft(cp); pp2.Y = Canvas.GetTop(cp); }
+                    }
                     EntityBoardService.Save(_projFolder, _board.Id, _boardData);
                     e.Handled = true;
                 };
