@@ -1,2 +1,19 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Windows C# project — check out all text files with CRLF line endings.
+# This matches core.autocrlf=true and eliminates the LF→CRLF conversion warnings.
+
+* text=auto eol=crlf
+
+# Binary files — never touch line endings
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.ico  binary
+*.bmp  binary
+*.gif  binary
+*.pdf  binary
+*.exe  binary
+*.dll  binary
+*.pdb  binary
+*.zip  binary
+*.bz2  binary
+*.tar  binary

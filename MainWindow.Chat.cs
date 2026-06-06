@@ -4267,9 +4267,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        var isDE = System.Globalization.CultureInfo.CurrentUICulture
+                         .TwoLetterISOLanguageName
+                         .Equals("de", StringComparison.OrdinalIgnoreCase);
+
         var win = new Window
         {
-            Title                 = "Hi, I'm Claudette! 🐙",
+            Title                 = isDE ? "Hallo, ich bin Claudette! 🐙" : "Hi, I'm Claudette! 🐙",
             Width                 = 640,
             Height                = 780,
             MinWidth              = 480,
@@ -4311,7 +4315,7 @@ public partial class MainWindow : Window
         var greetPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var greetTitle = new TextBlock
         {
-            Text = "Hi, I'm Claudette! 🐙",
+            Text = isDE ? "Hallo, ich bin Claudette! 🐙" : "Hi, I'm Claudette! 🐙",
             FontFamily = new FontFamily("Segoe UI"), FontSize = 20,
             FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 5)
@@ -4319,9 +4323,13 @@ public partial class MainWindow : Window
         greetTitle.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
         var greetSub = new TextBlock
         {
-            Text = "ClaudetRelay sends every message to multiple AIs at once — " +
-                   "they all share the same conversation and respond in turn.\n" +
-                   "Click me anytime for help, or ask me a question directly if an AI is online.",
+            Text = isDE
+                ? "ClaudetRelay sendet jede Nachricht gleichzeitig an mehrere KIs — " +
+                  "sie teilen sich die gleiche Unterhaltung und antworten der Reihe nach.\n" +
+                  "Klick mich jederzeit für Hilfe, oder stell mir direkt eine Frage, wenn eine KI online ist."
+                : "ClaudetRelay sends every message to multiple AIs at once — " +
+                  "they all share the same conversation and respond in turn.\n" +
+                  "Click me anytime for help, or ask me a question directly if an AI is online.",
             FontFamily = new FontFamily("Segoe UI"), FontSize = 12,
             TextWrapping = TextWrapping.Wrap, LineHeight = 19
         };
@@ -4518,55 +4526,87 @@ public partial class MainWindow : Window
         // WHAT TO FIND HERE — context-specific tips shown at the top
         // ══════════════════════════════════════════════════════════════════
 
-        AddSectionHeader("📌", "What to find here");
+        AddSectionHeader("📌", isDE ? "Was hier zu finden ist" : "What to find here");
 
         if (_currentTab == Tab.Bridge)
         {
-            AddBody(
-                "You are in Bridge mode — connecting external tools to your AI participants.\n\n" +
-                "▶  Server sub-tab: start the MCP server so Claude Code, Cursor or any MCP client\n" +
-                "     can call your AIs as tools, read/write project files, and update the roadmap.\n" +
-                "▶  Chat sub-tab: run the built-in controller AI to orchestrate Ollama agents.\n" +
-                "▶  Setup sub-tab: add bridge agents, configure accessible folders, set tool limits.\n\n" +
-                "Full reference in the 🔗 Bridge section below.");
+            AddBody(isDE
+                ? "Du bist im Bridge-Modus — externe Tools werden mit deinen KI-Teilnehmern verbunden.\n\n" +
+                  "▶  Server-Tab: MCP-Server starten, damit Claude Code, Cursor oder ein beliebiger MCP-Client\n" +
+                  "     deine KIs als Tools aufrufen, Projektdateien lesen/schreiben und den Fahrplan aktualisieren kann.\n" +
+                  "▶  Chat-Tab: integrierte Controller-KI zur Orchestrierung von Ollama-Agenten.\n" +
+                  "▶  Setup-Tab: Bridge-Agenten hinzufügen, zugängliche Ordner konfigurieren, Tool-Limits setzen.\n\n" +
+                  "Vollständige Referenz im Abschnitt 🔗 Bridge unten."
+                : "You are in Bridge mode — connecting external tools to your AI participants.\n\n" +
+                  "▶  Server sub-tab: start the MCP server so Claude Code, Cursor or any MCP client\n" +
+                  "     can call your AIs as tools, read/write project files, and update the roadmap.\n" +
+                  "▶  Chat sub-tab: run the built-in controller AI to orchestrate Ollama agents.\n" +
+                  "▶  Setup sub-tab: add bridge agents, configure accessible folders, set tool limits.\n\n" +
+                  "Full reference in the 🔗 Bridge section below.");
         }
         else if (_currentTab == Tab.Projects && _currentProjectFolder is null)
         {
-            AddBody(
-                "You are browsing your projects. Each project is a folder on your PC.\n\n" +
-                "▶  New: create a project and pick a type (General, Story/RPG, etc.).\n" +
-                "▶  Open: load an existing project — the chat switches to project mode.\n" +
-                "▶  Once open: Roadmap, Files, and World tabs appear; configure AIs via ⚙ Project Settings.\n\n" +
-                "Full reference in the 📁 Projects section below.");
+            AddBody(isDE
+                ? "Du siehst deine Projekte. Jedes Projekt ist ein Ordner auf deinem PC.\n\n" +
+                  "▶  Neu: Projekt erstellen und Typ wählen (Allgemein, Story/RPG usw.).\n" +
+                  "▶  Öffnen: bestehendes Projekt laden — der Chat wechselt in den Projektmodus.\n" +
+                  "▶  Einmal geöffnet: Fahrplan-, Dateien- und Welt-Tabs erscheinen; KIs via ⚙ Projekteinstellungen konfigurieren.\n\n" +
+                  "Vollständige Referenz im Abschnitt 📁 Projekte unten."
+                : "You are browsing your projects. Each project is a folder on your PC.\n\n" +
+                  "▶  New: create a project and pick a type (General, Story/RPG, etc.).\n" +
+                  "▶  Open: load an existing project — the chat switches to project mode.\n" +
+                  "▶  Once open: Roadmap, Files, and World tabs appear; configure AIs via ⚙ Project Settings.\n\n" +
+                  "Full reference in the 📁 Projects section below.");
         }
         else if (_currentProjectFolder is not null && _currentProject is not null)
         {
-            AddBody(
-                $"Project \"{_currentProject.ProjectName}\" is open.\n\n" +
-                "▶  Chat: your AI team has full project context — roles, roadmap, and world data.\n" +
-                "▶  Roadmap sub-tab: milestones, tasks, and progress percentages.\n" +
-                "▶  Files sub-tab: INPUT/ (reference files — no model can write here), OUTPUT/ (AI-written), PROJECTPLAN/.\n" +
-                "     Move finished OUTPUT files into INPUT/ to lock them as settled reference material.\n" +
-                "▶  ⚙ Project Settings: orchestration, AI roles, Autonomy Mode, language override.\n" +
-                "▶  🌍 World tab: characters, factions, locations and lore (story / RPG projects).\n" +
-                "▶  🗑 Clear Chat: wipes only this project's chat history — the project stays open.\n\n" +
-                "Full reference in the 📁 Projects and 🌍 World Builder sections below.");
+            AddBody(isDE
+                ? $"Projekt \"{_currentProject.ProjectName}\" ist geöffnet.\n\n" +
+                  "▶  Chat: dein KI-Team hat vollen Projektkontext — Rollen, Fahrplan und Weltdaten.\n" +
+                  "▶  Fahrplan-Tab: Meilensteine, Aufgaben und Fortschrittsprozente.\n" +
+                  "▶  Dateien-Tab: INPUT/ (Referenzdateien — kein Modell kann hier schreiben), OUTPUT/ (KI-geschrieben), PROJECTPLAN/.\n" +
+                  "     Fertige OUTPUT-Dateien nach INPUT/ verschieben, um sie als abgeschlossenes Referenzmaterial zu sichern.\n" +
+                  "▶  ⚙ Projekteinstellungen: Orchestrierung, KI-Rollen, Autonomiemodus, Sprach-Override.\n" +
+                  "▶  🌍 Welt-Tab: Charaktere, Fraktionen, Orte und Lore (Story-/RPG-Projekte).\n" +
+                  "▶  🗑 Chat leeren: löscht nur den Projektverlauf — das Projekt bleibt geöffnet.\n\n" +
+                  "Vollständige Referenz in den Abschnitten 📁 Projekte und 🌍 World Builder unten."
+                : $"Project \"{_currentProject.ProjectName}\" is open.\n\n" +
+                  "▶  Chat: your AI team has full project context — roles, roadmap, and world data.\n" +
+                  "▶  Roadmap sub-tab: milestones, tasks, and progress percentages.\n" +
+                  "▶  Files sub-tab: INPUT/ (reference files — no model can write here), OUTPUT/ (AI-written), PROJECTPLAN/.\n" +
+                  "     Move finished OUTPUT files into INPUT/ to lock them as settled reference material.\n" +
+                  "▶  ⚙ Project Settings: orchestration, AI roles, Autonomy Mode, language override.\n" +
+                  "▶  🌍 World tab: characters, factions, locations and lore (story / RPG projects).\n" +
+                  "▶  🗑 Clear Chat: wipes only this project's chat history — the project stays open.\n\n" +
+                  "Full reference in the 📁 Projects and 🌍 World Builder sections below.");
         }
         else
         {
-            AddBody(
-                "You are in General Chat — every enabled, online AI sees your message and replies in turn.\n\n" +
-                "▶  Type a message to start a conversation with all active AIs.\n" +
-                "▶  ↺ Re-send: ask all AIs to respond one more time without typing.\n" +
-                "▶  📨 Private message: click the 📨 button, pick one participant — only they reply.\n" +
-                "     Multiple private tasks can run in parallel while the chat stays live.\n" +
-                "▶  Emotes: type /me waves, or wrap *action* text in asterisks — shown highlighted.\n" +
-                "     AIs know this syntax and will use it too.\n" +
-                "▶  Pulsing card: a participant's avatar glows while they are generating a response.\n" +
-                "▶  👤 Participants button: add or configure AI model cards.\n" +
-                "▶  ●●● Options menu: General Settings, Providers (API keys), Audio & Voice, 🌐 Language.\n" +
-                "▶  🎨 Theme picker: left sidebar, above the 👤 Config button.\n\n" +
-                "Full reference in the 💬 Chat section below.");
+            AddBody(isDE
+                ? "Du bist im allgemeinen Chat — jede aktivierte, online KI sieht deine Nachricht und antwortet der Reihe nach.\n\n" +
+                  "▶  Nachricht eingeben, um eine Unterhaltung mit allen aktiven KIs zu starten.\n" +
+                  "▶  ↺ Erneut senden: alle KIs ohne neue Eingabe nochmals antworten lassen.\n" +
+                  "▶  📨 Privatnachricht: 📨-Taste klicken, Teilnehmer wählen — nur dieser antwortet.\n" +
+                  "     Mehrere parallele Flüsteraufgaben sind bei laufendem Chat möglich.\n" +
+                  "▶  Emotes: /me winkt eingeben oder *Aktion* in Sternchen einschließen — wird hervorgehoben angezeigt.\n" +
+                  "     Die KIs kennen diese Syntax und nutzen sie selbst.\n" +
+                  "▶  Pulsierendes Karte: der Avatar eines Teilnehmers leuchtet, während er eine Antwort generiert.\n" +
+                  "▶  👤 Teilnehmer-Taste: KI-Modellkarten hinzufügen oder konfigurieren.\n" +
+                  "▶  ●●● Optionsmenü: Allgemeine Einstellungen, Anbieter (API-Schlüssel), Audio & Sprache, 🌐 Sprache.\n" +
+                  "▶  🎨 Theme-Auswahl: linke Seitenleiste, über dem 👤 Konfig-Knopf.\n\n" +
+                  "Vollständige Referenz im Abschnitt 💬 Chat unten."
+                : "You are in General Chat — every enabled, online AI sees your message and replies in turn.\n\n" +
+                  "▶  Type a message to start a conversation with all active AIs.\n" +
+                  "▶  ↺ Re-send: ask all AIs to respond one more time without typing.\n" +
+                  "▶  📨 Private message: click the 📨 button, pick one participant — only they reply.\n" +
+                  "     Multiple private tasks can run in parallel while the chat stays live.\n" +
+                  "▶  Emotes: type /me waves, or wrap *action* text in asterisks — shown highlighted.\n" +
+                  "     AIs know this syntax and will use it too.\n" +
+                  "▶  Pulsing card: a participant's avatar glows while they are generating a response.\n" +
+                  "▶  👤 Participants button: add or configure AI model cards.\n" +
+                  "▶  ●●● Options menu: General Settings, Providers (API keys), Audio & Voice, 🌐 Language.\n" +
+                  "▶  🎨 Theme picker: left sidebar, above the 👤 Config button.\n\n" +
+                  "Full reference in the 💬 Chat section below.");
         }
 
         // ══════════════════════════════════════════════════════════════════
@@ -4587,7 +4627,7 @@ public partial class MainWindow : Window
 
         var mapLabel = new TextBlock
         {
-            Text              = "Where to find what",
+            Text              = isDE ? "Wo was zu finden ist" : "Where to find what",
             FontFamily        = new FontFamily("Segoe UI"),
             FontSize          = 14, FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
@@ -4613,7 +4653,29 @@ public partial class MainWindow : Window
         var mapContainer = new StackPanel { Visibility = Visibility.Collapsed };
         root.Children.Add(mapContainer);
 
-        AddQuickMap([
+        AddQuickMap(isDE ? [
+            ("KI-Modell hinzufügen oder konfigurieren",     "👤 Teilnehmer-Taste  →  Modellkarten"),
+            ("Cloud-API-Schlüssel eingeben",                "●●● Optionsmenü  →  Anbieter-Setup"),
+            ("Anzeigename oder Ton ändern",                 "●●● Optionsmenü  →  Allgemeine Einstellungen"),
+            ("UI-Sprache wechseln (Neustart nötig)",        "●●● Optionsmenü  →  🌐 Sprache"),
+            ("App-Theme wechseln",                          "🎨 Theme-Auswahl  (linke Seitenleiste, über 👤 Konfig)"),
+            ("Privataufgabe an eine KI senden",             "🤫 Taste oder  /whisper <Name> <Nachricht>"),
+            ("Emotes oder Aktionen im Chat verwenden",      "/me Aktion  oder  *Aktion* inline"),
+            ("Projekt erstellen oder öffnen",               "📁 Projekte-Tab  →  Neu / Öffnen"),
+            ("KI-Rollen & Orchestrierung festlegen",        "📁 Projekte  →  ⚙ Projekteinstellungen"),
+            ("KI-Autonomie / Kreativitätsstufe einstellen", "📁 Projekte  →  ⚙ Projekteinstellungen  →  Autonomiemodus"),
+            ("Fahrplan & Aufgabenfortschritt verwalten",    "📁 Projekte  →  Fahrplan-Tab"),
+            ("INPUT- / OUTPUT-Dateien verwalten",           "📁 Projekte  →  Dateien-Tab"),
+            ("Charaktere, Welten, Lore aufbauen",           "🌍 Welt-Tab  (Story-/RPG-Projekte)"),
+            ("Claude Code / Cursor / MCP verbinden",        "🔗 Bridge-Tab  →  Server-Modus"),
+            ("Controller-KI über lokale Modelle laufen lassen", "🔗 Bridge-Tab  →  Controller-Modus"),
+            ("Unterhaltung exportieren (HTML / Markdown)",  "📄  Taste im Chat-Kopfbereich"),
+            ("Sprachausgabe ein- / ausschalten",            "🔊/🔇  Taste über dem Senden-Feld"),
+            ("TTS-Stimme einem Teilnehmer zuweisen",        "👤 Teilnehmer  →  ✏ Bearbeiten  →  🔊 TTS-Stimme"),
+            ("Audio-Ausgabegerät oder Lautstärke ändern",   "●●● Optionsmenü  →  🔊 Audio-Setup"),
+            ("TTS-Backend / Stimmen herunterladen",         "●●● Optionsmenü  →  🎙 Spracheinstellungen"),
+            ("Diktat / Spracherkennung aktivieren",         "🎙 Taste links neben dem Chat-Eingabefeld"),
+        ] : [
             ("Add or configure an AI model",           "👤 Participants button  →  model cards"),
             ("Enter cloud API keys",                   "●●● Options menu  →  Providers Setup"),
             ("Change your display name or tone",       "●●● Options menu  →  General Settings"),
@@ -4634,6 +4696,7 @@ public partial class MainWindow : Window
             ("Assign a TTS voice to a participant",     "👤 Participants  →  ✏ Edit on a card  →  🔊 TTS Voice"),
             ("Change audio output device or volume",   "●●● Options menu  →  🔊 Audio Setup"),
             ("Choose TTS backend / download voices",   "●●● Options menu  →  🎙 Voice Settings"),
+            ("Toggle dictation / voice recognition",   "🎙 button left of the chat input field"),
         ], mapContainer);
 
         mapToggleBtn.Click += (_, _) =>
@@ -4652,255 +4715,448 @@ public partial class MainWindow : Window
         var autoBridge   = _currentTab == Tab.Bridge;
 
         // ── Overview: Project vs Bridge ────────────────────────────────────
-        BeginSection("🎯", "Project Mode vs Bridge Mode");
-        AddSubHeader("📁 Project Mode  (default)");
-        AddBody(
-            "For human-led AI collaboration with complete control:\n\n" +
-            "  • You direct the work — type requests, give feedback, decide outcomes.\n" +
-            "  • Multiple AIs respond in parallel to your prompts (all see the chat history).\n" +
-            "  • Send private/whisper tasks to individual AIs for focused work.\n" +
-            "  • Roles & autonomy: assign Coordinator, Critic, Planner, Reasoner roles to AIs.\n" +
-            "  • Roadmap tracking: organize and prioritize tasks, track progress.\n" +
-            "  • World building (RPG/story): characters, factions, locations, lore.\n" +
-            "  • File locking: prevents conflicts when multiple AIs edit the same file in parallel.\n\n" +
-            "Use when: writing with multiple perspectives, creative collaboration, story building, or " +
-            "managed research where you stay in control.");
-        AddSubHeader("🔗 Bridge Mode  (autonomous agents)");
-        AddBody(
-            "For autonomous AI orchestration and external tool integration:\n\n" +
-            "  • Server mode: ClaudetRelay becomes an MCP server. External tools (Claude Code, Cursor, etc.) " +
-            "connect and use your AI agents as tools.\n" +
-            "  • Controller mode: a built-in AI agent orchestrates your local Ollama models autonomously. " +
-            "You give it a task; it figures out what to do, delegates sub-tasks to agents, and assembles results.\n" +
-            "  • MCP tools: agents have tool access (file read/write, roadmap updates, etc.).\n" +
-            "  • No chat history: agents don't see what each other said; they work independently.\n\n" +
-            "Use when: delegating complex tasks to an autonomous coordinator, integrating with external IDEs, " +
-            "or building a tool-using agent loop.");
-        AddSubHeader("Key Difference");
-        AddHighlight(
-            "Project = you orchestrate the AIs  |  Bridge = an AI orchestrates itself (or serves as a tool)");
+        BeginSection("🎯", isDE ? "Projektmodus vs. Bridge-Modus" : "Project Mode vs Bridge Mode");
+        AddSubHeader(isDE ? "📁 Projektmodus  (Standard)" : "📁 Project Mode  (default)");
+        AddBody(isDE
+            ? "Für mensch-geführte KI-Zusammenarbeit mit voller Kontrolle:\n\n" +
+              "  • Du steuerst die Arbeit — Anfragen eingeben, Feedback geben, Ergebnisse entscheiden.\n" +
+              "  • Mehrere KIs antworten parallel auf deine Eingaben (alle sehen den Chatverlauf).\n" +
+              "  • Privataufgaben an einzelne KIs senden für fokussierte Arbeit.\n" +
+              "  • Rollen & Autonomie: Koordinator, Kritiker, Planer, Reasoning-Rollen zuweisen.\n" +
+              "  • Fahrplan-Tracking: Aufgaben organisieren, priorisieren und Fortschritt verfolgen.\n" +
+              "  • World Building (RPG/Story): Charaktere, Fraktionen, Orte, Lore.\n" +
+              "  • Dateisperrung: verhindert Konflikte wenn mehrere KIs parallel dieselbe Datei bearbeiten.\n\n" +
+              "Einsatz bei: Schreiben aus mehreren Perspektiven, kreativer Zusammenarbeit, Story-Aufbau " +
+              "oder gesteuerter Recherche, bei der du die Kontrolle behältst."
+            : "For human-led AI collaboration with complete control:\n\n" +
+              "  • You direct the work — type requests, give feedback, decide outcomes.\n" +
+              "  • Multiple AIs respond in parallel to your prompts (all see the chat history).\n" +
+              "  • Send private/whisper tasks to individual AIs for focused work.\n" +
+              "  • Roles & autonomy: assign Coordinator, Critic, Planner, Reasoner roles to AIs.\n" +
+              "  • Roadmap tracking: organize and prioritize tasks, track progress.\n" +
+              "  • World building (RPG/story): characters, factions, locations, lore.\n" +
+              "  • File locking: prevents conflicts when multiple AIs edit the same file in parallel.\n\n" +
+              "Use when: writing with multiple perspectives, creative collaboration, story building, or " +
+              "managed research where you stay in control.");
+        AddSubHeader(isDE ? "🔗 Bridge-Modus  (autonome Agenten)" : "🔗 Bridge Mode  (autonomous agents)");
+        AddBody(isDE
+            ? "Für autonome KI-Orchestrierung und externe Tool-Integration:\n\n" +
+              "  • Server-Modus: ClaudetRelay wird ein MCP-Server. Externe Tools (Claude Code, Cursor usw.) " +
+              "verbinden sich und nutzen deine KI-Agenten als Tools.\n" +
+              "  • Controller-Modus: eine integrierte KI orchestriert deine lokalen Ollama-Modelle autonom. " +
+              "Du gibst eine Aufgabe; sie entscheidet was zu tun ist, delegiert Teilaufgaben und fasst Ergebnisse zusammen.\n" +
+              "  • MCP-Tools: Agenten haben Tool-Zugriff (Dateien lesen/schreiben, Fahrplan aktualisieren usw.).\n" +
+              "  • Kein Chatverlauf: Agenten sehen nicht was die anderen gesagt haben; sie arbeiten unabhängig.\n\n" +
+              "Einsatz bei: Delegation komplexer Aufgaben an einen autonomen Koordinator, Integration mit " +
+              "externen IDEs oder Aufbau einer tool-nutzenden Agenten-Schleife."
+            : "For autonomous AI orchestration and external tool integration:\n\n" +
+              "  • Server mode: ClaudetRelay becomes an MCP server. External tools (Claude Code, Cursor, etc.) " +
+              "connect and use your AI agents as tools.\n" +
+              "  • Controller mode: a built-in AI agent orchestrates your local Ollama models autonomously. " +
+              "You give it a task; it figures out what to do, delegates sub-tasks to agents, and assembles results.\n" +
+              "  • MCP tools: agents have tool access (file read/write, roadmap updates, etc.).\n" +
+              "  • No chat history: agents don't see what each other said; they work independently.\n\n" +
+              "Use when: delegating complex tasks to an autonomous coordinator, integrating with external IDEs, " +
+              "or building a tool-using agent loop.");
+        AddSubHeader(isDE ? "Wesentlicher Unterschied" : "Key Difference");
+        AddHighlight(isDE
+            ? "Projekt = du orchestrierst die KIs  |  Bridge = eine KI orchestriert sich selbst (oder dient als Tool)"
+            : "Project = you orchestrate the AIs  |  Bridge = an AI orchestrates itself (or serves as a tool)");
 
         // ── 💬 Chat ───────────────────────────────────────────────────────
-        BeginSection("💬", "Chat  (main area)", autoChat);
-        AddBody(
-            "The central panel where everything happens. Type a message and all enabled, online " +
-            "AIs respond in turn — they each read what the others said, so it's a real multi-AI " +
-            "group conversation.");
-        AddSubHeader("Controls in the chat area:");
-        AddBody(
-            "• Bubble-width slider (bottom left) — drag to widen or narrow message bubbles.\n" +
-            "• 📄 Export button (chat header) — save the conversation as HTML or Markdown.\n" +
-            "• 🗑 Clear — wipes the chat and closes the current project.\n" +
-            "• AI Respond button — forces one more AI response round without typing anything.",
+        BeginSection("💬", isDE ? "Chat  (Hauptbereich)" : "Chat  (main area)", autoChat);
+        AddBody(isDE
+            ? "Das zentrale Panel, in dem alles passiert. Nachricht eingeben und alle aktivierten, online KIs " +
+              "antworten der Reihe nach — sie lesen jeweils was die anderen gesagt haben, es ist also eine echte " +
+              "Gruppen-Unterhaltung mit mehreren KIs."
+            : "The central panel where everything happens. Type a message and all enabled, online " +
+              "AIs respond in turn — they each read what the others said, so it's a real multi-AI " +
+              "group conversation.");
+        AddSubHeader(isDE ? "Bedienelemente im Chat-Bereich:" : "Controls in the chat area:");
+        AddBody(isDE
+            ? "• Blasenbreiten-Schieberegler (unten links) — ziehen zum Breiter- oder Schmaler-machen der Nachrichten-Blasen.\n" +
+              "• 📄 Exportieren-Taste (Chat-Kopf) — Unterhaltung als HTML oder Markdown speichern.\n" +
+              "• 🗑 Leeren — löscht den Chat und schließt das aktuelle Projekt.\n" +
+              "• KI antworten-Taste — erzwingt eine weitere KI-Antwortrunde ohne neue Eingabe."
+            : "• Bubble-width slider (bottom left) — drag to widen or narrow message bubbles.\n" +
+              "• 📄 Export button (chat header) — save the conversation as HTML or Markdown.\n" +
+              "• 🗑 Clear — wipes the chat and closes the current project.\n" +
+              "• AI Respond button — forces one more AI response round without typing anything.",
             indentLeft: 0);
-        AddSubHeader("Buttons above the Send field");
-        AddBody(
-            "Three small buttons sit above the Send button:\n" +
-            "  📨 Private message  —  see below.\n" +
-            "  ↺ Re-send  —  asks all AIs to respond again without a new message.\n" +
-            "  🔊/🔇 Voice on/off  —  toggles TTS playback.\n" +
-            "While audio is playing, ↺ and 🔊 repurpose automatically:\n" +
-            "  ↺ → ⏭ Skip Current  and  🔊 → ⏹ Stop All\n" +
-            "Assign a voice per participant: 👤 Participants → ✏ Edit on a card → TTS Voice section.");
-        AddSubHeader("📨  Private message  /  Whisper");
-        AddBody(
-            "Lets you direct a message to exactly one participant — no one else responds to it.\n\n" +
-            "Two ways to whisper:\n\n" +
-            "  Via button:  1. Click 🤫 — a menu lists every online participant.\n" +
-            "               2. Pick one — a coloured chip appears above the input field.\n" +
-            "               3. Type your message and send.  Only that participant replies.\n\n" +
-            "  Via syntax:  Type  /whisper <name> <message>  to whisper directly.\n" +
-            "               Example:  /whisper Gemma what do you think?\n\n" +
-            "When you whisper, everyone sees a status message:\n" +
-            "  \"🤫 You whisper something to Gemma\"\n" +
-            "But only Gemma can read your actual message.  Other participants see the whisper happened\n" +
-            "but not what you said — great for secret conversations or keeping other AIs guessing!\n\n" +
-            "The chat stays live: you can send another private task (or a normal message)\n" +
-            "while the first is still running — parallel whispers are fully supported.\n\n" +
-            "Click 🤫 again (or the × on the chip) to cancel.");
-        AddHighlight(
-            "✨ Tip:  Models can whisper to each other too — try it and watch them have secret conversations!");
-        AddSubHeader("🎭  Emotes  &  actions");
-        AddBody(
-            "Both you and the AIs can express actions inline — they appear italic and highlighted.\n\n" +
-            "  /me waves            →  Robert waves  (entire message as action)\n" +
-            "  /me waves* Hello!    →  Robert waves  (action)  +  Hello!  (normal)\n" +
-            "  That's great! *grins*  →  That's great!  (normal)  +  grins  (action)\n\n" +
-            "Rules:\n" +
-            "  • Start a message with /me to open an action.  A bare * closes it and switches\n" +
-            "    back to normal speech.  Further *…* pairs toggle in and out.\n" +
-            "  • Anywhere in a message, wrap text in *asterisks* to highlight it as an action.\n" +
-            "  • Raw text (with * markers) is stored in history — AIs read and understand the syntax.\n" +
-            "    The formatting is display-only; copy still gives you the clean original text.");
+        AddSubHeader(isDE ? "Tasten über dem Senden-Feld" : "Buttons above the Send field");
+        AddBody(isDE
+            ? "Links neben dem Eingabefeld:\n" +
+              "  🎙 Diktat  —  Spracherkennung ein-/ausschalten.\n" +
+              "  🤫 Privatnachricht  —  siehe unten.\n" +
+              "Rechts über dem Senden-Knopf:\n" +
+              "  ↺ Erneut senden  —  alle KIs nochmals ohne neue Nachricht antworten lassen.\n" +
+              "  🔊/🔇 Sprache ein/aus  —  TTS-Wiedergabe umschalten.\n" +
+              "Während Audio läuft, ändern ↺ und 🔊 ihren Zweck automatisch:\n" +
+              "  ↺ → ⏭ Aktuellen überspringen  und  🔊 → ⏹ Alle stoppen\n" +
+              "Stimme pro Teilnehmer zuweisen: 👤 Teilnehmer → ✏ Bearbeiten → TTS-Stimme-Bereich."
+            : "Left of the input field:\n" +
+              "  🎙 Dictation  —  toggle voice recognition on/off.\n" +
+              "  🤫 Private message  —  see below.\n" +
+              "Right above the Send button:\n" +
+              "  ↺ Re-send  —  asks all AIs to respond again without a new message.\n" +
+              "  🔊/🔇 Voice on/off  —  toggles TTS playback.\n" +
+              "While audio is playing, ↺ and 🔊 repurpose automatically:\n" +
+              "  ↺ → ⏭ Skip Current  and  🔊 → ⏹ Stop All\n" +
+              "Assign a voice per participant: 👤 Participants → ✏ Edit on a card → TTS Voice section.");
+        AddSubHeader(isDE ? "📨  Privatnachricht  /  Flüstern" : "📨  Private message  /  Whisper");
+        AddBody(isDE
+            ? "Ermöglicht es, eine Nachricht an genau einen Teilnehmer zu richten — niemand sonst antwortet darauf.\n\n" +
+              "Zwei Wege zum Flüstern:\n\n" +
+              "  Per Taste:   1. 🤫 klicken — ein Menü listet alle online-Teilnehmer.\n" +
+              "               2. Einen wählen — ein farbiger Chip erscheint über dem Eingabefeld.\n" +
+              "               3. Nachricht eingeben und senden. Nur dieser Teilnehmer antwortet.\n\n" +
+              "  Per Syntax:  /whisper <Name> <Nachricht> eingeben.\n" +
+              "               Beispiel:  /whisper Gemma was denkst du?\n\n" +
+              "Beim Flüstern sehen alle eine Statusmeldung:\n" +
+              "  \"🤫 Du flüsterst Gemma etwas zu\"\n" +
+              "Aber nur Gemma kann deine eigentliche Nachricht lesen. Andere sehen, dass geflüstert wurde,\n" +
+              "aber nicht was gesagt wurde — toll für geheime Gespräche!\n\n" +
+              "Der Chat bleibt aktiv: weitere Privataufgaben (oder normale Nachrichten) können während\n" +
+              "der ersten noch läuft gesendet werden — parallele Flüstergespräche werden vollständig unterstützt.\n\n" +
+              "Nochmals 🤫 klicken (oder × am Chip) zum Abbrechen."
+            : "Lets you direct a message to exactly one participant — no one else responds to it.\n\n" +
+              "Two ways to whisper:\n\n" +
+              "  Via button:  1. Click 🤫 — a menu lists every online participant.\n" +
+              "               2. Pick one — a coloured chip appears above the input field.\n" +
+              "               3. Type your message and send.  Only that participant replies.\n\n" +
+              "  Via syntax:  Type  /whisper <name> <message>  to whisper directly.\n" +
+              "               Example:  /whisper Gemma what do you think?\n\n" +
+              "When you whisper, everyone sees a status message:\n" +
+              "  \"🤫 You whisper something to Gemma\"\n" +
+              "But only Gemma can read your actual message.  Other participants see the whisper happened\n" +
+              "but not what you said — great for secret conversations or keeping other AIs guessing!\n\n" +
+              "The chat stays live: you can send another private task (or a normal message)\n" +
+              "while the first is still running — parallel whispers are fully supported.\n\n" +
+              "Click 🤫 again (or the × on the chip) to cancel.");
+        AddHighlight(isDE
+            ? "✨ Tipp:  Modelle können auch miteinander flüstern — probiere es aus und beobachte ihre Geheimdialoge!"
+            : "✨ Tip:  Models can whisper to each other too — try it and watch them have secret conversations!");
+        AddSubHeader(isDE ? "🎭  Emotes  &  Aktionen" : "🎭  Emotes  &  actions");
+        AddBody(isDE
+            ? "Du und die KIs können Aktionen inline ausdrücken — sie erscheinen kursiv und hervorgehoben.\n\n" +
+              "  /me winkt            →  Robert winkt  (gesamte Nachricht als Aktion)\n" +
+              "  /me winkt* Hallo!    →  Robert winkt  (Aktion)  +  Hallo!  (normal)\n" +
+              "  Super! *grinst*      →  Super!  (normal)  +  grinst  (Aktion)\n\n" +
+              "Regeln:\n" +
+              "  • Nachricht mit /me beginnen, um eine Aktion zu starten. Ein einzelnes * schließt sie\n" +
+              "    und wechselt zurück zur normalen Sprache. Weitere *…*-Paare schalten ein und aus.\n" +
+              "  • Überall in einer Nachricht Text in *Sternchen* einschließen, um ihn als Aktion hervorzuheben.\n" +
+              "  • Rohtext (mit * -Markierungen) wird im Verlauf gespeichert — KIs lesen und verstehen die Syntax.\n" +
+              "    Die Formatierung ist nur Anzeige; Kopieren gibt den sauberen Originaltext."
+            : "Both you and the AIs can express actions inline — they appear italic and highlighted.\n\n" +
+              "  /me waves            →  Robert waves  (entire message as action)\n" +
+              "  /me waves* Hello!    →  Robert waves  (action)  +  Hello!  (normal)\n" +
+              "  That's great! *grins*  →  That's great!  (normal)  +  grins  (action)\n\n" +
+              "Rules:\n" +
+              "  • Start a message with /me to open an action.  A bare * closes it and switches\n" +
+              "    back to normal speech.  Further *…* pairs toggle in and out.\n" +
+              "  • Anywhere in a message, wrap text in *asterisks* to highlight it as an action.\n" +
+              "  • Raw text (with * markers) is stored in history — AIs read and understand the syntax.\n" +
+              "    The formatting is display-only; copy still gives you the clean original text.");
 
         // ── 👤 Participants & Settings ────────────────────────────────────
-        BeginSection("👤", "Participants  &  Settings");
+        BeginSection("👤", isDE ? "Teilnehmer  &  Einstellungen" : "Participants  &  Settings");
 
-        AddSubHeader("Left sidebar — participant cards");
-        AddBody("Each card = one AI model. Status dot: green = online, grey = offline. " +
-                "Click a card to enable/disable that AI for the current chat. " +
-                "Open a card to configure its model, nickname, voice, rate limit, and role.\n\n" +
-                "While a model is generating a response its avatar glows with a soft pulsing animation — " +
-                "useful for seeing at a glance who is still working when multiple AIs respond in parallel.");
+        AddSubHeader(isDE ? "Linke Seitenleiste — Teilnehmerkarten" : "Left sidebar — participant cards");
+        AddBody(isDE
+            ? "Jede Karte = ein KI-Modell. Statuspunkt: grün = online, grau = offline. " +
+              "Karte klicken zum Aktivieren/Deaktivieren für den aktuellen Chat. " +
+              "Karte öffnen zum Konfigurieren von Modell, Spitzname, Stimme, Rate-Limit und Rolle.\n\n" +
+              "Während ein Modell eine Antwort generiert, leuchtet sein Avatar sanft pulsierend — " +
+              "praktisch, um auf einen Blick zu sehen, wer noch arbeitet, wenn mehrere KIs parallel antworten."
+            : "Each card = one AI model. Status dot: green = online, grey = offline. " +
+              "Click a card to enable/disable that AI for the current chat. " +
+              "Open a card to configure its model, nickname, voice, rate limit, and role.\n\n" +
+              "While a model is generating a response its avatar glows with a soft pulsing animation — " +
+              "useful for seeing at a glance who is still working when multiple AIs respond in parallel.");
 
-        AddSubHeader("🎨 Theme picker  (left sidebar, below participant cards)");
-        AddBody("A drop-down that switches the whole app theme instantly. " +
-                "Themes are .oxsuit files in the Themes/ folder next to the .exe — " +
-                "you can add your own.");
+        AddSubHeader(isDE ? "🎨 Theme-Auswahl  (linke Seitenleiste, unter den Teilnehmerkarten)" : "🎨 Theme picker  (left sidebar, below participant cards)");
+        AddBody(isDE
+            ? "Eine Dropdown-Liste, die das gesamte App-Theme sofort wechselt. " +
+              "Themes sind .oxsuit-Dateien im Themes/-Ordner neben der .exe — eigene können hinzugefügt werden."
+            : "A drop-down that switches the whole app theme instantly. " +
+              "Themes are .oxsuit files in the Themes/ folder next to the .exe — " +
+              "you can add your own.");
 
-        AddSubHeader("●●● Options menu  →  General Settings");
-        AddBody("Your display name, response tone slider, UI zoom, and the two personality toggles:\n" +
-                "  🏴‍☠️ Buccaneer — all AIs speak in pirate dialect  (tone slider = intensity).\n" +
-                "  🎭 Mockingbird — all AIs go full Shakespearean verse  (slider = chaos ↔ warmth).\n" +
-                "Language is a separate ●●● menu entry — see 🌐 Language below.");
+        AddSubHeader(isDE ? "●●● Optionsmenü  →  Allgemeine Einstellungen" : "●●● Options menu  →  General Settings");
+        AddBody(isDE
+            ? "Dein Anzeigename, Ton-Schieberegler, UI-Zoom und die zwei Persönlichkeitsschalter:\n" +
+              "  🏴‍☠️ Freibeuter — alle KIs sprechen im Piratendialekt  (Ton-Schieberegler = Intensität).\n" +
+              "  🎭 Spottdrossel — alle KIs sprechen in shakespeareschen Versen  (Schieberegler = Chaos ↔ Wärme).\n" +
+              "Sprache ist ein separater ●●● Menüeintrag — siehe 🌐 Sprache."
+            : "Your display name, response tone slider, UI zoom, and the two personality toggles:\n" +
+              "  🏴‍☠️ Buccaneer — all AIs speak in pirate dialect  (tone slider = intensity).\n" +
+              "  🎭 Mockingbird — all AIs go full Shakespearean verse  (slider = chaos ↔ warmth).\n" +
+              "Language is a separate ●●● menu entry — see 🌐 Language below.");
 
-        AddSubHeader("●●● Options menu  →  Providers Setup");
-        AddBody("Enter API keys for Anthropic (Claude), Google AI (Gemini), Groq, OpenRouter, " +
-                "xAI Grok, Mistral, OpenAI ChatGPT, and others. Keys are tested with a live call " +
-                "so you know immediately if something is wrong.");
-        AddHighlight(
-            "🔒  API keys are stored exclusively in the Windows Credential Manager — " +
-            "never written to any file on disk. ClaudetRelay reads them directly from " +
-            "Windows and passes them only to the respective provider's API.");
+        AddSubHeader(isDE ? "●●● Optionsmenü  →  Anbieter-Setup" : "●●● Options menu  →  Providers Setup");
+        AddBody(isDE
+            ? "API-Schlüssel für Anthropic (Claude), Google AI (Gemini), Groq, OpenRouter, " +
+              "xAI Grok, Mistral, OpenAI ChatGPT und andere eingeben. Schlüssel werden mit einem Live-Aufruf " +
+              "getestet, damit sofort ersichtlich ist, wenn etwas nicht stimmt."
+            : "Enter API keys for Anthropic (Claude), Google AI (Gemini), Groq, OpenRouter, " +
+              "xAI Grok, Mistral, OpenAI ChatGPT, and others. Keys are tested with a live call " +
+              "so you know immediately if something is wrong.");
+        AddHighlight(isDE
+            ? "🔒  API-Schlüssel werden ausschließlich im Windows Credential Manager gespeichert — " +
+              "niemals in eine Datei auf der Festplatte geschrieben. ClaudetRelay liest sie direkt aus " +
+              "Windows und gibt sie nur an die jeweilige Anbieter-API weiter."
+            : "🔒  API keys are stored exclusively in the Windows Credential Manager — " +
+              "never written to any file on disk. ClaudetRelay reads them directly from " +
+              "Windows and passes them only to the respective provider's API.");
 
         // ── 📁 Projects ───────────────────────────────────────────────────
-        BeginSection("📁", "Projects tab", autoProjects);
-        AddBody("Each project is a folder on your PC. AIs can read and write files inside it " +
-                "if they have write access. The Projects tab lists all known projects; click one " +
-                "to open it.");
+        BeginSection("📁", isDE ? "Projekte-Tab" : "Projects tab", autoProjects);
+        AddBody(isDE
+            ? "Jedes Projekt ist ein Ordner auf deinem PC. KIs können Dateien darin lesen und schreiben, " +
+              "wenn sie Schreibzugriff haben. Der Projekte-Tab listet alle bekannten Projekte; klicken zum Öffnen."
+            : "Each project is a folder on your PC. AIs can read and write files inside it " +
+              "if they have write access. The Projects tab lists all known projects; click one " +
+              "to open it.");
 
-        AddSubHeader("Roadmap sub-tab");
-        AddBody("Visual milestone & task tracker. AIs with write access can create tasks, " +
-                "update progress percentages, and mark items done — either by following the " +
-                "roadmap themselves or when asked.");
+        AddSubHeader(isDE ? "Fahrplan-Tab" : "Roadmap sub-tab");
+        AddBody(isDE
+            ? "Visueller Meilenstein- & Aufgaben-Tracker. KIs mit Schreibzugriff können Aufgaben erstellen, " +
+              "Fortschrittsprozente aktualisieren und Einträge als erledigt markieren — eigenständig oder auf Anfrage."
+            : "Visual milestone & task tracker. AIs with write access can create tasks, " +
+              "update progress percentages, and mark items done — either by following the " +
+              "roadmap themselves or when asked.");
 
-        AddSubHeader("Files sub-tab");
-        AddBody("Three folders inside every project:\n\n" +
-                "  INPUT/ — files you place here for AIs to read.\n" +
-                "  Drop in source documents, images, reference material, or finished work files\n" +
-                "  the models still need to reference but must not change.\n" +
-                "  Tip: create an INPUT/finished/ subfolder to keep completed deliverables separate\n" +
-                "  from raw source material while keeping both visible to the AIs.\n\n" +
-                "  OUTPUT/ — files AIs create using the <output file=\"...\"> tag.\n" +
-                "  Once you're happy with a file in OUTPUT/, move it to INPUT/ to preserve it and\n" +
-                "  let the AI team treat it as settled reference material.\n\n" +
-                "  PROJECTPLAN/ — plans, specs, decisions and task lists AIs write via <projectplan>.");
-        AddHighlight(
-                "🔒  INPUT is protected by architecture, not by OS file permissions.\n" +
-                "Models have write tags only for OUTPUT/ and PROJECTPLAN/ — there is no <input> write tag,\n" +
-                "so no model response can touch INPUT/ through ClaudetRelay's normal channels.\n" +
-                "The folder is not marked read-only on disk, so you can freely add or move files there yourself.");
+        AddSubHeader(isDE ? "Dateien-Tab" : "Files sub-tab");
+        AddBody(isDE
+            ? "Drei Ordner in jedem Projekt:\n\n" +
+              "  INPUT/ — Dateien, die du hier für KIs zum Lesen ablegst.\n" +
+              "  Quelldokumente, Bilder, Referenzmaterial oder fertige Arbeitsdateien einwerfen,\n" +
+              "  auf die die Modelle noch verweisen, aber nicht ändern sollen.\n" +
+              "  Tipp: INPUT/finished/-Unterordner erstellen, um fertige Ergebnisse vom Rohmaterial\n" +
+              "  zu trennen, während beides für KIs sichtbar bleibt.\n\n" +
+              "  OUTPUT/ — Dateien, die KIs mit dem <output file=\"...\">-Tag erstellen.\n" +
+              "  Wenn eine OUTPUT/-Datei fertig ist, nach INPUT/ verschieben um sie zu sichern\n" +
+              "  und das KI-Team sie als abgeschlossenes Referenzmaterial behandeln zu lassen.\n\n" +
+              "  PROJECTPLAN/ — Pläne, Spezifikationen, Entscheidungen und Aufgabenlisten die KIs via <projectplan> schreiben."
+            : "Three folders inside every project:\n\n" +
+              "  INPUT/ — files you place here for AIs to read.\n" +
+              "  Drop in source documents, images, reference material, or finished work files\n" +
+              "  the models still need to reference but must not change.\n" +
+              "  Tip: create an INPUT/finished/ subfolder to keep completed deliverables separate\n" +
+              "  from raw source material while keeping both visible to the AIs.\n\n" +
+              "  OUTPUT/ — files AIs create using the <output file=\"...\"> tag.\n" +
+              "  Once you're happy with a file in OUTPUT/, move it to INPUT/ to preserve it and\n" +
+              "  let the AI team treat it as settled reference material.\n\n" +
+              "  PROJECTPLAN/ — plans, specs, decisions and task lists AIs write via <projectplan>.");
+        AddHighlight(isDE
+            ? "🔒  INPUT ist durch Architektur geschützt, nicht durch OS-Dateiberechtigungen.\n" +
+              "Modelle haben Schreib-Tags nur für OUTPUT/ und PROJECTPLAN/ — es gibt kein <input>-Schreib-Tag,\n" +
+              "daher kann keine Modellantwort INPUT/ über ClaudetRelays normale Kanäle berühren.\n" +
+              "Der Ordner ist nicht als schreibgeschützt auf der Festplatte markiert, du kannst also frei Dateien hinzufügen oder verschieben."
+            : "🔒  INPUT is protected by architecture, not by OS file permissions.\n" +
+              "Models have write tags only for OUTPUT/ and PROJECTPLAN/ — there is no <input> write tag,\n" +
+              "so no model response can touch INPUT/ through ClaudetRelay's normal channels.\n" +
+              "The folder is not marked read-only on disk, so you can freely add or move files there yourself.");
 
-        AddSubHeader("⚙ Project Settings  (gear icon inside an open project)");
-        AddBody(
-            "• Orchestration Mode — who speaks when:\n" +
-            "    All Respond / Coordinator First / Coordinator Summarizes / Coordinator Only\n" +
-            "• Participant Roles — assign Coordinator, Reasoner, Critic, Planner, Researcher, " +
-            "and Write Access per AI. Open ✏ Edit for a full character editor per participant.\n" +
-            "• Autonomy Mode — 5-step slider:\n" +
-            "    Assistant (never acts without approval) → Cooperative → Directed Creativity → " +
-            "Creative → Creativity Chaos! (just say 'Go').\n" +
-            "• Response Language — force all AI replies into a specific language.\n" +
-            "• Max Dialog Depth & Response Length defaults.");
+        AddSubHeader(isDE ? "⚙ Projekteinstellungen  (Zahnrad-Symbol in einem geöffneten Projekt)" : "⚙ Project Settings  (gear icon inside an open project)");
+        AddBody(isDE
+            ? "• Orchestrierungsmodus — wer wann spricht:\n" +
+              "    Alle antworten / Koordinator zuerst / Koordinator fasst zusammen / Nur Koordinator\n" +
+              "• Teilnehmerrollen — Koordinator, Reasoner, Kritiker, Planer, Forscher und Schreibzugriff pro KI vergeben. " +
+              "✏ Bearbeiten öffnen für vollständigen Charaktereditor pro Teilnehmer.\n" +
+              "• Autonomiemodus — 5-Stufen-Schieberegler:\n" +
+              "    Assistent (handelt nie ohne Genehmigung) → Kooperativ → Geleitete Kreativität → " +
+              "Kreativ → Kreativitätschaos! (einfach 'Los' sagen).\n" +
+              "• Antwortsprache — alle KI-Antworten in eine bestimmte Sprache erzwingen.\n" +
+              "• Standard-Dialogtiefe & Antwortlänge."
+            : "• Orchestration Mode — who speaks when:\n" +
+              "    All Respond / Coordinator First / Coordinator Summarizes / Coordinator Only\n" +
+              "• Participant Roles — assign Coordinator, Reasoner, Critic, Planner, Researcher, " +
+              "and Write Access per AI. Open ✏ Edit for a full character editor per participant.\n" +
+              "• Autonomy Mode — 5-step slider:\n" +
+              "    Assistant (never acts without approval) → Cooperative → Directed Creativity → " +
+              "Creative → Creativity Chaos! (just say 'Go').\n" +
+              "• Response Language — force all AI replies into a specific language.\n" +
+              "• Max Dialog Depth & Response Length defaults.");
 
         // ── 🌍 World Builder ──────────────────────────────────────────────
-        BeginSection("🌍", "World Builder  (story / RPG projects)");
-        AddBody("Define persistent world entities that AIs always stay consistent with:\n" +
-                "  Characters — profiles, roles, arcs, voice, stats.\n" +
-                "  Factions — goals, leaders, territory, member lists.\n" +
-                "  Locations — type, atmosphere, significance, faction ties.\n" +
-                "  Lore — history, myths, magic rules, knowledge tags.");
-        AddSubHeader("Boards");
-        AddBody("Each Board is a visual canvas where you place entity cards and draw relationships " +
-                "between them. Open a Board to edit; multiple boards can be open at once. " +
-                "Board Settings lets you choose which entity types appear and what symbol the tile uses.");
-        AddHighlight("💡  Boards can be placed on Boards — drag a Board tile onto another Board's canvas " +
-                     "to create nested overviews. Handy for continent → region → city drill-downs, " +
-                     "or faction → sub-faction hierarchies.");
+        BeginSection("🌍", isDE ? "World Builder  (Story-/RPG-Projekte)" : "World Builder  (story / RPG projects)");
+        AddBody(isDE
+            ? "Persistente Weltelemente definieren, mit denen KIs immer konsistent bleiben:\n" +
+              "  Charaktere — Profile, Rollen, Bögen, Stimme, Werte.\n" +
+              "  Fraktionen — Ziele, Anführer, Territorium, Mitgliederlisten.\n" +
+              "  Orte — Typ, Atmosphäre, Bedeutung, Fraktionsverbindungen.\n" +
+              "  Lore — Geschichte, Mythen, Magie-Regeln, Wissens-Tags."
+            : "Define persistent world entities that AIs always stay consistent with:\n" +
+              "  Characters — profiles, roles, arcs, voice, stats.\n" +
+              "  Factions — goals, leaders, territory, member lists.\n" +
+              "  Locations — type, atmosphere, significance, faction ties.\n" +
+              "  Lore — history, myths, magic rules, knowledge tags.");
+        AddSubHeader(isDE ? "Boards (Pinnwände)" : "Boards");
+        AddBody(isDE
+            ? "Jedes Board ist eine visuelle Leinwand, auf der du Entitätskarten platzierst und Beziehungen " +
+              "zwischen ihnen einzeichnest. Board öffnen zum Bearbeiten; mehrere Boards können gleichzeitig geöffnet sein. " +
+              "Board-Einstellungen erlauben die Wahl, welche Entitätstypen erscheinen und welches Symbol die Kachel verwendet."
+            : "Each Board is a visual canvas where you place entity cards and draw relationships " +
+              "between them. Open a Board to edit; multiple boards can be open at once. " +
+              "Board Settings lets you choose which entity types appear and what symbol the tile uses.");
+        AddHighlight(isDE
+            ? "💡  Boards können auf Boards platziert werden — eine Board-Kachel auf die Leinwand eines anderen Boards ziehen, " +
+              "um verschachtelte Übersichten zu erstellen. Praktisch für Kontinent → Region → Stadt-Drill-downs " +
+              "oder Fraktion → Unterfraktion-Hierarchien."
+            : "💡  Boards can be placed on Boards — drag a Board tile onto another Board's canvas " +
+              "to create nested overviews. Handy for continent → region → city drill-downs, " +
+              "or faction → sub-faction hierarchies.");
 
-        AddSubHeader("Board canvas controls");
-        AddBody(
-            "  🖱 Left-drag a card / pin / frame  →  move it\n" +
-            "  🖱 Left-drag on empty space  →  rubber-band multi-select (draws a selection box)\n" +
-            "  🖱 Left-click on empty space  →  deselect all\n" +
-            "  🖱 Right-drag on empty space  →  pan / scroll the canvas\n" +
-            "  🖱 Right-click on empty space  →  add context menu (entity, text, pin, frame)\n" +
-            "  🖱 Right-click a card  →  remove from board / edit\n" +
-            "  Shift-click or Ctrl-click  →  add card to current selection\n" +
-            "  Drag any card in a selection  →  moves all selected cards together\n" +
-            "  Del key  →  remove selected card(s) from board (never deletes from library)\n" +
-            "  Double-click a board pin  →  open that board in a new window\n" +
-            "  Resize grip (bottom-right corner)  →  resize a card, pin, or frame\n" +
-            "  Add Relation toolbar button  →  click first object, then second to draw a line\n" +
-            "       Works between any combination of cards, frames, and board pins.");
+        AddSubHeader(isDE ? "Board-Steuerung" : "Board canvas controls");
+        AddBody(isDE
+            ? "  🖱 Linksziehen auf Karte / Pin / Rahmen  →  verschieben\n" +
+              "  🖱 Linksziehen auf freier Fläche  →  Gummiband-Mehrfachauswahl (Auswahlbox)\n" +
+              "  🖱 Linksklick auf freie Fläche  →  Auswahl aufheben\n" +
+              "  🖱 Rechtsziehen auf freier Fläche  →  Leinwand schwenken / scrollen\n" +
+              "  🖱 Rechtsklick auf freie Fläche  →  Hinzufügen-Kontextmenü (Entität, Text, Pin, Rahmen)\n" +
+              "  🖱 Rechtsklick auf Karte  →  vom Board entfernen / bearbeiten\n" +
+              "  Shift-Klick oder Strg-Klick  →  Karte zur aktuellen Auswahl hinzufügen\n" +
+              "  Beliebige Karte in Auswahl ziehen  →  verschiebt alle ausgewählten Karten zusammen\n" +
+              "  Entf-Taste  →  ausgewählte Karte(n) vom Board entfernen (löscht nie aus der Bibliothek)\n" +
+              "  Doppelklick auf Board-Pin  →  dieses Board in neuem Fenster öffnen\n" +
+              "  Größenänderungs-Griff (unten rechts)  →  Karte, Pin oder Rahmen skalieren\n" +
+              "  Verbindung-hinzufügen-Taste  →  erstes Objekt klicken, dann zweites, um eine Linie zu zeichnen\n" +
+              "       Funktioniert zwischen beliebigen Kombinationen aus Karten, Rahmen und Board-Pins."
+            : "  🖱 Left-drag a card / pin / frame  →  move it\n" +
+              "  🖱 Left-drag on empty space  →  rubber-band multi-select (draws a selection box)\n" +
+              "  🖱 Left-click on empty space  →  deselect all\n" +
+              "  🖱 Right-drag on empty space  →  pan / scroll the canvas\n" +
+              "  🖱 Right-click on empty space  →  add context menu (entity, text, pin, frame)\n" +
+              "  🖱 Right-click a card  →  remove from board / edit\n" +
+              "  Shift-click or Ctrl-click  →  add card to current selection\n" +
+              "  Drag any card in a selection  →  moves all selected cards together\n" +
+              "  Del key  →  remove selected card(s) from board (never deletes from library)\n" +
+              "  Double-click a board pin  →  open that board in a new window\n" +
+              "  Resize grip (bottom-right corner)  →  resize a card, pin, or frame\n" +
+              "  Add Relation toolbar button  →  click first object, then second to draw a line\n" +
+              "       Works between any combination of cards, frames, and board pins.");
 
         // ── 🔗 Bridge ─────────────────────────────────────────────────────
-        BeginSection("🔗", "Bridge tab  (MCP Agent Bridge)", autoBridge);
+        BeginSection("🔗", isDE ? "Bridge-Tab  (MCP-Agenten-Bridge)" : "Bridge tab  (MCP Agent Bridge)", autoBridge);
 
-        AddSubHeader("Server mode  (▶ Server sub-tab)");
-        AddBody("ClaudetRelay starts a local MCP server. External tools — Claude Code, Cursor, " +
-                "or any MCP-compatible client — connect to it and can call your AI participants " +
-                "as tools, read and write project files, update the roadmap, and more. " +
-                "Configure the port, load a project for the bridge, and watch the activity log here.");
+        AddSubHeader(isDE ? "Server-Modus  (▶ Server-Tab)" : "Server mode  (▶ Server sub-tab)");
+        AddBody(isDE
+            ? "ClaudetRelay startet einen lokalen MCP-Server. Externe Tools — Claude Code, Cursor " +
+              "oder ein beliebiger MCP-kompatibler Client — verbinden sich und können deine KI-Teilnehmer " +
+              "als Tools aufrufen, Projektdateien lesen und schreiben, den Fahrplan aktualisieren und mehr. " +
+              "Port konfigurieren, Projekt für die Bridge laden und das Aktivitätsprotokoll hier beobachten."
+            : "ClaudetRelay starts a local MCP server. External tools — Claude Code, Cursor, " +
+              "or any MCP-compatible client — connect to it and can call your AI participants " +
+              "as tools, read and write project files, update the roadmap, and more. " +
+              "Configure the port, load a project for the bridge, and watch the activity log here.");
 
-        AddSubHeader("Controller mode  (🤖 Chat sub-tab)");
-        AddBody("A built-in controller AI orchestrates your local Ollama agents. " +
-                "Type a task; the controller AI delegates sub-tasks to the configured agents " +
-                "and assembles the results — no external client needed.");
+        AddSubHeader(isDE ? "Controller-Modus  (🤖 Chat-Tab)" : "Controller mode  (🤖 Chat sub-tab)");
+        AddBody(isDE
+            ? "Eine integrierte Controller-KI orchestriert deine lokalen Ollama-Agenten. " +
+              "Aufgabe eingeben; die Controller-KI delegiert Teilaufgaben an die konfigurierten Agenten " +
+              "und fasst die Ergebnisse zusammen — kein externer Client nötig."
+            : "A built-in controller AI orchestrates your local Ollama agents. " +
+              "Type a task; the controller AI delegates sub-tasks to the configured agents " +
+              "and assembles the results — no external client needed.");
 
-        AddSubHeader("Setup sub-tab  (in both modes)");
-        AddBody("Agents & Folders — add local Ollama models or cloud AIs as bridge agents " +
-                "(agents call each other as tools). Add folders agents are allowed to access. " +
-                "Set the temp workspace for parallel task output.\n" +
-                "⚙ Bridge Settings button — fine-tune which MCP tools are exposed and set " +
-                "file-size limits for read/write operations.");
+        AddSubHeader(isDE ? "Setup-Tab  (in beiden Modi)" : "Setup sub-tab  (in both modes)");
+        AddBody(isDE
+            ? "Agenten & Ordner — lokale Ollama-Modelle oder Cloud-KIs als Bridge-Agenten hinzufügen " +
+              "(Agenten rufen sich gegenseitig als Tools auf). Zugängliche Ordner hinzufügen. " +
+              "Temp-Arbeitsbereich für parallele Aufgaben-Ausgaben festlegen.\n" +
+              "⚙ Bridge-Einstellungen-Taste — feinabstimmen, welche MCP-Tools exponiert werden, und " +
+              "Dateigrößen-Limits für Lese-/Schreiboperationen setzen."
+            : "Agents & Folders — add local Ollama models or cloud AIs as bridge agents " +
+              "(agents call each other as tools). Add folders agents are allowed to access. " +
+              "Set the temp workspace for parallel task output.\n" +
+              "⚙ Bridge Settings button — fine-tune which MCP tools are exposed and set " +
+              "file-size limits for read/write operations.");
 
         // ── 🔊 Audio & Voice ──────────────────────────────────────────────
-        BeginSection("🔊", "Audio & Voice  (●●● Options menu)");
+        BeginSection("🔊", isDE ? "Audio & Sprache  (●●● Optionsmenü)" : "Audio & Voice  (●●● Options menu)");
 
-        AddSubHeader("🔊 Audio Setup");
-        AddBody("Select the audio output device ClaudetRelay uses for TTS playback and set the " +
-                "master volume (0–100 %). Volume changes apply live to anything currently speaking.");
+        AddSubHeader(isDE ? "🔊 Audio-Setup" : "🔊 Audio Setup");
+        AddBody(isDE
+            ? "Ausgabegerät für TTS-Wiedergabe wählen und Hauptlautstärke einstellen (0–100 %). " +
+              "Lautstärkeänderungen gelten sofort für alles, was gerade spricht. " +
+              "Außerdem: Eingabegerät (Mikrofon) für Spracherkennung auswählen."
+            : "Select the audio output and input (microphone) device ClaudetRelay uses and set the " +
+              "master volume (0–100 %). Volume changes apply live to anything currently speaking.");
 
-        AddSubHeader("🎙 Voice Settings");
-        AddBody("Choose the TTS backend and configure it:\n" +
-                "  Windows TTS — built-in Windows voices, works offline, no setup required.\n" +
-                "  Sherpa-onnx — high-quality offline neural voices (Piper TTS-compatible). " +
-                "Pick a model folder, then download individual voice packs from the built-in " +
-                "Voice Model Manager. Models live next to the .exe in a Voices/ folder by default.\n" +
-                "  VOICEVOX — anime-inspired character voices via a separate VOICEVOX installation " +
-                "running locally (default port 50021). Compatible alternatives: AivisSpeech, COEIROINK.");
-        AddBody("Switching a radio button applies the backend immediately so you can hear the " +
-                "difference without closing the dialog.");
+        AddSubHeader(isDE ? "🎙 Spracheinstellungen" : "🎙 Voice Settings");
+        AddBody(isDE
+            ? "TTS-Backend wählen und konfigurieren:\n" +
+              "  Windows TTS — eingebaute Windows-Stimmen, funktioniert offline, kein Setup nötig.\n" +
+              "  Sherpa-onnx — hochwertige Offline-Neural-Stimmen (Piper TTS-kompatibel). " +
+              "Modellordner wählen, dann einzelne Stimmpakete über den integrierten Stimm-Modell-Manager herunterladen. " +
+              "Modelle liegen standardmäßig im Voices/-Ordner neben der .exe.\n" +
+              "  VOICEVOX — anime-inspirierte Charakterstimmen über eine separate VOICEVOX-Installation " +
+              "die lokal läuft (Standard-Port 50021). Kompatible Alternativen: AivisSpeech, COEIROINK."
+            : "Choose the TTS backend and configure it:\n" +
+              "  Windows TTS — built-in Windows voices, works offline, no setup required.\n" +
+              "  Sherpa-onnx — high-quality offline neural voices (Piper TTS-compatible). " +
+              "Pick a model folder, then download individual voice packs from the built-in " +
+              "Voice Model Manager. Models live next to the .exe in a Voices/ folder by default.\n" +
+              "  VOICEVOX — anime-inspired character voices via a separate VOICEVOX installation " +
+              "running locally (default port 50021). Compatible alternatives: AivisSpeech, COEIROINK.");
+        AddBody(isDE
+            ? "Ein Optionsfeld auswählen wendet das Backend sofort an, damit der Unterschied ohne Schließen des Dialogs gehört werden kann."
+            : "Switching a radio button applies the backend immediately so you can hear the " +
+              "difference without closing the dialog.");
 
-        AddSubHeader("🎙 Voice Recognition  (Dictation Mode)");
-        AddBody("The 🎙 button to the left of the chat input toggles dictation. " +
-                "Spoken words are transcribed offline and inserted into the input field. " +
-                "Three activation modes:\n" +
-                "  Always On — microphone records continuously while dictation is active.\n" +
-                "  Push to Talk — hold a configurable key (default: Space) to record.\n" +
-                "  Voice Activated — recording starts automatically when your voice exceeds " +
-                "a configurable volume threshold and stops after a short silence.");
-        AddBody("ASR models are downloaded via ●●● → 🎙 Voice Recognition → ⬇ Manage ASR Models. " +
-                "Models are stored in an ASR/ folder next to the .exe by default. " +
-                "Whisper models support ~100 languages including German and English. " +
-                "SenseVoice is faster but supports English, Chinese, Japanese and Korean only.");
-        AddHighlight("💡  ASR models run entirely on CPU using system RAM — they do not use your GPU or VRAM " +
-                     "and do not compete with Ollama models for GPU resources. " +
-                     "The model is loaded into RAM the first time you activate dictation and stays there " +
-                     "until you close the app. The microphone stays open in all activation modes " +
-                     "(needed for the level meter), but the heavy CPU work — the actual transcription — " +
-                     "only happens when a recording chunk is submitted: on PTT key release, " +
-                     "after a silence in Voice Activated mode, or at the end of each chunk in Always On mode. " +
-                     "If CPU headroom is tight while local agents are running, Push-to-Talk keeps " +
-                     "transcription bursts short and predictable.");
+        AddSubHeader(isDE ? "🎙 Spracherkennung  (Diktat-Modus)" : "🎙 Voice Recognition  (Dictation Mode)");
+        AddBody(isDE
+            ? "Die 🎙-Taste links neben dem Chat-Eingabefeld schaltet das Diktat um. " +
+              "Gesprochene Wörter werden offline transkribiert und ins Eingabefeld eingefügt. " +
+              "Drei Aktivierungsmodi:\n" +
+              "  Immer aktiv — Mikrofon nimmt kontinuierlich auf, solange Diktat aktiv ist.\n" +
+              "  Sprechtaste — konfigurierbare Taste halten (Standard: Leertaste) zum Aufnehmen.\n" +
+              "  Sprachaktivierung — Aufnahme startet automatisch, wenn die Stimme eine " +
+              "konfigurierbare Lautstärke-Schwelle überschreitet, und stoppt nach kurzer Stille."
+            : "The 🎙 button to the left of the chat input toggles dictation. " +
+              "Spoken words are transcribed offline and inserted into the input field. " +
+              "Three activation modes:\n" +
+              "  Always On — microphone records continuously while dictation is active.\n" +
+              "  Push to Talk — hold a configurable key (default: Space) to record.\n" +
+              "  Voice Activated — recording starts automatically when your voice exceeds " +
+              "a configurable volume threshold and stops after a short silence.");
+        AddBody(isDE
+            ? "ASR-Modelle herunterladen über ●●● → 🎙 Spracherkennung → ⬇ ASR-Modelle verwalten. " +
+              "Modelle werden standardmäßig im ASR/-Ordner neben der .exe gespeichert. " +
+              "Whisper-Modelle unterstützen ~100 Sprachen inkl. Deutsch und Englisch. " +
+              "SenseVoice ist schneller, unterstützt aber nur Englisch, Chinesisch, Japanisch und Koreanisch."
+            : "ASR models are downloaded via ●●● → 🎙 Voice Recognition → ⬇ Manage ASR Models. " +
+              "Models are stored in an ASR/ folder next to the .exe by default. " +
+              "Whisper models support ~100 languages including German and English. " +
+              "SenseVoice is faster but supports English, Chinese, Japanese and Korean only.");
+        AddHighlight(isDE
+            ? "💡  ASR-Modelle laufen vollständig auf der CPU mit System-RAM — kein GPU oder VRAM wird genutzt, " +
+              "und sie konkurrieren nicht mit Ollama-Modellen um GPU-Ressourcen. " +
+              "Das Modell wird beim ersten Aktivieren des Diktats in den RAM geladen und bleibt dort " +
+              "bis die App geschlossen wird. Das Mikrofon bleibt in allen Aktivierungsmodi offen " +
+              "(für den Pegelanzeiger), aber die eigentliche Transkription — die CPU-intensive Arbeit — " +
+              "erfolgt nur wenn ein Aufnahme-Chunk übermittelt wird: bei Freigabe der Sprechtaste, " +
+              "nach Stille im Sprachaktivierungs-Modus, oder am Ende eines Chunks im Immer-aktiv-Modus. " +
+              "Wenn lokale Agenten laufen und die CPU knapp ist, hält die Sprechtaste Transkriptions-Bursts " +
+              "kurz und vorhersehbar."
+            : "💡  ASR models run entirely on CPU using system RAM — they do not use your GPU or VRAM " +
+              "and do not compete with Ollama models for GPU resources. " +
+              "The model is loaded into RAM the first time you activate dictation and stays there " +
+              "until you close the app. The microphone stays open in all activation modes " +
+              "(needed for the level meter), but the heavy CPU work — the actual transcription — " +
+              "only happens when a recording chunk is submitted: on PTT key release, " +
+              "after a silence in Voice Activated mode, or at the end of each chunk in Always On mode. " +
+              "If CPU headroom is tight while local agents are running, Push-to-Talk keeps " +
+              "transcription bursts short and predictable.");
 
         // ── Close ─────────────────────────────────────────────────────────
         currentTarget = root;   // back to root so the button lands outside any section
         AddRule(topMargin: 12, bottomMargin: 14);
         var closeBtn = new Button
         {
-            Content             = "Got it, thanks Claudette! 🐙",
+            Content             = isDE ? "Verstanden, danke Claudette! 🐙" : "Got it, thanks Claudette! 🐙",
             Height              = 38,
             FontFamily          = new FontFamily("Segoe UI"),
             FontSize            = 13, FontWeight = FontWeights.SemiBold,
