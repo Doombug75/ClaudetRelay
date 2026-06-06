@@ -3797,16 +3797,53 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Comprehensive ClaudetRelay knowledge injected into Claudette's system prompt.</summary>
-    private static string BuildClaudetteSystemPrompt()
+    private string BuildClaudetteSystemPrompt(Tab currentTab, string? projectFolder, ProjectSettings? project)
     {
         var isDE = System.Globalization.CultureInfo.CurrentUICulture
                          .TwoLetterISOLanguageName
                          .Equals("de", StringComparison.OrdinalIgnoreCase);
 
-        return isDE
+        var basePrompt = isDE
             ? BuildClaudetteSystemPromptDE()
             : BuildClaudetteSystemPromptEN();
+
+        // Append current navigation context so Claudette knows where the user is
+        var ctx = new System.Text.StringBuilder();
+        ctx.Append(isDE ? "\n\n## Aktueller App-Kontext\n" : "\n\n## Current app context\n");
+
+        if (projectFolder is not null && project is not null)
+        {
+            ctx.Append(isDE
+                ? $"Projekt \"{project.ProjectName}\" ist geöffnet. " +
+                  $"Der Nutzer befindet sich im {TabNameDE(currentTab)}."
+                : $"Project \"{project.ProjectName}\" is open. " +
+                  $"The user is in the {TabNameEN(currentTab)}.");
+        }
+        else
+        {
+            ctx.Append(isDE
+                ? $"Kein Projekt geöffnet. Der Nutzer befindet sich im {TabNameDE(currentTab)}."
+                : $"No project open. The user is in the {TabNameEN(currentTab)}.");
+        }
+
+        return basePrompt + ctx;
     }
+
+    private static string TabNameEN(Tab tab) => tab switch
+    {
+        Tab.Chat     => "Chat tab (general chat)",
+        Tab.Projects => "Projects tab",
+        Tab.Bridge   => "Bridge tab",
+        _            => "Chat tab"
+    };
+
+    private static string TabNameDE(Tab tab) => tab switch
+    {
+        Tab.Chat     => "Chat-Tab (allgemeiner Chat)",
+        Tab.Projects => "Projekte-Tab",
+        Tab.Bridge   => "Bridge-Tab",
+        _            => "Chat-Tab"
+    };
 
     private static string BuildClaudetteSystemPromptEN() =>
         "You are Claudette, the friendly octopus mascot of ClaudetRelay. " +
@@ -4060,7 +4097,7 @@ public partial class MainWindow : Window
     private void ShowClaudetteChatWindow(OllamaService? ollamaSvc, ICloudAIService? cloudSvc, string aiName)
     {
         var bgBrush      = (Brush)FindResource("ContentBgBrush");
-        var systemPrompt = BuildClaudetteSystemPrompt();
+        var systemPrompt = BuildClaudetteSystemPrompt(_currentTab, _currentProjectFolder, _currentProject);
         var convHistory  = new List<CloudAIMessage>();   // user+assistant turns
         var cts          = new CancellationTokenSource();
 
