@@ -845,15 +845,18 @@ public partial class MainWindow
 
     private static WorldEntity CloneEntity(WorldEntity src) => new()
     {
-        Id           = src.Id,
-        Name         = src.Name,
-        EntityType   = src.EntityType,
-        CreatedAt    = src.CreatedAt,
-        UpdatedAt    = src.UpdatedAt,
-        Fields       = new Dictionary<string, string>(src.Fields),
-        Notes        = src.Notes,
-        FactionColor = src.FactionColor,
-        MemberIds    = [..src.MemberIds]
+        Id               = src.Id,
+        Name             = src.Name,
+        EntityType       = src.EntityType,
+        CreatedAt        = src.CreatedAt,
+        UpdatedAt        = src.UpdatedAt,
+        Fields           = new Dictionary<string, string>(src.Fields),
+        Notes            = src.Notes,
+        PortraitFileName = src.PortraitFileName,
+        ImageFileName    = src.ImageFileName,
+        FactionColor     = src.FactionColor,
+        MemberIds        = [..src.MemberIds],
+        FactionIds       = [..src.FactionIds]
     };
 
     // ── Simple input dialog ────────────────────────────────────────────────
