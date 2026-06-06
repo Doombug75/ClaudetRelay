@@ -289,11 +289,14 @@ public class ParticipantsWindow : Window
 
             // Ask the model to describe itself if we have no description and no prior error.
             // (Error = user needs to fix their API key first; don't hammer the API on every rebuild.)
+            // For cloud providers, only fetch if an API key is configured (avoid 5-minute timeout hang).
             // On completion, dispatch RebuildCards() back to the UI thread so the card updates
             // immediately without requiring the user to close and reopen the window.
+            bool hasApiKey = !IsCloud(p.Type) || WindowsCredentialManager.Load(p.Type) is not null;
             if ((string.IsNullOrEmpty(p.SelfDescription) || string.IsNullOrEmpty(p.Likes)) &&
                 string.IsNullOrEmpty(p.LastApiError) &&
-                !string.IsNullOrEmpty(p.Model))
+                !string.IsNullOrEmpty(p.Model) &&
+                hasApiKey)
             {
                 SelfDescriptionService
                     .FetchAndSaveAsync(p.Type, p.Model, p.ServerUrl)
@@ -704,6 +707,13 @@ public class ParticipantsWindow : Window
             var serverUrl = urlBox.Text.Trim();
             if (string.IsNullOrEmpty(serverUrl)) serverUrl = "http://localhost:11434";
 
+            // Guard: cloud providers without API keys should not attempt fetch
+            if (IsCloud(prov) && prov != "LM Studio" && WindowsCredentialManager.Load(prov) is null)
+            {
+                fetchStatus.Text = "⚠  No API key configured. Open ⋮ → Providers to set it up.";
+                return;
+            }
+
             fetchBtn.IsEnabled = false;
             fetchStatus.Text   = "Fetching models…";
 
@@ -751,8 +761,11 @@ public class ParticipantsWindow : Window
         };
 
         // Auto-fetch on dialog open for providers that have no static model list
+        // Only auto-fetch if: (a) local provider (Ollama/vLLM/LM Studio) OR (b) cloud provider with API key
         var initialProv = (provCombo.SelectedItem as string) ?? "";
-        if (initialProv is "Ollama" or "Ollama ☁" or "vLLM" or "LM Studio")
+        bool shouldAutoFetch = initialProv is "Ollama" or "vLLM" or "LM Studio"
+            || (initialProv is "Ollama ☁" && WindowsCredentialManager.Load(initialProv) is not null);
+        if (shouldAutoFetch)
             fetchBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
         // ── Rate limiting (cloud providers only) ─────────────────────────────

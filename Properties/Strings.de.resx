@@ -54,6 +54,13 @@
   <data name="Btn_ClearChat"     xml:space="preserve"><value>🗑  Chat leeren</value></data>
   <data name="Btn_Config"        xml:space="preserve"><value>👤  Einrichtung</value></data>
 
+  <!-- ── First-run dialogs ──────────────────────────────────────────────── -->
+  <data name="FirstRun_Nickname_Title"        xml:space="preserve"><value>Willkommen bei ClaudetRelay</value></data>
+  <data name="FirstRun_Nickname_Question"     xml:space="preserve"><value>Wie möchtest du genannt werden?</value></data>
+  <data name="FirstRun_Nickname_Placeholder"  xml:space="preserve"><value>Dein Name</value></data>
+  <data name="FirstRun_Nickname_OK"           xml:space="preserve"><value>OK</value></data>
+  <data name="FirstRun_Nickname_Cancel"       xml:space="preserve"><value>Abbrechen</value></data>
+
   <!-- ── Settings window ────────────────────────────────────────────────── -->
   <data name="Settings_Title"             xml:space="preserve"><value>Allgemeine Einstellungen</value></data>
   <data name="Settings_SaveStatus"        xml:space="preserve"><value>Gespeichert.</value></data>
@@ -76,6 +83,7 @@
   <data name="Settings_Chattiness"        xml:space="preserve"><value>GESPRÄCHIGKEIT</value></data>
   <data name="Settings_ChattinessHint"    xml:space="preserve"><value>Wie bereitwillig Teilnehmer unaufgefordert in ein Gespräch einsteigen. 0 = nur antworten wenn direkt angesprochen · 100 = immer mitmachen</value></data>
   <data name="Settings_Language"          xml:space="preserve"><value>SPRACHE</value></data>
+  <data name="Menu_Language"              xml:space="preserve"><value>Sprache</value></data>
   <data name="Settings_LanguageHint"      xml:space="preserve"><value>Wird nach einem Neustart der Anwendung wirksam.</value></data>
   <data name="Settings_ChatAppearance"    xml:space="preserve"><value>CHAT-DARSTELLUNG</value></data>
   <data name="Settings_FontSize"          xml:space="preserve"><value>SCHRIFTGRÖSSE</value></data>
@@ -211,6 +219,29 @@
   <data name="Sys_ClearedChat"       xml:space="preserve"><value>Chat geleert.</value></data>
   <data name="Sys_ExportedChat"      xml:space="preserve"><value>Chat exportiert.</value></data>
 
+  <!-- ── File checkout messages ─────────────────────────────────────────── -->
+  <data name="FileCheckout_InUse"          xml:space="preserve"><value>📁 {file} ist durch {participant} gesperrt ({duration} Min, {mode})</value></data>
+  <data name="FileCheckout_Mode_ReadOnly"  xml:space="preserve"><value>lesen</value></data>
+  <data name="FileCheckout_Mode_ReadWrite" xml:space="preserve"><value>bearbeiten</value></data>
+  <data name="FileCheckout_Blocked"        xml:space="preserve"><value>⚠️  Aufgabe kann nicht starten — Dateien sind in Benutzung:</value></data>
+  <data name="FileCheckout_Stale"          xml:space="preserve"><value>💡 {participant} hat {file} {duration} Minuten lang gesperrt, ist aber nicht aktiv. Sie daran erinnern, freizugeben?</value></data>
+  <data name="FileCheckout_Cleared"        xml:space="preserve"><value>✓ Projekt geladen — Dateisperrungen gelöscht</value></data>
+  <data name="FileCheckout_Conflict_User"  xml:space="preserve"><value>⚠️  Du und {participant} haben beide {file} bearbeitet</value></data>
+  <data name="FileCheckout_Conflict_AI"    xml:space="preserve"><value>🤫 {participant1} und {participant2} haben an {file} gearbeitet</value></data>
+  <data name="FileCheckout_StillNeeded"    xml:space="preserve"><value>Brauchst du {file} noch? (nur lesen: ja, lesen/schreiben: ja wenn ändernd)</value></data>
+  <data name="FileCheckout_AskCheckin"     xml:space="preserve"><value>⏱ @{participant}: Du hast `{file}` seit {duration} Minuten gesperrt. Brauchst du es noch? Antworte **ja** zum Behalten oder **nein** / **fertig** zum Freigeben.</value></data>
+  <data name="FileCheckout_Released"        xml:space="preserve"><value>✓ {participant} hat {file} freigegeben</value></data>
+  <data name="FileCheckout_Extended"        xml:space="preserve"><value>🔒 {participant} arbeitet noch an {file} — Sperre verlängert</value></data>
+  <data name="FileCheckout_LocksPreserved"  xml:space="preserve"><value>⚠ Aktive Aufgaben haben Dateien gesperrt — Sperren bleiben erhalten. Sie werden automatisch freigegeben, wenn die Aufgaben abgeschlossen sind.</value></data>
+  <data name="FileCheckout_LockedBadge"     xml:space="preserve"><value>🔒 Gesperrt</value></data>
+  <data name="FileCheckout_LockedTip"       xml:space="preserve"><value>Ausgecheckt von {participant} ({mode}) — nicht bearbeiten, solange die Aufgabe läuft</value></data>
+  <data name="Status_Busy"                 xml:space="preserve"><value>Beschäftigt...</value></data>
+  <!-- ── Allgemeine Einstellungen ──────────────────────────────────────────── -->
+  <data name="Settings_FileCheckoutTimeout"     xml:space="preserve"><value>Dateisperre-Timeout</value></data>
+  <data name="Settings_FileCheckoutTimeoutHint" xml:space="preserve"><value>Minuten, bevor ein inaktiver Teilnehmer daran erinnert wird, eine Dateisperre freizugeben. Aktiv generierende Teilnehmer erhalten automatisch eine 1-Minuten-Verlängerung statt einer Erinnerung.</value></data>
+  <data name="Settings_FCT_Min"                 xml:space="preserve"><value>1 Min</value></data>
+  <data name="Settings_FCT_Max"                 xml:space="preserve"><value>30 Min</value></data>
+
   <!-- ── Language names ─────────────────────────────────────────────────── -->
   <data name="Lang_English"  xml:space="preserve"><value>English</value></data>
   <data name="Lang_German"   xml:space="preserve"><value>Deutsch</value></data>
@@ -254,6 +285,7 @@
   <data name="ToolTip_ClaudetteBtn"     xml:space="preserve"><value>Klick mich für Hilfe! 🐙</value></data>
   <data name="ToolTip_ExportChat"       xml:space="preserve"><value>Chatverlauf als HTML, Markdown oder Audio exportieren…</value></data>
   <data name="ToolTip_ChatFont"         xml:space="preserve"><value>Schriftart und Schriftgröße</value></data>
+  <data name="ToolTip_WhisperBtn"       xml:space="preserve"><value>Private Nachricht an einen Teilnehmer senden (oder /whisper Name eingeben)</value></data>
   <data name="ToolTip_AiDialogue"       xml:space="preserve"><value>Mehrrunden-KI-Dialog — Teilnehmer lesen und antworten aufeinander</value></data>
   <data name="ToolTip_ChatView"         xml:space="preserve"><value>Projekt-Chat anzeigen</value></data>
   <data name="ToolTip_World"            xml:space="preserve"><value>Charaktere, Fraktionen, Orte und Weltlore</value></data>
@@ -296,6 +328,13 @@
   <data name="Audio_SherpaNoModels"     xml:space="preserve"><value>Noch keine Modelle installiert</value></data>
   <data name="Audio_VoicevoxRunning"    xml:space="preserve"><value>VOICEVOX verbunden</value></data>
   <data name="Audio_VoicevoxNotRunning" xml:space="preserve"><value>VOICEVOX läuft nicht</value></data>
+  <data name="Audio_AudioSetup"         xml:space="preserve"><value>🔊  Audioeinstellungen</value></data>
+  <data name="Audio_VoiceSettings"      xml:space="preserve"><value>🎙  Spracheinstellungen</value></data>
+  <data name="Audio_OutputDevice"       xml:space="preserve"><value>Ausgabegerät</value></data>
+  <data name="Audio_DefaultDevice"      xml:space="preserve"><value>(Standard)</value></data>
+  <data name="Audio_Volume"             xml:space="preserve"><value>Lautstärke</value></data>
+  <data name="Audio_VoiceBackendTitle"  xml:space="preserve"><value>Sprach-Backend</value></data>
+  <data name="Audio_ManageModels"       xml:space="preserve"><value>Modelle verwalten…</value></data>
 
   <!-- ── Folders dialog additional ────────────────────────────────────── -->
   <data name="Folders_ChooseFolder"    xml:space="preserve"><value>Ordner auswählen</value></data>

@@ -345,6 +345,13 @@
 
                 <!-- Footer -->
                 <StackPanel DockPanel.Dock="Bottom" Margin="14,0,14,16">
+                    <TextBlock x:Name="ThemeLabel"
+                               Text="THEME" FontSize="10" FontWeight="Bold"
+                               Foreground="{DynamicResource SidebarDimBrush}" Margin="2,0,0,6"/>
+                    <ComboBox x:Name="ThemeComboBox"
+                              Style="{StaticResource ModernComboBox}"
+                              Margin="0,0,0,12"
+                              SelectionChanged="ThemeComboBox_SelectionChanged"/>
                     <Rectangle Height="1" Fill="{DynamicResource ControlBgBrush}" Margin="0,0,0,12"/>
                     <Button x:Name="SettingsButton"
                             Content="👤  Config"
@@ -451,13 +458,6 @@
                                 Margin="0,0,0,7"
                                 Click="AddParticipantButton_Click"/>
 
-                        <!-- ── Theme ── -->
-                        <TextBlock x:Name="ThemeLabel"
-                                   Text="THEME" FontSize="10" FontWeight="Bold"
-                                   Foreground="{DynamicResource SidebarDimBrush}" Margin="2,0,0,10"/>
-                        <ComboBox x:Name="ThemeComboBox"
-                                  Style="{StaticResource ModernComboBox}"
-                                  SelectionChanged="ThemeComboBox_SelectionChanged"/>
 
 
                     </StackPanel>
@@ -763,14 +763,49 @@
             <!-- ── Input (Row 3) ── -->
             <Border x:Name="InputArea" Grid.Row="3"
                     Background="{DynamicResource SidebarBgBrush}" Padding="16,12,16,16">
-                <StackPanel>
+                <StackPanel x:Name="InputAreaStack">
                     <Rectangle Height="1" Fill="{DynamicResource ControlBgBrush}" Margin="0,0,0,12"/>
+
+                    <!-- Private-message target chip (address line, shown above when recipient selected) -->
+                    <Border x:Name="PrivateMsgChip" Visibility="Collapsed"
+                            CornerRadius="8" Margin="0,0,0,8" Padding="10,5,6,5"
+                            BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="PrivateMsgChipText" Grid.Column="0"
+                                       FontSize="12" FontFamily="Segoe UI"
+                                       VerticalAlignment="Center"/>
+                            <Button x:Name="PrivateMsgClearButton" Grid.Column="1"
+                                    Content="×" FontSize="14" FontWeight="Bold"
+                                    Width="24" Height="24" Padding="0"
+                                    BorderThickness="0" Background="Transparent"
+                                    Cursor="Hand" Margin="6,0,0,0"
+                                    Click="PrivateMsgClear_Click"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Input row: Recipient picker (left) → Message input → Buttons + Send (right) -->
                     <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" Background="{DynamicResource InputBgBrush}"
+
+                        <!-- Column 0: Whisper/recipient picker button (left side) -->
+                        <Button x:Name="PrivateMsgButton" Grid.Column="0"
+                                Content="🤫"
+                                Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource ControlBgBrush}"
+                                Foreground="{DynamicResource SidebarDimBrush}"
+                                FontSize="13" Width="42" Padding="4,9" Margin="0,0,6,0"
+                                Click="PrivateMsgButton_Click"/>
+
+                        <!-- Column 1: Message input box (center) -->
+                        <Border Grid.Column="1" Background="{DynamicResource InputBgBrush}"
                                 BorderBrush="{DynamicResource InputBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="12" Margin="0,0,10,0">
@@ -795,15 +830,16 @@
                                            IsHitTestVisible="False"/>
                             </Grid>
                         </Border>
-                        <!-- Column 1: small context buttons above a full-width Send button.
+                        <!-- Column 2: small context buttons above a full-width Send button.
                              While audio is playing the two small buttons repurpose themselves
                              as ⏭ Skip and ⏹ Stop (UpdateVoiceButtons handles this). -->
-                        <Grid Grid.Column="1" VerticalAlignment="Bottom">
+                        <Grid Grid.Column="2" VerticalAlignment="Bottom">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                                <!-- ↺ AI Respond button -->
                                 <Button x:Name="AIRespondButton"
                                         Content="↺"
                                         Style="{StaticResource ModernButton}"

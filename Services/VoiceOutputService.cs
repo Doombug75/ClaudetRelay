@@ -17,6 +17,32 @@ namespace ClaudetRelay.Services;
 /// </summary>
 public static class VoiceOutputService
 {
+    // ── Hardware: output device + volume ──────────────────────────────────
+
+    /// <summary>
+    /// NAudio device number (0-based). 0 = OS default. Applied to each new WaveOutEvent.
+    /// </summary>
+    public static int DeviceNumber { get; set; } = 0;
+
+    private static float _volume = 1.0f;
+
+    /// <summary>
+    /// Master volume (0.0–1.0). Applies immediately to any currently playing stream
+    /// as well as all future streams.
+    /// </summary>
+    public static float Volume
+    {
+        get => _volume;
+        set
+        {
+            _volume = Math.Clamp(value, 0f, 1f);
+            lock (_lock)
+            {
+                try { if (_waveOut is not null) _waveOut.Volume = _volume; } catch { }
+            }
+        }
+    }
+
     // ── Backend ────────────────────────────────────────────────────────────
 
     private static ITtsBackend _backend = new WindowsTtsBackend();
@@ -155,7 +181,7 @@ public static class VoiceOutputService
 
             ms         = new System.IO.MemoryStream(bytes);
             waveReader = new WaveFileReader(ms);
-            waveOut    = new WaveOutEvent();
+            waveOut    = new WaveOutEvent { DeviceNumber = DeviceNumber };
 
             lock (_lock)
             {
@@ -165,6 +191,7 @@ public static class VoiceOutputService
             }
 
             waveOut.Init(waveReader);
+            try { waveOut.Volume = Volume; } catch { }
             waveOut.PlaybackStopped += (_, _) => tcs.TrySetResult();
             waveOut.Play();
 

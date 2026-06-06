@@ -29,7 +29,8 @@ public partial class MainWindow : Window
     /// UpdateThinkingTooltip sets the live tooltip on the thinking-dots element;
     /// OuterWrapper is the root Grid added to ChatPanel - remove it to erase the bubble.</summary>
     private sealed record StreamBubble(
-        TextBox        Content,
+        TextBox        Content,          // raw text (always populated; used by copy button)
+        TextBlock      EmoteContent,     // formatted inlines (shown instead of Content when emotes present)
         Action         StopThinking,
         Action<string> UpdateThinkingTooltip,
         UIElement      OuterWrapper);
@@ -177,8 +178,22 @@ public partial class MainWindow : Window
     private int                                  _globalResponseLength  = 50;
     private ProjectSettings?                     _projectSettings;
     private ParticipantsWindow?                  _participantsWindow;
+    private Window?                              _helpWindow;
+    // ── Private-message target (null = broadcast to all) ──────────────────
+    private OllamaParticipantUI?                 _privateMsgOllamaTarget;
+    private CloudAIParticipantUI?                _privateMsgCloudTarget;
+    // ── Running parallel private tasks (each has its own CTS) ─────────────
+    private readonly List<CancellationTokenSource> _privateTaskCts = [];
+
+    // ── File checkout registry (prevents conflicts in parallel tasks) ──────
+    private readonly FileCheckoutRegistry _fileCheckout = new();
+    private CancellationTokenSource? _checkoutMonitorCts;  // for stale checkout monitor loop
+    // Maps participant display name → set of file paths they've been asked to check in.
+    // When their next response arrives, we parse it and extend or release the lock.
+    private readonly Dictionary<string, HashSet<string>> _pendingCheckinFiles = new();
 
     // ── Project state ──────────────────────────────────────────────────────
+    private Tab                        _currentTab = Tab.Chat;
     private string?                    _currentProjectFolder;
     private ProjectSettings?           _currentProject;   // same object as _projectSettings
     private ProjectTypeDefinition?     _currentProjectType;
@@ -232,6 +247,7 @@ public partial class MainWindow : Window
             InputTextBox.Focus();
             await CheckAllStatusAsync();
             StartStatusTimer();
+            StartCheckoutMonitor();  // Monitor for stale file checkouts
         };
         // Recalculate bubble MaxWidth whenever the chat area resizes (e.g. window drag / maximize).
         //
@@ -244,6 +260,9 @@ public partial class MainWindow : Window
         // catches subsequent height-only changes (new bubble added, same window width).
         ChatScrollViewer.SizeChanged += (_, _) => UpdateChatBubbleWidth();
         ChatPanel.SizeChanged        += (_, _) => UpdateChatBubbleWidth();
+
+        // Cleanup on window close
+        Closing += (_, _) => StopCheckoutMonitor();
     }
 
     // ── Initialization ─────────────────────────────────────────────────────
@@ -287,6 +306,7 @@ public partial class MainWindow : Window
 
         ExportChatButton.ToolTip    = Properties.Loc.S("ToolTip_ExportChat");
         ChatFontButton.ToolTip      = Properties.Loc.S("ToolTip_ChatFont");
+        PrivateMsgButton.ToolTip    = Properties.Loc.S("ToolTip_WhisperBtn");
         InitVoiceBackend();
         SubscribeVoiceStateChanged();
         UpdateVoiceButtons();
@@ -382,6 +402,7 @@ public partial class MainWindow : Window
 
     private void ActivateTab(Tab tab)
     {
+        _currentTab = tab;
         ShowRoadmapPanel(false);   // collapse any project overlay panels
         ShowFilesPanel(false);
         ShowWorldPanel(false);

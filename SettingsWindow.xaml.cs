@@ -59,18 +59,16 @@ public partial class SettingsWindow : Window
     private readonly bool                   _providerModeOnly;
     private readonly List<ParticipantForm>  _forms            = [];
     private readonly List<ProviderKeyForm>  _providerKeyForms = [];
-    private TextBox      _userNameBox          = null!;
-    private Slider       _toneSlider           = null!;
-    private RadioButton  _modeNeutralBtn       = null!;
-    private RadioButton  _modeMockingbirdBtn   = null!;
-    private RadioButton  _modeBuccaneerBtn     = null!;
-    private TextBox      _dialogueTurnsBox     = null!;
-    private Slider       _responseLengthSlider = null!;
-    private Slider       _chattinessSlider     = null!;
-    private Slider       _zoomSlider           = null!;
-    private ComboBox     _languageCombo        = null!;
-    private CheckBox     _voiceInterruptChk    = null!;
-    private TextBox      _voiceMaxBox          = null!;
+    private TextBox      _userNameBox              = null!;
+    private Slider       _toneSlider               = null!;
+    private RadioButton  _modeNeutralBtn           = null!;
+    private RadioButton  _modeMockingbirdBtn       = null!;
+    private RadioButton  _modeBuccaneerBtn         = null!;
+    private TextBox      _dialogueTurnsBox         = null!;
+    private Slider       _responseLengthSlider     = null!;
+    private Slider       _chattinessSlider         = null!;
+    private Slider       _zoomSlider               = null!;
+    private Slider       _fileCheckoutTimeoutSlider = null!;
 
     // ── Constructor ────────────────────────────────────────────────────────
 
@@ -471,40 +469,6 @@ public partial class SettingsWindow : Window
 
         var chattinessHint = MakeHintText(Loc.S("Settings_ChattinessHint"));
 
-        // ── Language ────────────────────────────────────────────────────────
-        var langSep = new Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 12) };
-        langSep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
-
-        var langLabel = new TextBlock
-        {
-            Style  = (Style)FindResource("SLabel"),
-            Text   = Loc.S("Settings_Language"),
-            Margin = new Thickness(0, 0, 0, 6)
-        };
-
-        var langCombo = new ComboBox
-        {
-            FontSize   = 13,
-            FontFamily = new FontFamily("Segoe UI"),
-            Margin     = new Thickness(0, 0, 0, 4),
-            Width      = 180,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        langCombo.Items.Add(new ComboBoxItem { Content = "English", Tag = "" });
-        langCombo.Items.Add(new ComboBoxItem { Content = "Deutsch", Tag = "de" });
-
-        // Select current language
-        var currentLang = settings.Language ?? "";
-        var selectedIndex = 0;
-        for (int li = 0; li < langCombo.Items.Count; li++)
-        {
-            if ((string)((ComboBoxItem)langCombo.Items[li]).Tag == currentLang)
-            { selectedIndex = li; break; }
-        }
-        langCombo.SelectedIndex = selectedIndex;
-        _languageCombo = langCombo;
-
-        var langHint = MakeHintText(Loc.S("Settings_LanguageHint"));
 
         // ── UI Zoom ─────────────────────────────────────────────────────────
         var zoomSep = new Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 12) };
@@ -550,6 +514,56 @@ public partial class SettingsWindow : Window
 
         var zoomHint = MakeHintText(Loc.S("Settings_UiZoomHint"));
 
+        // ── FILE LOCK TIMEOUT ───────────────────────────────────────────────
+        var fctSep = new Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 12) };
+        fctSep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
+
+        var fctLabel = new TextBlock
+        {
+            Style  = (Style)FindResource("SLabel"),
+            Text   = Loc.S("Settings_FileCheckoutTimeout"),
+            Margin = new Thickness(0, 4, 0, 6)
+        };
+
+        var fctCurrentValue = Math.Clamp(settings.FileCheckoutTimeoutMinutes, 1, 30);
+        var fctValueLabel = new TextBlock
+        {
+            FontSize   = 12,
+            FontFamily = new FontFamily("Segoe UI"),
+            Text       = $"{fctCurrentValue} min",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin     = new Thickness(0, 0, 0, 4)
+        };
+        fctValueLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+
+        var fctSlider = new Slider
+        {
+            Minimum             = 1,
+            Maximum             = 30,
+            Value               = fctCurrentValue,
+            TickFrequency       = 1,
+            IsSnapToTickEnabled = true,
+            Margin              = new Thickness(0, 0, 0, 4)
+        };
+        _fileCheckoutTimeoutSlider = fctSlider;
+        fctSlider.ValueChanged += (_, e) =>
+            fctValueLabel.Text = $"{(int)e.NewValue} min";
+
+        var fctRow = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        fctRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        fctRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        fctRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var fctLeft  = MakeHintText(Loc.S("Settings_FCT_Min"));
+        var fctRight = MakeHintText(Loc.S("Settings_FCT_Max"));
+        Grid.SetColumn(fctLeft,   0);
+        Grid.SetColumn(fctSlider, 1);
+        Grid.SetColumn(fctRight,  2);
+        fctRow.Children.Add(fctLeft);
+        fctRow.Children.Add(fctSlider);
+        fctRow.Children.Add(fctRight);
+
+        var fctHint = MakeHintText(Loc.S("Settings_FileCheckoutTimeoutHint"));
+
         var root = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         root.Children.Add(nameLabel);
         root.Children.Add(userNameOuter);
@@ -574,86 +588,16 @@ public partial class SettingsWindow : Window
         root.Children.Add(chattinessValueLabel);
         root.Children.Add(chattinessRow);
         root.Children.Add(chattinessHint);
-        root.Children.Add(langSep);
-        root.Children.Add(langLabel);
-        root.Children.Add(langCombo);
-        root.Children.Add(langHint);
         root.Children.Add(zoomSep);
         root.Children.Add(zoomLabel);
         root.Children.Add(zoomValueLabel);
         root.Children.Add(zoomRow);
         root.Children.Add(zoomHint);
-
-        // ── Voice output settings ───────────────────────────────────────────
-        var voiceSep = new Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 12) };
-        voiceSep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
-        root.Children.Add(voiceSep);
-
-        var voiceLabel = new TextBlock
-        {
-            Text = "🔊  VOICE OUTPUT", FontSize = 11, FontWeight = FontWeights.SemiBold,
-            FontFamily = new FontFamily("Segoe UI"), Margin = new Thickness(0, 0, 0, 10)
-        };
-        voiceLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
-        root.Children.Add(voiceLabel);
-
-        // Interrupt checkbox
-        var voiceInterruptChk = new CheckBox
-        {
-            Content   = "Stop current speech when a new message arrives",
-            IsChecked = settings.VoiceInterruptOnNewMessage,
-            FontSize  = 13, FontFamily = new FontFamily("Segoe UI"),
-            Margin    = new Thickness(0, 0, 0, 4)
-        };
-        voiceInterruptChk.SetResourceReference(CheckBox.ForegroundProperty, "ContentTextBrush");
-        root.Children.Add(voiceInterruptChk);
-
-        var voiceInterruptHint = MakeHintText(
-            "On: each new bubble immediately interrupts the previous one.\n" +
-            "Off: messages queue up — perfect for story mode where you want " +
-            "every response read aloud in sequence.");
-        root.Children.Add(voiceInterruptHint);
-
-        // Max chars row
-        var voiceMaxRow = new StackPanel
-            { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 4) };
-        var voiceMaxLabel = new TextBlock
-        {
-            Text = "Max characters per message: ", FontSize = 13,
-            FontFamily = new FontFamily("Segoe UI"), VerticalAlignment = VerticalAlignment.Center
-        };
-        voiceMaxLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
-        voiceMaxRow.Children.Add(voiceMaxLabel);
-
-        var voiceMaxBox = new TextBox
-        {
-            Text  = settings.VoiceSpeechMaxChars.ToString(),
-            Width = 64, FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
-            TextAlignment = TextAlignment.Center,
-            VerticalContentAlignment = VerticalAlignment.Center,
-            Padding = new Thickness(6, 2, 6, 2)
-        };
-        if (TryFindResource("ModernTextBox") is Style vmbs) voiceMaxBox.Style = vmbs;
-        voiceMaxBox.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsAsciiDigit);
-        voiceMaxRow.Children.Add(voiceMaxBox);
-
-        var voiceMaxSuffix = new TextBlock
-        {
-            Text = " chars", FontSize = 13, FontFamily = new FontFamily("Segoe UI"),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        voiceMaxSuffix.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
-        voiceMaxRow.Children.Add(voiceMaxSuffix);
-        root.Children.Add(voiceMaxRow);
-
-        var voiceMaxHint = MakeHintText(
-            "Messages longer than this are truncated before being sent to the TTS engine. " +
-            "Range 100–5000. Default: 700.");
-        root.Children.Add(voiceMaxHint);
-
-        // Wire save for these two controls (appended to the existing save path)
-        _voiceInterruptChk = voiceInterruptChk;
-        _voiceMaxBox       = voiceMaxBox;
+        root.Children.Add(fctSep);
+        root.Children.Add(fctLabel);
+        root.Children.Add(fctValueLabel);
+        root.Children.Add(fctRow);
+        root.Children.Add(fctHint);
 
         var scroll = new ScrollViewer
         {
@@ -1462,17 +1406,12 @@ public partial class SettingsWindow : Window
         settings.ToneLevel            = (int)_toneSlider.Value;
         settings.MockingbirdMode      = _modeMockingbirdBtn.IsChecked == true;
         settings.BuccaneerMode        = _modeBuccaneerBtn.IsChecked   == true;
-        settings.Language             = (_languageCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
         settings.AiDialogueMaxTurns   = int.TryParse(_dialogueTurnsBox.Text, out var dTurns)
                                         && dTurns is >= 3 and <= 100 ? dTurns : 10;
-        settings.GlobalResponseLength = (int)_responseLengthSlider.Value;
-        settings.GlobalChattiness     = (int)_chattinessSlider.Value;
-        settings.UiZoom               = Math.Clamp(_zoomSlider.Value / 100.0, 0.5, 3.0);
-        settings.VoiceInterruptOnNewMessage =
-            _voiceInterruptChk?.IsChecked ?? settings.VoiceInterruptOnNewMessage;
-        if (int.TryParse(_voiceMaxBox?.Text, out var vmChars) && vmChars is >= 100 and <= 5000)
-            settings.VoiceSpeechMaxChars = vmChars;
-
+        settings.GlobalResponseLength         = (int)_responseLengthSlider.Value;
+        settings.GlobalChattiness             = (int)_chattinessSlider.Value;
+        settings.UiZoom                       = Math.Clamp(_zoomSlider.Value / 100.0, 0.5, 3.0);
+        settings.FileCheckoutTimeoutMinutes   = Math.Clamp((int)_fileCheckoutTimeoutSlider.Value, 1, 30);
         settings.Participants.Clear();
 
         foreach (var form in _forms)

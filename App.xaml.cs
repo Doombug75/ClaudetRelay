@@ -5,7 +5,9 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
+using ClaudetRelay.Properties;
 using ClaudetRelay.Services;
 
 namespace ClaudetRelay;
@@ -15,18 +17,25 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         // ── Apply UI language from settings (must be first — before any UI is created) ──
+        //
+        // Three-state contract (Language property in settings):
+        //   null  — never configured: let the OS locale rule (first launch shows native language)
+        //   ""    — user explicitly chose English: force "en" so de-DE OS doesn't bleed through
+        //   "de"  — user explicitly chose German (or other code): force that culture
+        //
         var langCode = SettingsService.Load().Language;
-        if (!string.IsNullOrWhiteSpace(langCode))
+        if (langCode is not null)                          // null = OS default → don't touch culture
         {
+            var cultureName = langCode.Length == 0 ? "en" : langCode;   // "" → "en"
             try
             {
-                var culture = new CultureInfo(langCode);
-                Thread.CurrentThread.CurrentCulture   = culture;
-                Thread.CurrentThread.CurrentUICulture = culture;
-                CultureInfo.DefaultThreadCurrentCulture   = culture;
-                CultureInfo.DefaultThreadCurrentUICulture = culture;
+                var culture = new CultureInfo(cultureName);
+                Thread.CurrentThread.CurrentCulture          = culture;
+                Thread.CurrentThread.CurrentUICulture        = culture;
+                CultureInfo.DefaultThreadCurrentCulture      = culture;
+                CultureInfo.DefaultThreadCurrentUICulture    = culture;
             }
-            catch (CultureNotFoundException) { /* unknown code — silently stay English */ }
+            catch (CultureNotFoundException) { /* unknown code — silently keep OS culture */ }
         }
 
         // ── Dependency checks — run BEFORE any theme resources are loaded ──
@@ -60,6 +69,14 @@ public partial class App : Application
                 downloadUrl: "https://dotnet.microsoft.com/download/dotnet/10.0");
             Shutdown(-1);
             return;
+        }
+
+        // ── First-run: prompt for nickname if this is the first launch ──
+        var settings = SettingsService.Load();
+        if (settings.UserName == "User")  // unchanged default
+        {
+            ShowNicknameDialog();
+            SettingsService.Save(settings);
         }
 
         base.OnStartup(e);
@@ -185,5 +202,196 @@ public partial class App : Application
 
         win.Content = panel;
         win.ShowDialog();
+    }
+
+    // ── First-run nickname dialog ──────────────────────────────────────────
+
+    /// <summary>
+    /// Shows the first-run dialog asking the user to set their nickname.
+    /// Text is localized to the current UI culture (English or German).
+    /// The current OXSUIT theme is applied so the dialog matches the rest of the app.
+    /// </summary>
+    private static void ShowNicknameDialog()
+    {
+        var title      = Loc.S("FirstRun_Nickname_Title");
+        var question   = Loc.S("FirstRun_Nickname_Question");
+        var okLabel    = Loc.S("FirstRun_Nickname_OK");
+        var cancelLabel = Loc.S("FirstRun_Nickname_Cancel");
+
+        var win = new Window
+        {
+            Title                 = title,
+            WindowStyle           = WindowStyle.SingleBorderWindow,
+            ResizeMode            = ResizeMode.NoResize,
+            Width                 = 420,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            ShowInTaskbar         = true,
+        };
+
+        // Load the saved theme so the dialog looks like the rest of the app
+        ApplyThemeToWindow(win);
+
+        var panel = new StackPanel { Margin = new Thickness(22, 20, 22, 20) };
+
+        // ── Heading ────────────────────────────────────────────────────────
+        var titleTb = new TextBlock
+        {
+            Text         = title,
+            FontFamily   = new FontFamily("Segoe UI"),
+            FontSize     = 15,
+            FontWeight   = FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 16)
+        };
+        titleTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+        panel.Children.Add(titleTb);
+
+        // ── Question ───────────────────────────────────────────────────────
+        var questionTb = new TextBlock
+        {
+            Text         = question,
+            FontFamily   = new FontFamily("Segoe UI"),
+            FontSize     = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 8)
+        };
+        questionTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+        panel.Children.Add(questionTb);
+
+        // ── Text input ─────────────────────────────────────────────────────
+        var textBox = new TextBox
+        {
+            FontFamily    = new FontFamily("Segoe UI"),
+            FontSize      = 13,
+            Padding       = new Thickness(8, 6, 8, 6),
+            Height        = 36,
+            Margin        = new Thickness(0, 0, 0, 16),
+            IsUndoEnabled = false
+        };
+        textBox.SetResourceReference(TextBox.BackgroundProperty,   "InputBgBrush");
+        textBox.SetResourceReference(TextBox.ForegroundProperty,   "InputTextBrush");
+        textBox.SetResourceReference(TextBox.BorderBrushProperty,  "InputBorderBrush");
+        textBox.SetResourceReference(TextBox.CaretBrushProperty,   "InputTextBrush");
+        panel.Children.Add(textBox);
+
+        // ── Button row ─────────────────────────────────────────────────────
+        var buttonPanel = new StackPanel
+        {
+            Orientation         = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+
+        var okButton = new Button
+        {
+            Content    = okLabel,
+            Width      = 92,
+            Height     = 32,
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize   = 12,
+            IsDefault  = true,
+            Margin     = new Thickness(0, 0, 8, 0)
+        };
+        okButton.SetResourceReference(Button.StyleProperty, "SButton");
+
+        var cancelButton = new Button
+        {
+            Content    = cancelLabel,
+            Width      = 92,
+            Height     = 32,
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize   = 12,
+            IsCancel   = true
+        };
+        cancelButton.SetResourceReference(Button.StyleProperty, "SButtonSecondary");
+
+        okButton.Click += (_, _) =>
+        {
+            var name = textBox.Text.Trim();
+            if (!string.IsNullOrEmpty(name))
+            {
+                var settings = SettingsService.Load();
+                settings.UserName = name;
+                SettingsService.Save(settings);
+                win.DialogResult = true;
+            }
+        };
+        cancelButton.Click += (_, _) => win.DialogResult = false;
+
+        textBox.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Return)
+            {
+                okButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                e.Handled = true;
+            }
+        };
+
+        buttonPanel.Children.Add(okButton);
+        buttonPanel.Children.Add(cancelButton);
+        panel.Children.Add(buttonPanel);
+
+        win.Content = panel;
+        win.ShowDialog();
+
+        // Move focus into the textbox once the window is visible
+        win.Loaded += (_, _) => textBox.Focus();
+    }
+
+    // ── Shared theme helper ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Loads the user's saved OXSUIT theme into <paramref name="win"/> and
+    /// applies matching DWM title-bar and caption colours.
+    /// Safe to call when no theme is saved — falls back to system defaults silently.
+    /// </summary>
+    private static void ApplyThemeToWindow(Window win)
+    {
+        // ── Load theme resources ───────────────────────────────────────────
+        var lastTheme = SettingsService.Load().LastTheme;
+        if (!string.IsNullOrEmpty(lastTheme))
+        {
+            var themePath = System.IO.Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory, "Themes", lastTheme + ".oxsuit");
+            try
+            {
+                var dict = OxsuitLoader.Load(themePath);
+                if (dict is not null)
+                    win.Resources.MergedDictionaries.Add(dict);
+            }
+            catch { /* no theme — window will use system defaults */ }
+        }
+
+        // ── Set window background from theme ───────────────────────────────
+        if (win.TryFindResource("SidebarBgBrush") is Brush bg)
+            win.Background = bg;
+
+        // ── Apply DWM title-bar and caption colour (Win 10+/Win 11+) ──────
+        win.SourceInitialized += (_, _) =>
+        {
+            try
+            {
+                if (win.TryFindResource("SidebarBgBrush")   is not SolidColorBrush bgBrush)   return;
+                if (win.TryFindResource("SidebarTextBrush") is not SolidColorBrush textBrush) return;
+
+                var hwnd   = new System.Windows.Interop.WindowInteropHelper(win).Handle;
+                var isDark = RelLuminance(bgBrush.Color) < 0.5 ? 1 : 0;
+                var cr     = bgBrush.Color.R   | (bgBrush.Color.G   << 8) | (bgBrush.Color.B   << 16);
+                var tcr    = textBrush.Color.R  | (textBrush.Color.G << 8) | (textBrush.Color.B << 16);
+                DwmSetWindowAttribute(hwnd, 20, ref isDark, 4);  // dark mode (Win 10+)
+                DwmSetWindowAttribute(hwnd, 35, ref cr,    4);   // caption colour (Win 11+)
+                DwmSetWindowAttribute(hwnd, 36, ref tcr,   4);   // caption text (Win 11+)
+            }
+            catch { }
+        };
+    }
+
+    [DllImport("dwmapi.dll", EntryPoint = "DwmSetWindowAttribute")]
+    private static extern int DwmSetWindowAttribute(nint hwnd, int attr, ref int val, int sz);
+
+    private static double RelLuminance(Color c)
+    {
+        static double L(double v) => v <= 0.04045 ? v / 12.92 : Math.Pow((v + 0.055) / 1.055, 2.4);
+        return 0.2126 * L(c.R / 255.0) + 0.7152 * L(c.G / 255.0) + 0.0722 * L(c.B / 255.0);
     }
 }

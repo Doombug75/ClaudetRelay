@@ -890,6 +890,16 @@ public partial class MainWindow
         _streamCts?.Cancel();
         ChatPanel.Children.Clear();
         _sharedHistory.Clear();
+        // Only reset file checkouts if nothing is currently locked.
+        // Bridge tasks or private tasks may still be running and holding locks —
+        // wiping them here would silently corrupt those tasks' file access.
+        if (_fileCheckout.HasAnyCheckout)
+            AddSystemMessage(Loc.S("FileCheckout_LocksPreserved"));
+        else
+        {
+            _fileCheckout.CheckinAll();
+            AddSystemMessage(Loc.S("FileCheckout_Cleared"));
+        }
 
         // Store project state - _currentProject and _projectSettings are the SAME object
         _currentProjectFolder = projFolder;
@@ -1028,6 +1038,9 @@ public partial class MainWindow
     {
         ShowRoadmapPanel(false);
         SaveProjectParticipants();   // persist current participants before clearing state
+        // Preserve checkouts if tasks are still running (they release locks themselves on finish).
+        if (!_fileCheckout.HasAnyCheckout)
+            _fileCheckout.CheckinAll();
         _currentProjectFolder            = null;
         _currentProject                  = null;
         _currentProjectType              = null;
@@ -1601,6 +1614,14 @@ public partial class MainWindow
         }
     }
 
+    // Carries the live state of one collapsible section for the filter / expand-all logic.
+    private sealed record FilesSectionHandle(
+        FrameworkElement  Element,
+        StackPanel        Body,
+        TextBlock         Chevron,
+        TextBlock         NoMatchLabel,
+        List<(string Name, FrameworkElement Row)> Rows);
+
     /// <summary>Rebuilds the Files panel content from the current project folder.</summary>
     private void BuildFilesContent()
     {
@@ -1623,16 +1644,20 @@ public partial class MainWindow
         scroll.Content = root;
 
         // ── Top toolbar ────────────────────────────────────────────────────
-        var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 16) };
+        var toolbar = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin      = new Thickness(0, 0, 0, 10)
+        };
 
         var refreshBtn = MakeFilePanelButton(Properties.Loc.S("Files_Refresh"), isPrimary: false);
-        refreshBtn.Click += (_, _) => BuildFilesContent();
-        refreshBtn.ToolTip = Properties.Loc.S("Files_RefreshTip");
+        refreshBtn.Click   += (_, _) => BuildFilesContent();
+        refreshBtn.ToolTip  = Properties.Loc.S("Files_RefreshTip");
         toolbar.Children.Add(refreshBtn);
 
         var openFolderBtn = MakeFilePanelButton(Properties.Loc.S("Files_OpenProjectFolder"), isPrimary: false);
-        openFolderBtn.Margin = new Thickness(8, 0, 0, 0);
-        openFolderBtn.Click += (_, _) =>
+        openFolderBtn.Margin  = new Thickness(8, 0, 0, 0);
+        openFolderBtn.Click  += (_, _) =>
         {
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                       (_currentProjectFolder!) { UseShellExecute = true }); }
@@ -1641,35 +1666,123 @@ public partial class MainWindow
         openFolderBtn.ToolTip = Properties.Loc.S("Files_OpenFolderTip");
         toolbar.Children.Add(openFolderBtn);
 
+        // ── Collapse / expand all ──────────────────────────────────────────
+        var collapseBtn = MakeFilePanelButton("▶", isPrimary: false);
+        collapseBtn.Margin  = new Thickness(8, 0, 0, 0);
+        collapseBtn.ToolTip = "Collapse all sections";
+        toolbar.Children.Add(collapseBtn);
+
+        var expandBtn = MakeFilePanelButton("▼", isPrimary: false);
+        expandBtn.Margin  = new Thickness(4, 0, 0, 0);
+        expandBtn.ToolTip = "Expand all sections";
+        toolbar.Children.Add(expandBtn);
+
         root.Children.Add(toolbar);
 
-        // ── Three sections ─────────────────────────────────────────────────
-        root.Children.Add(BuildFilesSection(
-            header:      Properties.Loc.S("Files_InputHeader"),
-            folder:      "INPUT",
-            canDelete:   false,
-            canPromote:  false,
-            description: Properties.Loc.S("Files_InputDesc"),
-            dimDesc:     true));
+        // ── Filter input ───────────────────────────────────────────────────
+        var filterOuter = new Border
+        {
+            Height          = 28,
+            CornerRadius    = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            Margin          = new Thickness(0, 0, 0, 14)
+        };
+        filterOuter.SetResourceReference(Border.BackgroundProperty,   "InputBgBrush");
+        filterOuter.SetResourceReference(Border.BorderBrushProperty,  "InputBorderBrush");
 
-        root.Children.Add(BuildFilesSection(
-            header:      Properties.Loc.S("Files_OutputHeader"),
-            folder:      "OUTPUT",
-            canDelete:   true,
-            canPromote:  true,
-            description: Properties.Loc.S("Files_OutputDesc"),
-            dimDesc:     false));
+        var filterBox = new TextBox
+        {
+            FontSize  = 11,
+            FontFamily = new FontFamily("Segoe UI"),
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        filterBox.SetResourceReference(TextBox.ForegroundProperty,   "InputTextBrush");
+        filterBox.SetResourceReference(TextBox.CaretBrushProperty,   "InputTextBrush");
+        filterBox.SetResourceReference(TextBox.BackgroundProperty,   "InputBgBrush");
+        filterBox.SetResourceReference(TextBox.BorderBrushProperty,  "InputBgBrush"); // inner border hidden
 
-        root.Children.Add(BuildFilesSection(
-            header:      Properties.Loc.S("Files_PlanHeader"),
-            folder:      "PROJECTPLAN",
-            canDelete:   true,
-            canPromote:  false,
-            description: Properties.Loc.S("Files_PlanDesc"),
-            dimDesc:     false));
+        // Watermark hint
+        var filterHint = new TextBlock
+        {
+            Text              = "🔍  Filter files…",
+            FontSize          = 11,
+            FontFamily        = new FontFamily("Segoe UI"),
+            IsHitTestVisible  = false,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin            = new Thickness(8, 0, 0, 0)
+        };
+        filterHint.SetResourceReference(TextBlock.ForegroundProperty, "InputDimBrush");
+
+        var filterGrid = new Grid();
+        filterGrid.Children.Add(filterBox);
+        filterGrid.Children.Add(filterHint);
+        filterOuter.Child = filterGrid;
+        root.Children.Add(filterOuter);
+
+        // ── Three collapsible sections ─────────────────────────────────────
+        var sections = new List<FilesSectionHandle>();
+
+        FilesSectionHandle AddSection(string hdr, string fld, bool del, bool promo, string desc, bool dim)
+        {
+            var s = BuildFilesSection(hdr, fld, del, promo, desc, dim);
+            root.Children.Add(s.Element);
+            sections.Add(s);
+            return s;
+        }
+
+        AddSection(Properties.Loc.S("Files_InputHeader"),  "INPUT",       false, false, Properties.Loc.S("Files_InputDesc"),  true);
+        AddSection(Properties.Loc.S("Files_OutputHeader"), "OUTPUT",      true,  true,  Properties.Loc.S("Files_OutputDesc"), false);
+        AddSection(Properties.Loc.S("Files_PlanHeader"),   "PROJECTPLAN", true,  false, Properties.Loc.S("Files_PlanDesc"),   false);
+
+        // ── Wire up collapse / expand all ─────────────────────────────────
+        collapseBtn.Click += (_, _) =>
+        {
+            foreach (var s in sections)
+            {
+                s.Body.Visibility   = Visibility.Collapsed;
+                s.Chevron.Text      = "▶";
+            }
+        };
+        expandBtn.Click += (_, _) =>
+        {
+            foreach (var s in sections)
+            {
+                s.Body.Visibility   = Visibility.Visible;
+                s.Chevron.Text      = "▼";
+            }
+        };
+
+        // ── Wire up filter ────────────────────────────────────────────────
+        filterBox.TextChanged += (_, _) =>
+        {
+            var query = filterBox.Text;
+            filterHint.Visibility = query.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            foreach (var s in sections)
+            {
+                int shown = 0;
+                foreach (var (name, row) in s.Rows)
+                {
+                    bool match = string.IsNullOrEmpty(query)
+                              || name.Contains(query, StringComparison.OrdinalIgnoreCase);
+                    row.Visibility = match ? Visibility.Visible : Visibility.Collapsed;
+                    if (match) shown++;
+                }
+
+                s.NoMatchLabel.Visibility = s.Rows.Count > 0 && shown == 0
+                    ? Visibility.Visible : Visibility.Collapsed;
+
+                // Auto-expand sections that have matches
+                if (!string.IsNullOrEmpty(query) && shown > 0)
+                {
+                    s.Body.Visibility = Visibility.Visible;
+                    s.Chevron.Text    = "▼";
+                }
+            }
+        };
     }
 
-    private FrameworkElement BuildFilesSection(
+    private FilesSectionHandle BuildFilesSection(
         string header, string folder, bool canDelete, bool canPromote, string description, bool dimDesc)
     {
         var projFolder = _currentProjectFolder!;
@@ -1688,34 +1801,38 @@ public partial class MainWindow
         var inner = new StackPanel();
         section.Child = inner;
 
-        // ── Section header row ────────────────────────────────────────────
-        var headerRow = new Grid();
-        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        // ── Section header row (clickable to collapse/expand) ─────────────
+        // Col 0: chevron  Col 1: header text (star)  Col 2: open-folder btn
+        var chevron = new TextBlock
+        {
+            Text              = "▼",
+            FontSize          = 10,
+            FontFamily        = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin            = new Thickness(0, 0, 6, 0)
+        };
+        chevron.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
 
         var headerText = new TextBlock
         {
-            Text       = header,
-            FontSize   = 12,
-            FontWeight = FontWeights.SemiBold,
-            FontFamily = new FontFamily("Segoe UI"),
-            Margin     = new Thickness(0, 0, 0, 4)
+            Text              = header,
+            FontSize          = 12,
+            FontWeight        = FontWeights.SemiBold,
+            FontFamily        = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center
         };
         headerText.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
-        Grid.SetColumn(headerText, 0);
-        headerRow.Children.Add(headerText);
 
-        // "Open folder" icon button in header
         var openDirBtn = new Button
         {
-            Content         = "📁",
-            FontSize        = 13,
-            Padding         = new Thickness(4, 2, 4, 2),
-            Background      = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Cursor          = Cursors.Hand,
+            Content           = "📁",
+            FontSize          = 13,
+            Padding           = new Thickness(4, 2, 4, 2),
+            Background        = Brushes.Transparent,
+            BorderThickness   = new Thickness(0),
+            Cursor            = Cursors.Hand,
             VerticalAlignment = VerticalAlignment.Center,
-            ToolTip         = $"Open {folder}/ in Explorer"
+            ToolTip           = $"Open {folder}/ in Explorer"
         };
         openDirBtn.SetResourceReference(Button.ForegroundProperty, "SidebarDimBrush");
         openDirBtn.Click += (_, _) =>
@@ -1725,35 +1842,69 @@ public partial class MainWindow
                       (absFolder) { UseShellExecute = true }); }
             catch { /* ignore */ }
         };
-        Grid.SetColumn(openDirBtn, 1);
+
+        var headerRow = new Grid { Cursor = Cursors.Hand, Margin = new Thickness(0, 0, 0, 0) };
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(chevron,    0);
+        Grid.SetColumn(headerText, 1);
+        Grid.SetColumn(openDirBtn, 2);
+        headerRow.Children.Add(chevron);
+        headerRow.Children.Add(headerText);
         headerRow.Children.Add(openDirBtn);
         inner.Children.Add(headerRow);
+
+        // ── Collapsible body ──────────────────────────────────────────────
+        var body = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
+        inner.Children.Add(body);
+
+        // Toggle body on header click (but not on the open-folder button)
+        headerRow.MouseLeftButtonUp += (s, e) =>
+        {
+            if (e.Source is Button) return;  // don't intercept the folder button
+            if (body.Visibility == Visibility.Visible)
+            {
+                body.Visibility = Visibility.Collapsed;
+                chevron.Text    = "▶";
+            }
+            else
+            {
+                body.Visibility = Visibility.Visible;
+                chevron.Text    = "▼";
+            }
+            e.Handled = true;
+        };
+        headerRow.MouseEnter += (_, _) => chevron.Opacity = 0.75;
+        headerRow.MouseLeave += (_, _) => chevron.Opacity = 1.00;
 
         // ── Description ───────────────────────────────────────────────────
         var desc = new TextBlock
         {
-            Text        = description,
-            FontSize    = 11,
-            FontFamily  = new FontFamily("Segoe UI"),
+            Text         = description,
+            FontSize     = 11,
+            FontFamily   = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap,
-            Margin      = new Thickness(0, 0, 0, 10)
+            Margin       = new Thickness(0, 0, 0, 10)
         };
         desc.SetResourceReference(TextBlock.ForegroundProperty,
             dimDesc ? "SidebarDimBrush" : "ContentDimBrush");
-        inner.Children.Add(desc);
+        body.Children.Add(desc);
 
         // ── Separator ─────────────────────────────────────────────────────
         var sep = new Rectangle { Height = 1, Margin = new Thickness(0, 0, 0, 10) };
         sep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
-        inner.Children.Add(sep);
+        body.Children.Add(sep);
 
         // ── File rows ─────────────────────────────────────────────────────
         var files = SysIO.Directory.Exists(absFolder)
             ? SysIO.Directory.GetFiles(absFolder)
-                .Where(f => !SysIO.Path.GetFileName(f).StartsWith("_"))  // skip _versions etc.
+                .Where(f => !SysIO.Path.GetFileName(f).StartsWith("_"))
                 .OrderBy(f => SysIO.Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
                 .ToList()
             : [];
+
+        var fileRows = new List<(string Name, FrameworkElement Row)>();
 
         if (files.Count == 0)
         {
@@ -1765,18 +1916,34 @@ public partial class MainWindow
                 Margin     = new Thickness(4, 0, 0, 0)
             };
             empty.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
-            inner.Children.Add(empty);
+            body.Children.Add(empty);
         }
         else
         {
+            // Use body as parentPanel so refresh (delete/promote) rebuilds relative to body
             foreach (var filePath in files)
             {
-                var fileRow = BuildFileRow(filePath, projFolder, folder, canDelete, canPromote, inner);
-                inner.Children.Add(fileRow);
+                var fileRow = BuildFileRow(filePath, projFolder, folder, canDelete, canPromote,
+                    // parentPanel is still inner so promote/delete refresh works
+                    inner);
+                body.Children.Add(fileRow);
+                fileRows.Add((SysIO.Path.GetFileName(filePath), fileRow));
             }
         }
 
-        return section;
+        // "No matching files" label — hidden until filter hides all rows
+        var noMatch = new TextBlock
+        {
+            Text       = "No files match the filter",
+            FontSize   = 11,
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(4, 0, 0, 0),
+            Visibility = Visibility.Collapsed
+        };
+        noMatch.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+        body.Children.Add(noMatch);
+
+        return new FilesSectionHandle(section, body, chevron, noMatch, fileRows);
     }
 
     private FrameworkElement BuildFileRow(
@@ -1837,6 +2004,47 @@ public partial class MainWindow
         nameText.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
         nameText.MouseLeftButtonUp += (_, _) => OpenFileInEditor(filePath);
         namePanel.Children.Add(nameText);
+
+        // ── File lock badge ────────────────────────────────────────────────
+        // Show a prominent "🔒 Locked" pill if this file is currently checked out.
+        var checkout = _fileCheckout.GetCheckout(filePath);
+        if (checkout is not null)
+        {
+            var modeLabel = checkout.Mode == Services.FileCheckoutRegistry.CheckoutMode.ReadOnly
+                ? Properties.Loc.S("FileCheckout_Mode_ReadOnly")
+                : Properties.Loc.S("FileCheckout_Mode_ReadWrite");
+
+            var lockTip = Properties.Loc.S("FileCheckout_LockedTip")
+                .Replace("{participant}", checkout.ParticipantName)
+                .Replace("{mode}", modeLabel);
+
+            var lockBadge = new Border
+            {
+                CornerRadius    = new CornerRadius(4),
+                Padding         = new Thickness(6, 2, 6, 2),
+                Margin          = new Thickness(8, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip         = lockTip,
+                Cursor          = Cursors.Help
+            };
+            lockBadge.SetResourceReference(Border.BackgroundProperty, "AccentHighlightBrush");
+
+            var lockText = new TextBlock
+            {
+                Text      = Properties.Loc.S("FileCheckout_LockedBadge"),
+                FontSize  = 10,
+                FontFamily = new FontFamily("Segoe UI"),
+                FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            lockText.SetResourceReference(TextBlock.ForegroundProperty, "AccentTextBrush");
+
+            lockBadge.Child = lockText;
+            namePanel.Children.Add(lockBadge);
+
+            // Also dim the row slightly to reinforce "hands off"
+            nameText.Opacity = 0.6;
+        }
 
         // ── Version history toggle badge ───────────────────────────────────
         // Built here so the button can reference versionsPanel; count is re-read on every toggle.

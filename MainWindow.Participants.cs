@@ -7,6 +7,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using ClaudetRelay.Properties;
 using ClaudetRelay.Services;
 
 namespace ClaudetRelay;
@@ -1649,5 +1650,58 @@ public partial class MainWindow
         // If a project is open, refresh the capability profile if the team changed.
         if (_currentProjectFolder is not null)
             _ = CheckAndTriggerSuperPowersAsync();
+    }
+
+    // ── Card thinking-pulse animations ─────────────────────────────────────
+
+    /// <summary>
+    /// Starts a pulsing glow on the participant's avatar to indicate the model is actively
+    /// generating a response. Pair every call with <see cref="StopCardPulse"/>.
+    /// </summary>
+    /// <summary>
+    /// Starts the pulsing glow animation on a participant's avatar card.
+    /// Also updates the status label to show "Busy..." while generating.
+    /// </summary>
+    private void StartCardPulse(Border avatarBorder, TextBlock? statusLabel = null)
+    {
+        // Show "Busy..." status if label provided
+        if (statusLabel != null)
+            statusLabel.Text = Properties.Loc.S("Status_Busy");
+
+        var glow = new System.Windows.Media.Effects.DropShadowEffect
+        {
+            Color       = System.Windows.Media.Colors.White,
+            Direction   = 0,
+            ShadowDepth = 0,
+            Opacity     = 0.0,
+            BlurRadius  = 10
+        };
+        avatarBorder.Effect = glow;
+
+        var anim = new System.Windows.Media.Animation.DoubleAnimation
+        {
+            From           = 0.0,
+            To             = 0.9,
+            Duration       = new Duration(TimeSpan.FromMilliseconds(620)),
+            AutoReverse    = true,
+            RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+            EasingFunction = new System.Windows.Media.Animation.SineEase
+                             { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut }
+        };
+        glow.BeginAnimation(
+            System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, anim);
+    }
+
+    /// <summary>
+    /// Removes the thinking-pulse glow from the avatar border.
+    /// Also clears the "Busy..." status label if provided.
+    /// </summary>
+    private void StopCardPulse(Border avatarBorder, TextBlock? statusLabel = null)
+    {
+        avatarBorder.Effect = null;
+
+        // Clear "Busy..." status if label provided
+        if (statusLabel != null)
+            statusLabel.Text = "";
     }
 }

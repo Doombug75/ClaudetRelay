@@ -31,10 +31,30 @@ public partial class MainWindow
         infoItem     .Click += (_, _) => ShowAboutInfoDialog();
         versionItem  .Click += (_, _) => ShowAboutVersionDialog();
 
+        // ── Language submenu ───────────────────────────────────────────────
+        var currentLang = Services.SettingsService.Load().Language ?? "";
+        var langItem    = new MenuItem { Header = "🌐  " + Properties.Loc.S("Menu_Language") };
+
+        void AddLang(string label, string code)
+        {
+            var item = new MenuItem
+            {
+                Header      = label,
+                IsCheckable = true,
+                IsChecked   = string.Equals(currentLang, code, StringComparison.OrdinalIgnoreCase),
+            };
+            item.Click += (_, _) => SetLanguage(code);
+            langItem.Items.Add(item);
+        }
+        AddLang("English", "");
+        AddLang("Deutsch", "de");
+
         menu.Items.Add(generalItem);
         menu.Items.Add(new Separator());
         menu.Items.Add(foldersItem);
         menu.Items.Add(providersItem);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(langItem);
         menu.Items.Add(new Separator());
         BuildAudioMenuItems(menu);
         menu.Items.Add(new Separator());
@@ -46,42 +66,40 @@ public partial class MainWindow
         menu.IsOpen          = true;
     }
 
+    private void SetLanguage(string code)
+    {
+        var s = Services.SettingsService.Load();
+        // Compare the stored value directly (no ?? fallback).
+        // null (OS default) ≠ "" (explicit English) — switching to English on a
+        // non-English OS must still write "" so App.xaml.cs can force the culture.
+        if (string.Equals(s.Language, code, StringComparison.OrdinalIgnoreCase)) return;
+        s.Language = code;
+        Services.SettingsService.Save(s);
+        MessageBox.Show(
+            Properties.Loc.S("Settings_LanguageHint"),
+            "🌐  " + Properties.Loc.S("Menu_Language"),
+            MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
     private void BuildAudioMenuItems(ContextMenu menu)
     {
-        var settings = Services.SettingsService.Load();
+        var audioItem = new MenuItem { Header = Properties.Loc.S("Audio_AudioSetup") };
+        var voiceItem = new MenuItem { Header = Properties.Loc.S("Audio_VoiceSettings") };
 
-        // Toggle/skip/stop live in the input area buttons — not duplicated here.
+        audioItem.Click += (_, _) => OpenAudioSetup();
+        voiceItem.Click += (_, _) => OpenVoiceSettings();
 
-        // ── Backend submenu ────────────────────────────────────────────────
-        var backendItem = new MenuItem { Header = Properties.Loc.S("Audio_Backend") };
-
-        void AddBackend(string label, string key)
-        {
-            var item = new MenuItem
-            {
-                Header      = label,
-                IsCheckable = true,
-                IsChecked   = string.Equals(settings.VoiceBackend, key, StringComparison.OrdinalIgnoreCase),
-            };
-            item.Click += (_, _) => SwitchVoiceBackend(key);
-            backendItem.Items.Add(item);
-        }
-
-        AddBackend(Properties.Loc.S("Audio_BackendWindows"),  "Windows");
-        AddBackend(Properties.Loc.S("Audio_BackendSherpa"),   "Sherpa");
-        AddBackend(Properties.Loc.S("Audio_BackendVoicevox"), "Voicevox");
-
-        menu.Items.Add(backendItem);
-
-        // ── Voice Model Manager ────────────────────────────────────────────
-        var modelsItem = new MenuItem { Header = Properties.Loc.S("Audio_VoiceModels") };
-        modelsItem.Click += (_, _) => OpenVoiceModelManager();
-        menu.Items.Add(modelsItem);
+        menu.Items.Add(audioItem);
+        menu.Items.Add(voiceItem);
     }
 
     private void InitVoiceBackend()
     {
         var s = Services.SettingsService.Load();
+
+        Services.VoiceOutputService.Volume       = (float)Math.Clamp(s.AudioVolume, 0.0, 1.0);
+        Services.VoiceOutputService.DeviceNumber = AudioSetupWindow.FindDeviceNumber(s.AudioOutputDevice);
+
         Services.VoiceOutputService.ActiveBackend = s.VoiceBackend switch
         {
             "Sherpa"   => new Services.SherpaOnnxTtsBackend(s.SherpaModelFolder),
@@ -90,23 +108,24 @@ public partial class MainWindow
         };
     }
 
-    private void SwitchVoiceBackend(string key)
+    internal void OpenAudioSetup()
     {
-        var s = Services.SettingsService.Load();
-        s.VoiceBackend = key;
-        Services.SettingsService.Save(s);
+        var win = new AudioSetupWindow(_currentThemePath) { Owner = this };
+        win.SourceInitialized += (_, _) => ApplyTitleBarTheme(win);
+        win.ShowDialog();
+    }
 
-        Services.VoiceOutputService.ActiveBackend = key switch
-        {
-            "Sherpa"   => new Services.SherpaOnnxTtsBackend(s.SherpaModelFolder),
-            "Voicevox" => new Services.VoicevoxTtsBackend(s.VoicevoxPort),
-            _          => new Services.WindowsTtsBackend(),
-        };
+    internal void OpenVoiceSettings()
+    {
+        var win = new VoiceSettingsWindow(_currentThemePath) { Owner = this };
+        win.SourceInitialized += (_, _) => ApplyTitleBarTheme(win);
+        win.ShowDialog();
     }
 
     internal void OpenVoiceModelManager()
     {
         var win = new VoiceModelManagerWindow(_currentThemePath) { Owner = this };
+        win.SourceInitialized += (_, _) => ApplyTitleBarTheme(win);
         win.ShowDialog();
     }
 

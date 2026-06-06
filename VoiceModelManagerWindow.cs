@@ -21,6 +21,10 @@ public sealed class VoiceModelManagerWindow : Window
     private TextBox?    _folderBox;
     private TextBox?    _portBox;
 
+    // ── Default folder: <exe dir>/Voices ──────────────────────────────────
+    private static string DefaultVoicesFolder =>
+        Path.Combine(AppContext.BaseDirectory, "Voices");
+
     // ── Curated voice model catalogue ─────────────────────────────────────
 
     private static readonly VoiceModelInfo[] CuratedModels =
@@ -87,7 +91,7 @@ public sealed class VoiceModelManagerWindow : Window
         var s = SettingsService.Load();
         _folderBox = new TextBox
         {
-            Text        = s.SherpaModelFolder,
+            Text        = string.IsNullOrEmpty(s.SherpaModelFolder) ? DefaultVoicesFolder : s.SherpaModelFolder,
             FontFamily  = new FontFamily("Segoe UI"),
             FontSize    = 12,
             Padding     = new Thickness(8, 6, 8, 6),
@@ -259,16 +263,10 @@ public sealed class VoiceModelManagerWindow : Window
 
         actionBtn.Click += async (_, _) =>
         {
-            var s      = SettingsService.Load();
-            var folder = s.SherpaModelFolder;
+            // Always read from the live text box so unsaved edits are respected.
+            var folder = _folderBox?.Text.Trim() ?? "";
             if (string.IsNullOrWhiteSpace(folder))
-            {
-                MessageBox.Show(
-                    Properties.Loc.S("Audio_NoFolderSelected"),
-                    Properties.Loc.S("Audio_VoiceModels"),
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
+                folder = DefaultVoicesFolder;
 
             var modelDir = Path.Combine(folder, m.Name);
             if (Directory.Exists(modelDir))
@@ -301,7 +299,15 @@ public sealed class VoiceModelManagerWindow : Window
 
             try
             {
-                Directory.CreateDirectory(folder);
+                // Create and persist the folder if it doesn't exist yet.
+                if (!Directory.Exists(folder))
+                {
+                    Directory.CreateDirectory(folder);
+                    var cfg = SettingsService.Load();
+                    cfg.SherpaModelFolder = folder;
+                    SettingsService.Save(cfg);
+                    if (_folderBox is not null) _folderBox.Text = folder;
+                }
                 var tmpFile = Path.Combine(Path.GetTempPath(), Path.GetFileName(m.DownloadUrl));
 
                 using var http   = new HttpClient();

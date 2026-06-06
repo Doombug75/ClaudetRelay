@@ -134,7 +134,7 @@ public class AppSettings
     public int    OllamaInstanceCount { get; set; } = 1;
 
     /// <summary>Display name shown on the human user's own chat bubbles.</summary>
-    public string UserName { get; set; } = "You";
+    public string UserName { get; set; } = "User";
 
     /// <summary>Root folder for saved projects. Empty = use default Documents path.</summary>
     public string ProjectsFolder { get; set; } = "";
@@ -200,11 +200,24 @@ public class AppSettings
     public int VoicevoxPort { get; set; } = 50021;
 
     /// <summary>
-    /// UI language code, e.g. "en" or "de".
-    /// Applied as <c>CurrentUICulture</c> at startup — restart required for changes.
-    /// Empty string means "en" (English / neutral fallback).
+    /// ProductName of the preferred audio output device.
+    /// Empty string = OS default device (first WaveOut device).
     /// </summary>
-    public string Language { get; set; } = "";
+    public string AudioOutputDevice { get; set; } = "";
+
+    /// <summary>
+    /// Master playback volume for TTS output. Range 0.0–1.0. Default 1.0 (100 %).
+    /// </summary>
+    public double AudioVolume { get; set; } = 1.0;
+
+    /// <summary>
+    /// UI language code, e.g. "" (English) or "de" (German).
+    /// <c>null</c> = never configured → OS locale is used on first launch.
+    /// <c>""</c>   = user explicitly chose English → "en" is forced regardless of OS locale.
+    /// <c>"de"</c> = user explicitly chose German.
+    /// Applied as <c>CurrentUICulture</c> at startup — restart required for changes.
+    /// </summary>
+    public string? Language { get; set; } = null;
 
     /// <summary>Configured participants shown in the card grid.</summary>
     public List<ParticipantConfig> Participants { get; set; } = [];
@@ -238,6 +251,12 @@ public class AppSettings
     /// Only used when AiDialogueEnabled is true.
     /// </summary>
     public int AiDialogueMaxTurns { get; set; } = 10;
+
+    /// <summary>
+    /// Minutes before a file checkout is considered stale and the participant is reminded to check in.
+    /// Range: 1–30. Default: 5.
+    /// </summary>
+    public int FileCheckoutTimeoutMinutes { get; set; } = 5;
 
     /// <summary>
     /// Default response length for general (non-project) chat (0–100).

@@ -370,7 +370,7 @@ public static class ProjectService
     /// chatlog-yyyy-MM-dd_HHmmss.json (archived, oldest first), chatlog.json (current).
     /// ISO-format filenames sort lexicographically = chronologically.
     /// </summary>
-    private static IEnumerable<string> GetChatLogFiles(string projectFolder)
+    internal static IEnumerable<string> GetChatLogFiles(string projectFolder)
     {
         var archived = Directory.Exists(projectFolder)
             ? Directory.GetFiles(projectFolder, "chatlog-*.json")

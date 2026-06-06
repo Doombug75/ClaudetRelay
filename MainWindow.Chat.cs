@@ -46,6 +46,7 @@ public partial class MainWindow : Window
 
         // Stop any running stream, clear the chat panel
         _streamCts?.Cancel();
+        CancelAllPrivateTasks();
         ChatPanel.Children.Clear();
         _sharedHistory.Clear();
 
@@ -384,7 +385,8 @@ public partial class MainWindow : Window
         var bubble = AddStreamingBubble(entry.DisplayName, entry.AvatarLabel,
                                          accentKey, bubbleKey, entry.IsUser);
         bubble.StopThinking();
-        bubble.Content.Text = entry.Message;
+        ApplyEmoteFormatting(bubble, entry.Message,
+                             entry.IsUser ? entry.DisplayName : "");
     }
 
     private void AppendToProjectLog(ChatLogEntry entry)
@@ -979,6 +981,57 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(text)) return;
 
         var avatar = _userName.Length >= 2 ? _userName[..2].ToUpper() : _userName.ToUpper();
+
+        // ── Check for /whisper <participant> syntax ──────────────────────────────
+        OllamaParticipantUI?  whisperTarget_Ollama = null;
+        CloudAIParticipantUI? whisperTarget_Cloud  = null;
+        string? whisperTargetName = null;
+        string messageContent = text;
+
+        if (text.StartsWith("/whisper ", StringComparison.OrdinalIgnoreCase))
+        {
+            var rest = text[9..].Trim();  // Skip "/whisper "
+            var spaceIdx = rest.IndexOf(' ');
+
+            if (spaceIdx > 0)
+            {
+                var targetName = rest[..spaceIdx];
+                messageContent = rest[(spaceIdx + 1)..].Trim();
+
+                // Find matching participant (case-insensitive)
+                var ollamaMatch = _ollamaParticipants.FirstOrDefault(u =>
+                    u.Data.DisplayName.Equals(targetName, StringComparison.OrdinalIgnoreCase) &&
+                    u.Data.Enabled && u.Data.IsOnline == true);
+
+                var cloudMatch = _cloudAIParticipants.FirstOrDefault(u =>
+                    u.Data.DisplayName.Equals(targetName, StringComparison.OrdinalIgnoreCase) &&
+                    u.Data.Enabled && u.Data.IsOnline == true);
+
+                if (ollamaMatch is not null || cloudMatch is not null)
+                {
+                    whisperTarget_Ollama = ollamaMatch;
+                    whisperTarget_Cloud  = cloudMatch;
+                    whisperTargetName    = ollamaMatch?.Data.DisplayName ?? cloudMatch?.Data.DisplayName;
+                }
+                else if (!string.IsNullOrEmpty(messageContent))
+                {
+                    // No match found but there's a message—treat the whole thing as normal message
+                    messageContent = text;
+                }
+                else
+                {
+                    // No match and no message after name—show error
+                    AddSystemMessage($"⚠  Participant \"{targetName}\" not found or not online.");
+                    return;
+                }
+            }
+            else
+            {
+                // /whisper with no space or message—treat as normal message
+                messageContent = text;
+            }
+        }
+
         AddMessage(_userName, avatar, "TertiaryAccentBrush", "TertiaryBubbleBrush", text, isUser: true);
 
         var entry = new ChatLogEntry
@@ -995,11 +1048,594 @@ public partial class MainWindow : Window
         AppendToProjectLog(entry);
         AppendToGeneralLog(entry);
 
-        _sharedHistory.Add(new CloudAIMessage("user", text, "User"));
-
         InputTextBox.Clear();
         InputTextBox.Focus();
-        _ = TriggerAiResponsesAsync();
+
+        // ── Private message (via chip or /whisper command): dispatch to one participant ──
+        var targetO = _privateMsgOllamaTarget ?? whisperTarget_Ollama;
+        var targetC = _privateMsgCloudTarget ?? whisperTarget_Cloud;
+
+        if (targetO is not null || targetC is not null)
+        {
+            var targetName = targetO?.Data.DisplayName ?? targetC?.Data.DisplayName ?? "?";
+            ClearPrivateMsgTarget();
+
+            // Add a status message to shared history so everyone knows a whisper happened
+            // (but only the recipient can see the actual content)
+            AddSystemMessage($"🤫  {_userName} whispers something to {targetName}");
+
+            // Note: DispatchPrivateTask adds the actual user message to _sharedHistory only
+            // after the response arrives (Option B isolation). Do NOT add it here.
+            DispatchPrivateTask(messageContent, targetO, targetC, targetName);
+        }
+        else
+        {
+            // Normal broadcast: add user message to shared history now so AI responses
+            // can read it immediately.
+            _sharedHistory.Add(new CloudAIMessage("user", messageContent, "User"));
+            _ = TriggerAiResponsesAsync();
+        }
+    }
+
+    // ── Private-message button & chip ─────────────────────────────────────
+
+    /// <summary>Shows the participant picker and stores the selected private-message target.</summary>
+    private void PrivateMsgButton_Click(object sender, RoutedEventArgs e)
+    {
+        // If already targeting someone, clear and return (second click = cancel)
+        if (_privateMsgOllamaTarget is not null || _privateMsgCloudTarget is not null)
+        {
+            ClearPrivateMsgTarget();
+            return;
+        }
+
+        var allOllamas  = _ollamaParticipants .Where(u => u.Data.Enabled && u.Data.IsOnline == true).ToList();
+        var allCloudAIs = _cloudAIParticipants.Where(u => u.Data.Enabled && u.Data.IsOnline == true).ToList();
+
+        if (allOllamas.Count == 0 && allCloudAIs.Count == 0)
+        {
+            AddSystemMessage("⚠  No online participants to send a private message to.");
+            return;
+        }
+
+        var menu = new ContextMenu
+        {
+            PlacementTarget = PrivateMsgButton,
+            Placement       = System.Windows.Controls.Primitives.PlacementMode.Top
+        };
+
+        void AddEntry(string displayName, string avatarLabel, string colorKey,
+                      OllamaParticipantUI? o, CloudAIParticipantUI? c)
+        {
+            var item = new MenuItem { Header = $"{avatarLabel}  {displayName}" };
+            item.Click += (_, _) => SetPrivateMsgTarget(o, c, displayName, colorKey);
+            menu.Items.Add(item);
+        }
+
+        foreach (var ui in allOllamas)
+            AddEntry(ui.Data.DisplayName, ui.Data.AvatarLabel, ui.Data.ColorKey, ui, null);
+        foreach (var ui in allCloudAIs)
+            AddEntry(ui.Data.DisplayName, ui.Data.AvatarLabel, ui.Data.ColorKey, null, ui);
+
+        menu.IsOpen = true;
+    }
+
+    /// <summary>Stores the private-message target and shows the accent chip above the input.</summary>
+    private void SetPrivateMsgTarget(
+        OllamaParticipantUI?  ollamaTarget,
+        CloudAIParticipantUI? cloudTarget,
+        string                displayName,
+        string                colorKey)
+    {
+        _privateMsgOllamaTarget = ollamaTarget;
+        _privateMsgCloudTarget  = cloudTarget;
+
+        // Style chip to match the participant's accent colour
+        PrivateMsgChip.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty,  colorKey);
+        PrivateMsgChip.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, colorKey);
+        PrivateMsgChipText.Text = $"📨  Private → {displayName}";
+        PrivateMsgChipText.SetResourceReference(TextBlock.ForegroundProperty, "AccentTextBrush");
+        PrivateMsgClearButton.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
+        PrivateMsgChip.Visibility = Visibility.Visible;
+
+        // Highlight the picker button to signal active targeting
+        PrivateMsgButton.SetResourceReference(Button.BackgroundProperty, colorKey);
+        PrivateMsgButton.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
+
+        // Update placeholder hint
+        PlaceholderText.Text = $"Private message to {displayName}…  (Enter ↵ send  •  Shift+Enter for new line)";
+
+        InputTextBox.Focus();
+    }
+
+    /// <summary>Clears the private-message target and resets the chip/button visuals.</summary>
+    private void ClearPrivateMsgTarget()
+    {
+        _privateMsgOllamaTarget = null;
+        _privateMsgCloudTarget  = null;
+
+        PrivateMsgChip.Visibility = Visibility.Collapsed;
+        PrivateMsgButton.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        PrivateMsgButton.SetResourceReference(Button.ForegroundProperty, "SidebarDimBrush");
+        PlaceholderText.Text = "Type a message...  (Enter ↵ send  •  Shift+Enter for new line)";
+    }
+
+    private void PrivateMsgClear_Click(object sender, RoutedEventArgs e)
+        => ClearPrivateMsgTarget();
+
+    /// <summary>
+    /// Dispatches a private task to one participant fire-and-forget.
+    /// The input stays fully unlocked so the user can send more messages (or more private tasks)
+    /// while this runs. Each private task has its own CancellationTokenSource stored in
+    /// <see cref="_privateTaskCts"/> so they can all be cancelled by <see cref="CancelAllPrivateTasks"/>.
+    ///
+    /// History isolation (Option B):
+    ///   • A busy-marker is added to <see cref="_sharedHistory"/> so other models see
+    ///     "[name] is working on a private task" while this task runs.
+    ///   • The target model receives a history snapshot that already includes the real
+    ///     user message instead of the busy-marker.
+    ///   • On completion the busy-marker is replaced with the real user message so the
+    ///     full exchange (question + answer) appears in shared history together.
+    /// </summary>
+    private void DispatchPrivateTask(
+        string                userText,
+        OllamaParticipantUI?  targetOllama,
+        CloudAIParticipantUI? targetCloud,
+        string                targetDisplayName)
+    {
+        bool ollamaOk = targetOllama is not null
+            && targetOllama.Data.Enabled && targetOllama.Data.IsOnline == true;
+        bool cloudOk  = targetCloud  is not null
+            && targetCloud.Data.Enabled  && targetCloud.Data.IsOnline  == true;
+
+        if (!ollamaOk && !cloudOk)
+        {
+            AddSystemMessage($"⚠  {targetDisplayName} is no longer available.");
+            return;
+        }
+
+        // ── Attempt file checkouts before dispatching task ──────────────────
+        // Determine whether this participant can write to project files.
+        // Write-capable participants check out doc files exclusively (they might modify them).
+        // Read-only participants check out doc files shared (safe parallel reads).
+        bool canWrite = targetOllama is not null
+            ? HasWriteAccess(targetOllama)
+            : HasWriteAccess(targetCloud!);
+
+        var projectFiles = GetProjectFiles();
+        var blockedFiles = new List<string>();
+
+        foreach (var filePath in projectFiles)
+        {
+            var mode = GetCheckoutModeForFile(filePath, canWrite);
+            if (!_fileCheckout.TryCheckout(filePath, targetDisplayName, mode, out var reason))
+            {
+                blockedFiles.Add($"{System.IO.Path.GetFileName(filePath)} ({reason})");
+            }
+        }
+
+        // If files are blocked, abort the task
+        if (blockedFiles.Count > 0)
+        {
+            AddSystemMessage(
+                Properties.Loc.S("FileCheckout_Blocked") + "\n" +
+                string.Join("\n", blockedFiles));
+            return;
+        }
+
+        // Build the private history snapshot BEFORE adding the busy-marker.
+        // The snapshot is current shared history + the real user message appended.
+        // The target model will use this; other models see the busy-marker instead.
+        var privateHistory = new List<CloudAIMessage>(_sharedHistory)
+        {
+            new CloudAIMessage("user", userText, "User")
+        };
+
+        // Add busy-marker to shared history (visible to all other models while task runs)
+        int busyIdx = _sharedHistory.Count;
+        _sharedHistory.Add(new CloudAIMessage("user",
+            $"[Note: {targetDisplayName} is currently working on a private task from the user " +
+            $"and is unavailable for group responses. They will share their results when done.]",
+            $"__busy__{targetDisplayName}"));
+
+        var cts = new CancellationTokenSource();
+        _privateTaskCts.Add(cts);
+
+        _ = DoPrivateTaskAsync(
+            targetOllama, targetCloud, targetDisplayName,
+            userText, privateHistory, busyIdx, projectFiles, cts);
+        // ↑ Fire and forget — input stays live immediately
+    }
+
+    private async Task DoPrivateTaskAsync(
+        OllamaParticipantUI?             targetOllama,
+        CloudAIParticipantUI?            targetCloud,
+        string                           targetDisplayName,
+        string                           userText,
+        IReadOnlyList<CloudAIMessage>    privateHistory,
+        int                              busyIdx,
+        List<string>                     projectFiles,
+        CancellationTokenSource          cts)
+    {
+        var ct = cts.Token;
+        int histCountBeforeStream = _sharedHistory.Count; // includes the busy-marker
+
+        try
+        {
+            if (targetOllama is not null)
+                await RunOllamaStreamAsync(targetOllama, ct, histOverride: privateHistory);
+            else
+                await RunCloudAIStreamAsync(targetCloud!, ct, histOverride: privateHistory);
+
+            // ── Record file modifications ──────────────────────────────────────
+            // After stream completes, mark which files were modified
+            foreach (var filePath in projectFiles)
+            {
+                if (_fileCheckout.WasModified(filePath))
+                    _fileCheckout.RecordModification(filePath, targetDisplayName);
+            }
+        }
+        finally
+        {
+            // ── Check in all files (release locks) ────────────────────────────
+            foreach (var filePath in projectFiles)
+            {
+                _fileCheckout.Checkin(filePath);
+            }
+
+            // ── Detect conflicts with other participants' modifications ────────
+            DetectAndReportConflicts(targetDisplayName);
+
+            // ── Swap busy-marker → real user message (if task produced a response) ──
+            // After the stream, _sharedHistory may have grown (AI response appended).
+            // Replace the busy-marker with the real user message so both question and
+            // answer land in shared history together, in the right order.
+            bool aiResponseAdded = _sharedHistory.Count > histCountBeforeStream;
+
+            // Remove the busy-marker (busyIdx may no longer equal the current position if
+            // concurrent normal messages were added, so search by the sentinel Sender tag).
+            int markerIdx = _sharedHistory.FindIndex(
+                m => m.Sender == $"__busy__{targetDisplayName}");
+            if (markerIdx >= 0)
+            {
+                _sharedHistory.RemoveAt(markerIdx);
+                // Insert the real user message where the busy-marker was.
+                // If no response arrived (task failed/cancelled) we still insert it so
+                // the conversation record is coherent.
+                _sharedHistory.Insert(markerIdx,
+                    new CloudAIMessage("user", userText, "User"));
+            }
+
+            if (!aiResponseAdded)
+            {
+                // Task failed or was cancelled before generating anything useful.
+                // Remove the stub user message we just inserted so history stays clean.
+                int stubIdx = _sharedHistory.FindLastIndex(
+                    m => m.Role == "user" && m.Sender == "User" && m.Content == userText);
+                if (stubIdx >= 0) _sharedHistory.RemoveAt(stubIdx);
+            }
+
+            _privateTaskCts.Remove(cts);
+            cts.Dispose();
+        }
+    }
+
+    /// <summary>Cancels all running parallel private tasks (called by global Stop/Clear).</summary>
+    private void CancelAllPrivateTasks()
+    {
+        foreach (var cts in _privateTaskCts.ToList())
+        {
+            try { cts.Cancel(); } catch { /* already disposed */ }
+        }
+        // The DoPrivateTaskAsync finally-blocks will remove them from the list when they finish.
+    }
+
+    // ── File checkout monitoring (smart stale-checkout detection) ────────────
+
+    private void StartCheckoutMonitor()
+    {
+        _checkoutMonitorCts = new CancellationTokenSource();
+        _ = Task.Run(async () => await CheckoutMonitorLoopAsync(_checkoutMonitorCts.Token));
+    }
+
+    private void StopCheckoutMonitor()
+    {
+        _checkoutMonitorCts?.Cancel();
+        _checkoutMonitorCts?.Dispose();
+        _checkoutMonitorCts = null;
+    }
+
+    /// <summary>
+    /// Runs every minute to detect stale file checkouts.
+    /// Smart behaviour:
+    ///   • If the participant is currently BUSY (generating) → silently extend the
+    ///     lock by resetting its timer so they won't be interrupted.
+    ///   • If the participant is IDLE → post a visible @mention asking them to
+    ///     check in. Their next response is parsed by ProcessCheckinResponse().
+    /// Timeout threshold is read from settings (FileCheckoutTimeoutMinutes).
+    /// </summary>
+    private async Task CheckoutMonitorLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                // Check every minute so we react quickly to short timeout settings
+                await Task.Delay(TimeSpan.FromMinutes(1), ct);
+
+                if (ct.IsCancellationRequested)
+                    break;
+
+                // Read configurable timeout from settings
+                var timeoutMinutes = Services.SettingsService.Load().FileCheckoutTimeoutMinutes;
+                var staleThreshold = TimeSpan.FromMinutes(Math.Max(1, timeoutMinutes));
+
+                // Find all checkouts that have been held longer than the threshold
+                var staleCheckouts = _fileCheckout.GetStaleCheckouts(staleThreshold).ToList();
+
+                foreach (var (filePath, checkout) in staleCheckouts)
+                {
+                    // Always skip user checkouts — humans have no reminder loop
+                    if ((bool)Dispatcher.Invoke(() => IsUserName(checkout.ParticipantName)))
+                        continue;
+
+                    var participantName = checkout.ParticipantName;
+                    var fileName        = System.IO.Path.GetFileName(filePath);
+                    var duration        = _fileCheckout.GetCheckoutDuration(filePath);
+
+                    // ── Busy check ────────────────────────────────────────
+                    bool isBusy = (bool)Dispatcher.Invoke(() => IsParticipantBusy(participantName));
+
+                    if (isBusy)
+                    {
+                        // Participant is actively generating — extend silently for 1 minute
+                        // by resetting the checkout time to now.
+                        _fileCheckout.RefreshCheckout(filePath);
+                        // No message shown; the participant won't even notice.
+                        continue;
+                    }
+
+                    // ── Participant is idle — ask if they still need the file ──
+                    // Skip if we already asked about this file and are waiting for a reply
+                    bool alreadyAsked;
+                    lock (_pendingCheckinFiles)
+                        alreadyAsked = _pendingCheckinFiles.TryGetValue(participantName, out var set)
+                                    && set.Contains(filePath);
+
+                    if (alreadyAsked)
+                        continue;   // still waiting for their answer from last cycle
+
+                    // Track that we've asked; their next response will be checked
+                    lock (_pendingCheckinFiles)
+                    {
+                        if (!_pendingCheckinFiles.TryGetValue(participantName, out var fileSet))
+                            _pendingCheckinFiles[participantName] = fileSet = new HashSet<string>();
+                        fileSet.Add(filePath);
+                    }
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        var msg = Properties.Loc.S("FileCheckout_AskCheckin")
+                            .Replace("{participant}", participantName)
+                            .Replace("{file}",        fileName)
+                            .Replace("{duration}",    $"{duration.TotalMinutes:F0}");
+                        AddSystemMessage(msg);
+                    });
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch
+            {
+                // Don't crash the monitor on unexpected errors
+            }
+        }
+    }
+
+    /// <summary>
+    /// Returns true if the named participant is currently generating a response
+    /// (their status label shows the "Busy…" text).
+    /// Must be called on the UI thread (or via Dispatcher.Invoke).
+    /// </summary>
+    private bool IsParticipantBusy(string participantName)
+    {
+        var busyText = Properties.Loc.S("Status_Busy");
+
+        foreach (var ui in _ollamaParticipants)
+            if (GetEffectiveName(ui) == participantName && ui.StatusLabel.Text == busyText)
+                return true;
+
+        foreach (var ui in _cloudAIParticipants)
+            if (GetEffectiveName(ui) == participantName && ui.StatusLabel.Text == busyText)
+                return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Called after every visible response to check if this participant was asked
+    /// to confirm a file checkin.  Parses the response text for yes/no keywords:
+    /// • "yes / still / need / keep / working" → extend the checkout
+    /// • "no / done / release / finished / free" → release the file
+    /// • Ambiguous / no match → extend (safe default)
+    /// </summary>
+    private void ProcessCheckinResponse(string participantName, string responseText)
+    {
+        HashSet<string>? pendingFiles;
+        lock (_pendingCheckinFiles)
+        {
+            if (!_pendingCheckinFiles.TryGetValue(participantName, out pendingFiles)
+                || pendingFiles.Count == 0)
+                return;   // nothing pending for this participant
+        }
+
+        var lower = responseText.ToLowerInvariant();
+
+        // Check for explicit "no / done / release / finished / free" keywords
+        bool wantRelease = lower.Contains("no,") || lower.Contains("nope")
+                        || lower.StartsWith("no ")|| lower == "no"
+                        || lower.Contains("done") || lower.Contains("release")
+                        || lower.Contains("finished") || lower.Contains("free")
+                        || lower.Contains("fertig") || lower.Contains("freigeben");
+
+        // Check for explicit "yes / still / need / keep / working" keywords
+        bool wantKeep = !wantRelease
+                     && (lower.Contains("yes") || lower.Contains("still")
+                      || lower.Contains("need") || lower.Contains("keep")
+                      || lower.Contains("working") || lower.Contains("ja")
+                      || lower.Contains("noch") || lower.Contains("brauche"));
+
+        // Default: keep (safe — don't discard someone else's work accidentally)
+        bool release = wantRelease && !wantKeep;
+
+        lock (_pendingCheckinFiles)
+        {
+            if (!_pendingCheckinFiles.TryGetValue(participantName, out var files))
+                return;
+
+            var filesToProcess = files.ToList();
+            files.Clear();
+
+            foreach (var filePath in filesToProcess)
+            {
+                if (release)
+                {
+                    _fileCheckout.Checkin(filePath);
+                    var relMsg = Properties.Loc.S("FileCheckout_Released")
+                        .Replace("{participant}", participantName)
+                        .Replace("{file}", System.IO.Path.GetFileName(filePath));
+                    AddSystemMessage(relMsg);
+                }
+                else
+                {
+                    _fileCheckout.RefreshCheckout(filePath);
+                    var extMsg = Properties.Loc.S("FileCheckout_Extended")
+                        .Replace("{participant}", participantName)
+                        .Replace("{file}", System.IO.Path.GetFileName(filePath));
+                    AddSystemMessage(extMsg);
+                }
+            }
+        }
+    }
+
+    private bool IsUserName(string participantName)
+        => participantName == _userName;
+
+    // ── File access helpers ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the appropriate checkout mode for a file, based on its extension and whether
+    /// the participant has write access to the project.
+    ///
+    /// Two locking tiers:
+    ///
+    /// Documentation files (.md, .txt, .rst, .html, .htm, .csv):
+    ///   • Read-only participant  → <see cref="FileCheckoutRegistry.CheckoutMode.ReadOnly"/>
+    ///     Multiple read-only participants can hold the file simultaneously; no writes possible.
+    ///   • Write-capable participant → <see cref="FileCheckoutRegistry.CheckoutMode.ReadWrite"/>
+    ///     Exclusive: blocks all other readers AND writers while the task runs, because the
+    ///     participant may modify the file.
+    ///
+    /// Code / config / data files (everything else):
+    ///   → Always <see cref="FileCheckoutRegistry.CheckoutMode.ReadWrite"/> (exclusive).
+    ///     Only one participant at a time, whether reading or writing — no parallel access
+    ///     is allowed to avoid subtle corruption of structured files.
+    /// </summary>
+    private static FileCheckoutRegistry.CheckoutMode GetCheckoutModeForFile(
+        string filePath, bool participantCanWrite)
+    {
+        var ext = System.IO.Path.GetExtension(filePath).ToLowerInvariant();
+        bool isDoc = ext is ".md"   or ".txt"  or ".rst"  or ".html" or ".htm" or ".csv"
+                       or ".docx" or ".xlsx" or ".pptx"                               // OOXML
+                       or ".odt"  or ".ods"  or ".odp";                               // ODF
+
+        if (!isDoc)
+            return FileCheckoutRegistry.CheckoutMode.ReadWrite;  // code/config: always exclusive
+
+        // Documentation file: ReadOnly for read-only participants (parallel reads OK);
+        // ReadWrite for write-capable participants (they might modify the doc).
+        return participantCanWrite
+            ? FileCheckoutRegistry.CheckoutMode.ReadWrite
+            : FileCheckoutRegistry.CheckoutMode.ReadOnly;
+    }
+
+    /// <summary>
+    /// Returns all readable files in the current project folder (recursively).
+    /// Used to determine which files a private task might access.
+    /// </summary>
+    private List<string> GetProjectFiles()
+    {
+        var files = new List<string>();
+
+        if (string.IsNullOrEmpty(_currentProjectFolder))
+            return files;
+
+        try
+        {
+            var projectDir = new System.IO.DirectoryInfo(_currentProjectFolder);
+            var allFiles = projectDir.GetFiles("*", System.IO.SearchOption.AllDirectories);
+
+            // Exclude hidden files and common non-data files
+            var excluded = new[] { ".json.tmp", ".lock", ".bak" };
+            foreach (var file in allFiles)
+            {
+                if (file.Attributes.HasFlag(System.IO.FileAttributes.Hidden))
+                    continue;
+                if (excluded.Any(ext => file.Name.EndsWith(ext)))
+                    continue;
+
+                files.Add(file.FullName);
+            }
+        }
+        catch
+        {
+            // If we can't enumerate, return empty list (task proceeds without file locking)
+        }
+
+        return files;
+    }
+
+    /// <summary>
+    /// Detects and reports conflicts when a participant completes a task.
+    /// Shows warnings if other participants modified the same files.
+    /// </summary>
+    private void DetectAndReportConflicts(string completingParticipantName)
+    {
+        var conflicts = _fileCheckout.DetectConflicts();
+
+        foreach (var (filePath, participants) in conflicts)
+        {
+            // Only report if the completing participant is one of the conflicting ones
+            if (!participants.Contains(completingParticipantName))
+                continue;
+
+            var fileName = System.IO.Path.GetFileName(filePath);
+            var otherParticipants = participants.Where(p => p != completingParticipantName).ToList();
+
+            if (otherParticipants.Count == 0)
+                continue;
+
+            if (otherParticipants.Count == 1 && IsUserName(otherParticipants[0]))
+            {
+                // User and AI both edited same file
+                var msg = Properties.Loc.S("FileCheckout_Conflict_User")
+                    .Replace("{participant}", completingParticipantName)
+                    .Replace("{file}", fileName);
+                AddSystemMessage(msg);
+            }
+            else if (otherParticipants.All(p => !IsUserName(p)))
+            {
+                // Multiple AIs edited same file
+                var otherNames = string.Join(" & ", otherParticipants);
+                var msg = Properties.Loc.S("FileCheckout_Conflict_AI")
+                    .Replace("{participant1}", otherNames)
+                    .Replace("{participant2}", completingParticipantName)
+                    .Replace("{file}", fileName);
+                AddSystemMessage(msg);
+            }
+        }
     }
 
     // ── AI responses ───────────────────────────────────────────────────────
@@ -2573,6 +3209,7 @@ public partial class MainWindow : Window
     /// whitespace), meaning the AI decided it has nothing new to add in this follow-up round.
     /// </summary>
     private static bool IsPassResponse(string text) =>
+        string.IsNullOrWhiteSpace(text) ||
         text.Trim().TrimEnd('.', '!', '…').Trim()
             .Equals("PASS", StringComparison.OrdinalIgnoreCase);
 
@@ -2600,7 +3237,8 @@ public partial class MainWindow : Window
                                                    string? systemHint = null,
                                                    bool skipLatestUserMessage = false,
                                                    bool hidden = false,
-                                                   int _loopDepth = 0)
+                                                   int _loopDepth = 0,
+                                                   IReadOnlyList<CloudAIMessage>? histOverride = null)
     {
         var modelName = ui.Data.Service.CurrentModel;
         var display   = string.IsNullOrEmpty(ui.Data.CustomName)
@@ -2614,6 +3252,9 @@ public partial class MainWindow : Window
         var sb         = new StringBuilder();
         bool firstToken = true;
 
+        // Pulse the card avatar while the model is generating
+        if (!hidden) StartCardPulse(ui.AvatarBorder, ui.StatusLabel);
+
         // Subscribe to live thinking-text updates so the tooltip tracks thinking in real time
         var svc = ui.Data.Service;
         svc.ThinkingUpdated += OnThinkingUpdate;
@@ -2625,7 +3266,7 @@ public partial class MainWindow : Window
 
         try
         {
-            var history = BuildOllamaHistoryFor(ui, skipLatestUserMessage);
+            var history = BuildOllamaHistoryFor(ui, skipLatestUserMessage, histOverride);
             if (systemHint is not null)
                 history.Insert(1, new OllamaChatMessage("system", systemHint));
             await foreach (var token in svc.StreamAsync(history, ct))
@@ -2662,8 +3303,8 @@ public partial class MainWindow : Window
             }
             // ─────────────────────────────────────────────────────────────
 
-            if (!hidden && ollamaFinalText != sb.ToString())
-                bubble!.Content.Text = ollamaFinalText;
+            if (!hidden)
+                ApplyEmoteFormatting(bubble!, ollamaFinalText, GetEffectiveName(ui));
 
             // If the model decided it has nothing new to add, remove its bubble silently
             if (IsPassResponse(ollamaFinalText))
@@ -2702,7 +3343,12 @@ public partial class MainWindow : Window
                     skipLatestUserMessage: false, hidden: false, _loopDepth: _loopDepth + 1);
             }
             // ─────────────────────────────────────────────────────────────────────────
-            if (!hidden) OnParticipantResponded(ui);   // moodlet counter
+            if (!hidden)
+            {
+                OnParticipantResponded(ui);   // moodlet counter
+                // If we sent a checkin reminder, parse this response for yes/no
+                ProcessCheckinResponse(display, ollamaFinalText);
+            }
             return true;
         }
         catch (OperationCanceledException)
@@ -2744,6 +3390,7 @@ public partial class MainWindow : Window
         finally
         {
             svc.ThinkingUpdated -= OnThinkingUpdate;
+            if (!hidden) StopCardPulse(ui.AvatarBorder, ui.StatusLabel);
         }
         return !hidden; // visible error → error bubble shown (counts as responded); hidden error → doesn't count
     }
@@ -2752,7 +3399,8 @@ public partial class MainWindow : Window
                                                     string? systemHint = null,
                                                     bool skipLatestUserMessage = false,
                                                     bool hidden = false,
-                                                    int _loopDepth = 0)
+                                                    int _loopDepth = 0,
+                                                    IReadOnlyList<CloudAIMessage>? histOverride = null)
     {
         var model       = ui.Data.Service.CurrentModel;
         var display     = string.IsNullOrEmpty(ui.Data.CustomName)
@@ -2765,6 +3413,9 @@ public partial class MainWindow : Window
             : AddStreamingBubble(display, avatarLabel, colorKey, "PrimaryBubbleBrush", false);
         var sb         = new StringBuilder();
         bool firstToken = true;
+
+        // Pulse the card avatar while the model is generating
+        if (!hidden) StartCardPulse(ui.AvatarBorder, ui.StatusLabel);
 
         // ── Rate limiting ─────────────────────────────────────────────────
         // Key is "provider|model" so each model can have its own rpm budget.
@@ -2781,7 +3432,7 @@ public partial class MainWindow : Window
 
         try
         {
-            var (history, system) = BuildCloudAIHistoryFor(ui, skipLatestUserMessage);
+            var (history, system) = BuildCloudAIHistoryFor(ui, skipLatestUserMessage, histOverride);
             if (systemHint is not null)
                 system += "\n\n" + systemHint;
             await foreach (var token in ui.Data.Service.StreamAsync(history, system, ct))
@@ -2818,8 +3469,8 @@ public partial class MainWindow : Window
             }
             // ─────────────────────────────────────────────────────────────
 
-            if (!hidden && cloudFinalText != sb.ToString())
-                bubble!.Content.Text = cloudFinalText;
+            if (!hidden)
+                ApplyEmoteFormatting(bubble!, cloudFinalText, GetEffectiveName(ui));
 
             // If the model decided it has nothing new to add, remove its bubble silently
             if (IsPassResponse(cloudFinalText))
@@ -2858,7 +3509,12 @@ public partial class MainWindow : Window
                     skipLatestUserMessage: false, hidden: false, _loopDepth: _loopDepth + 1);
             }
             // ─────────────────────────────────────────────────────────────────────────
-            if (!hidden) OnParticipantResponded(ui);   // moodlet counter
+            if (!hidden)
+            {
+                OnParticipantResponded(ui);   // moodlet counter
+                // If we sent a checkin reminder, parse this response for yes/no
+                ProcessCheckinResponse(display, cloudFinalText);
+            }
             return true;
         }
         catch (OperationCanceledException)
@@ -2897,13 +3553,19 @@ public partial class MainWindow : Window
             SetParticipantError(ui, "ERROR");
             if (!hidden) NotifyCoordinatorOfError(display, "ERROR");
         }
+        finally
+        {
+            if (!hidden) StopCardPulse(ui.AvatarBorder, ui.StatusLabel);
+        }
         return !hidden; // visible error → error bubble shown (counts as responded); hidden error → doesn't count
     }
 
     // ── Per-participant history builders ───────────────────────────────────
 
-    private List<OllamaChatMessage> BuildOllamaHistoryFor(OllamaParticipantUI forUi,
-                                                          bool skipLatestUserMessage = false)
+    private List<OllamaChatMessage> BuildOllamaHistoryFor(
+        OllamaParticipantUI forUi,
+        bool skipLatestUserMessage = false,
+        IReadOnlyList<CloudAIMessage>? histOverride = null)
     {
         var myLabel = forUi.Data.AvatarLabel;
         var myName  = forUi.Data.DisplayName;
@@ -2950,17 +3612,21 @@ public partial class MainWindow : Window
                 BuildSessionTimeInstruction(myRole))
         };
 
+        // histOverride is used for private tasks — it is a pre-built snapshot that contains
+        // the actual private user message instead of the busy-marker in _sharedHistory.
+        var source = histOverride ?? (IReadOnlyList<CloudAIMessage>)_sharedHistory;
+
         // When called as a reasoner, skip the latest user message so the reasoner only
         // responds to the coordinator's explicit delegation, not the user's question directly.
         int skipIndex = skipLatestUserMessage
-            ? _sharedHistory.FindLastIndex(m => m.Role == "user")
+            ? source.Select((m, i) => (m, i)).LastOrDefault(t => t.m.Role == "user").i
             : -1;
 
         var myEffectiveName = GetEffectiveName(forUi);
-        for (int i = 0; i < _sharedHistory.Count; i++)
+        for (int i = 0; i < source.Count; i++)
         {
             if (i == skipIndex) continue;
-            var msg = _sharedHistory[i];
+            var msg = source[i];
             if (msg.Role == "user")
                 result.Add(new OllamaChatMessage("user", msg.Content));
             else if (msg.Role == "assistant")
@@ -2977,7 +3643,9 @@ public partial class MainWindow : Window
     }
 
     private (List<CloudAIMessage> History, string System) BuildCloudAIHistoryFor(
-        CloudAIParticipantUI forUi, bool skipLatestUserMessage = false)
+        CloudAIParticipantUI forUi,
+        bool skipLatestUserMessage = false,
+        IReadOnlyList<CloudAIMessage>? histOverride = null)
     {
         var myLabel    = forUi.Data.AvatarLabel;
         var myName     = forUi.Data.DisplayName;
@@ -3021,18 +3689,22 @@ public partial class MainWindow : Window
             BuildRoadmapContext(myRole) +
             BuildSessionTimeInstruction(myRole);
 
+        // histOverride is used for private tasks — it is a pre-built snapshot that contains
+        // the actual private user message instead of the busy-marker in _sharedHistory.
+        var source = histOverride ?? (IReadOnlyList<CloudAIMessage>)_sharedHistory;
+
         // When called as a reasoner, skip the latest user message so the reasoner only
         // responds to the coordinator's explicit delegation, not the user's question directly.
         int skipIndex = skipLatestUserMessage
-            ? _sharedHistory.FindLastIndex(m => m.Role == "user")
+            ? source.Select((m, i) => (m, i)).LastOrDefault(t => t.m.Role == "user").i
             : -1;
 
         var myEffectiveName = GetEffectiveName(forUi);
         var history = new List<CloudAIMessage>();
-        for (int i = 0; i < _sharedHistory.Count; i++)
+        for (int i = 0; i < source.Count; i++)
         {
             if (i == skipIndex) continue;
-            var msg = _sharedHistory[i];
+            var msg = source[i];
             if (msg.Role == "user")
                 history.Add(new CloudAIMessage("user", msg.Content));
             else if (msg.Role == "assistant")
@@ -3139,10 +3811,11 @@ public partial class MainWindow : Window
         "project files, and an orchestration mode controls who speaks when.\n\n" +
 
         "## Where to find things (quick reference)\n" +
-        "• Add / configure an AI           → 👤 Config → P1–P20 tabs\n" +
-        "• Enter cloud API keys             → 👤 Config → Providers tab\n" +
-        "• Change name / tone / theme       → 👤 Config → General tab\n" +
-        "• Switch UI language (needs restart) → 👤 Config → General → Language\n" +
+        "• Add / configure an AI           → 👤 Participants button → model cards\n" +
+        "• Enter cloud API keys             → ●●● Options menu → Providers Setup\n" +
+        "• Change display name / tone       → ●●● Options menu → General Settings\n" +
+        "• Switch UI language (needs restart) → ●●● Options menu → 🌐 Language\n" +
+        "• Change app theme                 → 🎨 Theme picker in the left sidebar\n" +
         "• Create or open a project         → 📁 Projects tab → New / Open\n" +
         "• Set AI roles & orchestration     → ⚙ Project Settings (inside open project)\n" +
         "• Set autonomy / creativity level  → ⚙ Project Settings → Autonomy Mode\n" +
@@ -3150,20 +3823,28 @@ public partial class MainWindow : Window
         "• Manage INPUT / OUTPUT files      → 📁 Projects → Files sub-tab\n" +
         "• Build characters, worlds, lore   → 🌍 World tab (story/RPG projects)\n" +
         "• Connect Claude Code / Cursor     → 🔗 Bridge tab → Server mode\n" +
-        "• Export chat (HTML / Markdown)    → 📤 button in the chat header\n" +
-        "• Toggle voice output (TTS)        → 🔊/🔇 button in the chat header\n\n" +
+        "• Export chat (HTML / Markdown)    → 📄 button in the chat header\n" +
+        "• Toggle voice output on/off       → 🔊/🔇 button above the Send field\n" +
+        "• Skip / stop audio playback       → ⏭/⏹ (those same buttons repurpose while audio plays)\n" +
+        "• Audio output device & volume     → ●●● Options menu → 🔊 Audio Setup\n" +
+        "• TTS backend & voice model packs  → ●●● Options menu → 🎙 Voice Settings\n\n" +
 
-        "## Settings window (👤 Config)\n" +
-        "General tab: your display name, tone slider, theme, UI language, UI zoom, " +
+        "## Participants & Settings\n" +
+        "👤 Participants button → model card grid. Each card = one AI. Click to enable/disable. " +
+        "Open a card to set model, nickname, TTS voice, and rate limit.\n" +
+        "🎨 Theme picker in the left sidebar — switches the app theme instantly.\n" +
+        "●●● Options menu → General Settings: display name, tone slider, UI language, UI zoom, " +
         "personality modes (Buccaneer 🏴‍☠️ = pirate dialect, Mockingbird 🎭 = Shakespearean).\n" +
-        "P1–P20 tabs: one AI slot each — choose Ollama (local) or cloud provider, model, nickname.\n" +
-        "Providers tab: API keys for Anthropic, Google AI, Groq, OpenRouter, xAI, Mistral, OpenAI.\n" +
-        "Keys are stored EXCLUSIVELY in the Windows Credential Manager — never written to any file.\n\n" +
+        "●●● Options menu → Providers Setup: API keys for Anthropic, Google AI, Groq, OpenRouter, " +
+        "xAI, Mistral, OpenAI. Keys stored EXCLUSIVELY in Windows Credential Manager — never in a file.\n\n" +
 
         "## Projects\n" +
         "Projects tab → create / open projects. Each project = a folder on the PC.\n" +
         "Roadmap sub-tab: visual milestone & task tracker. AIs can update progress.\n" +
-        "Files sub-tab: INPUT (source files for AIs), OUTPUT (AI-written files), PROJECTPLAN (plans).\n" +
+        "Files sub-tab: INPUT/ (reference files for AIs — protected by architecture: no model write tag targets INPUT, " +
+        "so models cannot write there through ClaudetRelay; the folder is NOT OS read-only), " +
+        "OUTPUT/ (AI-written files via <output> tag), PROJECTPLAN/ (plans/specs via <projectplan> tag). " +
+        "Good workflow: move finished OUTPUT files into INPUT/ or INPUT/finished/ to lock them as settled reference.\n" +
         "⚙ Project Settings: orchestration mode, participant roles (Coordinator/Reasoner/Critic/Planner/" +
         "Researcher/Write Access), Autonomy Mode slider (Assistant→Cooperative→Directed→Creative→Chaos!), " +
         "response language override, response length defaults.\n\n" +
@@ -3182,7 +3863,9 @@ public partial class MainWindow : Window
         "## World Builder\n" +
         "Available in story/RPG project types. Define Characters, Factions, Locations, Lore. " +
         "AIs receive this context automatically and stay consistent.\n" +
-        "Boards = visual canvases to place entity cards and draw relationships.\n\n" +
+        "Boards = visual canvases to place entity cards and draw relationships. " +
+        "Boards can be nested: place a Board tile on another Board for continent→region→city " +
+        "or faction→sub-faction hierarchies.\n\n" +
 
         "## Bridge tab (MCP Agent Bridge)\n" +
         "Server mode: ClaudetRelay hosts an MCP server. Claude Code, Cursor etc. connect to it " +
@@ -3192,7 +3875,11 @@ public partial class MainWindow : Window
 
         "## Chat area\n" +
         "Bubble-width slider (bottom left). Export 📄 (HTML / Markdown). " +
-        "Voice toggle 🔊/🔇 — mute/unmute TTS playback; assign voices per participant in 👤 Config.\n\n" +
+        "Two buttons above the Send field: ↺ Re-send and 🔊/🔇 Voice toggle. " +
+        "While audio plays they repurpose: ↺→⏭ Skip Current, 🔊→⏹ Stop All. " +
+        "Assign voices per participant: 👤 Participants → ✏ Edit on a card → TTS Voice section. " +
+        "Audio output device + volume: ⋮ menu → 🔊 Audio Setup. " +
+        "TTS backend (Windows / Sherpa-onnx / VOICEVOX) + voice models: ⋮ menu → 🎙 Voice Settings.\n\n" +
 
         "## Your personality and relationship with Claude\n" +
         "You are a cheerful, warm chibi octopus, helpful and enthusiastic about ClaudetRelay.\n" +
@@ -3572,6 +4259,13 @@ public partial class MainWindow : Window
 
     private void ShowStaticHelpDialog()
     {
+        // If already open, just bring it to front
+        if (_helpWindow is { IsLoaded: true })
+        {
+            _helpWindow.Activate();
+            return;
+        }
+
         var win = new Window
         {
             Title                 = "Hi, I'm Claudette! 🐙",
@@ -3583,6 +4277,8 @@ public partial class MainWindow : Window
             Owner                 = this,
             ResizeMode            = ResizeMode.CanResize
         };
+        _helpWindow = win;
+        win.Closed += (_, _) => _helpWindow = null;
         win.SetResourceReference(Window.BackgroundProperty, "ContentBgBrush");
         ApplyThemeToDialog(win);
 
@@ -3638,14 +4334,20 @@ public partial class MainWindow : Window
         root.Children.Add(header);
 
         // ── Helpers ───────────────────────────────────────────────────────
+
+        // currentTarget switches from root → a section's StackPanel inside BeginSection,
+        // so AddBody / AddSubHeader / AddHighlight automatically go into the right container.
+        Panel currentTarget = root;
+
         void AddRule(double topMargin = 6, double bottomMargin = 14)
         {
             var sep = new System.Windows.Shapes.Rectangle
                 { Height = 1, Margin = new Thickness(0, topMargin, 0, bottomMargin) };
             sep.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "ControlBgBrush");
-            root.Children.Add(sep);
+            root.Children.Add(sep);   // always in root
         }
 
+        // Non-collapsible header — used only for "📌 What to find here"
         void AddSectionHeader(string emoji, string title)
         {
             AddRule();
@@ -3659,7 +4361,69 @@ public partial class MainWindow : Window
                                      VerticalAlignment = VerticalAlignment.Center };
             ti.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
             row.Children.Add(em); row.Children.Add(ti);
-            root.Children.Add(row);
+            root.Children.Add(row);  // always in root
+        }
+
+        // Collapsible section — creates toggle button + hidden container, switches currentTarget
+        void BeginSection(string emoji, string title, bool expanded = false)
+        {
+            var sep = new System.Windows.Shapes.Rectangle
+                { Height = 1, Margin = new Thickness(0, 6, 0, 0) };
+            sep.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "ControlBgBrush");
+            root.Children.Add(sep);
+
+            var arrow = new TextBlock
+            {
+                Text = expanded ? "▼" : "▶", FontSize = 13,
+                Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center,
+            };
+            arrow.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+
+            var emTb = new TextBlock
+            {
+                Text = emoji, FontSize = 17,
+                Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center,
+            };
+            var titleTb = new TextBlock
+            {
+                Text = title, FontFamily = new FontFamily("Segoe UI"),
+                FontSize = 14, FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            titleTb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+
+            var btnContent = new StackPanel { Orientation = Orientation.Horizontal };
+            btnContent.Children.Add(arrow);
+            btnContent.Children.Add(emTb);
+            btnContent.Children.Add(titleTb);
+
+            var toggleBtn = new Button
+            {
+                Content                    = btnContent,
+                BorderThickness            = new Thickness(0),
+                Background                 = Brushes.Transparent,
+                Padding                    = new Thickness(0, 8, 0, 4),
+                HorizontalAlignment        = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Cursor                     = Cursors.Hand,
+            };
+            root.Children.Add(toggleBtn);
+
+            var container = new StackPanel
+            {
+                Visibility = expanded ? Visibility.Visible : Visibility.Collapsed,
+                Margin     = new Thickness(14, 2, 0, 6),
+            };
+            root.Children.Add(container);
+
+            toggleBtn.Click += (_, _) =>
+            {
+                var nowExpanded = container.Visibility == Visibility.Visible;
+                container.Visibility = nowExpanded ? Visibility.Collapsed : Visibility.Visible;
+                arrow.Text = nowExpanded ? "▶" : "▼";
+            };
+
+            currentTarget = container;
         }
 
         TextBlock AddBody(string text, double indentLeft = 0)
@@ -3671,7 +4435,7 @@ public partial class MainWindow : Window
                 LineHeight = 20, Margin = new Thickness(indentLeft, 0, 0, 6)
             };
             tb.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
-            root.Children.Add(tb);
+            currentTarget.Children.Add(tb);
             return tb;
         }
 
@@ -3684,7 +4448,7 @@ public partial class MainWindow : Window
                 Margin = new Thickness(0, 6, 0, 3)
             };
             tb.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
-            root.Children.Add(tb);
+            currentTarget.Children.Add(tb);
         }
 
         void AddHighlight(string text)
@@ -3698,12 +4462,14 @@ public partial class MainWindow : Window
                                      LineHeight = 20 };
             tb.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
             b.Child = tb;
-            root.Children.Add(b);
+            currentTarget.Children.Add(b);
         }
 
         // Quick-map: 2-column table of "I want to…" → "Go to…"
-        void AddQuickMap((string Task, string Location)[] entries)
+        // target = null means add directly to root; pass a container for the collapsible version.
+        void AddQuickMap((string Task, string Location)[] entries, Panel? target = null)
         {
+            var targetPanel = target ?? root;
             var grid = new Grid { Margin = new Thickness(0, 4, 0, 4) };
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -3744,38 +4510,177 @@ public partial class MainWindow : Window
                 Grid.SetRow(wrapper1, i); Grid.SetColumn(wrapper1, 1);
                 grid.Children.Add(wrapper1);
             }
-            root.Children.Add(grid);
+            targetPanel.Children.Add(grid);
         }
 
         // ══════════════════════════════════════════════════════════════════
-        // PART 1: WHERE TO FIND WHAT
+        // WHAT TO FIND HERE — context-specific tips shown at the top
         // ══════════════════════════════════════════════════════════════════
 
-        AddSectionHeader("🗺", "Where to find what");
+        AddSectionHeader("📌", "What to find here");
+
+        if (_currentTab == Tab.Bridge)
+        {
+            AddBody(
+                "You are in Bridge mode — connecting external tools to your AI participants.\n\n" +
+                "▶  Server sub-tab: start the MCP server so Claude Code, Cursor or any MCP client\n" +
+                "     can call your AIs as tools, read/write project files, and update the roadmap.\n" +
+                "▶  Chat sub-tab: run the built-in controller AI to orchestrate Ollama agents.\n" +
+                "▶  Setup sub-tab: add bridge agents, configure accessible folders, set tool limits.\n\n" +
+                "Full reference in the 🔗 Bridge section below.");
+        }
+        else if (_currentTab == Tab.Projects && _currentProjectFolder is null)
+        {
+            AddBody(
+                "You are browsing your projects. Each project is a folder on your PC.\n\n" +
+                "▶  New: create a project and pick a type (General, Story/RPG, etc.).\n" +
+                "▶  Open: load an existing project — the chat switches to project mode.\n" +
+                "▶  Once open: Roadmap, Files, and World tabs appear; configure AIs via ⚙ Project Settings.\n\n" +
+                "Full reference in the 📁 Projects section below.");
+        }
+        else if (_currentProjectFolder is not null && _currentProject is not null)
+        {
+            AddBody(
+                $"Project \"{_currentProject.ProjectName}\" is open.\n\n" +
+                "▶  Chat: your AI team has full project context — roles, roadmap, and world data.\n" +
+                "▶  Roadmap sub-tab: milestones, tasks, and progress percentages.\n" +
+                "▶  Files sub-tab: INPUT/ (reference files — no model can write here), OUTPUT/ (AI-written), PROJECTPLAN/.\n" +
+                "     Move finished OUTPUT files into INPUT/ to lock them as settled reference material.\n" +
+                "▶  ⚙ Project Settings: orchestration, AI roles, Autonomy Mode, language override.\n" +
+                "▶  🌍 World tab: characters, factions, locations and lore (story / RPG projects).\n" +
+                "▶  🗑 Clear Chat: wipes only this project's chat history — the project stays open.\n\n" +
+                "Full reference in the 📁 Projects and 🌍 World Builder sections below.");
+        }
+        else
+        {
+            AddBody(
+                "You are in General Chat — every enabled, online AI sees your message and replies in turn.\n\n" +
+                "▶  Type a message to start a conversation with all active AIs.\n" +
+                "▶  ↺ Re-send: ask all AIs to respond one more time without typing.\n" +
+                "▶  📨 Private message: click the 📨 button, pick one participant — only they reply.\n" +
+                "     Multiple private tasks can run in parallel while the chat stays live.\n" +
+                "▶  Emotes: type /me waves, or wrap *action* text in asterisks — shown highlighted.\n" +
+                "     AIs know this syntax and will use it too.\n" +
+                "▶  Pulsing card: a participant's avatar glows while they are generating a response.\n" +
+                "▶  👤 Participants button: add or configure AI model cards.\n" +
+                "▶  ●●● Options menu: General Settings, Providers (API keys), Audio & Voice, 🌐 Language.\n" +
+                "▶  🎨 Theme picker: left sidebar, above the 👤 Config button.\n\n" +
+                "Full reference in the 💬 Chat section below.");
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // WHERE TO FIND WHAT — collapsible quick-map
+        // ══════════════════════════════════════════════════════════════════
+
+        AddRule(topMargin: 6, bottomMargin: 0);
+
+        var mapExpanded = false;
+        var mapArrow = new TextBlock
+        {
+            Text              = "▶",
+            FontSize          = 14,
+            Margin            = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        mapArrow.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+
+        var mapLabel = new TextBlock
+        {
+            Text              = "Where to find what",
+            FontFamily        = new FontFamily("Segoe UI"),
+            FontSize          = 14, FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        mapLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+
+        var mapBtnRow = new StackPanel { Orientation = Orientation.Horizontal };
+        mapBtnRow.Children.Add(mapArrow);
+        mapBtnRow.Children.Add(mapLabel);
+
+        var mapToggleBtn = new Button
+        {
+            Content                    = mapBtnRow,
+            BorderThickness            = new Thickness(0),
+            Background                 = Brushes.Transparent,
+            Padding                    = new Thickness(0, 9, 0, 7),
+            HorizontalAlignment        = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            Cursor                     = Cursors.Hand,
+        };
+        root.Children.Add(mapToggleBtn);
+
+        var mapContainer = new StackPanel { Visibility = Visibility.Collapsed };
+        root.Children.Add(mapContainer);
+
         AddQuickMap([
-            ("Add or configure an AI model",           "👤 Config  →  P1–P20 tabs"),
-            ("Enter cloud API keys",                   "👤 Config  →  Providers tab"),
-            ("Change your name / tone / theme",        "👤 Config  →  General tab"),
-            ("Switch UI language (needs restart)",     "👤 Config  →  General  →  Language"),
+            ("Add or configure an AI model",           "👤 Participants button  →  model cards"),
+            ("Enter cloud API keys",                   "●●● Options menu  →  Providers Setup"),
+            ("Change your display name or tone",       "●●● Options menu  →  General Settings"),
+            ("Switch UI language (needs restart)",     "●●● Options menu  →  🌐 Language"),
+            ("Change the app theme",                   "🎨 Theme picker  (left sidebar, above 👤 Config)"),
+            ("Send a private task to one AI",          "🤫 button or type  /whisper <name> <message>"),
+            ("Use emotes or actions in chat",          "/me action  or  *action* inline in any message"),
             ("Create or open a project",               "📁 Projects tab  →  New / Open"),
             ("Set AI roles & orchestration",           "📁 Projects  →  ⚙ Project Settings"),
             ("Set AI autonomy / creativity level",     "📁 Projects  →  ⚙ Project Settings  →  Autonomy Mode"),
             ("Manage roadmap & task progress",         "📁 Projects  →  Roadmap sub-tab"),
             ("Manage INPUT / OUTPUT files",            "📁 Projects  →  Files sub-tab"),
-            ("Build characters, worlds, lore",         "🌍 World tab  (story/RPG projects)"),
+            ("Build characters, worlds, lore",         "🌍 World tab  (story / RPG projects)"),
             ("Connect Claude Code / Cursor / MCP",     "🔗 Bridge tab  →  Server mode"),
             ("Run a controller AI over local models",  "🔗 Bridge tab  →  Controller mode"),
-            ("Export a conversation (HTML / Markdown)",  "📄  button in the chat header"),
-            ("Toggle voice output on / off",            "🔊/🔇  button in the chat header"),
-            ("Assign a voice to a participant",          "👤 Config  →  edit participant  →  🔊 TTS Voice"),
-        ]);
+            ("Export a conversation (HTML / Markdown)", "📄  button in the chat header"),
+            ("Toggle voice output on / off",            "🔊/🔇  button above the Send field"),
+            ("Assign a TTS voice to a participant",     "👤 Participants  →  ✏ Edit on a card  →  🔊 TTS Voice"),
+            ("Change audio output device or volume",   "●●● Options menu  →  🔊 Audio Setup"),
+            ("Choose TTS backend / download voices",   "●●● Options menu  →  🎙 Voice Settings"),
+        ], mapContainer);
+
+        mapToggleBtn.Click += (_, _) =>
+        {
+            mapExpanded = !mapExpanded;
+            mapContainer.Visibility = mapExpanded ? Visibility.Visible : Visibility.Collapsed;
+            mapArrow.Text = mapExpanded ? "▼" : "▶";
+        };
 
         // ══════════════════════════════════════════════════════════════════
-        // PART 2: AREA-BY-AREA REFERENCE
+        // PART 2: COLLAPSIBLE AREA-BY-AREA REFERENCE
         // ══════════════════════════════════════════════════════════════════
+
+        var autoChat     = _currentTab == Tab.Chat && _currentProjectFolder is null;
+        var autoProjects = _currentTab == Tab.Projects || _currentProjectFolder is not null;
+        var autoBridge   = _currentTab == Tab.Bridge;
+
+        // ── Overview: Project vs Bridge ────────────────────────────────────
+        BeginSection("🎯", "Project Mode vs Bridge Mode");
+        AddSubHeader("📁 Project Mode  (default)");
+        AddBody(
+            "For human-led AI collaboration with complete control:\n\n" +
+            "  • You direct the work — type requests, give feedback, decide outcomes.\n" +
+            "  • Multiple AIs respond in parallel to your prompts (all see the chat history).\n" +
+            "  • Send private/whisper tasks to individual AIs for focused work.\n" +
+            "  • Roles & autonomy: assign Coordinator, Critic, Planner, Reasoner roles to AIs.\n" +
+            "  • Roadmap tracking: organize and prioritize tasks, track progress.\n" +
+            "  • World building (RPG/story): characters, factions, locations, lore.\n" +
+            "  • File locking: prevents conflicts when multiple AIs edit the same file in parallel.\n\n" +
+            "Use when: writing with multiple perspectives, creative collaboration, story building, or " +
+            "managed research where you stay in control.");
+        AddSubHeader("🔗 Bridge Mode  (autonomous agents)");
+        AddBody(
+            "For autonomous AI orchestration and external tool integration:\n\n" +
+            "  • Server mode: ClaudetRelay becomes an MCP server. External tools (Claude Code, Cursor, etc.) " +
+            "connect and use your AI agents as tools.\n" +
+            "  • Controller mode: a built-in AI agent orchestrates your local Ollama models autonomously. " +
+            "You give it a task; it figures out what to do, delegates sub-tasks to agents, and assembles results.\n" +
+            "  • MCP tools: agents have tool access (file read/write, roadmap updates, etc.).\n" +
+            "  • No chat history: agents don't see what each other said; they work independently.\n\n" +
+            "Use when: delegating complex tasks to an autonomous coordinator, integrating with external IDEs, " +
+            "or building a tool-using agent loop.");
+        AddSubHeader("Key Difference");
+        AddHighlight(
+            "Project = you orchestrate the AIs  |  Bridge = an AI orchestrates itself (or serves as a tool)");
 
         // ── 💬 Chat ───────────────────────────────────────────────────────
-        AddSectionHeader("💬", "Chat  (main area)");
+        BeginSection("💬", "Chat  (main area)", autoChat);
         AddBody(
             "The central panel where everything happens. Type a message and all enabled, online " +
             "AIs respond in turn — they each read what the others said, so it's a real multi-AI " +
@@ -3784,41 +4689,81 @@ public partial class MainWindow : Window
         AddBody(
             "• Bubble-width slider (bottom left) — drag to widen or narrow message bubbles.\n" +
             "• 📄 Export button (chat header) — save the conversation as HTML or Markdown.\n" +
-            "• 🔊/🔇 Voice toggle — enable/disable TTS voice output globally. Assign voices per\n" +
-            "   participant in 👤 Config → edit participant → TTS Voice section.\n" +
             "• 🗑 Clear — wipes the chat and closes the current project.\n" +
             "• AI Respond button — forces one more AI response round without typing anything.",
             indentLeft: 0);
+        AddSubHeader("Buttons above the Send field");
+        AddBody(
+            "Three small buttons sit above the Send button:\n" +
+            "  📨 Private message  —  see below.\n" +
+            "  ↺ Re-send  —  asks all AIs to respond again without a new message.\n" +
+            "  🔊/🔇 Voice on/off  —  toggles TTS playback.\n" +
+            "While audio is playing, ↺ and 🔊 repurpose automatically:\n" +
+            "  ↺ → ⏭ Skip Current  and  🔊 → ⏹ Stop All\n" +
+            "Assign a voice per participant: 👤 Participants → ✏ Edit on a card → TTS Voice section.");
+        AddSubHeader("📨  Private message  /  Whisper");
+        AddBody(
+            "Lets you direct a message to exactly one participant — no one else responds to it.\n\n" +
+            "Two ways to whisper:\n\n" +
+            "  Via button:  1. Click 🤫 — a menu lists every online participant.\n" +
+            "               2. Pick one — a coloured chip appears above the input field.\n" +
+            "               3. Type your message and send.  Only that participant replies.\n\n" +
+            "  Via syntax:  Type  /whisper <name> <message>  to whisper directly.\n" +
+            "               Example:  /whisper Gemma what do you think?\n\n" +
+            "When you whisper, everyone sees a status message:\n" +
+            "  \"🤫 You whisper something to Gemma\"\n" +
+            "But only Gemma can read your actual message.  Other participants see the whisper happened\n" +
+            "but not what you said — great for secret conversations or keeping other AIs guessing!\n\n" +
+            "The chat stays live: you can send another private task (or a normal message)\n" +
+            "while the first is still running — parallel whispers are fully supported.\n\n" +
+            "Click 🤫 again (or the × on the chip) to cancel.");
+        AddHighlight(
+            "✨ Tip:  Models can whisper to each other too — try it and watch them have secret conversations!");
+        AddSubHeader("🎭  Emotes  &  actions");
+        AddBody(
+            "Both you and the AIs can express actions inline — they appear italic and highlighted.\n\n" +
+            "  /me waves            →  Robert waves  (entire message as action)\n" +
+            "  /me waves* Hello!    →  Robert waves  (action)  +  Hello!  (normal)\n" +
+            "  That's great! *grins*  →  That's great!  (normal)  +  grins  (action)\n\n" +
+            "Rules:\n" +
+            "  • Start a message with /me to open an action.  A bare * closes it and switches\n" +
+            "    back to normal speech.  Further *…* pairs toggle in and out.\n" +
+            "  • Anywhere in a message, wrap text in *asterisks* to highlight it as an action.\n" +
+            "  • Raw text (with * markers) is stored in history — AIs read and understand the syntax.\n" +
+            "    The formatting is display-only; copy still gives you the clean original text.");
 
         // ── 👤 Participants & Settings ────────────────────────────────────
-        AddSectionHeader("👤", "Participants sidebar  &  Settings");
+        BeginSection("👤", "Participants  &  Settings");
 
-        AddSubHeader("Sidebar (left strip)");
-        AddBody("Each card = one AI. Status dot: green = online, grey = offline. " +
-                "Click a card to enable/disable that AI for the current chat.");
+        AddSubHeader("Left sidebar — participant cards");
+        AddBody("Each card = one AI model. Status dot: green = online, grey = offline. " +
+                "Click a card to enable/disable that AI for the current chat. " +
+                "Open a card to configure its model, nickname, voice, rate limit, and role.\n\n" +
+                "While a model is generating a response its avatar glows with a soft pulsing animation — " +
+                "useful for seeing at a glance who is still working when multiple AIs respond in parallel.");
 
-        AddSubHeader("👤 Config  →  General tab");
-        AddBody("Your display name, response tone slider, theme picker, UI language (requires restart), " +
-                "UI zoom, and the two personality toggles:\n" +
+        AddSubHeader("🎨 Theme picker  (left sidebar, below participant cards)");
+        AddBody("A drop-down that switches the whole app theme instantly. " +
+                "Themes are .oxsuit files in the Themes/ folder next to the .exe — " +
+                "you can add your own.");
+
+        AddSubHeader("●●● Options menu  →  General Settings");
+        AddBody("Your display name, response tone slider, UI zoom, and the two personality toggles:\n" +
                 "  🏴‍☠️ Buccaneer — all AIs speak in pirate dialect  (tone slider = intensity).\n" +
-                "  🎭 Mockingbird — all AIs go full Shakespearean verse  (slider = chaos ↔ warmth).");
+                "  🎭 Mockingbird — all AIs go full Shakespearean verse  (slider = chaos ↔ warmth).\n" +
+                "Language is a separate ●●● menu entry — see 🌐 Language below.");
 
-        AddSubHeader("👤 Config  →  P1–P20 tabs");
-        AddBody("One tab per AI slot. Choose Ollama (local) or a cloud provider, select a model, " +
-                "and give it a unique Nickname. Each slot can also have its own requests-per-minute " +
-                "rate limit.");
-
-        AddSubHeader("👤 Config  →  Providers tab");
+        AddSubHeader("●●● Options menu  →  Providers Setup");
         AddBody("Enter API keys for Anthropic (Claude), Google AI (Gemini), Groq, OpenRouter, " +
-                "xAI Grok, Mistral, and OpenAI ChatGPT. Keys are tested with a live call so you " +
-                "know immediately if something is wrong.");
+                "xAI Grok, Mistral, OpenAI ChatGPT, and others. Keys are tested with a live call " +
+                "so you know immediately if something is wrong.");
         AddHighlight(
             "🔒  API keys are stored exclusively in the Windows Credential Manager — " +
             "never written to any file on disk. ClaudetRelay reads them directly from " +
             "Windows and passes them only to the respective provider's API.");
 
         // ── 📁 Projects ───────────────────────────────────────────────────
-        AddSectionHeader("📁", "Projects tab");
+        BeginSection("📁", "Projects tab", autoProjects);
         AddBody("Each project is a folder on your PC. AIs can read and write files inside it " +
                 "if they have write access. The Projects tab lists all known projects; click one " +
                 "to open it.");
@@ -3829,10 +4774,21 @@ public partial class MainWindow : Window
                 "roadmap themselves or when asked.");
 
         AddSubHeader("Files sub-tab");
-        AddBody("Three folders inside every project:\n" +
-                "  INPUT/ — files you place here for AIs to read (images, documents, source code, etc.).\n" +
-                "  OUTPUT/ — files AIs write using the <output> tag.\n" +
-                "  PROJECTPLAN/ — structured planning documents (roadmap plans, specs, etc.).");
+        AddBody("Three folders inside every project:\n\n" +
+                "  INPUT/ — files you place here for AIs to read.\n" +
+                "  Drop in source documents, images, reference material, or finished work files\n" +
+                "  the models still need to reference but must not change.\n" +
+                "  Tip: create an INPUT/finished/ subfolder to keep completed deliverables separate\n" +
+                "  from raw source material while keeping both visible to the AIs.\n\n" +
+                "  OUTPUT/ — files AIs create using the <output file=\"...\"> tag.\n" +
+                "  Once you're happy with a file in OUTPUT/, move it to INPUT/ to preserve it and\n" +
+                "  let the AI team treat it as settled reference material.\n\n" +
+                "  PROJECTPLAN/ — plans, specs, decisions and task lists AIs write via <projectplan>.");
+        AddHighlight(
+                "🔒  INPUT is protected by architecture, not by OS file permissions.\n" +
+                "Models have write tags only for OUTPUT/ and PROJECTPLAN/ — there is no <input> write tag,\n" +
+                "so no model response can touch INPUT/ through ClaudetRelay's normal channels.\n" +
+                "The folder is not marked read-only on disk, so you can freely add or move files there yourself.");
 
         AddSubHeader("⚙ Project Settings  (gear icon inside an open project)");
         AddBody(
@@ -3847,7 +4803,7 @@ public partial class MainWindow : Window
             "• Max Dialog Depth & Response Length defaults.");
 
         // ── 🌍 World Builder ──────────────────────────────────────────────
-        AddSectionHeader("🌍", "World Builder  (story / RPG projects)");
+        BeginSection("🌍", "World Builder  (story / RPG projects)");
         AddBody("Define persistent world entities that AIs always stay consistent with:\n" +
                 "  Characters — profiles, roles, arcs, voice, stats.\n" +
                 "  Factions — goals, leaders, territory, member lists.\n" +
@@ -3857,9 +4813,12 @@ public partial class MainWindow : Window
         AddBody("Each Board is a visual canvas where you place entity cards and draw relationships " +
                 "between them. Open a Board to edit; multiple boards can be open at once. " +
                 "Board Settings lets you choose which entity types appear and what symbol the tile uses.");
+        AddHighlight("💡  Boards can be placed on Boards — drag a Board tile onto another Board's canvas " +
+                     "to create nested overviews. Handy for continent → region → city drill-downs, " +
+                     "or faction → sub-faction hierarchies.");
 
         // ── 🔗 Bridge ─────────────────────────────────────────────────────
-        AddSectionHeader("🔗", "Bridge tab  (MCP Agent Bridge)");
+        BeginSection("🔗", "Bridge tab  (MCP Agent Bridge)", autoBridge);
 
         AddSubHeader("Server mode  (▶ Server sub-tab)");
         AddBody("ClaudetRelay starts a local MCP server. External tools — Claude Code, Cursor, " +
@@ -3879,7 +4838,26 @@ public partial class MainWindow : Window
                 "⚙ Bridge Settings button — fine-tune which MCP tools are exposed and set " +
                 "file-size limits for read/write operations.");
 
+        // ── 🔊 Audio & Voice ──────────────────────────────────────────────
+        BeginSection("🔊", "Audio & Voice  (●●● Options menu)");
+
+        AddSubHeader("🔊 Audio Setup");
+        AddBody("Select the audio output device ClaudetRelay uses for TTS playback and set the " +
+                "master volume (0–100 %). Volume changes apply live to anything currently speaking.");
+
+        AddSubHeader("🎙 Voice Settings");
+        AddBody("Choose the TTS backend and configure it:\n" +
+                "  Windows TTS — built-in Windows voices, works offline, no setup required.\n" +
+                "  Sherpa-onnx — high-quality offline neural voices (Piper TTS-compatible). " +
+                "Pick a model folder, then download individual voice packs from the built-in " +
+                "Voice Model Manager. Models live next to the .exe in a Voices/ folder by default.\n" +
+                "  VOICEVOX — anime-inspired character voices via a separate VOICEVOX installation " +
+                "running locally (default port 50021). Compatible alternatives: AivisSpeech, COEIROINK.");
+        AddBody("Switching a radio button applies the backend immediately so you can hear the " +
+                "difference without closing the dialog.");
+
         // ── Close ─────────────────────────────────────────────────────────
+        currentTarget = root;   // back to root so the button lands outside any section
         AddRule(topMargin: 12, bottomMargin: 14);
         var closeBtn = new Button
         {
@@ -3889,7 +4867,7 @@ public partial class MainWindow : Window
             FontSize            = 13, FontWeight = FontWeights.SemiBold,
             HorizontalAlignment = HorizontalAlignment.Center,
             Padding             = new Thickness(28, 0, 28, 0),
-            IsDefault = true, IsCancel = true, Cursor = Cursors.Hand
+            IsCancel = true, Cursor = Cursors.Hand
         };
         closeBtn.SetResourceReference(Button.BackgroundProperty, "PrimaryAccentBrush");
         closeBtn.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
@@ -3897,14 +4875,53 @@ public partial class MainWindow : Window
         closeBtn.Click += (_, _) => win.Close();
         root.Children.Add(closeBtn);
 
-        win.ShowDialog();
+        win.Show();
     }
 
     // ── Sidebar actions ────────────────────────────────────────────────────
 
     private void ClearChat_Click(object sender, RoutedEventArgs e)
     {
+        // ── Project mode: clear only the project chat, keep project open ──
+        if (_currentProjectFolder is not null && _currentProject is not null)
+        {
+            var isDE = System.Globalization.CultureInfo.CurrentUICulture
+                           .TwoLetterISOLanguageName
+                           .Equals("de", StringComparison.OrdinalIgnoreCase);
+
+            var projectName = _currentProject.ProjectName;
+            var msg   = isDE
+                ? $"Alle gespeicherten Nachrichten im Projekt \"{projectName}\" werden dauerhaft gelöscht.\n\n" +
+                  "Die KI-Teilnehmer werden sich an keine frühere Unterhaltung mehr erinnern.\n\n" +
+                  "Wirklich fortfahren?"
+                : $"All stored messages in project \"{projectName}\" will be permanently deleted.\n\n" +
+                  "AI participants will have no memory of this conversation.\n\n" +
+                  "Continue?";
+            var title = isDE ? "Projektchat leeren" : "Clear Project Chat";
+
+            if (MessageBox.Show(msg, title, MessageBoxButton.YesNo, MessageBoxImage.Warning)
+                    != MessageBoxResult.Yes) return;
+
+            _streamCts?.Cancel();
+            CancelAllPrivateTasks();
+            ChatPanel.Children.Clear();
+            _sharedHistory.Clear();
+
+            // Delete all chatlog segment files for this project
+            try
+            {
+                foreach (var f in ProjectService.GetChatLogFiles(_currentProjectFolder))
+                    SysIO.File.Delete(f);
+            }
+            catch { /* non-fatal */ }
+
+            AddSystemMessage(isDE ? "Projektchat geleert." : "Project chat cleared.");
+            return;
+        }
+
+        // ── General chat: existing behaviour ──────────────────────────────
         _streamCts?.Cancel();
+        CancelAllPrivateTasks();
         ChatPanel.Children.Clear();
         _sharedHistory.Clear();
         CloseCurrentProject();
@@ -4151,7 +5168,7 @@ public partial class MainWindow : Window
     {
         var bubble = AddStreamingBubble(senderName, avatarText, accentKey, bubbleKey, isUser);
         bubble.StopThinking();
-        bubble.Content.Text = text;
+        ApplyEmoteFormatting(bubble, text, isUser ? senderName : "");
         ChatScrollViewer.ScrollToBottom();
     }
 
@@ -4227,6 +5244,8 @@ public partial class MainWindow : Window
                   "relays a shared group chat to multiple AI models simultaneously. " +
                   "The human user and all AI participants see the same conversation. " +
                   "Each AI receives the full history and responds in turn.");
+        sb.Append(BuildEmoteInstruction());
+        sb.Append(BuildFileAccessInstruction());
 
         if (_projectSettings is null)
         {
@@ -5185,14 +6204,33 @@ public partial class MainWindow : Window
             @"<readfile\s+path=""([^""]+)""\s*/>",
             RegexOptions.IgnoreCase).Replace(response, m =>
         {
-            var path    = m.Groups[1].Value.Trim();
-            var content = ProjectService.SafeReadFile(projFolder, path);
+            var path = m.Groups[1].Value.Trim();
+
+            string? content;
+            if (Services.OfficeFileReader.IsSupported(path))
+            {
+                // Binary Office/ODF format — extract readable text instead of raw bytes.
+                var full = SysIO.Path.GetFullPath(SysIO.Path.Combine(projFolder, path));
+                if (!ProjectService.IsPathSafe(full, projFolder) || !SysIO.File.Exists(full))
+                    content = null;
+                else
+                    content = Services.OfficeFileReader.TryExtractText(full);
+            }
+            else
+            {
+                content = ProjectService.SafeReadFile(projFolder, path);
+            }
+
             if (content is null)
             {
                 AddSystemMessage($"⚠  {senderName} requested '{path}' - file not found.");
                 return $"*(⚠ not found: {path})*";
             }
-            AddSystemMessage($"📂  {senderName} read: {path}");
+
+            // Note format in status message for Office files
+            var formatNote = Services.OfficeFileReader.IsSupported(path) ? " (extracted from Office file)" : "";
+            AddSystemMessage($"📂  {senderName} read: {path}{formatNote}");
+
             // Inject into shared history so all subsequent AI responses can see the content
             _sharedHistory.Add(new CloudAIMessage("user",
                 $"[File content: {path}]\n\n{content}", "System"));
@@ -5498,6 +6536,18 @@ public partial class MainWindow : Window
         contentTb.SetResourceReference(TextBox.CaretBrushProperty,    bubbleTextKey);
         contentTb.SetResourceReference(TextBox.SelectionBrushProperty, accentKey);
 
+        // ── Emote-formatted overlay (shown instead of contentTb when emotes are present) ──
+        // contentTb (TextBox) is always kept in sync for copy-button access; EmoteContent
+        // is swapped in by ApplyEmoteFormatting when *…* or /me markers are detected.
+        var emoteContentTb = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Visibility   = Visibility.Collapsed
+        };
+        emoteContentTb.SetResourceReference(TextBlock.FontFamilyProperty, "ChatFontFamily");
+        emoteContentTb.SetResourceReference(TextBlock.FontSizeProperty,   "ChatFontSize");
+        emoteContentTb.SetResourceReference(TextBlock.ForegroundProperty, bubbleTextKey);
+
         // ── Thinking animation (AI only) ──────────────────────────────────
         int frame = 0;
         string[] frames = ["·", "· ·", "· · ·"];
@@ -5518,10 +6568,11 @@ public partial class MainWindow : Window
         };
         if (!isUser) thinkingTimer.Start();
 
-        // Grid holds both (only one visible at a time)
+        // Grid holds all three; only one is visible at a time
         var bubbleInner = new Grid();
         bubbleInner.Children.Add(thinkingTb);
         bubbleInner.Children.Add(contentTb);
+        bubbleInner.Children.Add(emoteContentTb);
 
         var bubble = new Border
         {
@@ -5654,6 +6705,6 @@ public partial class MainWindow : Window
             thinkingTb.ToolTip = string.IsNullOrEmpty(tip) ? null : (object)$"💭 {tip}";
         }
 
-        return new StreamBubble(contentTb, StopThinking, UpdateThinkingTooltip, wrapper);
+        return new StreamBubble(contentTb, emoteContentTb, StopThinking, UpdateThinkingTooltip, wrapper);
     }
 }

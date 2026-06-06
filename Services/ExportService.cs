@@ -43,6 +43,10 @@ public static class ExportService
 
         foreach (var entry in entries)
         {
+            // Skip empty AI/User messages — they produce blank bubbles with no value.
+            if (entry.SenderType != "System" && string.IsNullOrWhiteSpace(entry.Message))
+                continue;
+
             var time    = entry.Timestamp.ToString("yyyy-MM-dd  HH:mm");
             var content = WebUtility.HtmlEncode(entry.Message);
 
@@ -188,6 +192,10 @@ public static class ExportService
 
         foreach (var entry in entries)
         {
+            // Skip empty AI/User messages — they produce blank sections with no value.
+            if (entry.SenderType != "System" && string.IsNullOrWhiteSpace(entry.Message))
+                continue;
+
             var time = entry.Timestamp.ToString("yyyy-MM-dd HH:mm");
 
             switch (entry.SenderType)
