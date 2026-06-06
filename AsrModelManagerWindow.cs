@@ -65,7 +65,6 @@ public sealed class AsrModelManagerWindow : Window
             }
             catch { }
         }
-        // Title bar theming via SourceInitialized
         SourceInitialized += (_, _) => ApplyTitleBar();
 
         BuildUI();

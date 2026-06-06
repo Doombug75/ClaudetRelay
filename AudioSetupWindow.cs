@@ -41,7 +41,30 @@ public sealed class AudioSetupWindow : Window
             catch { }
         }
 
+        OverrideSystemColorsForCombos();
         BuildUI();
+    }
+
+    /// <summary>
+    /// Overrides WPF SystemColor brush keys at the window level so the default
+    /// ComboBox template (which uses SystemColors.Window, not Background) picks
+    /// up the current theme colours.
+    /// </summary>
+    private void OverrideSystemColorsForCombos()
+    {
+        if (TryFindResource("ControlBgBrush")    is Brush bg)
+        {
+            Resources[SystemColors.WindowBrushKey]       = bg;
+            Resources[SystemColors.ControlBrushKey]      = bg;
+            Resources[SystemColors.ControlLightBrushKey] = bg;
+        }
+        if (TryFindResource("ContentTextBrush")  is Brush fg)
+        {
+            Resources[SystemColors.WindowTextBrushKey]   = fg;
+            Resources[SystemColors.ControlTextBrushKey]  = fg;
+        }
+        if (TryFindResource("ControlBorderBrush") is Brush border)
+            Resources[SystemColors.ActiveBorderBrushKey] = border;
     }
 
     private void BuildUI()

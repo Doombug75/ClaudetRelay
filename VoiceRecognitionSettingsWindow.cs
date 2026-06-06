@@ -68,6 +68,11 @@ public sealed class VoiceRecognitionSettingsWindow : Window
             catch { }
         }
 
+        // Override WPF SystemColor keys so ComboBox/ListBox templates use theme colors.
+        // The default ComboBox template uses SystemColors.WindowBrush (not Background),
+        // so SetResourceReference(BackgroundProperty, …) alone has no effect on it.
+        OverrideSystemColorsForCombos();
+
         BuildUI();
 
         // Subscribe to level events for the meter
@@ -538,6 +543,29 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         };
         rb.SetResourceReference(RadioButton.ForegroundProperty, "ContentTextBrush");
         return rb;
+    }
+
+    /// <summary>
+    /// Overrides WPF SystemColor brush keys at the window level so that the
+    /// default ComboBox / ListBox templates (which use SystemColors.Window, not
+    /// the control's Background property) pick up the current theme colours.
+    /// Must be called after theme resources are added to MergedDictionaries.
+    /// </summary>
+    private void OverrideSystemColorsForCombos()
+    {
+        if (TryFindResource("ControlBgBrush")   is Brush bg)
+        {
+            Resources[SystemColors.WindowBrushKey]      = bg;
+            Resources[SystemColors.ControlBrushKey]     = bg;
+            Resources[SystemColors.ControlLightBrushKey]= bg;
+        }
+        if (TryFindResource("ContentTextBrush") is Brush fg)
+        {
+            Resources[SystemColors.WindowTextBrushKey]  = fg;
+            Resources[SystemColors.ControlTextBrushKey] = fg;
+        }
+        if (TryFindResource("ControlBorderBrush") is Brush border)
+            Resources[SystemColors.ActiveBorderBrushKey] = border;
     }
 
     private Button MakeBtn(string label, bool primary)
