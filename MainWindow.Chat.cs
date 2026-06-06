@@ -4096,9 +4096,10 @@ public partial class MainWindow : Window
 
     private void ShowClaudetteChatWindow(OllamaService? ollamaSvc, ICloudAIService? cloudSvc, string aiName)
     {
-        var bgBrush      = (Brush)FindResource("ContentBgBrush");
-        var systemPrompt = BuildClaudetteSystemPrompt(_currentTab, _currentProjectFolder, _currentProject);
-        var convHistory  = new List<CloudAIMessage>();   // user+assistant turns
+        var bgBrush     = (Brush)FindResource("ContentBgBrush");
+        var convHistory = new List<CloudAIMessage>();   // user+assistant turns
+        // systemPrompt is rebuilt on every send so context stays current
+        // even if the user switches tabs or opens/closes a project while the window is open.
         var cts          = new CancellationTokenSource();
 
         var win = new Window
@@ -4288,12 +4289,15 @@ public partial class MainWindow : Window
         // ── Core streaming send ───────────────────────────────────────────
         async Task StreamClaudetteAsync(TextBlock target, List<CloudAIMessage> history)
         {
+            // Rebuild system prompt now so it reflects the current tab / project state,
+            // even if the user navigated after opening this chat window.
+            var currentPrompt = BuildClaudetteSystemPrompt(_currentTab, _currentProjectFolder, _currentProject);
             var sb = new StringBuilder();
             try
             {
                 if (ollamaSvc is not null)
                 {
-                    var req = new List<OllamaChatMessage> { new("system", systemPrompt) };
+                    var req = new List<OllamaChatMessage> { new("system", currentPrompt) };
                     req.AddRange(history.Select(m => new OllamaChatMessage(m.Role, m.Content)));
                     await foreach (var tok in ollamaSvc.StreamAsync(req, cts.Token))
                     {
@@ -4304,7 +4308,7 @@ public partial class MainWindow : Window
                 }
                 else
                 {
-                    await foreach (var tok in cloudSvc!.StreamAsync(history, systemPrompt, cts.Token))
+                    await foreach (var tok in cloudSvc!.StreamAsync(history, currentPrompt, cts.Token))
                     {
                         sb.Append(tok);
                         target.Text = sb.ToString();
