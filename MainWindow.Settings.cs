@@ -149,8 +149,7 @@ public partial class MainWindow
 
     internal void OpenVoiceRecognitionSettings()
     {
-        var win = new VoiceRecognitionSettingsWindow(_currentThemePath, _dictation) { Owner = this };
-        win.SourceInitialized += (_, _) => ApplyTitleBarTheme(win);
+        var win = new VoiceRecognitionSettingsWindow(_currentThemePath, _dictation, ApplyThemeToDialog) { Owner = this };
         win.ShowDialog();
     }
 

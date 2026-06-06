@@ -363,6 +363,11 @@
   <data name="Asr_MicBtn_Idle"          xml:space="preserve"><value>🎙  Dictation Off</value></data>
   <data name="Asr_MicBtn_On"            xml:space="preserve"><value>🔴  Listening…</value></data>
   <data name="Asr_MicBtn_Processing"    xml:space="preserve"><value>⏳  Transcribing…</value></data>
+  <data name="Asr_TypeWhisper"          xml:space="preserve"><value>Whisper  (multilingual, recommended)</value></data>
+  <data name="Asr_TypeSenseVoice"       xml:space="preserve"><value>SenseVoice  (fast, EN/ZH/JA/KO)</value></data>
+  <data name="Asr_TypeWhisperHint"      xml:space="preserve"><value>OpenAI Whisper: supports ~100 languages including English and German. Use the tiny model (~78 MB) for speed, small (~250 MB) for better accuracy. Recommended for most users.</value></data>
+  <data name="Asr_TypeSenseVoiceHint"   xml:space="preserve"><value>SenseVoice: very fast recognition, optimised for English, Chinese, Japanese and Korean. Does not officially support German — use Whisper instead if you need German.</value></data>
+  <data name="Asr_DownloadHint"         xml:space="preserve"><value>Models must be downloaded separately. Click "Manage ASR Models" to download and install them into the model folder above.</value></data>
 
   <!-- ── Folders dialog additional ────────────────────────────────────── -->
   <data name="Folders_ChooseFolder"    xml:space="preserve"><value>Choose folder</value></data>

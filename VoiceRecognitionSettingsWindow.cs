@@ -38,7 +38,8 @@ public sealed class VoiceRecognitionSettingsWindow : Window
     private float       _threshold;
     private bool        _recordingKey;
 
-    public VoiceRecognitionSettingsWindow(string? themePath, DictationService dictation)
+    public VoiceRecognitionSettingsWindow(string? themePath, DictationService dictation,
+                                           Action<Window>? applyTheme = null)
     {
         _themePath  = themePath;
         _dictation  = dictation;
@@ -52,7 +53,12 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         ShowInTaskbar         = false;
         SetResourceReference(BackgroundProperty, "ContentBgBrush");
 
-        if (themePath is not null)
+        if (applyTheme is not null)
+        {
+            // Use the caller's full ApplyThemeToDialog (loads resources + title bar colouring)
+            applyTheme(this);
+        }
+        else if (themePath is not null)
         {
             try
             {
@@ -147,18 +153,43 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         // Model type combo
         root.Children.Add(SmallLabel(Properties.Loc.S("Asr_ModelType")));
         _typeCombo = MakeCombo();
-        _typeCombo.Items.Add("Whisper");
-        _typeCombo.Items.Add("SenseVoice");
+        _typeCombo.Items.Add(Properties.Loc.S("Asr_TypeWhisper"));
+        _typeCombo.Items.Add(Properties.Loc.S("Asr_TypeSenseVoice"));
         _typeCombo.SelectedIndex = s.AsrModelType.ToLower() == "sense_voice" ? 1 : 0;
         _typeCombo.Margin = new Thickness(0, 0, 0, 4);
         root.Children.Add(_typeCombo);
+
+        // Type hint text (updates when selection changes)
+        var typeHint = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap, FontSize = 10,
+            Margin = new Thickness(0, 0, 0, 14)
+        };
+        typeHint.SetResourceReference(ForegroundProperty, "ContentDimBrush");
+        void UpdateTypeHint() =>
+            typeHint.Text = _typeCombo.SelectedIndex == 1
+                ? Properties.Loc.S("Asr_TypeSenseVoiceHint")
+                : Properties.Loc.S("Asr_TypeWhisperHint");
+        _typeCombo.SelectionChanged += (_, _) => UpdateTypeHint();
+        UpdateTypeHint();
+        root.Children.Add(typeHint);
+
+        // Download hint + manage button
+        var downloadHint = new TextBlock
+        {
+            Text = Properties.Loc.S("Asr_DownloadHint"),
+            TextWrapping = TextWrapping.Wrap, FontSize = 10,
+            Margin = new Thickness(0, 0, 0, 6)
+        };
+        downloadHint.SetResourceReference(ForegroundProperty, "ContentDimBrush");
+        root.Children.Add(downloadHint);
 
         var manageBtn = MakeBtn(Properties.Loc.S("Asr_ManageModels"), false);
         manageBtn.HorizontalAlignment = HorizontalAlignment.Left;
         manageBtn.Margin = new Thickness(0, 0, 0, 20);
         manageBtn.Click += (_, _) =>
         {
-            var w = new VoiceModelManagerWindow(_themePath) { Owner = this };
+            var w = new AsrModelManagerWindow(_themePath) { Owner = this };
             w.ShowDialog();
             RefreshModelList(_folderBox?.Text ?? "");
         };
