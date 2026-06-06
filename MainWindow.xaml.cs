@@ -481,16 +481,17 @@ public partial class MainWindow : Window
             Width                 = 420,
             SizeToContent         = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterScreen,
-            ShowInTaskbar         = true,
+            ShowInTaskbar         = false,
             Owner = this  // Set MainWindow as owner
         };
 
-        // Use this window's theme resources
+        // Copy all theme resources from MainWindow
+        foreach (var dict in Resources.MergedDictionaries)
+            win.Resources.MergedDictionaries.Add(dict);
+
+        // Also apply background from MainWindow theme
         if (TryFindResource("SidebarBgBrush") is Brush bg)
             win.Background = bg;
-        var themeDicts = Resources.MergedDictionaries.Where(d => d.Source?.OriginalString.Contains("oxsuit") ?? false).ToList();
-        foreach (var dict in themeDicts)
-            win.Resources.MergedDictionaries.Add(dict);
 
         var panel = new StackPanel { Margin = new Thickness(22, 20, 22, 20) };
 
@@ -530,10 +531,22 @@ public partial class MainWindow : Window
             BorderThickness  = new Thickness(1),
             IsUndoEnabled    = false
         };
-        textBox.SetResourceReference(TextBox.BackgroundProperty,   "InputBgBrush");
-        textBox.SetResourceReference(TextBox.ForegroundProperty,   "InputTextBrush");
-        textBox.SetResourceReference(TextBox.BorderBrushProperty,  "InputBorderBrush");
-        textBox.SetResourceReference(TextBox.CaretBrushProperty,   "InputTextBrush");
+        // Try to use InputBgBrush, but fallback to a visible color if needed
+        try
+        {
+            textBox.SetResourceReference(TextBox.BackgroundProperty,   "InputBgBrush");
+            textBox.SetResourceReference(TextBox.ForegroundProperty,   "InputTextBrush");
+            textBox.SetResourceReference(TextBox.BorderBrushProperty,  "InputBorderBrush");
+            textBox.SetResourceReference(TextBox.CaretBrushProperty,   "InputTextBrush");
+        }
+        catch
+        {
+            // Fallback if theme resources are missing
+            textBox.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(255, 245, 245, 245));
+            textBox.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Black);
+            textBox.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Gray);
+            textBox.CaretBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Black);
+        }
         panel.Children.Add(textBox);
 
         // ── Button row ─────────────────────────────────────────────────────
