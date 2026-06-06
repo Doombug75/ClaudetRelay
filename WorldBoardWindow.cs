@@ -611,10 +611,18 @@ public class WorldBoardWindow : Window
         // Apply filter + sort to board-placed entities only
         var displayedEntities = GetFilteredAndSortedEntities(boardPlacedEntities);
 
-        // Prune relations where either endpoint was deleted or removed from board
+        // Prune relations where either endpoint was deleted or removed from board.
+        // Valid endpoints: entity cards, board pins, and frames.
         var entityById = allEntities.ToDictionary(e => e.Id);
+        var validPinIds   = _boardData.BoardPinPositions.Keys.ToHashSet();
+        var validFrameIds = _boardData.Frames.Select(f => f.Id).ToHashSet();
         var staleRels  = _boardData.Relations
-            .Where(r => !entityById.ContainsKey(r.FromId) || !entityById.ContainsKey(r.ToId))
+            .Where(r =>
+            {
+                bool fromOk = entityById.ContainsKey(r.FromId) || validPinIds.Contains(r.FromId) || validFrameIds.Contains(r.FromId);
+                bool toOk   = entityById.ContainsKey(r.ToId)   || validPinIds.Contains(r.ToId)   || validFrameIds.Contains(r.ToId);
+                return !fromOk || !toOk;
+            })
             .ToList();
         foreach (var sr in staleRels) { _boardData.Relations.Remove(sr); dirty = true; }
         if (dirty) EntityBoardService.Save(_projFolder, _board.Id, _boardData);
@@ -1080,39 +1088,55 @@ public class WorldBoardWindow : Window
             }
         }
 
-        // ── Canvas right-click rubber-band selection ───────────────────────
-        // ── Canvas pan (left-drag on empty space) + right-click menu ─────────
-        canvas.Cursor = Cursors.Hand;   // default grab cursor on empty space
+        // ── Canvas interactions:
+        //   Left-click on empty space  → deselect all
+        //   Left-drag on empty space   → rubber-band multi-select
+        //   Right-drag on empty space  → pan the canvas
+        //   Right-click on empty space → context menu (add entities)
+        canvas.Cursor = Cursors.Hand;
 
         bool   panPotential = false;
         bool   isPanDrag    = false;
         Point  panOrigin    = default;
         double panH0 = 0, panV0 = 0;
 
+        // ── Right mouse: pan ──────────────────────────────────────────────
         canvas.MouseRightButtonDown += (_, e) =>
         {
             if (_boardConnectMode) return;
-            // Only start rubber-band selection when clicking empty canvas background.
-            // If the click originated from a card or any other child element that has
-            // a ContextMenu, bail out so WPF can show that element's own menu.
             if (e.OriginalSource != canvas) return;
-            _selDragStart  = e.GetPosition(canvas);
-            _selDragging   = true;
-            _selectionRect = new System.Windows.Shapes.Rectangle
-            {
-                Stroke          = new SolidColorBrush(Color.FromArgb(200, 80, 160, 255)),
-                StrokeThickness = 1.5,
-                StrokeDashArray = new DoubleCollection { 4, 2 },
-                Fill            = new SolidColorBrush(Color.FromArgb(30, 80, 160, 255))
-            };
-            Panel.SetZIndex(_selectionRect, 20);
-            canvas.Children.Add(_selectionRect);
+            // Start pan or context-menu — we'll decide on up/move
+            panPotential = true;
+            panOrigin    = e.GetPosition(_boardScroll);
+            panH0        = _boardScroll!.HorizontalOffset;
+            panV0        = _boardScroll!.VerticalOffset;
+            _selDragStart = e.GetPosition(canvas);  // save for context menu position
             canvas.CaptureMouse();
             e.Handled = true;
         };
+        canvas.MouseRightButtonUp += (_, e) =>
+        {
+            if (!panPotential) return;
+            panPotential = false;
+            canvas.ReleaseMouseCapture();
+            canvas.Cursor = Cursors.Hand;
+            if (!isPanDrag && !_boardConnectMode)
+            {
+                // Simple right-click on empty space → "Add" context menu
+                var menu = BuildAddContextMenu(
+                    Snap(Math.Max(0, _selDragStart.X)),
+                    Snap(Math.Max(0, _selDragStart.Y)));
+                menu.PlacementTarget = canvas;
+                menu.Placement       = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+                menu.IsOpen          = true;
+            }
+            isPanDrag = false;
+            e.Handled = true;
+        };
+
         canvas.MouseMove += (_, e) =>
         {
-            // Rubber-band selection (right-drag)
+            // Rubber-band selection (left-drag on empty space)
             if (_selDragging && _selectionRect != null)
             {
                 var cur = e.GetPosition(canvas);
@@ -1123,7 +1147,7 @@ public class WorldBoardWindow : Window
                 e.Handled = true;
                 return;
             }
-            // Pan (left-drag on empty space)
+            // Pan (right-drag on empty space)
             if (!panPotential) return;
             var pt = e.GetPosition(_boardScroll);
             if (!isPanDrag)
@@ -1141,7 +1165,30 @@ public class WorldBoardWindow : Window
                 e.Handled = true;
             }
         };
-        canvas.MouseRightButtonUp += (_, e) =>
+
+        // ── Ctrl+C / Ctrl+V for board copy/paste ──────────────────────────
+        KeyDown += OnBoardKeyDown;
+
+        // ── Left mouse on empty canvas: rubber-band select or deselect ────
+        canvas.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.OriginalSource != canvas) return;
+            if (_boardConnectMode) return;
+            _selDragStart  = e.GetPosition(canvas);
+            _selDragging   = true;
+            _selectionRect = new System.Windows.Shapes.Rectangle
+            {
+                Stroke          = new SolidColorBrush(Color.FromArgb(200, 80, 160, 255)),
+                StrokeThickness = 1.5,
+                StrokeDashArray = new DoubleCollection { 4, 2 },
+                Fill            = new SolidColorBrush(Color.FromArgb(30, 80, 160, 255))
+            };
+            Panel.SetZIndex(_selectionRect, 20);
+            canvas.Children.Add(_selectionRect);
+            canvas.CaptureMouse();
+            e.Handled = true;
+        };
+        canvas.MouseLeftButtonUp += (_, e) =>
         {
             if (!_selDragging || _selectionRect == null) return;
             _selDragging = false;
@@ -1155,7 +1202,7 @@ public class WorldBoardWindow : Window
 
             if (selBox.Width > 6 || selBox.Height > 6)
             {
-                // Rubber-band selection
+                // Rubber-band: select all cards intersecting the box
                 _selectedIds.Clear();
                 foreach (var (eid, ecard) in _boardCards)
                 {
@@ -1166,45 +1213,14 @@ public class WorldBoardWindow : Window
                         _selectedIds.Add(eid);
                 }
                 RefreshSelectionVisuals();
-                e.Handled = true;
             }
-            else if (!_boardConnectMode)
+            else
             {
-                // Simple right-click on empty space → "Add" context menu at that position
-                var menu = BuildAddContextMenu(
-                    Snap(Math.Max(0, _selDragStart.X)),
-                    Snap(Math.Max(0, _selDragStart.Y)));
-                menu.PlacementTarget = canvas;
-                menu.Placement       = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
-                menu.IsOpen          = true;
-                e.Handled            = true;
-            }
-        };
-
-        // ── Ctrl+C / Ctrl+V for board copy/paste ──────────────────────────
-        KeyDown += OnBoardKeyDown;
-
-        // ── Canvas left-click / left-drag: deselect (click) or pan (drag) ─
-        canvas.MouseLeftButtonDown += (_, e) =>
-        {
-            if (e.OriginalSource != canvas) return;
-            panPotential = true;
-            panOrigin    = e.GetPosition(_boardScroll);
-            panH0        = _boardScroll!.HorizontalOffset;
-            panV0        = _boardScroll!.VerticalOffset;
-            canvas.CaptureMouse();
-            e.Handled = true;
-        };
-        canvas.MouseLeftButtonUp += (_, e) =>
-        {
-            if (!panPotential) return;
-            canvas.ReleaseMouseCapture();
-            if (!isPanDrag && !_boardConnectMode)
-            {
+                // Plain click on empty space → deselect all
                 _selectedIds.Clear();
                 RefreshSelectionVisuals();
             }
-            panPotential = false;
+            e.Handled = true;
             isPanDrag    = false;
             canvas.Cursor = Cursors.Hand;
             e.Handled = true;
