@@ -985,6 +985,10 @@ public class WorldBoardWindow : Window
         canvas.MouseRightButtonDown += (_, e) =>
         {
             if (_boardConnectMode) return;
+            // Only start rubber-band selection when clicking empty canvas background.
+            // If the click originated from a card or any other child element that has
+            // a ContextMenu, bail out so WPF can show that element's own menu.
+            if (e.OriginalSource != canvas) return;
             _selDragStart  = e.GetPosition(canvas);
             _selDragging   = true;
             _selectionRect = new System.Windows.Shapes.Rectangle
@@ -1167,8 +1171,56 @@ public class WorldBoardWindow : Window
     private record struct CopiedEntity(string OriginalId, WorldEntity Entity, double X, double Y);
     private List<CopiedEntity> _copiedBoard = new();
 
+    /// <summary>
+    /// Confirms and permanently deletes the given entity IDs from the world and the board.
+    /// </summary>
+    private void DeleteEntities(IEnumerable<string> ids)
+    {
+        var idList = ids.ToList();
+        if (idList.Count == 0) return;
+
+        var allEntities = _board.EntityTypes
+            .SelectMany(et => WorldEntityService.List(_projFolder, et))
+            .ToList();
+
+        var toDelete = idList
+            .Select(id => allEntities.FirstOrDefault(e => e.Id == id))
+            .Where(e => e is not null)
+            .ToList();
+
+        if (toDelete.Count == 0) return;
+
+        var msg = toDelete.Count == 1
+            ? string.Format(Properties.Loc.S("World_DeleteConfirm"), toDelete[0]!.Name)
+            : string.Format(Properties.Loc.S("World_DeleteManyConfirm"), toDelete.Count);
+
+        if (MessageBox.Show(msg, Properties.Loc.S("World_DeleteItem"),
+                MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+
+        foreach (var ent in toDelete)
+        {
+            WorldEntityService.Delete(_projFolder, ent!);
+            _boardData.Positions.Remove(ent!.Id);
+            _boardData.Relations.RemoveAll(r => r.FromId == ent.Id || r.ToId == ent.Id);
+            _selectedIds.Remove(ent.Id);
+        }
+
+        EntityBoardService.Save(_projFolder, _board.Id, _boardData);
+        BuildBoardContent();
+    }
+
     private void OnBoardKeyDown(object sender, KeyEventArgs e)
     {
+        // Delete / Backspace — delete selected entities (no modifier needed)
+        if (e.Key is Key.Delete or Key.Back && _selectedIds.Count > 0)
+        {
+            DeleteEntities(_selectedIds.ToList());
+            e.Handled = true;
+            return;
+        }
+
         if ((Keyboard.Modifiers & ModifierKeys.Control) == 0) return;
 
         if (e.Key == Key.A)
@@ -2323,6 +2375,10 @@ public class WorldBoardWindow : Window
             }
         };
         ctx.Items.Add(editItem);
+        ctx.Items.Add(new Separator());
+        var deleteItem = new MenuItem { Header = Properties.Loc.S("World_DeleteItem") };
+        deleteItem.Click += (_, _) => DeleteEntities(new[] { entity.Id });
+        ctx.Items.Add(deleteItem);
         card.ContextMenu = ctx;
 
         return card;

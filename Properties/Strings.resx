@@ -430,6 +430,8 @@
   <data name="World_NoFilterResults"           xml:space="preserve"><value>No results match the current filters. Click ↺ Reset to clear.</value></data>
   <data name="World_EditItem"                  xml:space="preserve"><value>✏  Edit</value></data>
   <data name="World_DeleteItem"                xml:space="preserve"><value>🗑  Delete</value></data>
+  <data name="World_DeleteConfirm"             xml:space="preserve"><value>Permanently delete "{0}"? This cannot be undone.</value></data>
+  <data name="World_DeleteManyConfirm"         xml:space="preserve"><value>Permanently delete {0} entities? This cannot be undone.</value></data>
   <data name="World_SendToBoard"               xml:space="preserve"><value>📌  Send to Board</value></data>
   <data name="World_AlreadyOnBoard"            xml:space="preserve"><value>Already on board</value></data>
   <data name="World_NoBoardsYet"               xml:space="preserve"><value>No boards yet.</value></data>

@@ -430,6 +430,8 @@
   <data name="World_NoFilterResults"           xml:space="preserve"><value>Keine Ergebnisse für die aktuellen Filter. Klicken Sie auf ↺ Zurücksetzen.</value></data>
   <data name="World_EditItem"                  xml:space="preserve"><value>✏  Bearbeiten</value></data>
   <data name="World_DeleteItem"                xml:space="preserve"><value>🗑  Löschen</value></data>
+  <data name="World_DeleteConfirm"             xml:space="preserve"><value>"{0}" dauerhaft löschen? Dies kann nicht rückgängig gemacht werden.</value></data>
+  <data name="World_DeleteManyConfirm"         xml:space="preserve"><value>{0} Einträge dauerhaft löschen? Dies kann nicht rückgängig gemacht werden.</value></data>
   <data name="World_SendToBoard"               xml:space="preserve"><value>📌  An Board senden</value></data>
   <data name="World_AlreadyOnBoard"            xml:space="preserve"><value>Bereits auf dem Board</value></data>
   <data name="World_NoBoardsYet"               xml:space="preserve"><value>Noch keine Boards.</value></data>
