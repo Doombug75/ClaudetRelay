@@ -1005,7 +1005,7 @@ public class WorldBoardWindow : Window
             captionBadge.Child = captionText;
             Canvas.SetLeft(captionBadge, (x1 + x2) / 2 - 30);
             Canvas.SetTop (captionBadge, (y1 + y2) / 2 - 12);
-            Panel.SetZIndex(captionBadge, 1);
+            Panel.SetZIndex(captionBadge, 3);
 
             var capturedRel = rel;
             var ctx = new ContextMenu();
@@ -3446,7 +3446,7 @@ public class WorldBoardWindow : Window
                     StrokeThickness=thickness, Opacity=0.85, Stroke=brush,
                     StrokeStartLineCap=cap, StrokeEndLineCap=cap };
                 if (dashArray is not null) { ln.StrokeDashArray = dashArray; ln.StrokeDashCap = cap; }
-                Panel.SetZIndex(ln, 1); canvas.Children.Add(ln);
+                Panel.SetZIndex(ln, 3); canvas.Children.Add(ln);
                 return ln;
             }
             var l1 = MakeSeg(ox, oy);
@@ -3511,7 +3511,7 @@ public class WorldBoardWindow : Window
                 Stroke = Brushes.Transparent,
                 Cursor = Cursors.Hand
             };
-            Panel.SetZIndex(hitZone, 1);
+            Panel.SetZIndex(hitZone, 3);
             canvas.Children.Add(hitZone);
             string capturedHoverRelId = relId;
             hitZone.MouseEnter += (_, _) => { _hoverRelId = capturedHoverRelId; RefreshSelectionVisuals(); };
@@ -3532,7 +3532,7 @@ public class WorldBoardWindow : Window
             if (pts[^1].IsNormalWp)
                 (tipX, tipY) = MoveToward(pts[^1].X, pts[^1].Y, pts[^2].X, pts[^2].Y, TrimR);
             var arrow = BuildArrowhead(pts[^2].X, pts[^2].Y, tipX, tipY, thickness, rel.LineColor);
-            Panel.SetZIndex(arrow, 1); canvas.Children.Add(arrow);
+            Panel.SetZIndex(arrow, 3); canvas.Children.Add(arrow);
             _boardArrows[relId] = arrow;
         }
 
