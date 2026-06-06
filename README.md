@@ -90,7 +90,7 @@ No conversion tools, no LibreOffice install, no Adobe — everything is generate
 | Cloud | Local |
 |---|---|
 | Anthropic Claude | Ollama (any model) |
-| OpenAI GPT | *(LM Studio — planned)* |
+| OpenAI GPT | LM Studio (local server) |
 | Google Gemini | |
 | Mistral | |
 | Groq | |
@@ -197,7 +197,7 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 | **Voice input** | Push-to-talk and voice-activation using a locally-running speech recogniser — no cloud required |
 | **Voice output** | Text-to-speech playback of AI responses |
 | **Multi-language UI** | German as the first additional language alongside English |
-| **LM Studio support** | Local model provider via LM Studio's OpenAI-compatible endpoint |
+| ~~**LM Studio support**~~ | ✅ Done — local server and LM Studio Cloud, with live model listing |
 | ~~**Codebase refactor**~~ | ✅ Done — 18 800 lines split into 6 focused partial classes |
 | ~~**Buccaneer mode**~~ | ✅ Done — three-way pill toggle (Neutral · 🐦 Mockingbird · 🏴‍☠️ Buccaneer) |
 
