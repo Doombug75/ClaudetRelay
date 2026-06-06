@@ -2332,7 +2332,7 @@ public class WorldBoardWindow : Window
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 1, 0, 0) };
             var lbl = new TextBlock { Text = field + ": ", FontSize = 9, FontWeight = FontWeights.SemiBold };
             lbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
-            var vt = new TextBlock { Text = val, FontSize = 9, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = cardW - ThumbW - 28 };
+            var vt = new TextBlock { Text = val, FontSize = 9, TextTrimming = TextTrimming.CharacterEllipsis };
             vt.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
             row.Children.Add(lbl); row.Children.Add(vt);
             textStack.Children.Add(row);
