@@ -982,86 +982,94 @@ public class WorldBoardWindow : Window
         // ── Render relations (dynamic z-index based on connected cards) ────
         foreach (var rel in _boardData.Relations)
         {
-            var (fx, fy, fw, fh, fz) = GetObjectPosition(rel.FromId);
-            var (tx, ty, tw, th, tz) = GetObjectPosition(rel.ToId);
-            var x1 = fx + fw / 2;
-            var y1 = fy + EstCardH / 2;
-            var x2 = tx + tw / 2;
-            var y2 = ty + EstCardH / 2;
-
-            // Calculate relation Z-Index as highest connected card's ZOrder + 1
-            int maxCardZOrder = Math.Max(fz, tz);
-            int relationZIndex = 2 + maxCardZOrder;  // cards are z=2, add their ZOrder to get dynamic height
-
-            RenderRelationVisuals(canvas, rel.Id, x1, y1, x2, y2, rel, relationZIndex);
-
-            if (string.IsNullOrWhiteSpace(rel.Caption)) goto skipBadge;
-            var captionBadge = new Border
+            try
             {
-                CornerRadius = new CornerRadius(4), Padding = new Thickness(5, 2, 5, 2),
-                BorderThickness = new Thickness(1), Cursor = Cursors.Hand
-            };
-            captionBadge.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
-            captionBadge.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
-            var captionText = new TextBlock
-            {
-                Text = rel.Caption, FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
-                TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 140
-            };
-            captionText.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
-            captionBadge.Child = captionText;
-            Canvas.SetLeft(captionBadge, (x1 + x2) / 2 - 30);
-            Canvas.SetTop (captionBadge, (y1 + y2) / 2 - 12);
-            Panel.SetZIndex(captionBadge, relationZIndex);
+                var (fx, fy, fw, fh, fz) = GetObjectPosition(rel.FromId);
+                var (tx, ty, tw, th, tz) = GetObjectPosition(rel.ToId);
 
-            var capturedRel = rel;
-            var ctx = new ContextMenu();
-            var editRelItem = new MenuItem { Header = Properties.Loc.S("Board_EditRelation") };
-            editRelItem.Click += (_, _) =>
-            {
-                var result = ShowRelationDialog(capturedRel.Caption, capturedRel.LegendLabel,
-                    capturedRel.LineStyle, capturedRel.LineColor, capturedRel.Thickness,
-                    capturedRel.HasArrow, Properties.Loc.S("Board_EditRelationTitle"));
-                if (result is not null)
+                var x1 = fx + fw / 2;
+                var y1 = fy + EstCardH / 2;
+                var x2 = tx + tw / 2;
+                var y2 = ty + EstCardH / 2;
+
+                // Calculate relation Z-Index as highest connected card's ZOrder + 1
+                int maxCardZOrder = Math.Max(fz, tz);
+                int relationZIndex = 2 + maxCardZOrder;  // cards are z=2, add their ZOrder to get dynamic height
+
+                RenderRelationVisuals(canvas, rel.Id, x1, y1, x2, y2, rel, relationZIndex);
+
+                if (string.IsNullOrWhiteSpace(rel.Caption)) continue;
+                var captionBadge = new Border
                 {
-                    capturedRel.Caption     = result.Caption;
-                    capturedRel.LegendLabel = result.LegendLabel;
-                    capturedRel.LineStyle   = result.LineStyle;
-                    capturedRel.LineColor   = result.LineColor;
-                    capturedRel.Thickness   = result.Thickness;
-                    capturedRel.HasArrow    = result.HasArrow;
-                    MaybeAddLegendPreset(result);
-                    EntityBoardService.Save(_projFolder, _board.Id, _boardData);
-                    BuildBoardContent();
-                }
-            };
-            var delRelItem = new MenuItem { Header = Properties.Loc.S("Board_DeleteRelation") };
-            delRelItem.Click += (_, _) =>
-            {
-                _boardData.Relations.Remove(capturedRel);
-                EntityBoardService.Save(_projFolder, _board.Id, _boardData);
-                BuildBoardContent();
-            };
-            ctx.Items.Add(editRelItem);
-            if (capturedRel.HasArrow)
-            {
-                var flipRelItem = new MenuItem { Header = Properties.Loc.S("Board_FlipArrow") };
-                flipRelItem.Click += (_, _) =>
+                    CornerRadius = new CornerRadius(4), Padding = new Thickness(5, 2, 5, 2),
+                    BorderThickness = new Thickness(1), Cursor = Cursors.Hand
+                };
+                captionBadge.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
+                captionBadge.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+                var captionText = new TextBlock
                 {
-                    (capturedRel.FromId, capturedRel.ToId) = (capturedRel.ToId, capturedRel.FromId);
-                    capturedRel.Waypoints.Reverse();
-                    (capturedRel.StartsAtJunction, capturedRel.EndsAtJunction) =
-                        (capturedRel.EndsAtJunction, capturedRel.StartsAtJunction);
+                    Text = rel.Caption, FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+                    TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 140
+                };
+                captionText.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+                captionBadge.Child = captionText;
+                Canvas.SetLeft(captionBadge, (x1 + x2) / 2 - 30);
+                Canvas.SetTop (captionBadge, (y1 + y2) / 2 - 12);
+                Panel.SetZIndex(captionBadge, relationZIndex);
+
+                var capturedRel = rel;
+                var ctx = new ContextMenu();
+                var editRelItem = new MenuItem { Header = Properties.Loc.S("Board_EditRelation") };
+                editRelItem.Click += (_, _) =>
+                {
+                    var result = ShowRelationDialog(capturedRel.Caption, capturedRel.LegendLabel,
+                        capturedRel.LineStyle, capturedRel.LineColor, capturedRel.Thickness,
+                        capturedRel.HasArrow, Properties.Loc.S("Board_EditRelationTitle"));
+                    if (result is not null)
+                    {
+                        capturedRel.Caption     = result.Caption;
+                        capturedRel.LegendLabel = result.LegendLabel;
+                        capturedRel.LineStyle   = result.LineStyle;
+                        capturedRel.LineColor   = result.LineColor;
+                        capturedRel.Thickness   = result.Thickness;
+                        capturedRel.HasArrow    = result.HasArrow;
+                        MaybeAddLegendPreset(result);
+                        EntityBoardService.Save(_projFolder, _board.Id, _boardData);
+                        BuildBoardContent();
+                    }
+                };
+                var delRelItem = new MenuItem { Header = Properties.Loc.S("Board_DeleteRelation") };
+                delRelItem.Click += (_, _) =>
+                {
+                    _boardData.Relations.Remove(capturedRel);
                     EntityBoardService.Save(_projFolder, _board.Id, _boardData);
                     BuildBoardContent();
                 };
-                ctx.Items.Add(flipRelItem);
+                ctx.Items.Add(editRelItem);
+                if (capturedRel.HasArrow)
+                {
+                    var flipRelItem = new MenuItem { Header = Properties.Loc.S("Board_FlipArrow") };
+                    flipRelItem.Click += (_, _) =>
+                    {
+                        (capturedRel.FromId, capturedRel.ToId) = (capturedRel.ToId, capturedRel.FromId);
+                        capturedRel.Waypoints.Reverse();
+                        (capturedRel.StartsAtJunction, capturedRel.EndsAtJunction) =
+                            (capturedRel.EndsAtJunction, capturedRel.StartsAtJunction);
+                        EntityBoardService.Save(_projFolder, _board.Id, _boardData);
+                        BuildBoardContent();
+                    };
+                    ctx.Items.Add(flipRelItem);
+                }
+                ctx.Items.Add(delRelItem);
+                captionBadge.ContextMenu = ctx;
+                canvas.Children.Add(captionBadge);
+                _boardCaptionBadges[rel.Id] = captionBadge;
             }
-            ctx.Items.Add(delRelItem);
-            captionBadge.ContextMenu = ctx;
-            canvas.Children.Add(captionBadge);
-            _boardCaptionBadges[rel.Id] = captionBadge;
-            skipBadge: ;
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error rendering relation {rel.Id}: {ex.Message}");
+                continue;
+            }
         }
 
         // ── Canvas right-click rubber-band selection ───────────────────────
@@ -3423,11 +3431,28 @@ public class WorldBoardWindow : Window
                     0);  // pins don't have ZOrder
 
         // Try frame
-        var frame = _boardData.Frames.FirstOrDefault(f => f.Id == objectId);
-        if (frame != null)
-            return (frame.X, frame.Y, frame.Width, frame.Height, 0);  // frames don't have ZOrder
+        foreach (var frame in _boardData.Frames)
+        {
+            if (frame.Id == objectId)
+                return (frame.X, frame.Y,
+                        frame.Width > 0 ? frame.Width : 300,
+                        frame.Height > 0 ? frame.Height : 200,
+                        0);  // frames don't have ZOrder
+        }
 
-        // Fallback: return dummy position at origin
+        // Try the rendered pin visually if not in data (shouldn't happen but fallback)
+        if (_boardPins.TryGetValue(objectId, out var pinElement))
+        {
+            var x = Canvas.GetLeft(pinElement);
+            var y = Canvas.GetTop(pinElement);
+            return (double.IsNaN(x) ? 0 : x, double.IsNaN(y) ? 0 : y,
+                    pinElement.ActualWidth > 0 ? pinElement.ActualWidth : 160,
+                    pinElement.ActualHeight > 0 ? pinElement.ActualHeight : 80,
+                    0);
+        }
+
+        // Fallback: return origin but with reasonable size
+        System.Diagnostics.Debug.WriteLine($"WARNING: GetObjectPosition could not find object {objectId}");
         return (0, 0, 160, 90, 0);
     }
 
