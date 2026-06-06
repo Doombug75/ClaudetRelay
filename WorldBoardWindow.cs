@@ -993,6 +993,8 @@ public class WorldBoardWindow : Window
                 var (fx, fy, fw, fh, fz) = GetObjectPosition(rel.FromId);
                 var (tx, ty, tw, th, tz) = GetObjectPosition(rel.ToId);
 
+                System.Diagnostics.Debug.WriteLine($"Rendering relation {rel.Id}: From({rel.FromId}) at ({fx},{fy}) To({rel.ToId}) at ({tx},{ty})");
+
                 var x1 = fx + fw / 2;
                 var y1 = fy + EstCardH / 2;
                 var x2 = tx + tw / 2;
@@ -4217,6 +4219,7 @@ public class WorldBoardWindow : Window
                     Thickness   = result.Thickness,
                     HasArrow    = result.HasArrow
                 });
+                System.Diagnostics.Debug.WriteLine($"Created relation: {_boardConnSrcId} → {entityId}");
                 MaybeAddLegendPreset(result);
                 EntityBoardService.Save(_projFolder, _board.Id, _boardData);
             }
