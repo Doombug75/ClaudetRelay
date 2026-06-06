@@ -982,15 +982,15 @@ public class WorldBoardWindow : Window
         // ── Render relations (dynamic z-index based on connected cards) ────
         foreach (var rel in _boardData.Relations)
         {
-            var fp = _boardData.Positions[rel.FromId];
-            var tp = _boardData.Positions[rel.ToId];
-            var x1 = fp.X + (fp.CardWidth  > 0 ? fp.CardWidth  : 160) / 2; var y1 = fp.Y + EstCardH / 2;
-            var x2 = tp.X + (tp.CardWidth  > 0 ? tp.CardWidth  : 160) / 2; var y2 = tp.Y + EstCardH / 2;
+            var (fx, fy, fw, fh, fz) = GetObjectPosition(rel.FromId);
+            var (tx, ty, tw, th, tz) = GetObjectPosition(rel.ToId);
+            var x1 = fx + fw / 2;
+            var y1 = fy + EstCardH / 2;
+            var x2 = tx + tw / 2;
+            var y2 = ty + EstCardH / 2;
 
             // Calculate relation Z-Index as highest connected card's ZOrder + 1
-            int fromZOrder = _boardData.Positions.TryGetValue(rel.FromId, out var fpos) ? fpos.ZOrder : 0;
-            int toZOrder   = _boardData.Positions.TryGetValue(rel.ToId, out var tpos) ? tpos.ZOrder : 0;
-            int maxCardZOrder = Math.Max(fromZOrder, toZOrder);
+            int maxCardZOrder = Math.Max(fz, tz);
             int relationZIndex = 2 + maxCardZOrder;  // cards are z=2, add their ZOrder to get dynamic height
 
             RenderRelationVisuals(canvas, rel.Id, x1, y1, x2, y2, rel, relationZIndex);
@@ -3402,6 +3402,35 @@ public class WorldBoardWindow : Window
 
     // ── Relation rendering ─────────────────────────────────────────────────
 
+    /// <summary>
+    /// Gets the position of any object type: card, pin, or frame.
+    /// Returns (X, Y, Width, Height, ZOrder) with sensible defaults.
+    /// </summary>
+    private (double X, double Y, double W, double H, int ZOrder) GetObjectPosition(string objectId)
+    {
+        // Try card position first
+        if (_boardData.Positions.TryGetValue(objectId, out var cardPos))
+            return (cardPos.X, cardPos.Y,
+                    cardPos.CardWidth > 0 ? cardPos.CardWidth : 160,
+                    cardPos.CardHeight > 0 ? cardPos.CardHeight : 90,
+                    cardPos.ZOrder);
+
+        // Try board pin position
+        if (_boardData.BoardPinPositions.TryGetValue(objectId, out var pinPos))
+            return (pinPos.X, pinPos.Y,
+                    pinPos.CardWidth > 0 ? pinPos.CardWidth : 160,
+                    pinPos.CardHeight > 0 ? pinPos.CardHeight : 80,
+                    0);  // pins don't have ZOrder
+
+        // Try frame
+        var frame = _boardData.Frames.FirstOrDefault(f => f.Id == objectId);
+        if (frame != null)
+            return (frame.X, frame.Y, frame.Width, frame.Height, 0);  // frames don't have ZOrder
+
+        // Fallback: return dummy position at origin
+        return (0, 0, 160, 90, 0);
+    }
+
     // ── Relation multi-segment rendering ──────────────────────────────────
 
     private void RenderRelationVisuals(Canvas canvas, string relId,
@@ -3777,10 +3806,32 @@ public class WorldBoardWindow : Window
     /// <summary>Returns the card border point aimed toward (toX,toY), using stored position data (for initial render).</summary>
     private (double, double) StoredBorderPoint(string entityId, double cx, double cy, double toX, double toY)
     {
-        if (!_boardData.Positions.TryGetValue(entityId, out var bp)) return (cx, cy);
-        double hw = (bp.CardWidth  > 0 ? bp.CardWidth  : 160) / 2;
-        double hh = (bp.CardHeight > 0 ? bp.CardHeight :  90) / 2;
-        return BorderIntersect(cx, cy, hw, hh, toX, toY);
+        // Try card position
+        if (_boardData.Positions.TryGetValue(entityId, out var bp))
+        {
+            double hw = (bp.CardWidth  > 0 ? bp.CardWidth  : 160) / 2;
+            double hh = (bp.CardHeight > 0 ? bp.CardHeight :  90) / 2;
+            return BorderIntersect(cx, cy, hw, hh, toX, toY);
+        }
+
+        // Try pin position
+        if (_boardData.BoardPinPositions.TryGetValue(entityId, out var pinPos))
+        {
+            double hw = (pinPos.CardWidth  > 0 ? pinPos.CardWidth  : 160) / 2;
+            double hh = (pinPos.CardHeight > 0 ? pinPos.CardHeight :  80) / 2;
+            return BorderIntersect(cx, cy, hw, hh, toX, toY);
+        }
+
+        // Try frame
+        var frame = _boardData.Frames.FirstOrDefault(f => f.Id == entityId);
+        if (frame != null)
+        {
+            double hw = frame.Width / 2;
+            double hh = frame.Height / 2;
+            return BorderIntersect(cx, cy, hw, hh, toX, toY);
+        }
+
+        return (cx, cy);
     }
 
     /// <summary>Returns the card border point aimed toward (toX,toY), using actual rendered card size.</summary>
@@ -3880,11 +3931,30 @@ public class WorldBoardWindow : Window
 
     private (double cx, double cy) GetBoardCardCenter(string entityId)
     {
-        if (!_boardCards.TryGetValue(entityId, out var card)) return (100, 100);
-        var x = Canvas.GetLeft(card); var y = Canvas.GetTop(card);
-        var w = card.ActualWidth  > 0 ? card.ActualWidth  : 200;
-        var h = card.ActualHeight > 0 ? card.ActualHeight : 90;
-        return (x + w / 2, y + h / 2);
+        // Try card
+        if (_boardCards.TryGetValue(entityId, out var card))
+        {
+            var x = Canvas.GetLeft(card); var y = Canvas.GetTop(card);
+            var w = card.ActualWidth  > 0 ? card.ActualWidth  : 200;
+            var h = card.ActualHeight > 0 ? card.ActualHeight : 90;
+            return (x + w / 2, y + h / 2);
+        }
+
+        // Try pin
+        if (_boardPins.TryGetValue(entityId, out var pin))
+        {
+            var x = Canvas.GetLeft(pin); var y = Canvas.GetTop(pin);
+            var w = pin.ActualWidth  > 0 ? pin.ActualWidth  : 160;
+            var h = pin.ActualHeight > 0 ? pin.ActualHeight : 80;
+            return (x + w / 2, y + h / 2);
+        }
+
+        // Try frame
+        var frame = _boardData.Frames.FirstOrDefault(f => f.Id == entityId);
+        if (frame != null)
+            return (frame.X + frame.Width / 2, frame.Y + frame.Height / 2);
+
+        return (100, 100);  // Fallback
     }
 
     private static void ApplyArrowGeometry(Polygon arrow, double x1, double y1, double x2, double y2, double thickness)
@@ -4052,14 +4122,8 @@ public class WorldBoardWindow : Window
     /// </summary>
     private string NearestEntityToWaypoint(BoardRelation rel, BoardWaypoint wp)
     {
-        (double cx, double cy) Center(string id)
-        {
-            if (!_boardData.Positions.TryGetValue(id, out var p)) return (0, 0);
-            return (p.X + (p.CardWidth  > 0 ? p.CardWidth  : 160) / 2,
-                    p.Y + (p.CardHeight > 0 ? p.CardHeight :  90) / 2);
-        }
-        var (fx, fy) = Center(rel.FromId);
-        var (tx, ty) = Center(rel.ToId);
+        var (fx, fy) = GetBoardCardCenter(rel.FromId);
+        var (tx, ty) = GetBoardCardCenter(rel.ToId);
         double fd = Math.Sqrt(Math.Pow(wp.X-fx,2) + Math.Pow(wp.Y-fy,2));
         double td = Math.Sqrt(Math.Pow(wp.X-tx,2) + Math.Pow(wp.Y-ty,2));
         return fd <= td ? rel.FromId : rel.ToId;
