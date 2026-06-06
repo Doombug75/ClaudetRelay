@@ -194,9 +194,9 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 
 | Feature | Notes |
 |---|---|
-| **Voice input** | Push-to-talk and voice-activation using a locally-running speech recogniser — no cloud required |
-| **Voice output** | Text-to-speech playback of AI responses |
-| **Multi-language UI** | German as the first additional language alongside English |
+| **Dictation Mode** | Push-to-talk and voice-activation using a locally-running speech recogniser — no cloud required |
+| ~~**Voice output**~~ | ✅ Done — text-to-speech playback of AI responses |
+| ~~**Multi-language UI**~~ | ✅ Done — German UI alongside English |
 | ~~**LM Studio support**~~ | ✅ Done — local server and LM Studio Cloud, with live model listing |
 | ~~**Codebase refactor**~~ | ✅ Done — 18 800 lines split into 6 focused partial classes |
 | ~~**Buccaneer mode**~~ | ✅ Done — three-way pill toggle (Neutral · 🐦 Mockingbird · 🏴‍☠️ Buccaneer) |
