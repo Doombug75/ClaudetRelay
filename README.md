@@ -41,14 +41,18 @@ AI agents can read the world state, suggest new entities, and write directly int
 
 ---
 
-### Behaviour sliders — directed or autonomous
+### Behaviour controls — directed or autonomous
 
-Each participant has a set of **sliders** that control how it contributes:
+A layered set of controls lets you tune how the AI team behaves:
 
-- **Chattiness** — how eagerly it joins without being asked
-- **Tone** — formal ↔ casual, or locked to a personality mode (Mockingbird / Buccaneer)
-- **Response length** — concise ↔ exhaustive
-- **Role** — Coordinator (summarises, delegates) or Reasoner (executes, creates)
+| Setting | Scope | What it does |
+|---|---|---|
+| **Tone** | Global | Formal ↔ casual, or a fixed personality mode (Mockingbird / Buccaneer) |
+| **Chattiness** | Per chat / per project | How eagerly participants join without being prompted |
+| **Autonomy** | Per project | How independently agents act when left to run |
+| **Response length** | Global + per participant in project | Concise ↔ exhaustive |
+| **Role** | Per participant | Coordinator (summarises, delegates) or Reasoner (executes, creates) |
+| **Role instructions** | Per participant in project | Free-text instructions that override or extend the default behaviour for that agent in this project |
 
 Point them at pure creative output and step back — or keep tight control and use them as smart research assistants. The same app supports both styles.
 
@@ -131,15 +135,19 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 ### Conversation
 - **Multi-provider, multi-agent chat** — up to 20 participants from any mix of cloud providers and local Ollama models in a single shared conversation
 - **Orchestration modes** — All Respond, Coordinator First, Coordinator Summarizes
-- **Roles & personas** — Coordinator and Reasoner roles, custom names, answer-as aliases, tone slider, response-length settings, and saveable character files per participant
+- **Roles & personas** — Coordinator and Reasoner roles, custom names, answer-as aliases, and saveable character files per participant
+- **Tone** — global formal ↔ casual slider; or lock to Mockingbird (warm/dramatic) or Buccaneer (pirate) personality mode
+- **Chattiness** — per-chat and per-project slider controlling how eagerly participants join without being prompted
+- **Response length** — global default; can be overridden per participant inside a project
 - **AI-to-AI dialogue** — enable multi-round dialogue so participants can read and reply to each other before the next user message; configurable turn limit
-- **Chattiness control** — global and per-project slider controlling how eagerly participants join the conversation unprompted
 - **Grounded responses** — system prompt injection prevents models from inventing personal traits, hobbies, or relationships unless a role instruction explicitly allows it
 - **Rate limiting** — per-provider RPM throttling to stay within API quotas
 - **Secure key storage** — API keys stored exclusively in Windows Credential Manager, never written to disk
 
 ### Projects
 - **Project system** — named projects with typed templates (Novel, Theatre, Software, Game, Business, and more), per-project participant configuration, and persistent chat history
+- **Per-project autonomy** — slider that controls how independently agents operate when you step back; each project can have its own setting
+- **Per-participant role instructions** — free-text instructions per agent inside a project, letting you specialise behaviour beyond the global persona
 - **Roadmap** — built-in project roadmap with milestones, priorities, and progress tracking
 - **File browser** — collapsible folder sections with search filter; browse INPUT, OUTPUT, PROJECTPLAN folders inside the app
 - **File checkout** — read-only and read-write file locking so multiple agents can research in parallel without overwriting each other; smart idle-timeout reminder system
