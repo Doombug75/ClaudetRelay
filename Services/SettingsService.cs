@@ -110,6 +110,13 @@ public class ParticipantConfig
     /// Cleared on next successful API response.
     /// </summary>
     public string LastApiError { get; set; } = "";
+
+    /// <summary>
+    /// Display name of the Windows TTS voice assigned to this participant.
+    /// Empty = voice output is silent for this participant.
+    /// Populated manually via the voice picker or automatically via "Ask the Model".
+    /// </summary>
+    public string VoiceName { get; set; } = "";
 }
 
 public class AppSettings
@@ -156,6 +163,12 @@ public class AppSettings
     /// Slider low-end = fierce cutthroat pirate, high-end = jolly friendly cap'n.
     /// </summary>
     public bool BuccaneerMode { get; set; } = false;
+
+    /// <summary>
+    /// Global voice output toggle. When false, no TTS speech is produced regardless of
+    /// per-participant VoiceName settings. Toggled via the 🔊/🔇 button in the chat toolbar.
+    /// </summary>
+    public bool VoiceOutputEnabled { get; set; } = false;
 
     /// <summary>
     /// UI language code, e.g. "en" or "de".

@@ -97,6 +97,60 @@ public static class SelfDescriptionService
         catch { /* never propagate */ }
     }
 
+    // ── Voice preference API ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Asks the model to choose its preferred TTS voice from <paramref name="availableVoices"/>.
+    /// Returns the display name of the chosen voice, or null on failure / no match.
+    /// The model is expected to reply with exactly: <c>VOICE: &lt;name&gt;</c>
+    /// </summary>
+    public static async Task<string?> FetchPreferredVoiceAsync(
+        string type, string model, string serverUrl,
+        IReadOnlyList<string> availableVoices,
+        CancellationToken ct = default)
+    {
+        if (availableVoices.Count == 0) return null;
+        if (IsCloud(type) && string.IsNullOrWhiteSpace(WindowsCredentialManager.Load(type)))
+            return null;
+
+        var voiceList = string.Join("\n", availableVoices.Select(v => $"  • {v}"));
+        var prompt =
+            "You are being configured for text-to-speech output in ClaudetRelay. " +
+            "Choose the voice below that best fits your personality, communication style, " +
+            "and how you would imagine yourself sounding.\n\n" +
+            $"Available voices:\n{voiceList}\n\n" +
+            "Reply with EXACTLY one line and nothing else:\n" +
+            "VOICE: <exact name from the list>";
+
+        try
+        {
+            var (raw, error) = await CallAsync(type, model, serverUrl, prompt, temperature: 0f, ct);
+            if (error is not null || string.IsNullOrWhiteSpace(raw)) return null;
+
+            // Parse "VOICE: <name>" — try exact match first, then case-insensitive, then substring
+            foreach (var line in raw.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var t = line.Trim();
+                if (!t.StartsWith("VOICE:", StringComparison.OrdinalIgnoreCase)) continue;
+                var chosen = t[6..].Trim().Trim('"', '\'', '*');
+                if (string.IsNullOrWhiteSpace(chosen)) continue;
+
+                // Exact
+                var exact = availableVoices.FirstOrDefault(v =>
+                    string.Equals(v, chosen, StringComparison.OrdinalIgnoreCase));
+                if (exact is not null) return exact;
+
+                // Partial — voice name contains the chosen word or vice versa
+                var partial = availableVoices.FirstOrDefault(v =>
+                    v.Contains(chosen, StringComparison.OrdinalIgnoreCase) ||
+                    chosen.Contains(v, StringComparison.OrdinalIgnoreCase));
+                return partial;
+            }
+            return null;
+        }
+        catch { return null; }
+    }
+
     // ── Mood API ───────────────────────────────────────────────────────────
 
     private const string MoodPrompt =

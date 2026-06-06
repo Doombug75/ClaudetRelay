@@ -789,6 +789,91 @@ public class ParticipantsWindow : Window
         RebuildRpmSection();
         provCombo.SelectionChanged += (_, _) => RebuildRpmSection();
 
+        // ── Voice ──────────────────────────────────────────────────────────
+        root.Children.Add(Lbl("🔊  TTS Voice"));
+
+        var voiceNames = VoiceOutputService.GetVoiceNames();
+        var voiceCombo = new ComboBox { IsEditable = false, Margin = new Thickness(0, 0, 0, 6) };
+        if (win.TryFindResource("ModernComboBox") is Style vcs) voiceCombo.Style = vcs;
+        voiceCombo.Items.Add("(none — silent)");
+        foreach (var vn in voiceNames) voiceCombo.Items.Add(vn);
+
+        var preselect = voiceNames.FirstOrDefault(v =>
+            string.Equals(v, p.VoiceName, StringComparison.OrdinalIgnoreCase));
+        voiceCombo.SelectedItem  = preselect ?? "(none — silent)";
+        root.Children.Add(voiceCombo);
+
+        var voiceRow = new StackPanel
+            { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+        root.Children.Add(voiceRow);
+
+        var askVoiceBtn  = MakeBtn("🎤  Ask the Model", isPrimary: false);
+        askVoiceBtn.FontSize  = 11;
+        askVoiceBtn.Padding   = new Thickness(12, 5, 12, 5);
+        askVoiceBtn.ToolTip   = "Let the model pick the voice that fits its personality best";
+        askVoiceBtn.IsEnabled = voiceNames.Count > 0;
+        voiceRow.Children.Add(askVoiceBtn);
+
+        var voiceStatus = new TextBlock
+        {
+            FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0)
+        };
+        voiceStatus.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+        voiceRow.Children.Add(voiceStatus);
+
+        var spinFrames = new[] { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
+        int spinIdx    = 0;
+        var voiceSpinTimer = new System.Windows.Threading.DispatcherTimer
+            { Interval = TimeSpan.FromMilliseconds(110) };
+        void UpdateSpinner()
+        {
+            spinIdx = (spinIdx + 1) % spinFrames.Length;
+            voiceStatus.Text = $"{spinFrames[spinIdx]}  Asking…";
+        }
+        voiceSpinTimer.Tick += (_, _) => UpdateSpinner();
+        win.Closed += (_, _) => voiceSpinTimer.Stop();
+
+        askVoiceBtn.Click += async (_, _) =>
+        {
+            if (voiceNames.Count == 0) return;
+            askVoiceBtn.IsEnabled = false;
+            voiceStatus.Text      = $"{spinFrames[0]}  Asking…";
+            voiceSpinTimer.Start();
+
+            var prov = (provCombo.SelectedItem as string) ?? p.Type;
+            var mdl  = string.IsNullOrWhiteSpace(modelCombo.Text) ? p.Model : modelCombo.Text.Trim();
+            var url  = NeedsUrl() ? urlBox.Text.Trim() : "http://localhost:11434";
+            if (string.IsNullOrWhiteSpace(url)) url = "http://localhost:11434";
+
+            var chosen = await SelfDescriptionService.FetchPreferredVoiceAsync(
+                prov, mdl, url, voiceNames, dialogCts.Token);
+
+            voiceSpinTimer.Stop();
+            askVoiceBtn.IsEnabled = true;
+
+            if (chosen is not null)
+            {
+                voiceCombo.SelectedItem = chosen;
+                voiceStatus.Text        = $"✓  Chose: {chosen}";
+            }
+            else
+                voiceStatus.Text = "⚠  No match — pick manually";
+        };
+
+        if (voiceNames.Count == 0)
+        {
+            var noVoiceTb = new TextBlock
+            {
+                Text = "No TTS voices found. Install Windows voices via System Settings → " +
+                       "Time & Language → Speech → Add voices.",
+                FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0)
+            };
+            noVoiceTb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+            root.Children.Add(noVoiceTb);
+        }
+
         // ── Active ─────────────────────────────────────────────────────────
         root.Children.Add(Lbl(Properties.Loc.S("Participants_StatusSection")));
         var enabledChk = new CheckBox
@@ -842,6 +927,11 @@ public class ParticipantsWindow : Window
                                      : "http://localhost:11434";
             p.Enabled      = enabledChk.IsChecked == true;
             p.LastApiError = "";   // allow a fresh fetch attempt after save
+
+            // Voice
+            var pickedVoice = voiceCombo.SelectedItem as string ?? "";
+            p.VoiceName = pickedVoice.StartsWith("(none", StringComparison.OrdinalIgnoreCase)
+                          ? "" : pickedVoice;
 
             // Write rate-limit values directly into the participant (per-model budget)
             if (IsCloud(p.Type) && _editRpmChk is not null && _editRpmValueBox is not null)

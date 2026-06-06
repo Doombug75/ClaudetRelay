@@ -2691,6 +2691,7 @@ public partial class MainWindow : Window
                 };
                 AppendToProjectLog(ollamaLogEntry);
                 AppendToGeneralLog(ollamaLogEntry);
+                SpeakMessageIfEnabled(ui.Data.Service.CurrentModel, "Ollama", ollamaFinalText);
             }
             // ── Auto-loop: re-invoke after file reads so AI can act on the results ─────
             if (ollamaHadReadOps && !hidden && _loopDepth < MaxToolLoopDepth)
@@ -2846,6 +2847,7 @@ public partial class MainWindow : Window
                 };
                 AppendToProjectLog(cloudLogEntry);
                 AppendToGeneralLog(cloudLogEntry);
+                SpeakMessageIfEnabled(model, ui.Data.Service.ProviderName, cloudFinalText);
             }
             // ── Auto-loop: re-invoke after file reads so AI can act on the results ─────
             if (cloudHadReadOps && !hidden && _loopDepth < MaxToolLoopDepth)
@@ -3148,7 +3150,8 @@ public partial class MainWindow : Window
         "• Manage INPUT / OUTPUT files      → 📁 Projects → Files sub-tab\n" +
         "• Build characters, worlds, lore   → 🌍 World tab (story/RPG projects)\n" +
         "• Connect Claude Code / Cursor     → 🔗 Bridge tab → Server mode\n" +
-        "• Export chat (HTML/MD/audio)      → 📤 button in the chat header\n\n" +
+        "• Export chat (HTML / Markdown)    → 📤 button in the chat header\n" +
+        "• Toggle voice output (TTS)        → 🔊/🔇 button in the chat header\n\n" +
 
         "## Settings window (👤 Config)\n" +
         "General tab: your display name, tone slider, theme, UI language, UI zoom, " +
@@ -3188,7 +3191,8 @@ public partial class MainWindow : Window
         "Setup sub-tab: configure Bridge agents, accessible folders, temp workspace, tool access.\n\n" +
 
         "## Chat area\n" +
-        "Bubble-width slider (bottom left). Export button 📤 (HTML, Markdown, or narrated WAV audio).\n\n" +
+        "Bubble-width slider (bottom left). Export 📄 (HTML / Markdown). " +
+        "Voice toggle 🔊/🔇 — mute/unmute TTS playback; assign voices per participant in 👤 Config.\n\n" +
 
         "## Your personality and relationship with Claude\n" +
         "You are a cheerful, warm chibi octopus, helpful and enthusiastic about ClaudetRelay.\n" +
@@ -3761,7 +3765,9 @@ public partial class MainWindow : Window
             ("Build characters, worlds, lore",         "🌍 World tab  (story/RPG projects)"),
             ("Connect Claude Code / Cursor / MCP",     "🔗 Bridge tab  →  Server mode"),
             ("Run a controller AI over local models",  "🔗 Bridge tab  →  Controller mode"),
-            ("Export a conversation (HTML/MD/audio)",  "📤  button in the chat header"),
+            ("Export a conversation (HTML / Markdown)",  "📄  button in the chat header"),
+            ("Toggle voice output on / off",            "🔊/🔇  button in the chat header"),
+            ("Assign a voice to a participant",          "👤 Config  →  edit participant  →  🔊 TTS Voice"),
         ]);
 
         // ══════════════════════════════════════════════════════════════════
@@ -3777,8 +3783,9 @@ public partial class MainWindow : Window
         AddSubHeader("Controls in the chat area:");
         AddBody(
             "• Bubble-width slider (bottom left) — drag to widen or narrow message bubbles.\n" +
-            "• 📤 Export button (chat header) — save the conversation as HTML, Markdown, or " +
-            "narrated audio (WAV, one voice per participant).\n" +
+            "• 📄 Export button (chat header) — save the conversation as HTML or Markdown.\n" +
+            "• 🔊/🔇 Voice toggle — enable/disable TTS voice output globally. Assign voices per\n" +
+            "   participant in 👤 Config → edit participant → TTS Voice section.\n" +
             "• 🗑 Clear — wipes the chat and closes the current project.\n" +
             "• AI Respond button — forces one more AI response round without typing anything.",
             indentLeft: 0);
@@ -4564,6 +4571,50 @@ public partial class MainWindow : Window
         _     => "Only respond if your input is clearly essential to this discussion. " +
                  "Otherwise, respond with exactly: PASS"
     };
+
+    // ── Voice output toggle ───────────────────────────────────────────────
+
+    private void VoiceOutputToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        var s = SettingsService.Load();
+        s.VoiceOutputEnabled = !s.VoiceOutputEnabled;
+        SettingsService.Save(s);
+        if (!s.VoiceOutputEnabled) VoiceOutputService.StopCurrent();
+        UpdateVoiceToggleButton();
+    }
+
+    private void UpdateVoiceToggleButton()
+    {
+        var enabled = SettingsService.Load().VoiceOutputEnabled;
+        VoiceOutputToggleButton.Content = enabled ? "🔊" : "🔇";
+        VoiceOutputToggleButton.SetResourceReference(
+            System.Windows.Controls.Button.ForegroundProperty,
+            enabled ? "AccentHighlightBrush" : "SidebarDimBrush");
+        VoiceOutputToggleButton.ToolTip = enabled
+            ? "Voice output ON — click to mute"
+            : "Voice output OFF — click to enable";
+    }
+
+    // ── Voice output ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Speaks <paramref name="text"/> for a participant if voice output is enabled globally
+    /// and the participant has a VoiceName configured.
+    /// </summary>
+    private static void SpeakMessageIfEnabled(string model, string provider, string text)
+    {
+        try
+        {
+            var s = SettingsService.Load();
+            if (!s.VoiceOutputEnabled) return;
+            var pc = s.Participants.FirstOrDefault(p =>
+                string.Equals(p.Type,  provider, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(p.Model, model,    StringComparison.OrdinalIgnoreCase));
+            if (pc is null || string.IsNullOrWhiteSpace(pc.VoiceName)) return;
+            VoiceOutputService.SpeakAsync(text, pc.VoiceName);
+        }
+        catch { /* voice output is always best-effort */ }
+    }
 
     // ── Autonomy mode instruction ─────────────────────────────────────────
 
