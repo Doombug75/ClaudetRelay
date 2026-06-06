@@ -1023,6 +1023,13 @@ public class WorldBoardWindow : Window
                             && _boardData.BoardPinPositions.TryGetValue(cid, out var pp2))
                         { pp2.X = Canvas.GetLeft(cp); pp2.Y = Canvas.GetTop(cp); }
                     }
+                    // Re-add contained cards to canvas end so they render above the pin visually
+                    foreach (var cid in pinContainedCards)
+                        if (_boardCards.TryGetValue(cid, out var cc))
+                            _boardCanvas?.Children.Remove(cc);
+                    foreach (var cid in pinContainedCards)
+                        if (_boardCards.TryGetValue(cid, out var cc))
+                            _boardCanvas?.Children.Add(cc);
                     EntityBoardService.Save(_projFolder, _board.Id, _boardData);
                     e.Handled = true;
                 };
@@ -3439,7 +3446,7 @@ public class WorldBoardWindow : Window
                     StrokeThickness=thickness, Opacity=0.85, Stroke=brush,
                     StrokeStartLineCap=cap, StrokeEndLineCap=cap };
                 if (dashArray is not null) { ln.StrokeDashArray = dashArray; ln.StrokeDashCap = cap; }
-                Panel.SetZIndex(ln, 0); canvas.Children.Add(ln);
+                Panel.SetZIndex(ln, 1); canvas.Children.Add(ln);
                 return ln;
             }
             var l1 = MakeSeg(ox, oy);
