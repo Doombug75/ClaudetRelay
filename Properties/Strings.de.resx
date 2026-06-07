@@ -437,6 +437,7 @@
   <data name="Participants_NumCtxSuffix"       xml:space="preserve"><value> Token</value></data>
   <data name="Participants_NumPredictSuffix"   xml:space="preserve"><value> Token  (0 = Ollama-Standard,  -1 = unbegrenzt)</value></data>
   <data name="Participants_ContextSuggested"   xml:space="preserve"><value>empfohlen: </value></data>
+  <data name="Participants_ContextCeiling"     xml:space="preserve"><value>Modell unterstützt bis zu {0}</value></data>
   <data name="Participants_MaxReplyTokens"     xml:space="preserve"><value>MAX. ANTWORT-TOKENS</value></data>
   <data name="Participants_MaxReplyTokensHint" xml:space="preserve"><value>Begrenzt die Antwortlänge (max_tokens). 0 = Standardwert des Anbieters (meist 4 096). Erhöhen für lange strukturierte Ausgaben; verringern um Kosten zu sparen.</value></data>
   <data name="Participants_LimitRpm"           xml:space="preserve"><value>Anfragen pro Minute begrenzen</value></data>

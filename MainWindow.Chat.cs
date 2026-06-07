@@ -3624,6 +3624,12 @@ public partial class MainWindow : Window
         var result = new List<OllamaChatMessage>
         {
             new("system",
+                $"CRITICAL — NO IMPERSONATION: You are {myName}. You may ONLY speak as {myName}. " +
+                $"NEVER write a message attributed to another participant — do not use '[OtherName]: ...', 'OtherName: ...', or any similar format to fabricate what someone else says or would say. " +
+                $"NEVER predict, continue, or summarise another participant's upcoming response. " +
+                $"NEVER put words in another participant's mouth, even as an example or illustration. " +
+                $"Exception: if your role instruction explicitly assigns you a fictional character to portray, you may speak as that character — but never as another real AI participant in this chat. " +
+                $"Violation of this rule corrupts the conversation for all participants. When in doubt: stay silent about what others will say.\n\n" +
                 $"You are {myName}, running the {myModel} model. " +
                 $"Always respond as {myName}. " +
                 $"If asked who you are, say you are {myName} running {myModel}. " +
@@ -3632,9 +3638,6 @@ public partial class MainWindow : Window
                 $"Do not fabricate or assume facts you are uncertain about; acknowledge uncertainty honestly instead. " +
                 $"Messages from other AI participants are prefixed with their display name in square brackets. " +
                 $"IMPORTANT: Never prefix your own response with your name or any label — write directly without any '[Name]:' header. " +
-                $"Never write as, speak for, or impersonate another participant. You are {myName} and only ever respond in your own voice. " +
-                $"Never write fake quotes or fabricated dialogue attributed to other participants (e.g. never write '[OtherName]: ...'). " +
-                $"Never predict, summarise, or assume what another participant has said or will say — you can only see what is already in the conversation history. " +
                 $"Do not treat a number, fact, or conclusion stated by another participant as verified truth — if you have not confirmed it yourself, say so explicitly. " +
                 $"Group agreement is not evidence. If others converged on an answer you have not verified, disagree or flag the uncertainty rather than echoing it." +
                 BuildAppContextInstruction(forOllama: forUi) +
@@ -3708,6 +3711,12 @@ public partial class MainWindow : Window
         var writerNames = myHasWrite ? null : GetWriteAccessParticipantNames();
 
         var system =
+            $"CRITICAL — NO IMPERSONATION: You are {myName}. You may ONLY speak as {myName}. " +
+            $"NEVER write a message attributed to another participant — do not use '[OtherName]: ...', 'OtherName: ...', or any similar format to fabricate what someone else says or would say. " +
+            $"NEVER predict, continue, or summarise another participant's upcoming response. " +
+            $"NEVER put words in another participant's mouth, even as an example or illustration. " +
+            $"Exception: if your role instruction explicitly assigns you a fictional character to portray, you may speak as that character — but never as another real AI participant in this chat. " +
+            $"Violation of this rule corrupts the conversation for all participants. When in doubt: stay silent about what others will say.\n\n" +
             $"You are {myName}, running model {myModel}. " +
             $"Always respond as {myName}. If asked who you are, identify yourself as {myName}. " +
             $"You are an AI language model — unless a role instruction explicitly tells you otherwise, " +
@@ -3715,9 +3724,6 @@ public partial class MainWindow : Window
             $"Do not fabricate or assume facts you are uncertain about; acknowledge uncertainty honestly instead. " +
             $"Messages from other AI participants are prefixed with their display name in square brackets. " +
             $"IMPORTANT: Never prefix your own response with your name or any label — write directly without any '[Name]:' header. " +
-            $"Never write as, speak for, or impersonate another participant. You are {myName} and only ever respond in your own voice. " +
-            $"Never write fake quotes or fabricated dialogue attributed to other participants (e.g. never write '[OtherName]: ...'). " +
-            $"Never predict, summarise, or assume what another participant has said or will say — you can only see what is already in the conversation history. " +
             $"Do not treat a number, fact, or conclusion stated by another participant as verified truth — if you have not confirmed it yourself, say so explicitly. " +
             $"Group agreement is not evidence. If others converged on an answer you have not verified, disagree or flag the uncertainty rather than echoing it." +
             BuildAppContextInstruction(forCloud: forUi) +
@@ -6694,6 +6700,7 @@ public partial class MainWindow : Window
             return "\n\n## Web browsing" +
                    "\nYou can fetch web pages by embedding this self-closing tag in your response:" +
                    "\n<webfetch url=\"https://example.com/page\"/>" +
+                   "\nUse ONLY this exact tag format — do not use any other tool-calling, function-call, or API syntax." +
                    "\nThe page content will be injected as plain text before your next response." +
                    "\nOnly the following domains are permitted: " + domainList +
                    "\nFor non-text files (PDFs, Office documents) use the download variant:" +

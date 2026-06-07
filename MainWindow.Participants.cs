@@ -1597,21 +1597,39 @@ public partial class MainWindow
 
     private void SetParticipantError(OllamaParticipantUI ui, string? errorText)
     {
-        ApplyErrorState(ui.ErrorBadge, ui.StatusLabel, errorText);
-        // After clearing an error, restore the mood word if we have one
-        if (string.IsNullOrEmpty(errorText) && !string.IsNullOrWhiteSpace(ui.Data.Mood))
+        if (string.IsNullOrEmpty(errorText))
         {
-            ui.StatusLabel.Text = ui.Data.Mood;
+            // Only clear the badge — never overwrite "Thinking..." while the card is generating
+            ui.ErrorBadge.Visibility = Visibility.Collapsed;
+            if (ui.ActiveCts is null)
+            {
+                ui.StatusLabel.Text       = !string.IsNullOrWhiteSpace(ui.Data.Mood) ? ui.Data.Mood : "Ready";
+                ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
+                ui.StatusLabel.Visibility = Visibility.Visible;
+            }
+        }
+        else
+        {
+            ApplyErrorState(ui.ErrorBadge, ui.StatusLabel, errorText);
         }
     }
 
     private void SetParticipantError(CloudAIParticipantUI ui, string? errorText)
     {
-        ApplyErrorState(ui.ErrorBadge, ui.StatusLabel, errorText);
-        // After clearing an error, restore the mood word if we have one
-        if (string.IsNullOrEmpty(errorText) && !string.IsNullOrWhiteSpace(ui.Data.Mood))
+        if (string.IsNullOrEmpty(errorText))
         {
-            ui.StatusLabel.Text = ui.Data.Mood;
+            // Only clear the badge — never overwrite "Thinking..." while the card is generating
+            ui.ErrorBadge.Visibility = Visibility.Collapsed;
+            if (ui.ActiveCts is null)
+            {
+                ui.StatusLabel.Text       = !string.IsNullOrWhiteSpace(ui.Data.Mood) ? ui.Data.Mood : "Ready";
+                ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
+                ui.StatusLabel.Visibility = Visibility.Visible;
+            }
+        }
+        else
+        {
+            ApplyErrorState(ui.ErrorBadge, ui.StatusLabel, errorText);
         }
     }
 

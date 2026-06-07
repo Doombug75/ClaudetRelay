@@ -437,6 +437,7 @@
   <data name="Participants_NumCtxSuffix"       xml:space="preserve"><value> tokens</value></data>
   <data name="Participants_NumPredictSuffix"   xml:space="preserve"><value> tokens  (0 = Ollama default,  -1 = unlimited)</value></data>
   <data name="Participants_ContextSuggested"   xml:space="preserve"><value>suggested: </value></data>
+  <data name="Participants_ContextCeiling"     xml:space="preserve"><value>model supports up to {0}</value></data>
   <data name="Participants_MaxReplyTokens"     xml:space="preserve"><value>MAX REPLY TOKENS</value></data>
   <data name="Participants_MaxReplyTokensHint" xml:space="preserve"><value>Caps the length of each reply (max_tokens). 0 = use the provider's default (usually 4 096). Increase for long structured outputs; decrease to save cost.</value></data>
   <data name="Participants_LimitRpm"           xml:space="preserve"><value>Limit requests per minute</value></data>

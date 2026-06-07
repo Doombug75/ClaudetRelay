@@ -13,6 +13,68 @@ namespace ClaudetRelay;
 /// </summary>
 public class ParticipantsWindow : Window
 {
+    // ── Constants ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Comfortable default num_ctx for any system. Large enough for multi-turn chat,
+    /// small enough that several models can run simultaneously without memory pressure.
+    /// Users can raise or lower it manually — it is their responsibility from there.
+    /// </summary>
+    private static int GetRecommendedNumCtx() => 8_192;
+
+    /// <summary>
+    /// Builds a tiny ▲▼ spinner panel that increments/decrements a TextBox in
+    /// steps of 1024, snapping to the nearest 1024 boundary on the first press.
+    /// </summary>
+    private static StackPanel BuildSpinner(TextBox target, int min = 0, int max = int.MaxValue)
+    {
+        static int StepUp(int v)
+        {
+            if (v <= 0) return 1024;
+            int r = v % 1024;
+            return r == 0 ? v + 1024 : v + (1024 - r);
+        }
+        static int StepDown(int v, int floor)
+        {
+            if (v <= floor) return floor;
+            int r = v % 1024;
+            int next = r == 0 ? v - 1024 : v - r;
+            return Math.Max(next, floor);
+        }
+
+        void Apply(int newVal)
+        {
+            newVal = Math.Clamp(newVal, min, max);
+            target.Text = newVal.ToString();
+        }
+
+        var up = new Button
+        {
+            Content = "▲", FontSize = 8, Padding = new Thickness(3, 1, 3, 1),
+            MinWidth = 22, Height = 13, VerticalAlignment = VerticalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 0, 0, 1)
+        };
+        var down = new Button
+        {
+            Content = "▼", FontSize = 8, Padding = new Thickness(3, 1, 3, 1),
+            MinWidth = 22, Height = 13, VerticalAlignment = VerticalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 1, 0, 0)
+        };
+
+        up.Click   += (_, _) => { int.TryParse(target.Text, out var v); Apply(StepUp(v)); };
+        down.Click += (_, _) => { int.TryParse(target.Text, out var v); Apply(StepDown(v, min)); };
+
+        return new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 0, 0, 0),
+            Children = { up, down }
+        };
+    }
+
     // ── State ──────────────────────────────────────────────────────────────
 
     private readonly string?      _themePath;
@@ -29,6 +91,8 @@ public class ParticipantsWindow : Window
     private TextBox?   _editNumCtxBox;
     private TextBox?   _editNumPredictBox;
     private TextBlock? _editNumCtxHint;
+    /// <summary>Prevents SelectionChanged from overwriting a saved num_ctx when the dialog opens.</summary>
+    private bool       _suppressNumCtxAutoFill;
 
     // Provider types shown in the dropdown.
     // "Ollama ☁" is the internal type name used by OllamaOpenAIService / CreateCloudAIService.
@@ -807,19 +871,27 @@ public class ParticipantsWindow : Window
                 ct.ThrowIfCancellationRequested();   // dialog may have closed during the await
 
                 var current = modelCombo.Text;
+                _suppressNumCtxAutoFill = true;
                 modelCombo.Items.Clear();
                 foreach (var m in models) modelCombo.Items.Add(m);
                 modelCombo.Text  = current.Length > 0 ? current : models.Count > 0 ? models[0] : "";
+                _suppressNumCtxAutoFill = false;
                 fetchStatus.Text = $"✓  {models.Count} model{(models.Count == 1 ? "" : "s")} found";
 
-                // For Ollama: auto-populate num_ctx from the model's reported context length
+                // For Ollama: auto-populate num_ctx for NEW participants only.
+                // Existing participants keep their saved value; only the hint is updated.
                 if (prov == "Ollama" && !string.IsNullOrEmpty(modelCombo.Text))
                 {
                     var info = await new OllamaService(serverUrl).GetModelInfoAsync(modelCombo.Text, ct);
                     if (info?.ContextLength > 0)
                     {
-                        if (_editNumCtxBox  is not null) _editNumCtxBox.Text  = info.ContextLength.ToString();
-                        if (_editNumCtxHint is not null) _editNumCtxHint.Text = Properties.Loc.S("Participants_ContextSuggested") + $"{info.ContextLength:N0}";
+                        var recommended = Math.Min(info.ContextLength, GetRecommendedNumCtx());
+                        var hint        = info.ContextLength > recommended
+                            ? Properties.Loc.S("Participants_ContextSuggested") + $"{recommended:N0}  ({string.Format(Properties.Loc.S("Participants_ContextCeiling"), info.ContextLength.ToString("N0"))})"
+                            : Properties.Loc.S("Participants_ContextSuggested") + $"{recommended:N0}";
+                        if (isNew && _editNumCtxBox is not null)
+                            _editNumCtxBox.Text = recommended.ToString();
+                        if (_editNumCtxHint is not null) _editNumCtxHint.Text = hint;
                     }
                 }
             }
@@ -830,8 +902,10 @@ public class ParticipantsWindow : Window
 
         // When the user manually picks a different model from the dropdown,
         // refresh num_ctx from the new model's reported context length (Ollama only).
+        // _suppressNumCtxAutoFill prevents this from firing during programmatic population.
         modelCombo.SelectionChanged += async (_, _) =>
         {
+            if (_suppressNumCtxAutoFill) return;
             if (ProvKey() != "Ollama" || modelCombo.SelectedItem is not string selectedModel
                 || string.IsNullOrEmpty(selectedModel) || _editNumCtxBox is null) return;
             try
@@ -841,8 +915,12 @@ public class ParticipantsWindow : Window
                 var info = await new OllamaService(serverUrl2).GetModelInfoAsync(selectedModel, dialogCts.Token);
                 if (info?.ContextLength > 0)
                 {
-                    _editNumCtxBox.Text  = info.ContextLength.ToString();
-                    if (_editNumCtxHint is not null) _editNumCtxHint.Text = Properties.Loc.S("Participants_ContextSuggested") + $"{info.ContextLength:N0}";
+                    var recommended = Math.Min(info.ContextLength, GetRecommendedNumCtx());
+                    var hint        = info.ContextLength > recommended
+                        ? Properties.Loc.S("Participants_ContextSuggested") + $"{recommended:N0}  ({string.Format(Properties.Loc.S("Participants_ContextCeiling"), info.ContextLength.ToString("N0"))})"
+                        : Properties.Loc.S("Participants_ContextSuggested") + $"{recommended:N0}";
+                    _editNumCtxBox.Text = recommended.ToString();
+                    if (_editNumCtxHint is not null) _editNumCtxHint.Text = hint;
                 }
             }
             catch { /* ignore — Ollama might not be running */ }
@@ -977,15 +1055,17 @@ public class ParticipantsWindow : Window
                 };
                 ctxTokens.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
                 ctxRow.Children.Add(ctxTokens);
+                ctxRow.Children.Add(BuildSpinner(ctxBox, min: 512));
 
+                // Hint in its own row so it can wrap freely
                 var ctxHintLbl = new TextBlock
                 {
                     Text = "", FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
-                    VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0),
-                    FontStyle = FontStyles.Italic
+                    TextWrapping = TextWrapping.Wrap,
+                    FontStyle = FontStyles.Italic, Margin = new Thickness(0, 0, 0, 6)
                 };
                 ctxHintLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
-                ctxRow.Children.Add(ctxHintLbl);
+                tokenSection.Children.Add(ctxHintLbl);
                 _editNumCtxHint = ctxHintLbl;
 
                 // num_predict row
@@ -1013,6 +1093,7 @@ public class ParticipantsWindow : Window
                 };
                 predTokens.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
                 predRow.Children.Add(predTokens);
+                predRow.Children.Add(BuildSpinner(predBox, min: 0));
 
                 _editNumCtxBox     = ctxBox;
                 _editNumPredictBox = predBox;
