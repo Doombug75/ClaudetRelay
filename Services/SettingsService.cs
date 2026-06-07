@@ -36,6 +36,12 @@ public class BridgeAgent
     public string DisplayName { get; set; } = "";
     public bool   IsEnabled   { get; set; } = true;
 
+    /// <summary>Ollama context window size (num_ctx). 0 = use Ollama default. Local Ollama only.</summary>
+    public int OllamaNumCtx     { get; set; } = 8192;
+
+    /// <summary>Max tokens to generate per reply (num_predict). 0 = use Ollama default. Local Ollama only.</summary>
+    public int OllamaNumPredict { get; set; } = 2048;
+
     public string Label => string.IsNullOrWhiteSpace(DisplayName) ? Model : DisplayName;
     public bool   IsLocal => string.Equals(Provider, "Ollama", StringComparison.OrdinalIgnoreCase);
 }
@@ -117,6 +123,12 @@ public class ParticipantConfig
     /// Populated manually via the voice picker or automatically via "Ask the Model".
     /// </summary>
     public string VoiceName { get; set; } = "";
+
+    /// <summary>Ollama context window size (num_ctx). 0 = use Ollama default. Local Ollama only.</summary>
+    public int OllamaNumCtx     { get; set; } = 8192;
+
+    /// <summary>Max tokens to generate per reply (num_predict). 0 = use Ollama default. Local Ollama only.</summary>
+    public int OllamaNumPredict { get; set; } = 2048;
 }
 
 public class AppSettings

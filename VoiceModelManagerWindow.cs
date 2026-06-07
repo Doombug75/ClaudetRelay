@@ -66,6 +66,7 @@ public sealed class VoiceModelManagerWindow : Window
             }
             catch { }
         }
+        SourceInitialized += (_, _) => ParticipantsWindow.TryApplyTitleBarTo(this);
 
         BuildUI();
         UiZoomHelper.Apply(this, UiZoomHelper.FromSettings());

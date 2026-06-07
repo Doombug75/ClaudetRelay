@@ -17,6 +17,18 @@ public class OllamaService : IDisposable
     public string CurrentModel    { get; set; } = "llama3.2";
     public string BaseUrl         => _base;
 
+    /// <summary>
+    /// Ollama context window in tokens (num_ctx).
+    /// Set to the model's supported context size. 0 = let Ollama use its built-in default (usually 2048 — often too small).
+    /// </summary>
+    public int NumCtx     { get; set; } = 8192;
+
+    /// <summary>
+    /// Max tokens to generate per reply (num_predict).
+    /// 0 = use Ollama default. -1 = no limit.
+    /// </summary>
+    public int NumPredict { get; set; } = 2048;
+
     /// <summary>Last line of &lt;thinking&gt; text received during the most recent stream.
     /// Updated while streaming; empty if the model doesn't expose thinking.</summary>
     public string LastThinkingText { get; private set; } = "";
@@ -261,7 +273,7 @@ public class OllamaService : IDisposable
 
     // ── Helper ─────────────────────────────────────────────────────────────
 
-    private static StringContent BuildContent(
+    private StringContent BuildContent(
         string model,
         IReadOnlyList<OllamaChatMessage> messages,
         bool stream)
@@ -281,6 +293,17 @@ public class OllamaService : IDisposable
             writer.WriteEndObject();
         }
         writer.WriteEndArray();
+
+        // Emit options block — num_ctx prevents context-window exhaustion in long conversations.
+        // Both values are only written when non-zero so callers can opt out by leaving them at 0.
+        if (NumCtx > 0 || NumPredict > 0)
+        {
+            writer.WriteStartObject("options");
+            if (NumCtx     > 0) writer.WriteNumber("num_ctx",     NumCtx);
+            if (NumPredict > 0) writer.WriteNumber("num_predict", NumPredict);
+            writer.WriteEndObject();
+        }
+
         writer.WriteEndObject();
         writer.Flush();
 

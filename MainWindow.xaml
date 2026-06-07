@@ -43,6 +43,9 @@
                                 <Trigger Property="IsPressed" Value="True">
                                     <Setter TargetName="Bd" Property="Opacity" Value="0.65"/>
                                 </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.38"/>
+                                </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>

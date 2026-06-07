@@ -44,6 +44,7 @@ public sealed class VoiceSettingsWindow : Window
             }
             catch { }
         }
+        SourceInitialized += (_, _) => ParticipantsWindow.TryApplyTitleBarTo(this);
 
         BuildUI();
         UiZoomHelper.Apply(this, UiZoomHelper.FromSettings());

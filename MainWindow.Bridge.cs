@@ -2014,7 +2014,7 @@ public partial class MainWindow : Window
 
             if (agent.IsLocal)
             {
-                var svc = new OllamaService(agent.ServerUrl) { CurrentModel = agent.Model };
+                var svc = new OllamaService(agent.ServerUrl) { CurrentModel = agent.Model, NumCtx = agent.OllamaNumCtx, NumPredict = agent.OllamaNumPredict };
                 agentHandlers[agent.Label] = async (msg, ct) =>
                 {
                     var history = new List<OllamaChatMessage> { new("user", msg) };
@@ -2057,7 +2057,7 @@ public partial class MainWindow : Window
         {
             if (capturedAgent.IsLocal)
             {
-                var svc = new OllamaService(capturedAgent.ServerUrl) { CurrentModel = capturedAgent.Model };
+                var svc = new OllamaService(capturedAgent.ServerUrl) { CurrentModel = capturedAgent.Model, NumCtx = capturedAgent.OllamaNumCtx, NumPredict = capturedAgent.OllamaNumPredict };
                 return async (msg, c) =>
                 {
                     var history = new List<OllamaChatMessage> { new("user", msg) };

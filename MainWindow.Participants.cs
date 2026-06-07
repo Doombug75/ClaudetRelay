@@ -30,7 +30,7 @@ public partial class MainWindow
         foreach (var p in settings.Participants.Where(p => p.Enabled))
         {
             if (p.Type == "Ollama")
-                AddOllamaParticipant(p.Model, p.ServerUrl, p.Name);
+                AddOllamaParticipant(p.Model, p.ServerUrl, p.Name, p.OllamaNumCtx, p.OllamaNumPredict);
             else
                 AddCloudAIParticipant(p.Type, p.Model, p.Name);
         }
@@ -114,7 +114,7 @@ public partial class MainWindow
         foreach (var p in settings.Participants.Where(p => p.Enabled))
         {
             if (p.Type == "Ollama")
-                AddOllamaParticipant(p.Model, p.ServerUrl, p.Name);
+                AddOllamaParticipant(p.Model, p.ServerUrl, p.Name, p.OllamaNumCtx, p.OllamaNumPredict);
             else
                 AddCloudAIParticipant(p.Type, p.Model, p.Name);
         }
@@ -204,7 +204,7 @@ public partial class MainWindow
         foreach (var p in saved)
         {
             if (p.Type == "Ollama")
-                AddOllamaParticipant(p.Model, p.ServerUrl, p.Name);
+                AddOllamaParticipant(p.Model, p.ServerUrl, p.Name, p.OllamaNumCtx, p.OllamaNumPredict);
             else
                 AddCloudAIParticipant(p.Type, p.Model, p.Name);
         }
@@ -244,7 +244,7 @@ public partial class MainWindow
             foreach (var p in settings.Participants.Where(p => p.Enabled))
             {
                 if (p.Type == "Ollama")
-                    AddOllamaParticipant(p.Model, p.ServerUrl, p.Name);
+                    AddOllamaParticipant(p.Model, p.ServerUrl, p.Name, p.OllamaNumCtx, p.OllamaNumPredict);
                 else
                     AddCloudAIParticipant(p.Type, p.Model, p.Name, p.ServerUrl);
             }
@@ -254,6 +254,82 @@ public partial class MainWindow
         UpdateCloudAIAddRemoveButtons();
         RefreshWelcomeHint();
         _ = CheckAllStatusAsync();
+    }
+
+    /// <summary>
+    /// Applies IsActive flags from ProjectParticipantRole list to the live sidebar cards.
+    /// Used on first project open before any ActiveParticipants snapshot exists, so that
+    /// participants unchecked in Project Settings start as disabled in the live session.
+    /// </summary>
+    private void ApplyRoleActiveStatesToParticipants(List<ProjectParticipantRole> roles)
+    {
+        foreach (var role in roles)
+        {
+            if (role.IsActive) continue; // already active — no action needed
+            // Try to match by display name, provider and model
+            var cloudMatch = _cloudAIParticipants.FirstOrDefault(ui =>
+                (string.IsNullOrEmpty(role.DisplayName) ||
+                 string.Equals(ui.Data.CustomName, role.DisplayName, StringComparison.OrdinalIgnoreCase)) &&
+                string.Equals(ui.Data.Service.ProviderName, role.Provider, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(ui.Data.Service.CurrentModel, role.Model, StringComparison.OrdinalIgnoreCase));
+            if (cloudMatch is not null)
+            {
+                cloudMatch.Data.Enabled = false;
+                cloudMatch.Card.Opacity = 0.6;
+                if (cloudMatch.EnabledToggle is not null) cloudMatch.EnabledToggle.IsChecked = false;
+                continue;
+            }
+            var ollamaMatch = _ollamaParticipants.FirstOrDefault(ui =>
+                (string.IsNullOrEmpty(role.DisplayName) ||
+                 string.Equals(ui.Data.CustomName, role.DisplayName, StringComparison.OrdinalIgnoreCase)) &&
+                string.Equals(ui.Data.Service.CurrentModel, role.Model, StringComparison.OrdinalIgnoreCase));
+            if (ollamaMatch is not null)
+            {
+                ollamaMatch.Data.Enabled = false;
+                ollamaMatch.Card.Opacity = 0.6;
+                if (ollamaMatch.EnabledToggle is not null) ollamaMatch.EnabledToggle.IsChecked = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Re-applies the project-specific enabled/disabled states to current live participants
+    /// without removing and re-adding cards.  Call after ReInitializeParticipants() when
+    /// a project is open, so that project-level disabled states are not wiped by the global
+    /// participant refresh.
+    /// </summary>
+    private void ApplyProjectParticipantEnabledStates(List<ParticipantConfig> saved)
+    {
+        foreach (var p in saved)
+        {
+            if (p.Enabled) continue; // default is enabled — only need to disable
+            if (p.Type == "Ollama")
+            {
+                var match = _ollamaParticipants.FirstOrDefault(ui =>
+                    ui.Data.Service.CurrentModel == p.Model &&
+                    ui.Data.Service.BaseUrl      == p.ServerUrl);
+                if (match is not null)
+                {
+                    match.Data.Enabled  = false;
+                    match.Card.Opacity  = 0.6;
+                    if (match.EnabledToggle is not null)
+                        match.EnabledToggle.IsChecked = false;
+                }
+            }
+            else
+            {
+                var match = _cloudAIParticipants.FirstOrDefault(ui =>
+                    ui.Data.Service.ProviderName == p.Type &&
+                    ui.Data.Service.CurrentModel == p.Model);
+                if (match is not null)
+                {
+                    match.Data.Enabled  = false;
+                    match.Card.Opacity  = 0.6;
+                    if (match.EnabledToggle is not null)
+                        match.EnabledToggle.IsChecked = false;
+                }
+            }
+        }
     }
 
     private void AddCloudAIParticipant(string provider, string model = "", string customName = "", string serverUrl = "")
@@ -683,13 +759,15 @@ public partial class MainWindow
 
     private void AddOllamaParticipant(string model = "llama3.2",
                                       string serverUrl = "http://localhost:11434",
-                                      string customName = "")
+                                      string customName = "",
+                                      int numCtx = 8192,
+                                      int numPredict = 2048)
     {
         if (_ollamaParticipants.Count >= 20) return;
 
         var participant = new OllamaParticipant
         {
-            Service    = new OllamaService(serverUrl) { CurrentModel = model },
+            Service    = new OllamaService(serverUrl) { CurrentModel = model, NumCtx = numCtx, NumPredict = numPredict },
             Position   = _ollamaParticipants.Count + 1,
             CustomName = string.IsNullOrWhiteSpace(customName) ? null : customName
         };
@@ -1511,7 +1589,7 @@ public partial class MainWindow
                 {
                     if (cap.Type == "Ollama")
                     {
-                        AddOllamaParticipant(cap.Model, cap.ServerUrl, cap.Name);
+                        AddOllamaParticipant(cap.Model, cap.ServerUrl, cap.Name, cap.OllamaNumCtx, cap.OllamaNumPredict);
                         _ = CheckAllStatusAsync();
                     }
                     else
@@ -1579,7 +1657,7 @@ public partial class MainWindow
             {
                 // Freshly checked → add to panel
                 if (curr.Type == "Ollama")
-                    AddOllamaParticipant(curr.Model, curr.ServerUrl, curr.Name);
+                    AddOllamaParticipant(curr.Model, curr.ServerUrl, curr.Name, curr.OllamaNumCtx, curr.OllamaNumPredict);
                 else
                     AddCloudAIParticipant(curr.Type, curr.Model, curr.Name);
             }

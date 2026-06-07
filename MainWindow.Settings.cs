@@ -895,6 +895,12 @@ public partial class MainWindow
         {
             _participantsWindow = null;
             ReInitializeParticipants();
+            // If a project is open, restore its saved per-participant enabled/disabled states.
+            // ReInitializeParticipants re-adds everyone from global settings (all enabled);
+            // without this re-application, participants that were manually disabled in a project
+            // session would be activated again on every ParticipantsWindow close.
+            if (_currentProjectFolder is not null && _projectSettings?.ActiveParticipants is { Count: > 0 })
+                ApplyProjectParticipantEnabledStates(_projectSettings.ActiveParticipants);
             var settingsAfter = SettingsService.Load();
             ApplyThrottleSettings(settingsAfter);
             ApplyChatFont(settingsAfter);

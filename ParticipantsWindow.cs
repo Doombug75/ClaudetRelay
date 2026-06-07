@@ -25,6 +25,10 @@ public class ParticipantsWindow : Window
     private CheckBox? _editRpmChk;
     private TextBox?  _editRpmValueBox;
 
+    // Temp storage for Ollama context-window controls
+    private TextBox? _editNumCtxBox;
+    private TextBox? _editNumPredictBox;
+
     // Provider types shown in the dropdown.
     // "Ollama ☁" is the internal type name used by OllamaOpenAIService / CreateCloudAIService.
     private static readonly string[] AllProviders =
@@ -890,6 +894,88 @@ public class ParticipantsWindow : Window
         RebuildRpmSection();
         provCombo.SelectionChanged += (_, _) => RebuildRpmSection();
 
+        // ── Ollama context window (local Ollama only) ──────────────────────
+        var ollamaCtxSection = new StackPanel();
+        root.Children.Add(ollamaCtxSection);
+
+        void RebuildOllamaCtxSection()
+        {
+            ollamaCtxSection.Children.Clear();
+            _editNumCtxBox     = null;
+            _editNumPredictBox = null;
+            if (ProvKey() != "Ollama") return;
+
+            ollamaCtxSection.Children.Add(Lbl("🧠  Context Window"));
+
+            var ctxHint = new TextBlock
+            {
+                Text = "num_ctx controls how many tokens the model holds in memory (input + output). " +
+                       "Increase this for long conversations. Most models support 8 192 – 32 768. " +
+                       "num_predict caps the reply length; -1 = unlimited.",
+                FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+            ctxHint.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+            ollamaCtxSection.Children.Add(ctxHint);
+
+            // num_ctx row
+            var ctxRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+            ollamaCtxSection.Children.Add(ctxRow);
+
+            var ctxLbl = new TextBlock
+            {
+                Text = "num_ctx", Width = 90, FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            ctxLbl.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
+            ctxRow.Children.Add(ctxLbl);
+
+            var ctxBox = new TextBox { Text = p.OllamaNumCtx.ToString(), Width = 80, VerticalAlignment = VerticalAlignment.Center };
+            if (win.TryFindResource("ModernTextBox") is Style ctxStyle) ctxBox.Style = ctxStyle;
+            ctxBox.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsAsciiDigit);
+            ctxRow.Children.Add(ctxBox);
+
+            var ctxTokens = new TextBlock
+            {
+                Text = " tokens", FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0)
+            };
+            ctxTokens.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
+            ctxRow.Children.Add(ctxTokens);
+
+            // num_predict row
+            var predRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            ollamaCtxSection.Children.Add(predRow);
+
+            var predLbl = new TextBlock
+            {
+                Text = "num_predict", Width = 90, FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            predLbl.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
+            predRow.Children.Add(predLbl);
+
+            var predBox = new TextBox { Text = p.OllamaNumPredict.ToString(), Width = 80, VerticalAlignment = VerticalAlignment.Center };
+            if (win.TryFindResource("ModernTextBox") is Style predStyle) predBox.Style = predStyle;
+            predBox.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsAsciiDigit);
+            predRow.Children.Add(predBox);
+
+            var predTokens = new TextBlock
+            {
+                Text = " tokens  (0 = default,  -1 = unlimited)", FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0)
+            };
+            predTokens.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
+            predRow.Children.Add(predTokens);
+
+            _editNumCtxBox     = ctxBox;
+            _editNumPredictBox = predBox;
+        }
+
+        RebuildOllamaCtxSection();
+        provCombo.SelectionChanged += (_, _) => RebuildOllamaCtxSection();
+
         // ── Voice ──────────────────────────────────────────────────────────
         root.Children.Add(Lbl("🔊  TTS Voice"));
 
@@ -1045,6 +1131,15 @@ public class ParticipantsWindow : Window
             else
             {
                 p.RpmEnabled = false;   // Ollama — no throttle
+            }
+
+            // Ollama context-window settings
+            if (p.Type == "Ollama")
+            {
+                if (_editNumCtxBox is not null && int.TryParse(_editNumCtxBox.Text.Trim(), out var ctx) && ctx >= 0)
+                    p.OllamaNumCtx = ctx;
+                if (_editNumPredictBox is not null && int.TryParse(_editNumPredictBox.Text.Trim(), out var pred))
+                    p.OllamaNumPredict = pred;
             }
 
             win.DialogResult = true;

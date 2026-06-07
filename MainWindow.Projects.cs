@@ -172,10 +172,10 @@ public partial class MainWindow
             Padding             = new Thickness(8, 5, 8, 5),
             Margin              = new Thickness(0, 0, 4, 0),
             Style               = (Style)FindResource("ModernButton"),
-            Background          = (Brush)FindResource("ControlBgBrush"),
-            Foreground          = (Brush)FindResource("ControlTextBrush"),
             Cursor              = Cursors.Hand
         };
+        btnLoad.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        btnLoad.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
         var capturedFolderForLoad = projFolder;
         btnLoad.Click += (_, e) =>
         {
@@ -192,11 +192,11 @@ public partial class MainWindow
             Padding             = new Thickness(0),
             Margin              = new Thickness(4, 0, 4, 0),
             Style               = (Style)FindResource("ModernButton"),
-            Background          = (Brush)FindResource("ControlBgBrush"),
-            Foreground          = (Brush)FindResource("ControlHighBrush"),
             ToolTip             = "Create ZIP backup",
             Cursor              = Cursors.Hand
         };
+        btnBackup.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        btnBackup.SetResourceReference(Button.ForegroundProperty, "ControlHighBrush");
         var capturedFolderForBackup = projFolder;
         var capturedNameForBackup   = meta.ProjectName;
         btnBackup.Click += async (_, e) =>
@@ -214,11 +214,11 @@ public partial class MainWindow
             Padding             = new Thickness(0),
             Margin              = new Thickness(4, 0, 0, 0),
             Style               = (Style)FindResource("ModernButton"),
-            Background          = (Brush)FindResource("ControlBgBrush"),
-            Foreground          = (Brush)FindResource("ControlHighBrush"),
             ToolTip             = Loc.S("ToolTip_ProjectSettings"),
             Cursor              = Cursors.Hand
         };
+        btnSettings.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        btnSettings.SetResourceReference(Button.ForegroundProperty, "ControlHighBrush");
         btnSettings.Click += (_, e) =>
         {
             e.Handled = true;
@@ -555,11 +555,13 @@ public partial class MainWindow
         var dlg = new Window
         {
             Title                 = Loc.S("Dlg_ChooseProjectType"),
-            Width                 = 530,
-            Height                = 600,
+            Width                 = 660,
+            MinWidth              = 540,
+            Height                = 640,
+            MinHeight             = 400,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Owner                 = this,
-            ResizeMode            = ResizeMode.NoResize,
+            ResizeMode            = ResizeMode.CanResizeWithGrip,
             ShowInTaskbar         = false,
             Background            = bgBrush
         };
@@ -926,6 +928,15 @@ public partial class MainWindow
         // Restore this project's saved participants
         if (loaded.ActiveParticipants is { Count: > 0 })
             ReInitializeParticipantsFrom(loaded.ActiveParticipants);
+
+        // For brand-new projects (no ActiveParticipants yet) that already have Roles
+        // configured via Project Settings, apply the IsActive flags from those roles to
+        // the live sidebar cards so unchecked participants start as disabled.
+        if ((loaded.ActiveParticipants is null || loaded.ActiveParticipants.Count == 0)
+            && loaded.Roles is { Count: > 0 })
+        {
+            ApplyRoleActiveStatesToParticipants(loaded.Roles);
+        }
 
         // Always snapshot current live participants into ActiveParticipants before
         // any coordinator automation fires.  For existing projects this is a no-op;
@@ -2788,7 +2799,6 @@ public partial class MainWindow
 
         var rowGrid = new Grid();
         rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                     // icon
-        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                     // id chip
         rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // title
         rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100, GridUnitType.Pixel) }); // bar
         rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36, GridUnitType.Pixel) });  // pct
@@ -2800,22 +2810,6 @@ public partial class MainWindow
             FontSize          = 13,
             Margin            = new Thickness(0, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center
-        };
-
-        var idBorder = new Border
-        {
-            Background        = bgBrush,
-            CornerRadius      = new CornerRadius(4),
-            Padding           = new Thickness(4, 1, 4, 1),
-            Margin            = new Thickness(0, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Child             = new TextBlock
-            {
-                Text       = item.Id,
-                FontSize   = 9,
-                FontFamily = new FontFamily("Consolas"),
-                Foreground = subtextBrush
-            }
         };
 
         var titleTb = new TextBlock
@@ -2962,13 +2956,11 @@ public partial class MainWindow
         btns.Children.Add(delBtn);
 
         Grid.SetColumn(iconTb,  0);
-        Grid.SetColumn(idBorder, 1);
-        Grid.SetColumn(titleTb, 2);
-        Grid.SetColumn(pb,      3);
-        Grid.SetColumn(pctTb,   4);
-        Grid.SetColumn(btns,    5);
+        Grid.SetColumn(titleTb, 1);
+        Grid.SetColumn(pb,      2);
+        Grid.SetColumn(pctTb,   3);
+        Grid.SetColumn(btns,    4);
         rowGrid.Children.Add(iconTb);
-        rowGrid.Children.Add(idBorder);
         rowGrid.Children.Add(titleTb);
         rowGrid.Children.Add(pb);
         rowGrid.Children.Add(pctTb);
@@ -3785,9 +3777,12 @@ public partial class MainWindow
             _                     => "To Do"
         };
 
-        var totalItems    = roadmap.Milestones.Sum(m => m.Items.Count);
-        var doneItems     = roadmap.Milestones.Sum(m => m.Items.Count(i => i.Status == ItemStatus.Done));
-        var overallPct    = totalItems > 0 ? doneItems * 100 / totalItems : 0;
+        var allItems   = roadmap.Milestones.SelectMany(m => m.Items).ToList();
+        var totalItems = allItems.Count;
+        var doneItems  = allItems.Count(i => i.Status == ItemStatus.Done);
+        var overallPct = totalItems > 0
+            ? (int)Math.Round(allItems.Average(i => (double)i.Progress))
+            : 0;
         var exported      = DateTime.Now.ToString("MMMM d, yyyy");
 
         // ── Build milestone HTML ──────────────────────────────────────────

@@ -66,10 +66,10 @@ Every file the AI produces lands in your project's folder as a real file:
 
 ```
 MyProject/
-  INPUT/       ← files you give the agents to read
-  OUTPUT/       ← files agents generate
-  PROJECTPLAN/  ← roadmap, design docs, notes
-  AI-Characters/ ← per-project agent persona files
+  INPUT/          ← files you give the agents to read
+  OUTPUT/         ← files agents generate
+  PROJECTPLAN/    ← roadmap, design docs, notes
+  AI-Characters/  ← per-project agent persona files
 ```
 
 Agents can **read** `.txt`, `.md`, `.pdf`, `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp` from INPUT and **write** formatted output to OUTPUT:
@@ -92,12 +92,19 @@ No conversion tools, no LibreOffice install, no Adobe — everything is generate
 | Cloud | Local |
 |---|---|
 | Anthropic Claude | Ollama (any model) |
-| OpenAI GPT | LM Studio (local server) |
-| Google Gemini | |
-| Mistral | |
+| OpenAI GPT | Ollama ☁ (cloud-hosted) |
+| Google Gemini | LM Studio |
+| Mistral | vLLM |
 | Groq | |
 | OpenRouter | |
 | xAI Grok | |
+| DeepSeek | |
+| Fireworks AI | |
+| Perplexity AI | |
+| Together AI | |
+| Nvidia NIM | |
+| Cerebras | |
+| DeepInfra | |
 
 Mix cloud and local agents in the same project. Run a fast local model for first drafts and a large cloud model for final polish. API keys are stored exclusively in Windows Credential Manager — never written to disk.
 
@@ -106,32 +113,32 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 ## Screenshots
 
 <p align="center">
-  <img src="Assets/ScreenLibrary.png" width="49%" alt="World builder library"/>
-  <img src="Assets/ScreenBoard.png" width="49%" alt="World builder board"/>
+  <img src="Assets/ScreenLibrary.png" width="49%" alt="World Builder — character library"/>
+  <img src="Assets/ScreenBoard.png" width="49%" alt="World Builder — relation board with nested groups"/>
 </p>
 <p align="center">
-  <img src="Assets/ScreenChat01.png" width="49%" alt="Multi-agent chat"/>
-  <img src="Assets/ScreenProjectChat.png" width="49%" alt="Project chat"/>
-</p>
-<p align="center">
-  <img src="Assets/ScreenParticipantsCfg.png" width="49%" alt="Participant configuration"/>
-  <img src="Assets/ScreenProviders.png" width="49%" alt="Provider / API key setup"/>
+  <img src="Assets/ScreenChat01.png" width="49%" alt="Multi-agent chat — six participants"/>
+  <img src="Assets/ScreenProjectChat.png" width="49%" alt="Project chat — RPG campaign in progress"/>
 </p>
 <p align="center">
   <img src="Assets/ScreenProjects.png" width="49%" alt="Projects overview"/>
-  <img src="Assets/ScreenProjectSettings.png" width="49%" alt="Project settings"/>
+  <img src="Assets/ScreenProjectSettings.png" width="49%" alt="Project settings — orchestration and roles"/>
 </p>
 <p align="center">
-  <img src="Assets/ScreenNewProject01.png" width="49%" alt="New project – type picker"/>
-  <img src="Assets/ScreenNewproject02.png" width="49%" alt="New project – details"/>
+  <img src="Assets/ScreenNewProject01.png" width="49%" alt="New project — name and description"/>
+  <img src="Assets/ScreenNewproject02.png" width="49%" alt="New project — choose project type"/>
 </p>
 <p align="center">
-  <img src="Assets/ScreenRoadmap01.png" width="49%" alt="Roadmap view"/>
-  <img src="Assets/ScreenMCPServer.png" width="49%" alt="Roadmap milestone detail"/>
+  <img src="Assets/ScreenRoadmap01.png" width="49%" alt="Roadmap — milestone and item editor"/>
+  <img src="Assets/ScreenMCPServer.png" width="49%" alt="MCP Bridge mode — load project"/>
 </p>
 <p align="center">
-  <img src="Assets/ScreenClaudetteHelp.png" width="49%" alt="Claudette help assistant"/>
-  <img src="Assets/ScreenClaudetteHelpChat.png" width="49%" alt="Claudette help chat"/>
+  <img src="Assets/ScreenParticipantsCfg.png" width="49%" alt="Participant configuration — model info popup"/>
+  <img src="Assets/ScreenProviders.png" width="49%" alt="Providers setup — API key management"/>
+</p>
+<p align="center">
+  <img src="Assets/ScreenClaudetteHelp.png" width="49%" alt="Claudette in-app help assistant"/>
+  <img src="Assets/ScreenClaudetteHelpChat.png" width="49%" alt="Chat with Claudette"/>
 </p>
 
 ---
@@ -140,21 +147,24 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 
 ### Conversation
 - **Multi-provider, multi-agent chat** — any number of participants from any mix of cloud providers and local models in a single shared conversation; each participant gets its own card in the UI
-- **Orchestration modes** — All Respond, Coordinator First, Coordinator Summarizes
-- **Roles & personas** — Coordinator and Reasoner roles, custom names, answer-as aliases, and saveable character files per participant
+- **Orchestration modes** — All Respond, Coordinator First, Coordinator Summarizes, Coordinator Only
+- **Roles & personas** — Coordinator, Reasoner, Critic, Planner, Researcher roles; custom names, answer-as aliases, and saveable character files per participant
 - **Tone** — global formal ↔ casual slider; or lock to Mockingbird (warm/dramatic) or Buccaneer (pirate) personality mode
 - **Chattiness** — per-chat and per-project slider controlling how eagerly participants join without being prompted
 - **Response length** — global default; can be overridden per participant inside a project
 - **AI-to-AI dialogue** — enable multi-round dialogue so participants can read and reply to each other before the next user message; configurable turn limit
-- **Grounded responses** — system prompt injection discourages models from inventing personal traits, hobbies, or relationships unless a role instruction explicitly allows it *(effectiveness varies by model)*
+- **Whispering** — send a message to a single participant without others seeing it
+- **Grounded responses** — system prompt injection discourages models from impersonating real people or inventing personal traits unless a role instruction explicitly allows it *(effectiveness varies by model)*
 - **Rate limiting** — per-provider RPM throttling to stay within API quotas
 - **Secure key storage** — API keys stored exclusively in Windows Credential Manager, never written to disk
+- **Voice output** — text-to-speech playback of AI responses using Windows TTS, offline neural voices (Sherpa-onnx / Whisper), or VOICEVOX; per-participant voice assignment
+- **Voice input** — push-to-talk and voice-activation dictation using a locally-running offline speech recogniser; no cloud required
 
 ### Projects
-- **Project system** — named projects with typed templates (Novel, Theatre, Software, Game, Business, and more), per-project participant configuration, and persistent chat history
+- **Project system** — named projects with typed templates (Novel, Theatre, Software, Game, Business, Roleplaying Campaign, and more), per-project participant configuration, and persistent chat history
 - **Per-project autonomy** — slider that controls how independently agents operate when you step back; each project can have its own setting
 - **Per-participant role instructions** — free-text instructions per agent inside a project, letting you specialise behaviour beyond the global persona
-- **Roadmap** — built-in project roadmap with milestones, priorities, and progress tracking
+- **Roadmap** — built-in project roadmap with milestones, items, per-item progress tracking, rich text descriptions, attached images, and timing notes; export as standalone HTML5
 - **File browser** — collapsible folder sections with search filter; browse INPUT, OUTPUT, PROJECTPLAN folders inside the app
 - **File checkout** — read-only and read-write file locking so multiple agents can research in parallel without overwriting each other; smart idle-timeout reminder system
 - **AI file reading** — agents can read `.txt`, `.md`, `.rst`, `.html`, `.csv`, `.pdf`, `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp` directly from INPUT
@@ -181,10 +191,12 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 - **Model Controller** — route and coordinate multiple local models through a cloud controller
 - **Configurable tool access** — enable or disable individual MCP tools per mode from the Bridge settings window
 
-### Themes
-- **101 built-in colour themes** — includes well-known community palettes (Catppuccin, Tokyo Night, Dracula, Gruvbox) and a large collection of original themes with colour palettes *inspired by the colours of* Skyrim, Deep Rock Galactic, Warhammer 40K factions, leatherbound books, our planets from space, and more — purely colour work, no licensed artwork or UI assets
-- **OXSUIT 1.0 format** — themes are plain `.oxsuit` XML files, drop them into the `Themes/` folder for instant loading — no restart required
+### Themes & UI
+- **101 built-in colour themes** — includes well-known community palettes (Catppuccin, Tokyo Night, Dracula, Gruvbox) and a large collection of original themes with colour palettes *inspired by the colours of* Skyrim, Deep Rock Galactic, Warhammer 40K factions, leatherbound books, the planets of our solar system, retro terminals, and more — purely colour work, no licensed artwork or UI assets
+- **Light and dark themes** — full support for both; themes like Catppuccin Latte, Carrara Marble, and Arctic Aurora work in bright environments
+- **OXSUIT 1.0 format** — themes are plain `.oxsuit` XML files; drop them into the `Themes/` folder for instant loading — no restart required
 - **[OXSUIT Theminator](https://github.com/Doombug75/Theminator)** — free standalone visual theme editor for creating and previewing themes interactively
+- **UI zoom** — global zoom level applied to all windows and dialogs
 
 ---
 
@@ -200,11 +212,13 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 
 | Feature | Notes |
 |---|---|
-| **Dictation Mode** | Push-to-talk and voice-activation using a locally-running speech recogniser — no cloud required |
-| ~~**Voice output**~~ | ✅ Done — text-to-speech playback of AI responses |
+| **Web browsing toggle** | Read-only, text-only web access for models — off by default to protect bandwidth |
+| **Chat file export** | Save individual AI outputs as files directly from the chat |
+| ~~**Voice output**~~ | ✅ Done — TTS playback via Windows voices, Sherpa-onnx neural voices, or VOICEVOX |
+| ~~**Voice input / dictation**~~ | ✅ Done — push-to-talk and voice-activation using locally-running Whisper models; no cloud required |
 | ~~**Multi-language UI**~~ | ✅ Done — German UI alongside English |
 | ~~**LM Studio support**~~ | ✅ Done — local server and LM Studio Cloud, with live model listing |
-| ~~**Codebase refactor**~~ | ✅ Done — 18 800 lines split into 6 focused partial classes |
+| ~~**Codebase refactor**~~ | ✅ Done — split into focused partial classes |
 | ~~**Buccaneer mode**~~ | ✅ Done — three-way pill toggle (Neutral · 🐦 Mockingbird · 🏴‍☠️ Buccaneer) |
 
 ---
