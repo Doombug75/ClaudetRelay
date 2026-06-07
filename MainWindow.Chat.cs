@@ -6301,8 +6301,9 @@ public partial class MainWindow : Window
         string response, string senderName, bool isLocalModel,
         CancellationToken ct = default)
     {
+        // Accept <webfetch .../> and the common model hallucination <webdownload .../>
         var tagRegex = new System.Text.RegularExpressions.Regex(
-            @"<webfetch\s+url=""([^""]+)""\s*/>",
+            @"<web(?:fetch|download)\s+url=""([^""]+)""\s*/>",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         var matches = tagRegex.Matches(response);
