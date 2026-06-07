@@ -3660,6 +3660,79 @@ public partial class MainWindow : Window
             }
         });
 
+        // ── chat_post_whisper - private task to one participant only ──────────
+        AddTool(new McpTool
+        {
+            Name        = "chat_post_whisper",
+            Description = "Sends a private message (whisper) to a single named AI participant. " +
+                          "Only the target participant receives and responds to the message — " +
+                          "other participants see only a '🤫 whisper' notice and do NOT respond. " +
+                          "Use this instead of chat_post_message when you want a one-on-one task " +
+                          "without triggering the whole group. " +
+                          "The target must be an active, enabled participant by their display name " +
+                          "(e.g. 'Qwen', 'Gemma', 'Llama').",
+            Provider    = "Bridge",
+            InputSchemaOverride = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "target":  { "type": "string", "description": "Display name of the participant to whisper to" },
+                    "message": { "type": "string", "description": "The private message to send" }
+                  },
+                  "required": ["target", "message"]
+                }
+                """,
+            ExecuteAsync = async (args, _) =>
+            {
+                var target  = args["target"]?.GetValue<string>()?.Trim()  ?? "";
+                var message = args["message"]?.GetValue<string>()?.Trim() ?? "";
+
+                if (string.IsNullOrWhiteSpace(target))
+                    return "Error: 'target' is required — provide the participant's display name.";
+                if (string.IsNullOrWhiteSpace(message))
+                    return "Error: 'message' cannot be empty.";
+
+                // Gate: project chat requires McpChatEnabled
+                if (_currentProjectFolder is not null && _projectSettings is not null && !_projectSettings.McpChatEnabled)
+                    return $"MCP chat access is not enabled for '{_projectSettings.ProjectName}'. " +
+                           "Add an MCP Client via the + participant button to enable it.";
+
+                string? result = null;
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    // Look up the participant by display name
+                    var ollamaTarget = _ollamaParticipants
+                        .FirstOrDefault(u => string.Equals(GetEffectiveName(u), target,
+                                             StringComparison.OrdinalIgnoreCase));
+                    var cloudTarget = ollamaTarget is null
+                        ? _cloudAIParticipants.FirstOrDefault(u =>
+                              string.Equals(GetEffectiveName(u), target,
+                                            StringComparison.OrdinalIgnoreCase))
+                        : null;
+
+                    if (ollamaTarget is null && cloudTarget is null)
+                    {
+                        var available = string.Join(", ",
+                            _ollamaParticipants .Select(GetEffectiveName).Concat(
+                            _cloudAIParticipants.Select(GetEffectiveName)));
+                        result = $"Error: no participant named '{target}' found. " +
+                                 $"Available: {available}";
+                        return;
+                    }
+
+                    var displayName = ollamaTarget is not null
+                        ? GetEffectiveName(ollamaTarget)
+                        : GetEffectiveName(cloudTarget!);
+
+                    AddSystemMessage($"🤫  MCP whispers something to {displayName}");
+                    DispatchPrivateTask(message, ollamaTarget, cloudTarget, displayName);
+                    result = $"✓ Whispered to '{displayName}' — only they will respond.";
+                });
+
+                return result ?? "Error: whisper dispatch failed.";
+            }
+        });
+
         // ── chat_wait_for_round - block until the current AI response round finishes ──
         AddTool(new McpTool
         {
@@ -4222,6 +4295,7 @@ public partial class MainWindow : Window
         (null,                       "💬  Chat"),
         ("chat_get_history",         "Returns recent chat messages from the active ClaudetRelay chat. General chat is always accessible. Project chats require MCP Client to be enabled (add via + participant button)."),
         ("chat_post_message",        "Posts a message into the active chat as a named participant — appears as a bubble, saved to the log, visible to AI participants on their next turn. Set trigger_responses=false for messages directed at the human user."),
+        ("chat_post_whisper",        "Sends a private whisper to a single named participant — only they respond, others just see a 🤫 notice. Use for one-on-one tasks without triggering the whole group."),
         ("chat_wait_for_round",      "Waits until all AI participants finish responding in the current round, then returns the new messages. Call after chat_post_message to know when it is your turn to reply."),
     ];
 

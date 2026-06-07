@@ -83,6 +83,36 @@ public partial class MainWindow
         // Their cards (including stop buttons and pulse animations) stay in the panel
         // untouched.  We rebuild everything else immediately and schedule a deferred
         // full reinit (via _pendingParticipantReinit) that will run once generation ends.
+        //
+        // EXCEPTION: if a generating participant has been REMOVED from settings (kicked),
+        // cancel their CTS immediately so they stop mid-stream rather than finishing and
+        // then getting orphaned in a second auto-loop round.
+        var settings     = SettingsService.Load();
+        var settingsOllamaKeys = settings.Participants
+            .Where(p => p.Type == "Ollama")
+            .Select(p => (p.Model, p.ServerUrl))
+            .ToHashSet();
+        var settingsCloudKeys = settings.Participants
+            .Where(p => p.Type != "Ollama")
+            .Select(p => (p.Type, p.Model))
+            .ToHashSet();
+
+        // Cancel any generating participant that is no longer in settings (kicked)
+        foreach (var ui in _ollamaParticipants.Where(u => u.ActiveCts is not null))
+        {
+            if (!settingsOllamaKeys.Contains((ui.Data.Service.CurrentModel, ui.Data.Service.BaseUrl)))
+            {
+                ui.ActiveCts?.Cancel();
+            }
+        }
+        foreach (var ui in _cloudAIParticipants.Where(u => u.ActiveCts is not null))
+        {
+            if (!settingsCloudKeys.Contains((ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel)))
+            {
+                ui.ActiveCts?.Cancel();
+            }
+        }
+
         var activeOllamaKeys = _ollamaParticipants
             .Where(u => u.ActiveCts is not null)
             .Select(u => (u.Data.Service.CurrentModel, u.Data.Service.BaseUrl))
@@ -125,7 +155,6 @@ public partial class MainWindow
         _availableOllamaModels.Clear();
 
         // Re-add from settings — skip participants whose cards we just preserved
-        var settings = SettingsService.Load();
         _userName             = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
         _toneLevel            = settings.ToneLevel;
         _chattinessLevel      = settings.GlobalChattiness;
