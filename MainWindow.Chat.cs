@@ -3307,9 +3307,10 @@ public partial class MainWindow : Window
             bool ollamaHadReadOps = false;
             bool ollamaHadFetch   = false;
             string ollamaFinalText;
+            string? ollamaWebNote = null;
             var ollamaRawText = sb.ToString();
             if (!hidden)
-                (ollamaRawText, ollamaHadFetch) = await ProcessWebFetchTagsAsync(ollamaRawText, display, isLocalModel: true, ct);
+                (ollamaRawText, ollamaHadFetch, ollamaWebNote) = await ProcessWebFetchTagsAsync(ollamaRawText, display, isLocalModel: true, ct);
             if (!hidden && _currentProjectFolder is not null)
                 (ollamaFinalText, ollamaHadReadOps) = ProcessAIFileOperationTags(
                     ollamaRawText, display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName());
@@ -3337,6 +3338,8 @@ public partial class MainWindow : Window
             }
 
             _sharedHistory.Add(new CloudAIMessage("assistant", ollamaFinalText, GetEffectiveName(ui)));
+            if (!hidden && ollamaWebNote is not null)
+                _sharedHistory.Add(new CloudAIMessage("system", ollamaWebNote, "System"));
             if (!hidden)
             {
                 var ollamaLogEntry = new ChatLogEntry
@@ -3486,9 +3489,10 @@ public partial class MainWindow : Window
             bool cloudHadReadOps = false;
             bool cloudHadFetch   = false;
             string cloudFinalText;
+            string? cloudWebNote = null;
             var cloudRawText = sb.ToString();
             if (!hidden)
-                (cloudRawText, cloudHadFetch) = await ProcessWebFetchTagsAsync(cloudRawText, display, isLocalModel: false, ct);
+                (cloudRawText, cloudHadFetch, cloudWebNote) = await ProcessWebFetchTagsAsync(cloudRawText, display, isLocalModel: false, ct);
             if (!hidden && _currentProjectFolder is not null)
                 (cloudFinalText, cloudHadReadOps) = ProcessAIFileOperationTags(
                     cloudRawText, display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName());
@@ -3516,6 +3520,8 @@ public partial class MainWindow : Window
             }
 
             _sharedHistory.Add(new CloudAIMessage("assistant", cloudFinalText, GetEffectiveName(ui)));
+            if (!hidden && cloudWebNote is not null)
+                _sharedHistory.Add(new CloudAIMessage("system", cloudWebNote, "System"));
             if (!hidden)
             {
                 var cloudLogEntry = new ChatLogEntry
@@ -6303,7 +6309,14 @@ public partial class MainWindow : Window
     /// Replaces the tag with fetched plain-text content (or a failure/blocked message).
     /// Must be called before ProcessAIFileOperationTags so file-write tags see clean text.
     /// </summary>
-    private async Task<(string Text, bool HadSuccessfulFetch)> ProcessWebFetchTagsAsync(
+    // Detects common wrong-syntax web-fetch attempts (native tool-call formats)
+    private static readonly System.Text.RegularExpressions.Regex _badWebSyntaxRegex =
+        new System.Text.RegularExpressions.Regex(
+            @"<(?:tool_call|function_calls?|antml_function_calls?)\b|""tool_calls""\s*:\s*\[|<search\s+query=",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase |
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private async Task<(string Text, bool HadSuccessfulFetch, string? CorrectiveNote)> ProcessWebFetchTagsAsync(
         string response, string senderName, bool isLocalModel,
         CancellationToken ct = default)
     {
@@ -6318,7 +6331,22 @@ public partial class MainWindow : Window
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         var matches = tagRegex.Matches(response);
-        if (matches.Count == 0) return (response, false);
+        if (matches.Count == 0)
+        {
+            // Check whether the model tried a web fetch using unsupported native syntax
+            if (_webBrowsingEnabled && _badWebSyntaxRegex.IsMatch(response))
+            {
+                var note = $"[System note to {senderName}: Your response contained a web search " +
+                           $"attempt using syntax this application does not support. " +
+                           $"The ONLY format that works here is: " +
+                           $"<webfetch url=\"https://example.com/\"/> " +
+                           $"— do not use tool_call, function_calls, JSON tool syntax, or any other format.]";
+                AddSystemMessage($"⚠  {senderName} used unsupported web-fetch syntax — " +
+                                 $"injecting correction into context.");
+                return (response, false, note);
+            }
+            return (response, false, null);
+        }
 
         // Web browsing is off — replace all tags with a hint
         if (!_webBrowsingEnabled)
@@ -6335,6 +6363,7 @@ public partial class MainWindow : Window
         var maxChars         = isLocalModel ? webCfg.MaxCharsLocal : webCfg.MaxCharsCloud;
         var dateStr          = DateTime.Now.ToString("yyyy-MM-dd");
         bool anySuccessful   = false;
+        var fetchErrors      = new System.Text.StringBuilder();
 
         // Process each match — replace sequentially to preserve order
         foreach (System.Text.RegularExpressions.Match m in matches)
@@ -6367,6 +6396,11 @@ public partial class MainWindow : Window
                     catch { /* non-fatal – download still injected into chat */ }
                 }
             }
+            else
+            {
+                // Accumulate fetch errors so the model can be informed
+                fetchErrors.AppendLine($"  • {url} — {result.ErrorReason}");
+            }
 
             AddSystemMessage($"🌐  {senderName} → webfetch {new Uri(result.Url.Length > 0 ? result.Url : url).Host}" +
                              (result.Success ? $" ({result.Text.Length:N0} chars)" : $" — {result.ErrorReason}") +
@@ -6374,7 +6408,17 @@ public partial class MainWindow : Window
             response = response.Replace(m.Value, injection);
         }
 
-        return (response, anySuccessful);
+        // Build a corrective note for the model if any fetches failed
+        string? correctiveNote = null;
+        if (fetchErrors.Length > 0)
+        {
+            correctiveNote = $"[System note to {senderName}: The following web fetch(es) failed:\n" +
+                             fetchErrors.ToString().TrimEnd() +
+                             $"\nYou may retry with a corrected URL, try an alternative source, " +
+                             $"or let the user know the page could not be retrieved.]";
+        }
+
+        return (response, anySuccessful, correctiveNote);
     }
 
     /// <summary>
