@@ -3639,7 +3639,7 @@ public partial class MainWindow : Window
                     ModelName   = "external",
                     DisplayName = name,
                     AvatarLabel = avatarLabel,
-                    AccentKey   = "AccentPrimaryBrush",
+                    AccentKey   = "PrimaryAccentBrush",
                     BubbleKey   = "SecondaryBubbleBrush",
                     IsUser      = false,
                     Message     = message
@@ -3647,7 +3647,7 @@ public partial class MainWindow : Window
 
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    AddMessage(name, avatarLabel, "AccentPrimaryBrush", "SecondaryBubbleBrush", message, isUser: false);
+                    AddMessage(name, avatarLabel, "PrimaryAccentBrush", "SecondaryBubbleBrush", message, isUser: false);
                     ChatScrollViewer.ScrollToBottom();
                     AppendToProjectLog(entry);
                     AppendToGeneralLog(entry);
