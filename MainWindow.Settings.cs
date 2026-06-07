@@ -912,6 +912,9 @@ public partial class MainWindow
             _participantsWindow = null;
             // Snapshot live in-chat state BEFORE teardown so we can restore
             // "removed from chat" and "deactivated in chat" states afterwards.
+            // ReInitializeParticipants preserves cards for actively generating
+            // participants and sets _pendingParticipantReinit for a deferred
+            // full rebuild once their generation completes.
             var chatStates = SnapshotChatStates();
             ReInitializeParticipants();
             RestoreChatStates(chatStates);

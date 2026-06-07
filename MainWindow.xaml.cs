@@ -170,6 +170,11 @@ public partial class MainWindow : Window
     private readonly List<CloudAIMessage>                _sharedHistory       = [];
     private readonly Dictionary<string, ProviderRateLimiter> _rateLimiters    = new();
     private CancellationTokenSource?                     _streamCts;
+    /// <summary>
+    /// Set to true when the ParticipantsWindow is closed while generation is active.
+    /// ReInitializeParticipants() is deferred until the current generation completes.
+    /// </summary>
+    private bool                                         _pendingParticipantReinit;
     private List<string>                         _availableOllamaModels = [];
     private string?                              _currentThemePath;
     private string                               _userName              = "You";

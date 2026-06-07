@@ -79,27 +79,52 @@ public partial class MainWindow
 
     private void ReInitializeParticipants()
     {
-        _streamCts?.Cancel();
+        // ── Preserve cards for any participant that is actively generating ────────
+        // Their cards (including stop buttons and pulse animations) stay in the panel
+        // untouched.  We rebuild everything else immediately and schedule a deferred
+        // full reinit (via _pendingParticipantReinit) that will run once generation ends.
+        var activeOllamaKeys = _ollamaParticipants
+            .Where(u => u.ActiveCts is not null)
+            .Select(u => (u.Data.Service.CurrentModel, u.Data.Service.BaseUrl))
+            .ToHashSet();
+        var activeCloudKeys = _cloudAIParticipants
+            .Where(u => u.ActiveCts is not null)
+            .Select(u => (u.Data.Service.ProviderName, u.Data.Service.CurrentModel))
+            .ToHashSet();
 
-        // Remove Cloud AI cards
+        bool hasActive = activeOllamaKeys.Count > 0 || activeCloudKeys.Count > 0;
+
+        // Only cancel the global CTS if no participant is actively generating.
+        // If some are, we leave their streams running; _pendingParticipantReinit
+        // will finish the job once they complete.
+        if (!hasActive)
+            _streamCts?.Cancel();
+
+        // Remove Cloud AI cards that are NOT currently generating
         foreach (var ui in _cloudAIParticipants.ToList())
         {
+            if (activeCloudKeys.Contains((ui.Data.Service.ProviderName, ui.Data.Service.CurrentModel)))
+                continue;
             ParticipantsPanel.Children.Remove(ui.Popup);
             ParticipantsPanel.Children.Remove(ui.Card);
             ui.Data.Service.Dispose();
         }
-        _cloudAIParticipants.Clear();
+        _cloudAIParticipants.RemoveAll(u =>
+            !activeCloudKeys.Contains((u.Data.Service.ProviderName, u.Data.Service.CurrentModel)));
 
-        // Remove Ollama cards
+        // Remove Ollama cards that are NOT currently generating
         foreach (var ui in _ollamaParticipants.ToList())
         {
+            if (activeOllamaKeys.Contains((ui.Data.Service.CurrentModel, ui.Data.Service.BaseUrl)))
+                continue;
             ParticipantsPanel.Children.Remove(ui.Popup);
             ParticipantsPanel.Children.Remove(ui.Card);
         }
-        _ollamaParticipants.Clear();
+        _ollamaParticipants.RemoveAll(u =>
+            !activeOllamaKeys.Contains((u.Data.Service.CurrentModel, u.Data.Service.BaseUrl)));
         _availableOllamaModels.Clear();
 
-        // Re-add from settings
+        // Re-add from settings — skip participants whose cards we just preserved
         var settings = SettingsService.Load();
         _userName             = string.IsNullOrWhiteSpace(settings.UserName) ? "You" : settings.UserName.Trim();
         _toneLevel            = settings.ToneLevel;
@@ -114,15 +139,44 @@ public partial class MainWindow
         foreach (var p in settings.Participants.Where(p => p.Enabled))
         {
             if (p.Type == "Ollama")
+            {
+                // Skip if this model+server is already preserved (currently generating)
+                if (activeOllamaKeys.Contains((p.Model, p.ServerUrl))) continue;
                 AddOllamaParticipant(p.Model, p.ServerUrl, p.Name, p.OllamaNumCtx, p.OllamaNumPredict);
+            }
             else
+            {
+                // Skip if this provider+model is already preserved (currently generating)
+                if (activeCloudKeys.Contains((p.Type, p.Model))) continue;
                 AddCloudAIParticipant(p.Type, p.Model, p.Name, p.ServerUrl, p.CloudMaxTokens);
+            }
         }
 
         UpdateAddRemoveButtons();
         UpdateCloudAIAddRemoveButtons();
         RefreshWelcomeHint();
         _ = CheckAllStatusAsync();
+
+        // If any generating participants were skipped, schedule a deferred full reinit
+        // so their cards are properly rebuilt once generation completes.
+        if (hasActive)
+            _pendingParticipantReinit = true;
+    }
+
+    /// <summary>
+    /// If the ParticipantsWindow was closed while generation was active, the card
+    /// teardown was deferred.  Call this at the end of every generation finally-block
+    /// (after SetGeneratingState(false)) to apply those pending changes.
+    /// </summary>
+    private void FlushPendingParticipantReinit()
+    {
+        if (!_pendingParticipantReinit) return;
+        _pendingParticipantReinit = false;
+        // Generation has now finished — rebuild the cards that were preserved during
+        // the partial reinit so they match current settings cleanly.
+        var chatStates = SnapshotChatStates();
+        ReInitializeParticipants();
+        RestoreChatStates(chatStates);
     }
 
     // ── Per-project participant persistence ────────────────────────────────
@@ -1431,8 +1485,8 @@ public partial class MainWindow
 
         if (online)
         {
-            // Only set "Ready" if there is no active error badge - don't overwrite a live error
-            if (ui.ErrorBadge.Visibility == Visibility.Collapsed)
+            // Only set "Ready" if there is no active error badge and not currently generating
+            if (ui.ErrorBadge.Visibility == Visibility.Collapsed && ui.ActiveCts is null)
             {
                 ui.StatusLabel.Text       = !string.IsNullOrWhiteSpace(ui.Data.Mood) ? ui.Data.Mood : "Ready";
                 ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
@@ -1472,8 +1526,8 @@ public partial class MainWindow
         if (online)
         {
             ui.ModelLabel.Text = FormatModelDisplayName(ui.Data.Service.CurrentModel);
-            // Only set "Ready" if there is no active error badge - don't overwrite a live error
-            if (ui.ErrorBadge.Visibility == Visibility.Collapsed)
+            // Only set "Ready" if there is no active error badge and not currently generating
+            if (ui.ErrorBadge.Visibility == Visibility.Collapsed && ui.ActiveCts is null)
             {
                 ui.StatusLabel.Text       = !string.IsNullOrWhiteSpace(ui.Data.Mood) ? ui.Data.Mood : "Ready";
                 ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
@@ -1992,7 +2046,10 @@ public partial class MainWindow
 
         // Clear "Thinking..." status and hide per-card stop button
         if (statusLabel != null)
-            statusLabel.Text = "";
+        {
+            statusLabel.Text       = "";
+            statusLabel.Visibility = Visibility.Collapsed;
+        }
         if (stopButton != null)
             stopButton.Visibility = Visibility.Collapsed;
     }

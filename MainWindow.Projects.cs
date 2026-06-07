@@ -1040,6 +1040,7 @@ public partial class MainWindow
         SysIO.Directory.CreateDirectory(SysIO.Path.Combine(projFolder, "OUTPUT"));
         SysIO.Directory.CreateDirectory(SysIO.Path.Combine(projFolder, "AI-Characters"));
         SysIO.Directory.CreateDirectory(SysIO.Path.Combine(projFolder, "PROJECTSETTINGS"));
+        SysIO.Directory.CreateDirectory(SysIO.Path.Combine(projFolder, "DOWNLOADS"));
     }
 
     private void CloseCurrentProject()

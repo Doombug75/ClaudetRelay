@@ -1725,6 +1725,7 @@ public partial class MainWindow : Window
             _streamCts?.Dispose();
             _streamCts = null;
             SetGeneratingState(false);
+            FlushPendingParticipantReinit();
         }
 
         // History compression - after all streams finish, outside the CTS scope
@@ -2530,6 +2531,7 @@ public partial class MainWindow : Window
             _streamCts?.Dispose();
             _streamCts = null;
             SetGeneratingState(false);
+            FlushPendingParticipantReinit();
         }
 
         _workSessionFired = true;
@@ -2713,6 +2715,7 @@ public partial class MainWindow : Window
             _streamCts?.Dispose();
             _streamCts = null;
             SetGeneratingState(false);
+            FlushPendingParticipantReinit();
         }
 
         // The roadmap-building intro counts as the coordinator's greeting for this open.
@@ -2937,6 +2940,7 @@ public partial class MainWindow : Window
             _streamCts?.Dispose();
             _streamCts = null;
             SetGeneratingState(false);
+            FlushPendingParticipantReinit();
         }
     }
 
@@ -3301,10 +3305,11 @@ public partial class MainWindow : Window
             if (firstToken && !hidden) bubble!.StopThinking(); // empty response
             // Hidden streams are internal assessments - never write files or mutate roadmap.
             bool ollamaHadReadOps = false;
+            bool ollamaHadFetch   = false;
             string ollamaFinalText;
             var ollamaRawText = sb.ToString();
             if (!hidden)
-                ollamaRawText = await ProcessWebFetchTagsAsync(ollamaRawText, display, isLocalModel: true, ct);
+                (ollamaRawText, ollamaHadFetch) = await ProcessWebFetchTagsAsync(ollamaRawText, display, isLocalModel: true, ct);
             if (!hidden && _currentProjectFolder is not null)
                 (ollamaFinalText, ollamaHadReadOps) = ProcessAIFileOperationTags(
                     ollamaRawText, display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName());
@@ -3351,10 +3356,13 @@ public partial class MainWindow : Window
                 AppendToGeneralLog(ollamaLogEntry);
                 SpeakMessageIfEnabled(ui.Data.Service.CurrentModel, "Ollama", ollamaFinalText);
             }
-            // ── Auto-loop: re-invoke after file reads so AI can act on the results ─────
-            if (ollamaHadReadOps && !hidden && _loopDepth < MaxToolLoopDepth)
+            // ── Auto-loop: re-invoke after file reads or web fetches ──────────────────
+            if ((ollamaHadReadOps || ollamaHadFetch) && !hidden && _loopDepth < MaxToolLoopDepth)
             {
-                AddSystemMessage($"🔄  {display} received file results - continuing " +
+                var reason = ollamaHadFetch && ollamaHadReadOps ? "web fetch + file results"
+                           : ollamaHadFetch ? "web fetch results"
+                           : "file results";
+                AddSystemMessage($"🔄  {display} received {reason} - continuing " +
                                  $"(step {_loopDepth + 2} of {MaxToolLoopDepth + 1} max)…");
                 return await RunOllamaStreamAsync(ui, ct, systemHint,
                     skipLatestUserMessage: false, hidden: false, _loopDepth: _loopDepth + 1);
@@ -3476,10 +3484,11 @@ public partial class MainWindow : Window
             if (firstToken && !hidden) bubble!.StopThinking();
             // Hidden streams are internal assessments - never write files or mutate roadmap.
             bool cloudHadReadOps = false;
+            bool cloudHadFetch   = false;
             string cloudFinalText;
             var cloudRawText = sb.ToString();
             if (!hidden)
-                cloudRawText = await ProcessWebFetchTagsAsync(cloudRawText, display, isLocalModel: false, ct);
+                (cloudRawText, cloudHadFetch) = await ProcessWebFetchTagsAsync(cloudRawText, display, isLocalModel: false, ct);
             if (!hidden && _currentProjectFolder is not null)
                 (cloudFinalText, cloudHadReadOps) = ProcessAIFileOperationTags(
                     cloudRawText, display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName());
@@ -3526,10 +3535,13 @@ public partial class MainWindow : Window
                 AppendToGeneralLog(cloudLogEntry);
                 SpeakMessageIfEnabled(model, ui.Data.Service.ProviderName, cloudFinalText);
             }
-            // ── Auto-loop: re-invoke after file reads so AI can act on the results ─────
-            if (cloudHadReadOps && !hidden && _loopDepth < MaxToolLoopDepth)
+            // ── Auto-loop: re-invoke after file reads or web fetches ──────────────────
+            if ((cloudHadReadOps || cloudHadFetch) && !hidden && _loopDepth < MaxToolLoopDepth)
             {
-                AddSystemMessage($"🔄  {display} received file results - continuing " +
+                var reason = cloudHadFetch && cloudHadReadOps ? "web fetch + file results"
+                           : cloudHadFetch ? "web fetch results"
+                           : "file results";
+                AddSystemMessage($"🔄  {display} received {reason} - continuing " +
                                  $"(step {_loopDepth + 2} of {MaxToolLoopDepth + 1} max)…");
                 return await RunCloudAIStreamAsync(ui, ct, systemHint,
                     skipLatestUserMessage: false, hidden: false, _loopDepth: _loopDepth + 1);
@@ -3620,7 +3632,11 @@ public partial class MainWindow : Window
                 $"Do not fabricate or assume facts you are uncertain about; acknowledge uncertainty honestly instead. " +
                 $"Messages from other AI participants are prefixed with their display name in square brackets. " +
                 $"IMPORTANT: Never prefix your own response with your name or any label — write directly without any '[Name]:' header. " +
-                $"Never write as, speak for, or impersonate another participant. You are {myName} and only ever respond in your own voice." +
+                $"Never write as, speak for, or impersonate another participant. You are {myName} and only ever respond in your own voice. " +
+                $"Never write fake quotes or fabricated dialogue attributed to other participants (e.g. never write '[OtherName]: ...'). " +
+                $"Never predict, summarise, or assume what another participant has said or will say — you can only see what is already in the conversation history. " +
+                $"Do not treat a number, fact, or conclusion stated by another participant as verified truth — if you have not confirmed it yourself, say so explicitly. " +
+                $"Group agreement is not evidence. If others converged on an answer you have not verified, disagree or flag the uncertainty rather than echoing it." +
                 BuildAppContextInstruction(forOllama: forUi) +
                 BuildProjectTypeContext() +
                 BuildRoleInstruction(myRole, reasoners, planners, researchers, critics, superRole) +
@@ -3699,7 +3715,11 @@ public partial class MainWindow : Window
             $"Do not fabricate or assume facts you are uncertain about; acknowledge uncertainty honestly instead. " +
             $"Messages from other AI participants are prefixed with their display name in square brackets. " +
             $"IMPORTANT: Never prefix your own response with your name or any label — write directly without any '[Name]:' header. " +
-            $"Never write as, speak for, or impersonate another participant. You are {myName} and only ever respond in your own voice." +
+            $"Never write as, speak for, or impersonate another participant. You are {myName} and only ever respond in your own voice. " +
+            $"Never write fake quotes or fabricated dialogue attributed to other participants (e.g. never write '[OtherName]: ...'). " +
+            $"Never predict, summarise, or assume what another participant has said or will say — you can only see what is already in the conversation history. " +
+            $"Do not treat a number, fact, or conclusion stated by another participant as verified truth — if you have not confirmed it yourself, say so explicitly. " +
+            $"Group agreement is not evidence. If others converged on an answer you have not verified, disagree or flag the uncertainty rather than echoing it." +
             BuildAppContextInstruction(forCloud: forUi) +
             BuildProjectTypeContext() +
             BuildRoleInstruction(myRole, reasoners, planners, researchers, critics, superRole) +
@@ -6277,7 +6297,7 @@ public partial class MainWindow : Window
     /// Replaces the tag with fetched plain-text content (or a failure/blocked message).
     /// Must be called before ProcessAIFileOperationTags so file-write tags see clean text.
     /// </summary>
-    private async Task<string> ProcessWebFetchTagsAsync(
+    private async Task<(string Text, bool HadSuccessfulFetch)> ProcessWebFetchTagsAsync(
         string response, string senderName, bool isLocalModel,
         CancellationToken ct = default)
     {
@@ -6286,22 +6306,23 @@ public partial class MainWindow : Window
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         var matches = tagRegex.Matches(response);
-        if (matches.Count == 0) return response;
+        if (matches.Count == 0) return (response, false);
 
         // Web browsing is off — replace all tags with a hint
         if (!_webBrowsingEnabled)
         {
-            return tagRegex.Replace(response, _ =>
-                "[Web access is available but currently disabled. Ask the user to enable the 🌐 button to allow web fetching.]");
+            return (tagRegex.Replace(response, _ =>
+                "[Web access is available but currently disabled. Ask the user to enable the 🌐 button to allow web fetching.]"), false);
         }
 
-        var settings  = SettingsService.Load();
-        var webCfg    = settings.WebBrowsing;
-        var whitelist = (_currentProject?.WebWhitelist is { Count: > 0 } pw)
+        var settings         = SettingsService.Load();
+        var webCfg           = settings.WebBrowsing;
+        var whitelist        = (_currentProject?.WebWhitelist is { Count: > 0 } pw)
             ? pw
             : webCfg.Whitelist;
-        var maxChars  = isLocalModel ? webCfg.MaxCharsLocal : webCfg.MaxCharsCloud;
-        var dateStr   = DateTime.Now.ToString("yyyy-MM-dd");
+        var maxChars         = isLocalModel ? webCfg.MaxCharsLocal : webCfg.MaxCharsCloud;
+        var dateStr          = DateTime.Now.ToString("yyyy-MM-dd");
+        bool anySuccessful   = false;
 
         // Process each match — replace sequentially to preserve order
         foreach (System.Text.RegularExpressions.Match m in matches)
@@ -6311,12 +6332,37 @@ public partial class MainWindow : Window
                 url, whitelist, webCfg.TimeoutSeconds, maxChars, ct);
 
             var injection = result.ToInjectionString(dateStr);
+
+            if (result.Success)
+            {
+                anySuccessful = true;
+
+                // In a project, persist successful fetches to DOWNLOADS/
+                if (_currentProjectFolder is not null)
+                {
+                    try
+                    {
+                        var dlFolder = SysIO.Path.Combine(_currentProjectFolder, "DOWNLOADS");
+                        SysIO.Directory.CreateDirectory(dlFolder);
+                        var host     = new Uri(result.Url.Length > 0 ? result.Url : url).Host
+                                           .Replace("www.", "");
+                        var stamp    = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                        var fileName = $"{host}_{stamp}.txt";
+                        var filePath = SysIO.Path.Combine(dlFolder, fileName);
+                        var header   = $"URL: {result.Url}\nFetched: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\nFetched by: {senderName}\n\n";
+                        SysIO.File.WriteAllText(filePath, header + result.Text, System.Text.Encoding.UTF8);
+                    }
+                    catch { /* non-fatal – download still injected into chat */ }
+                }
+            }
+
             AddSystemMessage($"🌐  {senderName} → webfetch {new Uri(result.Url.Length > 0 ? result.Url : url).Host}" +
-                             (result.Success ? $" ({result.Text.Length:N0} chars)" : $" — {result.ErrorReason}"));
+                             (result.Success ? $" ({result.Text.Length:N0} chars)" : $" — {result.ErrorReason}") +
+                             (result.Success && _currentProjectFolder is not null ? " → DOWNLOADS/" : ""));
             response = response.Replace(m.Value, injection);
         }
 
-        return response;
+        return (response, anySuccessful);
     }
 
     /// <summary>
