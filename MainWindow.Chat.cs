@@ -3359,18 +3359,22 @@ public partial class MainWindow : Window
                 AppendToGeneralLog(ollamaLogEntry);
                 SpeakMessageIfEnabled(ui.Data.Service.CurrentModel, "Ollama", ollamaFinalText);
             }
-            // ── Auto-loop: re-invoke after file reads or web fetches ──────────────────
-            if ((ollamaHadReadOps || ollamaHadFetch) && !hidden && _loopDepth < MaxToolLoopDepth)
+            // ── Auto-loop: re-invoke after file reads, web fetches, or syntax correction ──
+            if (!hidden && _loopDepth < MaxToolLoopDepth)
             {
-                var reason = ollamaHadFetch && ollamaHadReadOps ? "web fetch + file results"
-                           : ollamaHadFetch ? "web fetch results"
-                           : "file results";
-                AddSystemMessage($"🔄  {display} received {reason} - continuing " +
-                                 $"(step {_loopDepth + 2} of {MaxToolLoopDepth + 1} max)…");
-                return await RunOllamaStreamAsync(ui, ct, systemHint,
-                    skipLatestUserMessage: false, hidden: false, _loopDepth: _loopDepth + 1);
+                if (ollamaHadReadOps || ollamaHadFetch || ollamaWebNote is not null)
+                {
+                    var reason = ollamaHadFetch && ollamaHadReadOps ? "web fetch + file results"
+                               : ollamaHadFetch    ? "web fetch results"
+                               : ollamaHadReadOps  ? "file results"
+                               : "web fetch syntax correction";
+                    AddSystemMessage($"🔄  {display} received {reason} - continuing " +
+                                     $"(step {_loopDepth + 2} of {MaxToolLoopDepth + 1} max)…");
+                    return await RunOllamaStreamAsync(ui, ct, systemHint,
+                        skipLatestUserMessage: false, hidden: false, _loopDepth: _loopDepth + 1);
+                }
             }
-            // ─────────────────────────────────────────────────────────────────────────
+            // ────────────────────────────────────────────────────────────────────────────
             if (!hidden)
             {
                 OnParticipantResponded(ui);   // moodlet counter
@@ -3541,18 +3545,22 @@ public partial class MainWindow : Window
                 AppendToGeneralLog(cloudLogEntry);
                 SpeakMessageIfEnabled(model, ui.Data.Service.ProviderName, cloudFinalText);
             }
-            // ── Auto-loop: re-invoke after file reads or web fetches ──────────────────
-            if ((cloudHadReadOps || cloudHadFetch) && !hidden && _loopDepth < MaxToolLoopDepth)
+            // ── Auto-loop: re-invoke after file reads, web fetches, or syntax correction ──
+            if (!hidden && _loopDepth < MaxToolLoopDepth)
             {
-                var reason = cloudHadFetch && cloudHadReadOps ? "web fetch + file results"
-                           : cloudHadFetch ? "web fetch results"
-                           : "file results";
-                AddSystemMessage($"🔄  {display} received {reason} - continuing " +
-                                 $"(step {_loopDepth + 2} of {MaxToolLoopDepth + 1} max)…");
-                return await RunCloudAIStreamAsync(ui, ct, systemHint,
-                    skipLatestUserMessage: false, hidden: false, _loopDepth: _loopDepth + 1);
+                if (cloudHadReadOps || cloudHadFetch || cloudWebNote is not null)
+                {
+                    var reason = cloudHadFetch && cloudHadReadOps ? "web fetch + file results"
+                               : cloudHadFetch   ? "web fetch results"
+                               : cloudHadReadOps ? "file results"
+                               : "web fetch syntax correction";
+                    AddSystemMessage($"🔄  {display} received {reason} - continuing " +
+                                     $"(step {_loopDepth + 2} of {MaxToolLoopDepth + 1} max)…");
+                    return await RunCloudAIStreamAsync(ui, ct, systemHint,
+                        skipLatestUserMessage: false, hidden: false, _loopDepth: _loopDepth + 1);
+                }
             }
-            // ─────────────────────────────────────────────────────────────────────────
+            // ────────────────────────────────────────────────────────────────────────────
             if (!hidden)
             {
                 OnParticipantResponded(ui);   // moodlet counter
@@ -6352,7 +6360,7 @@ public partial class MainWindow : Window
         if (!_webBrowsingEnabled)
         {
             return (tagRegex.Replace(response, _ =>
-                "[Web access is available but currently disabled. Ask the user to enable the 🌐 button to allow web fetching.]"), false);
+                "[Web access is available but currently disabled. Ask the user to enable the 🌐 button to allow web fetching.]"), false, null);
         }
 
         var settings         = SettingsService.Load();
