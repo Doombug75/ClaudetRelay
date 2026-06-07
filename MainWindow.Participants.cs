@@ -32,7 +32,7 @@ public partial class MainWindow
             if (p.Type == "Ollama")
                 AddOllamaParticipant(p.Model, p.ServerUrl, p.Name, p.OllamaNumCtx, p.OllamaNumPredict);
             else
-                AddCloudAIParticipant(p.Type, p.Model, p.Name);
+                AddCloudAIParticipant(p.Type, p.Model, p.Name, p.ServerUrl, p.CloudMaxTokens);
         }
 
         // User display name & tone
@@ -116,7 +116,7 @@ public partial class MainWindow
             if (p.Type == "Ollama")
                 AddOllamaParticipant(p.Model, p.ServerUrl, p.Name, p.OllamaNumCtx, p.OllamaNumPredict);
             else
-                AddCloudAIParticipant(p.Type, p.Model, p.Name);
+                AddCloudAIParticipant(p.Type, p.Model, p.Name, p.ServerUrl, p.CloudMaxTokens);
         }
 
         UpdateAddRemoveButtons();
@@ -174,6 +174,79 @@ public partial class MainWindow
         catch { /* non-fatal - settings will re-save next time */ }
     }
 
+    // ── Chat-state snapshot / restore ─────────────────────────────────────────
+    // Used to preserve in-session "removed from chat" and "deactivated in chat"
+    // states across a ParticipantsWindow open/close cycle.
+
+    private record ChatParticipantState(string Type, string Model, string ServerUrl, bool IsEnabled);
+
+    /// <summary>
+    /// Captures the current live participant state: which participants are in the
+    /// chat panel and whether each is enabled. Call BEFORE ReInitializeParticipants().
+    /// </summary>
+    private List<ChatParticipantState> SnapshotChatStates()
+    {
+        var states = new List<ChatParticipantState>();
+        foreach (var ui in _cloudAIParticipants)
+            states.Add(new ChatParticipantState(
+                ui.Data.Service.ProviderName,
+                ui.Data.Service.CurrentModel,
+                "",
+                ui.Data.Enabled));
+        foreach (var ui in _ollamaParticipants)
+            states.Add(new ChatParticipantState(
+                "Ollama",
+                ui.Data.Service.CurrentModel,
+                ui.Data.Service.BaseUrl,
+                ui.Data.Enabled));
+        return states;
+    }
+
+    /// <summary>
+    /// Re-applies a previously snapshotted chat state after ReInitializeParticipants()
+    /// has rebuilt the panel from global settings.
+    /// • Participants not in the snapshot (removed from chat) are removed again.
+    /// • Participants that were disabled are disabled again.
+    /// </summary>
+    private void RestoreChatStates(List<ChatParticipantState> states)
+    {
+        // Remove participants that weren't in the chat before the reinit
+        foreach (var ui in _cloudAIParticipants.ToList())
+        {
+            bool wasPresent = states.Any(s =>
+                s.Type  == ui.Data.Service.ProviderName &&
+                s.Model == ui.Data.Service.CurrentModel);
+            if (!wasPresent) RemoveCloudAIParticipant(ui);
+        }
+        foreach (var ui in _ollamaParticipants.ToList())
+        {
+            bool wasPresent = states.Any(s =>
+                s.Type      == "Ollama" &&
+                s.Model     == ui.Data.Service.CurrentModel &&
+                s.ServerUrl == ui.Data.Service.BaseUrl);
+            if (!wasPresent) RemoveOllamaParticipant(ui);
+        }
+
+        // Re-apply disabled state for participants that were deactivated in-chat
+        foreach (var state in states.Where(s => !s.IsEnabled))
+        {
+            if (state.Type == "Ollama")
+            {
+                var ui = _ollamaParticipants.FirstOrDefault(u =>
+                    u.Data.Service.CurrentModel == state.Model &&
+                    u.Data.Service.BaseUrl      == state.ServerUrl);
+                if (ui is not null) OnOllamaEnabledChanged(ui, false);
+            }
+            else
+            {
+                var ui = _cloudAIParticipants.FirstOrDefault(u =>
+                    u.Data.Service.ProviderName == state.Type &&
+                    u.Data.Service.CurrentModel == state.Model);
+                if (ui is not null) OnCloudAIEnabledChanged(ui, false);
+            }
+        }
+    }
+
     /// <summary>
     /// Clears all current participants and re-adds from the saved list.
     /// Falls back to global settings if nothing from the list can be added.
@@ -206,7 +279,7 @@ public partial class MainWindow
             if (p.Type == "Ollama")
                 AddOllamaParticipant(p.Model, p.ServerUrl, p.Name, p.OllamaNumCtx, p.OllamaNumPredict);
             else
-                AddCloudAIParticipant(p.Type, p.Model, p.Name);
+                AddCloudAIParticipant(p.Type, p.Model, p.Name, p.ServerUrl, p.CloudMaxTokens);
         }
 
         // Apply saved enabled/disabled state (add functions default to enabled=true)
@@ -221,7 +294,7 @@ public partial class MainWindow
                 if (match is not null)
                 {
                     match.Data.Enabled  = false;
-                    match.Card.Opacity  = 0.6;
+                    match.Card.Opacity  = 0.45;
                 }
             }
             else
@@ -232,7 +305,7 @@ public partial class MainWindow
                 if (match is not null)
                 {
                     match.Data.Enabled  = false;
-                    match.Card.Opacity  = 0.6;
+                    match.Card.Opacity  = 0.45;
                 }
             }
         }
@@ -246,7 +319,7 @@ public partial class MainWindow
                 if (p.Type == "Ollama")
                     AddOllamaParticipant(p.Model, p.ServerUrl, p.Name, p.OllamaNumCtx, p.OllamaNumPredict);
                 else
-                    AddCloudAIParticipant(p.Type, p.Model, p.Name, p.ServerUrl);
+                    AddCloudAIParticipant(p.Type, p.Model, p.Name, p.ServerUrl, p.CloudMaxTokens);
             }
         }
 
@@ -261,12 +334,15 @@ public partial class MainWindow
     /// Used on first project open before any ActiveParticipants snapshot exists, so that
     /// participants unchecked in Project Settings start as disabled in the live session.
     /// </summary>
+    /// <summary>
+    /// Applies <see cref="ProjectParticipantRole.IsActive"/> to the live card grid.
+    /// Inactive roles → participant deactivated in chat.
+    /// Active roles   → participant re-enabled (so toggling IsActive on→off→on works correctly).
+    /// </summary>
     private void ApplyRoleActiveStatesToParticipants(List<ProjectParticipantRole> roles)
     {
         foreach (var role in roles)
         {
-            if (role.IsActive) continue; // already active — no action needed
-            // Try to match by display name, provider and model
             var cloudMatch = _cloudAIParticipants.FirstOrDefault(ui =>
                 (string.IsNullOrEmpty(role.DisplayName) ||
                  string.Equals(ui.Data.CustomName, role.DisplayName, StringComparison.OrdinalIgnoreCase)) &&
@@ -274,9 +350,7 @@ public partial class MainWindow
                 string.Equals(ui.Data.Service.CurrentModel, role.Model, StringComparison.OrdinalIgnoreCase));
             if (cloudMatch is not null)
             {
-                cloudMatch.Data.Enabled = false;
-                cloudMatch.Card.Opacity = 0.6;
-                if (cloudMatch.EnabledToggle is not null) cloudMatch.EnabledToggle.IsChecked = false;
+                OnCloudAIEnabledChanged(cloudMatch, role.IsActive);
                 continue;
             }
             var ollamaMatch = _ollamaParticipants.FirstOrDefault(ui =>
@@ -284,11 +358,7 @@ public partial class MainWindow
                  string.Equals(ui.Data.CustomName, role.DisplayName, StringComparison.OrdinalIgnoreCase)) &&
                 string.Equals(ui.Data.Service.CurrentModel, role.Model, StringComparison.OrdinalIgnoreCase));
             if (ollamaMatch is not null)
-            {
-                ollamaMatch.Data.Enabled = false;
-                ollamaMatch.Card.Opacity = 0.6;
-                if (ollamaMatch.EnabledToggle is not null) ollamaMatch.EnabledToggle.IsChecked = false;
-            }
+                OnOllamaEnabledChanged(ollamaMatch, role.IsActive);
         }
     }
 
@@ -311,7 +381,7 @@ public partial class MainWindow
                 if (match is not null)
                 {
                     match.Data.Enabled  = false;
-                    match.Card.Opacity  = 0.6;
+                    match.Card.Opacity  = 0.45;
                     if (match.EnabledToggle is not null)
                         match.EnabledToggle.IsChecked = false;
                 }
@@ -324,7 +394,7 @@ public partial class MainWindow
                 if (match is not null)
                 {
                     match.Data.Enabled  = false;
-                    match.Card.Opacity  = 0.6;
+                    match.Card.Opacity  = 0.45;
                     if (match.EnabledToggle is not null)
                         match.EnabledToggle.IsChecked = false;
                 }
@@ -332,7 +402,7 @@ public partial class MainWindow
         }
     }
 
-    private void AddCloudAIParticipant(string provider, string model = "", string customName = "", string serverUrl = "")
+    private void AddCloudAIParticipant(string provider, string model = "", string customName = "", string serverUrl = "", int cloudMaxTokens = 0)
     {
         if (_cloudAIParticipants.Count >= 20) return;
 
@@ -343,6 +413,7 @@ public partial class MainWindow
 
         var service = CreateCloudAIService(provider, apiKey, serverUrl);
         if (!string.IsNullOrEmpty(model)) service.CurrentModel = model;
+        if (cloudMaxTokens > 0) service.MaxTokens = cloudMaxTokens;
 
         var participant = new CloudAIParticipant
         {
@@ -552,45 +623,47 @@ public partial class MainWindow
 
         var statusLabelCloud = new TextBlock { FontSize = 10, Visibility = Visibility.Collapsed };
 
-        // ── Remove button ─────────────────────────────────────────────────
-        var removeButton = new Button
+        var stopButtonCloud = new Button
         {
-            Content           = "✕",
-            Width             = 22, Height = 22,
-            FontSize          = 10,
+            Content           = "⏹",
+            Width             = 16, Height = 16,
+            FontSize          = 8,
             BorderThickness   = new Thickness(0),
             Cursor            = Cursors.Hand,
             Padding           = new Thickness(0),
-            Visibility        = Visibility.Visible,
+            Visibility        = Visibility.Collapsed,
             VerticalAlignment = VerticalAlignment.Center,
-            ToolTip           = "Remove participant",
+            Margin            = new Thickness(5, 0, 0, 0),
+            ToolTip           = "Stop this model",
             Style             = (Style)FindResource("ModernButton")
         };
-        removeButton.SetResourceReference(Button.BackgroundProperty, "ControlHoverBrush");
-        removeButton.SetResourceReference(Button.ForegroundProperty, "ContentDimBrush");
+        stopButtonCloud.SetResourceReference(Button.BackgroundProperty, "AccentBgBrush");
+        stopButtonCloud.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
 
         // ── Layout ────────────────────────────────────────────────────────
+        // Status row: "Thinking..." label + per-card stop button inline
+        var statusRowCloud = new StackPanel { Orientation = Orientation.Horizontal };
+        statusRowCloud.Children.Add(statusLabelCloud);
+        statusRowCloud.Children.Add(stopButtonCloud);
+
         var labelPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         labelPanel.Children.Add(nameLabel);
         labelPanel.Children.Add(modelLabel);
         labelPanel.Children.Add(offlineLabel);
-        labelPanel.Children.Add(statusLabelCloud);
+        labelPanel.Children.Add(statusRowCloud);
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         Grid.SetColumn(avatarContainer, 0);
         Grid.SetColumn(labelPanel,      1);
         Grid.SetColumn(statusDot,       2);
-        Grid.SetColumn(removeButton,    3);
 
         grid.Children.Add(avatarContainer);
         grid.Children.Add(labelPanel);
         grid.Children.Add(statusDot);
-        grid.Children.Add(removeButton);
 
         // ── Badge row - themed pills in a horizontal strip below the main row ──
         var badgeRow = new StackPanel
@@ -660,18 +733,34 @@ public partial class MainWindow
             Padding    = new Thickness(10, 5, 10, 5),
             FontSize   = 12,
             FontFamily = new FontFamily("Segoe UI"),
-            Cursor     = Cursors.Hand
+            Cursor     = Cursors.Hand,
+            Visibility = Visibility.Collapsed   // shown only when a project is open
         };
         settingsLink.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
         settingsLink.SetResourceReference(Button.ForegroundProperty, "ContentTextBrush");
         settingsLink.SetResourceReference(Button.BorderBrushProperty, "ControlBorderBrush");
         settingsLink.Click += (_, _) =>
         {
-            // popup is declared below - safe to capture; lambda runs after assignment
             if (_currentProjectFolder is not null)
                 ShowProjectSettingsDialog(_currentProjectFolder,
                     _currentProject?.ProjectName ?? "");
         };
+
+        var popupRemoveSep = new Rectangle { Height = 1, Margin = new Thickness(0, 10, 0, 10) };
+        popupRemoveSep.SetResourceReference(Rectangle.FillProperty, "ControlBgBrush");
+
+        var removeButton = new Button
+        {
+            Content    = "👋  " + Properties.Loc.S("Participant_RemoveFromChat"),
+            Margin     = new Thickness(0, 0, 0, 0),
+            Padding    = new Thickness(10, 5, 10, 5),
+            FontSize   = 12,
+            FontFamily = new FontFamily("Segoe UI"),
+            Cursor     = Cursors.Hand
+        };
+        removeButton.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        removeButton.SetResourceReference(Button.ForegroundProperty, "AccentBgBrush");
+        removeButton.SetResourceReference(Button.BorderBrushProperty, "ControlBorderBrush");
 
         var popupContent = new StackPanel();
         popupContent.Children.Add(popupTitle);
@@ -682,6 +771,8 @@ public partial class MainWindow
         popupContent.Children.Add(infoModelKey);
         popupContent.Children.Add(infoModelVal);
         popupContent.Children.Add(settingsLink);
+        popupContent.Children.Add(popupRemoveSep);
+        popupContent.Children.Add(removeButton);
 
         var popupBorder = new Border
         {
@@ -701,7 +792,7 @@ public partial class MainWindow
             Placement          = PlacementMode.Right,
             HorizontalOffset   = 10,
             VerticalOffset     = -8,
-            StaysOpen          = false,
+            StaysOpen          = true,
             AllowsTransparency = true,
             Child              = popupBorder
         };
@@ -728,20 +819,28 @@ public partial class MainWindow
             Popup         = popup,
             PopupTitle    = popupTitle,
             EnabledToggle = enabledToggle,
-            RemoveButton  = removeButton
+            RemoveButton  = removeButton,
+            StopButton    = stopButtonCloud
         };
 
-        card.MouseLeftButtonDown += (_, _) =>
+        void OpenCloudPopup()
         {
-            enabledToggle.IsChecked = ui.Data.Enabled;
-            infoModelVal.Text       = FormatModelDisplayName(ui.Data.Service.CurrentModel);
-            popup.IsOpen            = !popup.IsOpen;
-        };
+            _suppressEnabledToggle     = true;
+            enabledToggle.IsChecked    = ui.Data.Enabled;
+            _suppressEnabledToggle     = false;
+            infoModelVal.Text          = FormatModelDisplayName(ui.Data.Service.CurrentModel);
+            settingsLink.Visibility    = _currentProjectFolder is not null ? Visibility.Visible : Visibility.Collapsed;
+            popup.IsOpen               = !popup.IsOpen;
+        }
 
-        enabledToggle.Checked   += (_, _) => OnCloudAIEnabledChanged(ui, true);
-        enabledToggle.Unchecked += (_, _) => OnCloudAIEnabledChanged(ui, false);
+        card.MouseLeftButtonDown  += (_, _) => OpenCloudPopup();
+        card.MouseRightButtonUp   += (_, e) => { OpenCloudPopup(); e.Handled = true; };
 
-        removeButton.Click += (_, _) => RemoveCloudAIParticipant(ui);
+        enabledToggle.Checked   += (_, _) => { if (!_suppressEnabledToggle) OnCloudAIEnabledChanged(ui, true);  };
+        enabledToggle.Unchecked += (_, _) => { if (!_suppressEnabledToggle) OnCloudAIEnabledChanged(ui, false); };
+
+        removeButton.Click    += (_, _) => { popup.IsOpen = false; RemoveCloudAIParticipant(ui); };
+        stopButtonCloud.Click += (_, _) => ui.ActiveCts?.Cancel();
 
         ParticipantsPanel.Children.Add(popup);
         ParticipantsPanel.Children.Add(card);
@@ -751,8 +850,50 @@ public partial class MainWindow
     private void OnCloudAIEnabledChanged(CloudAIParticipantUI ui, bool enabled)
     {
         ui.Data.Enabled = enabled;
-        double op = (enabled && ui.Data.IsOnline == true) ? 1.0 : 0.6;
+        double op = enabled && ui.Data.IsOnline == true ? 1.0 : enabled ? 0.6 : 0.45;
         AnimateStatusChange(ui.Card, op);
+
+        if (!enabled)
+        {
+            ui.StatusLabel.Text       = Properties.Loc.S("Status_Deactivated");
+            ui.StatusLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+            ui.StatusLabel.Visibility = Visibility.Visible;
+        }
+        else if (ui.Data.IsOnline == true)
+        {
+            ui.StatusLabel.Text       = !string.IsNullOrWhiteSpace(ui.Data.Mood) ? ui.Data.Mood : "Ready";
+            ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
+            ui.StatusLabel.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            ui.StatusLabel.Visibility = Visibility.Collapsed;
+        }
+
+        SortParticipantsByEnabledState();
+    }
+
+    // ── Participant sort ───────────────────────────────────────────────────────
+    /// <summary>Re-orders the ParticipantsPanel so disabled cards sink to the bottom.</summary>
+    private void SortParticipantsByEnabledState()
+    {
+        // Collect (popup, card) pairs in order: enabled first, disabled last.
+        // Each participant owns exactly two consecutive children: popup then card.
+        var cloudPairs = _cloudAIParticipants
+            .Select(p => (popup: (UIElement)p.Popup, card: (UIElement)p.Card, enabled: p.Data.Enabled));
+        var ollamaPairs = _ollamaParticipants
+            .Select(p => (popup: (UIElement)p.Popup, card: (UIElement)p.Card, enabled: p.Data.Enabled));
+
+        var sorted = cloudPairs.Concat(ollamaPairs)
+            .OrderByDescending(x => x.enabled)  // enabled = true sorts first
+            .ToList();
+
+        ParticipantsPanel.Children.Clear();
+        foreach (var (popup, card, _) in sorted)
+        {
+            ParticipantsPanel.Children.Add(popup);
+            ParticipantsPanel.Children.Add(card);
+        }
     }
 
     // ── Ollama participant management ──────────────────────────────────────
@@ -965,43 +1106,46 @@ public partial class MainWindow
 
         var statusLabelOllama = new TextBlock { FontSize = 10, Visibility = Visibility.Collapsed };
 
-        var removeButton = new Button
+        var stopButtonOllama = new Button
         {
-            Content           = "✕",
-            Width             = 22, Height = 22,
-            FontSize          = 10,
+            Content           = "⏹",
+            Width             = 16, Height = 16,
+            FontSize          = 8,
             BorderThickness   = new Thickness(0),
             Cursor            = Cursors.Hand,
             Padding           = new Thickness(0),
             Visibility        = Visibility.Collapsed,
             VerticalAlignment = VerticalAlignment.Center,
-            ToolTip           = "Remove participant",
+            Margin            = new Thickness(5, 0, 0, 0),
+            ToolTip           = "Stop this model",
             Style             = (Style)FindResource("ModernButton")
         };
-        removeButton.SetResourceReference(Button.BackgroundProperty, "ControlHoverBrush");
-        removeButton.SetResourceReference(Button.ForegroundProperty, "ContentDimBrush");
+        stopButtonOllama.SetResourceReference(Button.BackgroundProperty, "AccentBgBrush");
+        stopButtonOllama.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
+
+        // Status row: "Thinking..." label + per-card stop button inline
+        var statusRowOllama = new StackPanel { Orientation = Orientation.Horizontal };
+        statusRowOllama.Children.Add(statusLabelOllama);
+        statusRowOllama.Children.Add(stopButtonOllama);
 
         var labelPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         labelPanel.Children.Add(nameLabel);
         labelPanel.Children.Add(modelLabel);
         labelPanel.Children.Add(offlineLabel);
-        labelPanel.Children.Add(statusLabelOllama);
+        labelPanel.Children.Add(statusRowOllama);
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         Grid.SetColumn(avatarContainer, 0);
         Grid.SetColumn(labelPanel,      1);
         Grid.SetColumn(statusDot,       2);
-        Grid.SetColumn(removeButton,    3);
 
         grid.Children.Add(avatarContainer);
         grid.Children.Add(labelPanel);
         grid.Children.Add(statusDot);
-        grid.Children.Add(removeButton);
 
         // ── Badge row - themed pills in a horizontal strip below the main row ──
         var badgeRow = new StackPanel
@@ -1071,7 +1215,8 @@ public partial class MainWindow
             Padding    = new Thickness(10, 5, 10, 5),
             FontSize   = 12,
             FontFamily = new FontFamily("Segoe UI"),
-            Cursor     = Cursors.Hand
+            Cursor     = Cursors.Hand,
+            Visibility = Visibility.Collapsed   // shown only when a project is open
         };
         ollamaSettingsLink.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
         ollamaSettingsLink.SetResourceReference(Button.ForegroundProperty, "ContentTextBrush");
@@ -1083,6 +1228,22 @@ public partial class MainWindow
                     _currentProject?.ProjectName ?? "");
         };
 
+        var ollamaPopupRemoveSep = new Rectangle { Height = 1, Margin = new Thickness(0, 10, 0, 10) };
+        ollamaPopupRemoveSep.SetResourceReference(Rectangle.FillProperty, "ControlBgBrush");
+
+        var removeButton = new Button
+        {
+            Content    = "👋  " + Properties.Loc.S("Participant_RemoveFromChat"),
+            Margin     = new Thickness(0, 0, 0, 0),
+            Padding    = new Thickness(10, 5, 10, 5),
+            FontSize   = 12,
+            FontFamily = new FontFamily("Segoe UI"),
+            Cursor     = Cursors.Hand
+        };
+        removeButton.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        removeButton.SetResourceReference(Button.ForegroundProperty, "AccentBgBrush");
+        removeButton.SetResourceReference(Button.BorderBrushProperty, "ControlBorderBrush");
+
         var popupContent = new StackPanel();
         popupContent.Children.Add(popupTitle);
         popupContent.Children.Add(separator);
@@ -1092,6 +1253,8 @@ public partial class MainWindow
         popupContent.Children.Add(infoModelKey);
         popupContent.Children.Add(infoModelVal);
         popupContent.Children.Add(ollamaSettingsLink);
+        popupContent.Children.Add(ollamaPopupRemoveSep);
+        popupContent.Children.Add(removeButton);
 
         var popupBorder = new Border
         {
@@ -1111,7 +1274,7 @@ public partial class MainWindow
             Placement          = PlacementMode.Right,
             HorizontalOffset   = 10,
             VerticalOffset     = -8,
-            StaysOpen          = false,
+            StaysOpen          = true,
             AllowsTransparency = true,
             Child              = popupBorder
         };
@@ -1138,20 +1301,28 @@ public partial class MainWindow
             Popup         = popup,
             PopupTitle    = popupTitle,
             EnabledToggle = enabledToggle,
-            RemoveButton  = removeButton
+            RemoveButton  = removeButton,
+            StopButton    = stopButtonOllama
         };
 
-        card.MouseLeftButtonDown += (_, _) =>
+        void OpenOllamaPopup()
         {
-            enabledToggle.IsChecked = ui.Data.Enabled;
-            infoModelVal.Text       = FormatModelDisplayName(ui.Data.Service.CurrentModel);
-            popup.IsOpen            = !popup.IsOpen;
-        };
+            _suppressEnabledToggle        = true;
+            enabledToggle.IsChecked       = ui.Data.Enabled;
+            _suppressEnabledToggle        = false;
+            infoModelVal.Text             = FormatModelDisplayName(ui.Data.Service.CurrentModel);
+            ollamaSettingsLink.Visibility = _currentProjectFolder is not null ? Visibility.Visible : Visibility.Collapsed;
+            popup.IsOpen                  = !popup.IsOpen;
+        }
 
-        enabledToggle.Checked   += (_, _) => OnOllamaEnabledChanged(ui, true);
-        enabledToggle.Unchecked += (_, _) => OnOllamaEnabledChanged(ui, false);
+        card.MouseLeftButtonDown += (_, _) => OpenOllamaPopup();
+        card.MouseRightButtonUp  += (_, e) => { OpenOllamaPopup(); e.Handled = true; };
 
-        removeButton.Click += (_, _) => RemoveOllamaParticipant(ui);
+        enabledToggle.Checked   += (_, _) => { if (!_suppressEnabledToggle) OnOllamaEnabledChanged(ui, true);  };
+        enabledToggle.Unchecked += (_, _) => { if (!_suppressEnabledToggle) OnOllamaEnabledChanged(ui, false); };
+
+        removeButton.Click     += (_, _) => { popup.IsOpen = false; RemoveOllamaParticipant(ui); };
+        stopButtonOllama.Click += (_, _) => ui.ActiveCts?.Cancel();
 
         ParticipantsPanel.Children.Add(popup);
         ParticipantsPanel.Children.Add(card);
@@ -1161,8 +1332,27 @@ public partial class MainWindow
     private void OnOllamaEnabledChanged(OllamaParticipantUI ui, bool enabled)
     {
         ui.Data.Enabled = enabled;
-        double op = (enabled && ui.Data.IsOnline == true) ? 1.0 : 0.6;
+        double op = enabled && ui.Data.IsOnline == true ? 1.0 : enabled ? 0.6 : 0.45;
         AnimateStatusChange(ui.Card, op);
+
+        if (!enabled)
+        {
+            ui.StatusLabel.Text       = Properties.Loc.S("Status_Deactivated");
+            ui.StatusLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+            ui.StatusLabel.Visibility = Visibility.Visible;
+        }
+        else if (ui.Data.IsOnline == true)
+        {
+            ui.StatusLabel.Text       = !string.IsNullOrWhiteSpace(ui.Data.Mood) ? ui.Data.Mood : "Ready";
+            ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
+            ui.StatusLabel.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            ui.StatusLabel.Visibility = Visibility.Collapsed;
+        }
+
+        SortParticipantsByEnabledState();
     }
 
     // ── Status ─────────────────────────────────────────────────────────────
@@ -1239,7 +1429,7 @@ public partial class MainWindow
             ui.ErrorBadge.Visibility  = Visibility.Collapsed;
         }
 
-        double targetOpacity = (online && ui.Data.Enabled) ? 1.0 : 0.6;
+        double targetOpacity = online && ui.Data.Enabled ? 1.0 : !ui.Data.Enabled ? 0.45 : 0.6;
 
         if (changed)
         {
@@ -1280,7 +1470,7 @@ public partial class MainWindow
             ui.ErrorBadge.Visibility  = Visibility.Collapsed;
         }
 
-        double targetOpacity = (online && ui.Data.Enabled) ? 1.0 : 0.6;
+        double targetOpacity = online && ui.Data.Enabled ? 1.0 : !ui.Data.Enabled ? 0.45 : 0.6;
 
         if (changed)
         {
@@ -1595,7 +1785,7 @@ public partial class MainWindow
                     else
                     {
                         var countBefore = _cloudAIParticipants.Count;
-                        AddCloudAIParticipant(cap.Type, cap.Model, cap.Name);
+                        AddCloudAIParticipant(cap.Type, cap.Model, cap.Name, cap.ServerUrl, cap.CloudMaxTokens);
                         if (_cloudAIParticipants.Count == countBefore)
                         {
                             AddSystemMessage($"⚠  Could not add {cap.Type} - no API key saved. Open ⋮ → Providers.");
@@ -1659,7 +1849,7 @@ public partial class MainWindow
                 if (curr.Type == "Ollama")
                     AddOllamaParticipant(curr.Model, curr.ServerUrl, curr.Name, curr.OllamaNumCtx, curr.OllamaNumPredict);
                 else
-                    AddCloudAIParticipant(curr.Type, curr.Model, curr.Name);
+                    AddCloudAIParticipant(curr.Type, curr.Model, curr.Name, curr.ServerUrl, curr.CloudMaxTokens);
             }
             else if (wasEnabled && !nowEnabled && prev is not null)
             {
@@ -1740,11 +1930,16 @@ public partial class MainWindow
     /// Starts the pulsing glow animation on a participant's avatar card.
     /// Also updates the status label to show "Busy..." while generating.
     /// </summary>
-    private void StartCardPulse(Border avatarBorder, TextBlock? statusLabel = null)
+    private void StartCardPulse(Border avatarBorder, TextBlock? statusLabel = null, Button? stopButton = null)
     {
-        // Show "Busy..." status if label provided
+        // Show "Thinking..." status and per-card stop button
         if (statusLabel != null)
-            statusLabel.Text = Properties.Loc.S("Status_Busy");
+        {
+            statusLabel.Text       = Properties.Loc.S("Status_Thinking");
+            statusLabel.Visibility = Visibility.Visible;
+        }
+        if (stopButton != null)
+            stopButton.Visibility = Visibility.Visible;
 
         var glow = new System.Windows.Media.Effects.DropShadowEffect
         {
@@ -1774,12 +1969,14 @@ public partial class MainWindow
     /// Removes the thinking-pulse glow from the avatar border.
     /// Also clears the "Busy..." status label if provided.
     /// </summary>
-    private void StopCardPulse(Border avatarBorder, TextBlock? statusLabel = null)
+    private void StopCardPulse(Border avatarBorder, TextBlock? statusLabel = null, Button? stopButton = null)
     {
         avatarBorder.Effect = null;
 
-        // Clear "Busy..." status if label provided
+        // Clear "Thinking..." status and hide per-card stop button
         if (statusLabel != null)
             statusLabel.Text = "";
+        if (stopButton != null)
+            stopButton.Visibility = Visibility.Collapsed;
     }
 }

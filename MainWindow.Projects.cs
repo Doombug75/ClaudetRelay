@@ -929,14 +929,11 @@ public partial class MainWindow
         if (loaded.ActiveParticipants is { Count: > 0 })
             ReInitializeParticipantsFrom(loaded.ActiveParticipants);
 
-        // For brand-new projects (no ActiveParticipants yet) that already have Roles
-        // configured via Project Settings, apply the IsActive flags from those roles to
-        // the live sidebar cards so unchecked participants start as disabled.
-        if ((loaded.ActiveParticipants is null || loaded.ActiveParticipants.Count == 0)
-            && loaded.Roles is { Count: > 0 })
-        {
+        // Always apply IsActive from Roles on top of whatever ActiveParticipants restored.
+        // This ensures a role marked inactive in Project Settings is honoured even if the
+        // last session snapshot had that participant enabled.
+        if (loaded.Roles is { Count: > 0 })
             ApplyRoleActiveStatesToParticipants(loaded.Roles);
-        }
 
         // Always snapshot current live participants into ActiveParticipants before
         // any coordinator automation fires.  For existing projects this is a no-op;
@@ -4852,6 +4849,29 @@ public partial class MainWindow
             }
         };
 
+        // ── Chat Behaviour toggles ─────────────────────────────────────────
+        var toggleEmotes = new CheckBox
+        {
+            Content   = Properties.Loc.S("ProjSettings_EmotesAllowed"),
+            IsChecked = ps.EmotesAllowed,
+            FontSize  = 13, FontFamily = new FontFamily("Segoe UI"),
+            Margin    = new Thickness(0, 0, 0, 4),
+            Foreground = (Brush)FindResource("ContentTextBrush"),
+            ToolTip   = Properties.Loc.S("ProjSettings_EmotesAllowedHint")
+        };
+
+        var toggleEmotesHint = new TextBlock
+        {
+            Text         = Properties.Loc.S("ProjSettings_EmotesAllowedHint"),
+            FontSize     = 11, FontFamily = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(20, 0, 0, 16),
+            Foreground   = (Brush)FindResource("ContentDimBrush")
+        };
+
+        root.Children.Add(toggleEmotes);
+        root.Children.Add(toggleEmotesHint);
+
         // ── Participant Roles ──────────────────────────────────────────────
         var rolesLabel = new TextBlock
         {
@@ -5292,7 +5312,8 @@ public partial class MainWindow
             foreach (var r in ps.Roles.Where(r => r.IsCoordinator))
                 r.IsReasoner = false;
 
-            ps.Description = descBox.Text.Trim();
+            ps.Description    = descBox.Text.Trim();
+            ps.EmotesAllowed  = toggleEmotes.IsChecked == true;
             ProjectService.SaveProject(projFolder, ps);
 
             // Keep live fields in sync if this is the currently open project
@@ -5303,6 +5324,11 @@ public partial class MainWindow
                 _projectSettings  = ps;
                 _currentProject   = ps;
                 RefreshParticipantBadges();
+
+                // Immediately apply IsActive changes to the live chat cards
+                // so participants unchecked in this dialog are deactivated right away.
+                if (ps.Roles is { Count: > 0 })
+                    ApplyRoleActiveStatesToParticipants(ps.Roles);
             }
 
             win.DialogResult = true;

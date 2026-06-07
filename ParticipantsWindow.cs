@@ -26,8 +26,9 @@ public class ParticipantsWindow : Window
     private TextBox?  _editRpmValueBox;
 
     // Temp storage for Ollama context-window controls
-    private TextBox? _editNumCtxBox;
-    private TextBox? _editNumPredictBox;
+    private TextBox?   _editNumCtxBox;
+    private TextBox?   _editNumPredictBox;
+    private TextBlock? _editNumCtxHint;
 
     // Provider types shown in the dropdown.
     // "Ollama ☁" is the internal type name used by OllamaOpenAIService / CreateCloudAIService.
@@ -810,10 +811,41 @@ public class ParticipantsWindow : Window
                 foreach (var m in models) modelCombo.Items.Add(m);
                 modelCombo.Text  = current.Length > 0 ? current : models.Count > 0 ? models[0] : "";
                 fetchStatus.Text = $"✓  {models.Count} model{(models.Count == 1 ? "" : "s")} found";
+
+                // For Ollama: auto-populate num_ctx from the model's reported context length
+                if (prov == "Ollama" && !string.IsNullOrEmpty(modelCombo.Text))
+                {
+                    var info = await new OllamaService(serverUrl).GetModelInfoAsync(modelCombo.Text, ct);
+                    if (info?.ContextLength > 0)
+                    {
+                        if (_editNumCtxBox  is not null) _editNumCtxBox.Text  = info.ContextLength.ToString();
+                        if (_editNumCtxHint is not null) _editNumCtxHint.Text = Properties.Loc.S("Participants_ContextSuggested") + $"{info.ContextLength:N0}";
+                    }
+                }
             }
             catch (OperationCanceledException) { /* dialog closed — discard results silently */ }
             catch (Exception ex)               { fetchStatus.Text = $"⚠  {ex.Message}"; }
             finally                            { fetchBtn.IsEnabled = true; }
+        };
+
+        // When the user manually picks a different model from the dropdown,
+        // refresh num_ctx from the new model's reported context length (Ollama only).
+        modelCombo.SelectionChanged += async (_, _) =>
+        {
+            if (ProvKey() != "Ollama" || modelCombo.SelectedItem is not string selectedModel
+                || string.IsNullOrEmpty(selectedModel) || _editNumCtxBox is null) return;
+            try
+            {
+                var serverUrl2 = urlBox.Text.Trim();
+                if (string.IsNullOrEmpty(serverUrl2)) serverUrl2 = "http://localhost:11434";
+                var info = await new OllamaService(serverUrl2).GetModelInfoAsync(selectedModel, dialogCts.Token);
+                if (info?.ContextLength > 0)
+                {
+                    _editNumCtxBox.Text  = info.ContextLength.ToString();
+                    if (_editNumCtxHint is not null) _editNumCtxHint.Text = Properties.Loc.S("Participants_ContextSuggested") + $"{info.ContextLength:N0}";
+                }
+            }
+            catch { /* ignore — Ollama might not be running */ }
         };
 
         // Auto-fetch on dialog open for providers that have no static model list
@@ -894,87 +926,136 @@ public class ParticipantsWindow : Window
         RebuildRpmSection();
         provCombo.SelectionChanged += (_, _) => RebuildRpmSection();
 
-        // ── Ollama context window (local Ollama only) ──────────────────────
-        var ollamaCtxSection = new StackPanel();
-        root.Children.Add(ollamaCtxSection);
+        // ── Token / context window settings (provider-aware) ──────────────
+        var tokenSection = new StackPanel();
+        root.Children.Add(tokenSection);
 
-        void RebuildOllamaCtxSection()
+        void RebuildTokenSection()
         {
-            ollamaCtxSection.Children.Clear();
+            tokenSection.Children.Clear();
             _editNumCtxBox     = null;
             _editNumPredictBox = null;
-            if (ProvKey() != "Ollama") return;
+            _editNumCtxHint    = null;
 
-            ollamaCtxSection.Children.Add(Lbl("🧠  Context Window"));
-
-            var ctxHint = new TextBlock
+            if (ProvKey() == "Ollama")
             {
-                Text = "num_ctx controls how many tokens the model holds in memory (input + output). " +
-                       "Increase this for long conversations. Most models support 8 192 – 32 768. " +
-                       "num_predict caps the reply length; -1 = unlimited.",
-                FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 0, 0, 6)
-            };
-            ctxHint.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
-            ollamaCtxSection.Children.Add(ctxHint);
+                // ── Local Ollama: num_ctx + num_predict ────────────────────
+                tokenSection.Children.Add(Lbl(Properties.Loc.S("Participants_ContextWindow")));
 
-            // num_ctx row
-            var ctxRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
-            ollamaCtxSection.Children.Add(ctxRow);
+                var ctxHint = new TextBlock
+                {
+                    Text = Properties.Loc.S("Participants_ContextWindowHint"),
+                    FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 0, 0, 6)
+                };
+                ctxHint.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+                tokenSection.Children.Add(ctxHint);
 
-            var ctxLbl = new TextBlock
+                // num_ctx row
+                var ctxRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+                tokenSection.Children.Add(ctxRow);
+
+                var ctxLbl = new TextBlock
+                {
+                    Text = "num_ctx", Width = 90, FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                ctxLbl.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
+                ctxRow.Children.Add(ctxLbl);
+
+                var ctxBox = new TextBox { Text = p.OllamaNumCtx.ToString(), Width = 80, VerticalAlignment = VerticalAlignment.Center };
+                if (win.TryFindResource("ModernTextBox") is Style ctxStyle) ctxBox.Style = ctxStyle;
+                ctxBox.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsAsciiDigit);
+                ctxRow.Children.Add(ctxBox);
+
+                var ctxTokens = new TextBlock
+                {
+                    Text = Properties.Loc.S("Participants_NumCtxSuffix"),
+                    FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                    VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0)
+                };
+                ctxTokens.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
+                ctxRow.Children.Add(ctxTokens);
+
+                var ctxHintLbl = new TextBlock
+                {
+                    Text = "", FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+                    VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0),
+                    FontStyle = FontStyles.Italic
+                };
+                ctxHintLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+                ctxRow.Children.Add(ctxHintLbl);
+                _editNumCtxHint = ctxHintLbl;
+
+                // num_predict row
+                var predRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+                tokenSection.Children.Add(predRow);
+
+                var predLbl = new TextBlock
+                {
+                    Text = "num_predict", Width = 90, FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                predLbl.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
+                predRow.Children.Add(predLbl);
+
+                var predBox = new TextBox { Text = p.OllamaNumPredict.ToString(), Width = 80, VerticalAlignment = VerticalAlignment.Center };
+                if (win.TryFindResource("ModernTextBox") is Style predStyle) predBox.Style = predStyle;
+                predBox.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsAsciiDigit);
+                predRow.Children.Add(predBox);
+
+                var predTokens = new TextBlock
+                {
+                    Text = Properties.Loc.S("Participants_NumPredictSuffix"),
+                    FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                    VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0)
+                };
+                predTokens.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
+                predRow.Children.Add(predTokens);
+
+                _editNumCtxBox     = ctxBox;
+                _editNumPredictBox = predBox;
+            }
+            else
             {
-                Text = "num_ctx", Width = 90, FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            ctxLbl.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
-            ctxRow.Children.Add(ctxLbl);
+                // ── Cloud / API provider: max_tokens only ──────────────────
+                tokenSection.Children.Add(Lbl(Properties.Loc.S("Participants_MaxReplyTokens")));
 
-            var ctxBox = new TextBox { Text = p.OllamaNumCtx.ToString(), Width = 80, VerticalAlignment = VerticalAlignment.Center };
-            if (win.TryFindResource("ModernTextBox") is Style ctxStyle) ctxBox.Style = ctxStyle;
-            ctxBox.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsAsciiDigit);
-            ctxRow.Children.Add(ctxBox);
+                var cloudHint = new TextBlock
+                {
+                    Text = Properties.Loc.S("Participants_MaxReplyTokensHint"),
+                    FontSize = 10, FontFamily = new FontFamily("Segoe UI"),
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 0, 0, 6)
+                };
+                cloudHint.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
+                tokenSection.Children.Add(cloudHint);
 
-            var ctxTokens = new TextBlock
-            {
-                Text = " tokens", FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0)
-            };
-            ctxTokens.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
-            ctxRow.Children.Add(ctxTokens);
+                var cloudRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+                tokenSection.Children.Add(cloudRow);
 
-            // num_predict row
-            var predRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-            ollamaCtxSection.Children.Add(predRow);
+                var cloudBox = new TextBox { Text = p.CloudMaxTokens.ToString(), Width = 80, VerticalAlignment = VerticalAlignment.Center };
+                if (win.TryFindResource("ModernTextBox") is Style cloudStyle) cloudBox.Style = cloudStyle;
+                cloudBox.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsAsciiDigit);
+                cloudRow.Children.Add(cloudBox);
 
-            var predLbl = new TextBlock
-            {
-                Text = "num_predict", Width = 90, FontSize = 12, FontFamily = new FontFamily("Segoe UI"),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            predLbl.SetResourceReference(TextBlock.ForegroundProperty, "ControlTextBrush");
-            predRow.Children.Add(predLbl);
+                var cloudSuffix = new TextBlock
+                {
+                    Text = Properties.Loc.S("Participants_NumCtxSuffix"),
+                    FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                    VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0)
+                };
+                cloudSuffix.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
+                cloudRow.Children.Add(cloudSuffix);
 
-            var predBox = new TextBox { Text = p.OllamaNumPredict.ToString(), Width = 80, VerticalAlignment = VerticalAlignment.Center };
-            if (win.TryFindResource("ModernTextBox") is Style predStyle) predBox.Style = predStyle;
-            predBox.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsAsciiDigit);
-            predRow.Children.Add(predBox);
-
-            var predTokens = new TextBlock
-            {
-                Text = " tokens  (0 = default,  -1 = unlimited)", FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0)
-            };
-            predTokens.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
-            predRow.Children.Add(predTokens);
-
-            _editNumCtxBox     = ctxBox;
-            _editNumPredictBox = predBox;
+                // Reuse _editNumPredictBox field — saves cleanly in the else branch below
+                _editNumPredictBox = cloudBox;
+            }
         }
 
-        RebuildOllamaCtxSection();
-        provCombo.SelectionChanged += (_, _) => RebuildOllamaCtxSection();
+        RebuildTokenSection();
+        provCombo.SelectionChanged += (_, _) => RebuildTokenSection();
 
         // ── Voice ──────────────────────────────────────────────────────────
         root.Children.Add(Lbl("🔊  TTS Voice"));
@@ -1133,13 +1214,19 @@ public class ParticipantsWindow : Window
                 p.RpmEnabled = false;   // Ollama — no throttle
             }
 
-            // Ollama context-window settings
+            // Token settings (provider-specific)
             if (p.Type == "Ollama")
             {
                 if (_editNumCtxBox is not null && int.TryParse(_editNumCtxBox.Text.Trim(), out var ctx) && ctx >= 0)
                     p.OllamaNumCtx = ctx;
                 if (_editNumPredictBox is not null && int.TryParse(_editNumPredictBox.Text.Trim(), out var pred))
                     p.OllamaNumPredict = pred;
+            }
+            else
+            {
+                // _editNumPredictBox is reused for the cloud max-tokens box
+                if (_editNumPredictBox is not null && int.TryParse(_editNumPredictBox.Text.Trim(), out var cloudTok) && cloudTok >= 0)
+                    p.CloudMaxTokens = cloudTok;
             }
 
             win.DialogResult = true;
@@ -1278,6 +1365,7 @@ public class ParticipantsWindow : Window
                     if (!string.IsNullOrEmpty(info.ParameterSize))     liveLines.Add((Properties.Loc.S("ModelInfo_Parameters"),   info.ParameterSize));
                     if (!string.IsNullOrEmpty(info.QuantizationLevel)) liveLines.Add((Properties.Loc.S("ModelInfo_Quantization"), info.QuantizationLevel));
                     if (!string.IsNullOrEmpty(info.Format))            liveLines.Add((Properties.Loc.S("ModelInfo_Format"),       info.Format));
+                    if (info.ContextLength > 0)                        liveLines.Add((Properties.Loc.S("ModelInfo_ContextWindow"), $"{info.ContextLength:N0} tokens"));
                     if (liveLines.Count > 0) AddInfoTable(livePanel, Properties.Loc.S("ModelInfo_LiveDetails"), liveLines);
                 }
                 catch { /* ignore — Ollama might not be running */ }

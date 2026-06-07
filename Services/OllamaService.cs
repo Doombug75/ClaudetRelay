@@ -49,7 +49,8 @@ public class OllamaService : IDisposable
 
     public record OllamaModelInfo(
         string Family, string ParameterSize, string QuantizationLevel, string Format,
-        long   SizeBytes = 0)
+        long   SizeBytes = 0,
+        int    ContextLength = 0)
     {
         /// <summary>Human-readable file size, e.g. "3.8 GB".</summary>
         public string SizeDisplay => SizeBytes <= 0 ? "" :
@@ -73,15 +74,50 @@ public class OllamaService : IDisposable
             var json = await resp.Content.ReadAsStringAsync(ct);
             using var doc = System.Text.Json.JsonDocument.Parse(json);
             if (!doc.RootElement.TryGetProperty("details", out var d)) return null;
-            // Size appears at root level in newer Ollama builds
-        long size = doc.RootElement.TryGetProperty("size", out var sz) ? sz.GetInt64() : 0;
 
-        return new OllamaModelInfo(
+            // Size appears at root level in newer Ollama builds
+            long size = doc.RootElement.TryGetProperty("size", out var sz) ? sz.GetInt64() : 0;
+
+            // Context length — check model_info first (Ollama 0.3+: keys like "llama.context_length",
+            // "qwen2.context_length", etc.), then fall back to parsing the parameters text field.
+            int contextLength = 0;
+            if (doc.RootElement.TryGetProperty("model_info", out var mi))
+            {
+                foreach (var prop in mi.EnumerateObject())
+                {
+                    if (prop.Name.EndsWith(".context_length", StringComparison.OrdinalIgnoreCase)
+                        && prop.Value.ValueKind == JsonValueKind.Number)
+                    {
+                        contextLength = prop.Value.GetInt32();
+                        break;
+                    }
+                }
+            }
+            // Fallback: "parameters" is a plain string that may contain "num_ctx <value>"
+            if (contextLength == 0
+                && doc.RootElement.TryGetProperty("parameters", out var paramEl)
+                && paramEl.GetString() is string paramStr)
+            {
+                foreach (var line in paramStr.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var parts = line.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length == 2
+                        && parts[0].Equals("num_ctx", StringComparison.OrdinalIgnoreCase)
+                        && int.TryParse(parts[1], out var nc))
+                    {
+                        contextLength = nc;
+                        break;
+                    }
+                }
+            }
+
+            return new OllamaModelInfo(
                 Family:            d.TryGetProperty("family",             out var f)  ? f.GetString()  ?? "" : "",
                 ParameterSize:     d.TryGetProperty("parameter_size",     out var ps) ? ps.GetString() ?? "" : "",
                 QuantizationLevel: d.TryGetProperty("quantization_level", out var ql) ? ql.GetString() ?? "" : "",
                 Format:            d.TryGetProperty("format",             out var fmt)? fmt.GetString()?? "" : "",
-                SizeBytes:         size);
+                SizeBytes:         size,
+                ContextLength:     contextLength);
         }
         catch { return null; }
     }

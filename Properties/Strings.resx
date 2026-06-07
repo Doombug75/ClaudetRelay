@@ -236,6 +236,9 @@
   <data name="FileCheckout_LockedBadge"     xml:space="preserve"><value>🔒 Locked</value></data>
   <data name="FileCheckout_LockedTip"       xml:space="preserve"><value>Checked out by {participant} ({mode}) — do not edit while the task is running</value></data>
   <data name="Status_Busy"                 xml:space="preserve"><value>Busy...</value></data>
+  <data name="Status_Thinking"             xml:space="preserve"><value>Thinking...</value></data>
+  <data name="Status_Deactivated"          xml:space="preserve"><value>Deactivated</value></data>
+  <data name="Participant_RemoveFromChat"  xml:space="preserve"><value>Remove from chat</value></data>
   <!-- ── General settings ─────────────────────────────────────────────────── -->
   <data name="Settings_FileCheckoutTimeout"     xml:space="preserve"><value>File Lock Timeout</value></data>
   <data name="Settings_FileCheckoutTimeoutHint" xml:space="preserve"><value>Minutes before an idle participant is reminded to release a file lock. Participants who are actively generating get an automatic 1-minute extension instead of a reminder.</value></data>
@@ -429,6 +432,13 @@
   <data name="Participants_Model"              xml:space="preserve"><value>MODEL</value></data>
   <data name="Participants_ServerUrl"          xml:space="preserve"><value>SERVER URL</value></data>
   <data name="Participants_RateLimiting"       xml:space="preserve"><value>RATE LIMITING</value></data>
+  <data name="Participants_ContextWindow"      xml:space="preserve"><value>🧠  CONTEXT WINDOW</value></data>
+  <data name="Participants_ContextWindowHint"  xml:space="preserve"><value>num_ctx controls how many tokens the model holds in memory (input + output combined). Increase for long conversations. Most models support 8 192 – 131 072. num_predict caps the reply length; -1 = unlimited.</value></data>
+  <data name="Participants_NumCtxSuffix"       xml:space="preserve"><value> tokens</value></data>
+  <data name="Participants_NumPredictSuffix"   xml:space="preserve"><value> tokens  (0 = Ollama default,  -1 = unlimited)</value></data>
+  <data name="Participants_ContextSuggested"   xml:space="preserve"><value>suggested: </value></data>
+  <data name="Participants_MaxReplyTokens"     xml:space="preserve"><value>MAX REPLY TOKENS</value></data>
+  <data name="Participants_MaxReplyTokensHint" xml:space="preserve"><value>Caps the length of each reply (max_tokens). 0 = use the provider's default (usually 4 096). Increase for long structured outputs; decrease to save cost.</value></data>
   <data name="Participants_LimitRpm"           xml:space="preserve"><value>Limit requests per minute</value></data>
   <data name="Participants_RpmSuffix"          xml:space="preserve"><value> rpm  —  this model only</value></data>
   <data name="Participants_StatusSection"      xml:space="preserve"><value>STATUS</value></data>
@@ -730,6 +740,8 @@ It will be removed from those boards automatically.</value></data>
   <data name="ProjSettings_FullManual"        xml:space="preserve"><value>Full Manual Mode</value></data>
   <data name="ProjSettings_FullManualTip"     xml:space="preserve"><value>Every active participant answers every user message - no coordinator automation.&#x0a;No SuperPowers calibration, no work-session greeting.&#x0a;Use when you want to manage all task assignments yourself.</value></data>
   <data name="ProjSettings_ResetRoadmap"      xml:space="preserve"><value>🗺 Reset roadmap planning (coordinator re-starts conversation on next open)</value></data>
+  <data name="ProjSettings_EmotesAllowed"     xml:space="preserve"><value>Allow /me emote actions in project chat</value></data>
+  <data name="ProjSettings_EmotesAllowedHint" xml:space="preserve"><value>Participants may use /me actions for emotion and roleplay (e.g. /me nods thoughtfully). Useful for creative writing, narrative, and roleplay projects. Off by default for work projects.</value></data>
   <data name="ProjSettings_ResponseLang"      xml:space="preserve"><value>RESPONSE LANGUAGE</value></data>
   <data name="ProjSettings_LangHint"          xml:space="preserve"><value>Empty = follow the conversation language</value></data>
   <data name="ProjSettings_MaxDepth"          xml:space="preserve"><value>MAX. DIALOG DEPTH</value></data>
@@ -808,5 +820,31 @@ It will be removed from those boards automatically.</value></data>
   <data name="CharEditor_Saved"               xml:space="preserve"><value>Character &quot;{0}&quot; saved to the Characters folder.</value></data>
   <data name="CharEditor_SavedTitle"          xml:space="preserve"><value>Saved</value></data>
   <data name="CharEditor_Reset"               xml:space="preserve"><value>↩ Reset</value></data>
+
+  <!-- ── Web Access Settings window ──────────────────────────────────────── -->
+  <data name="WebAccess_MenuTitle"            xml:space="preserve"><value>🌐  Web Access Settings</value></data>
+  <data name="WebAccess_WindowTitle"          xml:space="preserve"><value>Web Access Settings</value></data>
+  <data name="WebAccess_SectionDownloads"     xml:space="preserve"><value>Downloads</value></data>
+  <data name="WebAccess_AllowDownloads"       xml:space="preserve"><value>Allow downloads</value></data>
+  <data name="WebAccess_AllowDownloadsHint"   xml:space="preserve"><value>When unchecked, agents may read web pages but no files will be saved to disk.</value></data>
+  <data name="WebAccess_AutoAllowLabel"       xml:space="preserve"><value>Always allowed extensions</value></data>
+  <data name="WebAccess_AutoAllowHint"        xml:space="preserve"><value>Semicolon-separated file extensions downloaded without a prompt, e.g.  .txt;.md;.pdf;.readme</value></data>
+  <data name="WebAccess_AskLabel"             xml:space="preserve"><value>Ask before downloading</value></data>
+  <data name="WebAccess_AskHint"              xml:space="preserve"><value>Semicolon-separated file extensions that trigger a confirmation dialog, e.g.  .docx;.xlsx;.pdf</value></data>
+  <data name="WebAccess_ResetBtn"             xml:space="preserve"><value>Reset</value></data>
+  <data name="WebAccess_SectionFetch"         xml:space="preserve"><value>Fetch settings</value></data>
+  <data name="WebAccess_TimeoutLabel"         xml:space="preserve"><value>Timeout</value></data>
+  <data name="WebAccess_TimeoutSuffix"        xml:space="preserve"><value> s</value></data>
+  <data name="WebAccess_MaxCharsCloudLabel"   xml:space="preserve"><value>Max chars (cloud models)</value></data>
+  <data name="WebAccess_MaxCharsLocalLabel"   xml:space="preserve"><value>Max chars (local models)</value></data>
+  <data name="WebAccess_CharsSuffix"          xml:space="preserve"><value> chars</value></data>
+  <data name="WebAccess_SectionWhitelist"     xml:space="preserve"><value>Domain whitelist</value></data>
+  <data name="WebAccess_WhitelistHint"        xml:space="preserve"><value>Only these domains may be fetched. Subdomains are included automatically (e.g. wikipedia.org also covers en.wikipedia.org).</value></data>
+  <data name="WebAccess_ColDomain"            xml:space="preserve"><value>Domain</value></data>
+  <data name="WebAccess_ColEnabled"           xml:space="preserve"><value>On</value></data>
+  <data name="WebAccess_ColAllowDl"           xml:space="preserve"><value>Downloads</value></data>
+  <data name="WebAccess_AddDomainHint"        xml:space="preserve"><value>domain, e.g. wikipedia.org</value></data>
+  <data name="WebAccess_AddBtn"               xml:space="preserve"><value>Add</value></data>
+  <data name="WebAccess_RemoveBtn"            xml:space="preserve"><value>Remove</value></data>
 
 </root>

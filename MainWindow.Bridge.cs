@@ -2038,6 +2038,7 @@ public partial class MainWindow : Window
                     var key = WindowsCredentialManager.Load(capturedAgent.Provider) ?? "";
                     svc = CreateCloudAIService(capturedAgent.Provider, key, capturedAgent.ServerUrl);
                     svc.CurrentModel = capturedAgent.Model;
+                    if (capturedAgent.CloudMaxTokens > 0) svc.MaxTokens = capturedAgent.CloudMaxTokens;
                 }
 
                 agentHandlers[agent.Label] = async (msg, ct) =>
@@ -2080,6 +2081,7 @@ public partial class MainWindow : Window
                     var key = WindowsCredentialManager.Load(capturedAgent.Provider) ?? "";
                     dynSvc = CreateCloudAIService(capturedAgent.Provider, key, capturedAgent.ServerUrl);
                     dynSvc.CurrentModel = capturedAgent.Model;
+                    if (capturedAgent.CloudMaxTokens > 0) dynSvc.MaxTokens = capturedAgent.CloudMaxTokens;
                 }
                 return async (msg, c) =>
                 {

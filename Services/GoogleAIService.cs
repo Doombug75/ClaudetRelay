@@ -25,6 +25,10 @@ public sealed class GoogleAIService : ICloudAIService
 
     public string CurrentModel { get; set; } = DefaultModels[0];
 
+    /// <inheritdoc/>
+    /// 0 = use default (4096 sent to the API).
+    public int MaxTokens { get; set; } = 0;
+
     public GoogleAIService(string apiKey)
     {
         _apiKey = apiKey;
@@ -166,7 +170,7 @@ public sealed class GoogleAIService : ICloudAIService
         writer.WriteEndArray();
 
         writer.WriteStartObject("generationConfig");
-        writer.WriteNumber("maxOutputTokens", 4096);
+        writer.WriteNumber("maxOutputTokens", MaxTokens > 0 ? MaxTokens : 4096);
         writer.WriteEndObject();
 
         writer.WriteEndObject();

@@ -164,6 +164,12 @@ public class ProjectSettings
     /// </summary>
     public bool McpChatEnabled { get; set; } = false;
 
+    /// <summary>
+    /// When true, AI participants may use /me emote actions in project chat
+    /// (e.g. roleplay, creative writing, narrative projects). Default false.
+    /// </summary>
+    public bool EmotesAllowed { get; set; } = false;
+
     /// <summary>Legacy — no longer used. Kept so existing JSON round-trips cleanly.</summary>
     public string TeamPlan { get; set; } = "";
 
@@ -208,6 +214,13 @@ public class ProjectSettings
     ///   4 = Creativity Chaos — maximum autonomy; creative but still logically coherent
     /// </summary>
     public int AutonomyMode { get; set; } = 1;
+
+    /// <summary>
+    /// Project-specific web whitelist.
+    /// Empty list (default) = use the global whitelist from AppSettings.WebBrowsing.
+    /// Non-empty = used instead of the global list for this project.
+    /// </summary>
+    public List<WebWhitelistEntry> WebWhitelist { get; set; } = [];
 
     /// <summary>Looks up the role for a participant by provider + model (case-insensitive).
     /// Creates and registers a new empty role if none exists, using

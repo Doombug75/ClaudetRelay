@@ -755,6 +755,15 @@
                                         FontSize="13" Width="42" Padding="4,9"
                                         Margin="6,0,0,0"
                                         Click="AudioControlButton_Click"/>
+                                <Button x:Name="WebBrowsingButton"
+                                        Content="🌐"
+                                        Style="{StaticResource ModernButton}"
+                                        Background="{DynamicResource ControlBgBrush}"
+                                        Foreground="{DynamicResource SidebarDimBrush}"
+                                        FontSize="13" Width="42" Padding="4,9"
+                                        Margin="6,0,0,0"
+                                        ToolTip="Web browsing — OFF (click to enable)"
+                                        Click="WebBrowsingButton_Click"/>
                             </StackPanel>
                             <Button x:Name="SendButton" Grid.Row="1"
                                     Content="Send"

@@ -16,6 +16,9 @@ public abstract class OpenAICompatibleService : ICloudAIService
     public abstract string ProviderName { get; }
     public string CurrentModel { get; set; } = "";
 
+    /// <inheritdoc/>
+    public int MaxTokens { get; set; } = 0;
+
     protected readonly HttpClient _http;
     protected readonly string     _baseUrl;
 
@@ -121,6 +124,7 @@ public abstract class OpenAICompatibleService : ICloudAIService
         writer.WriteStartObject();
         writer.WriteString ("model",  CurrentModel);
         writer.WriteBoolean("stream", stream);
+        if (MaxTokens > 0) writer.WriteNumber("max_tokens", MaxTokens);
         writer.WriteStartArray("messages");
 
         if (!string.IsNullOrEmpty(system))

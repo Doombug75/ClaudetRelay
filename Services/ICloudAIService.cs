@@ -11,6 +11,13 @@ public interface ICloudAIService : IDisposable
 
     string CurrentModel { get; set; }
 
+    /// <summary>
+    /// Maximum tokens the model may generate in a single reply.
+    /// Maps to max_tokens (Anthropic/OpenAI) or maxOutputTokens (Google).
+    /// 0 = use provider default.
+    /// </summary>
+    int MaxTokens { get; set; }
+
     Task<string> SendAsync(
         IReadOnlyList<CloudAIMessage> messages,
         string? system = null,

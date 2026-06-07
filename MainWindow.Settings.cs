@@ -73,6 +73,8 @@ public partial class MainWindow
         menu.Items.Add(new Separator());
         BuildAudioMenuItems(menu);
         menu.Items.Add(new Separator());
+        BuildWebAccessMenuItem(menu);
+        menu.Items.Add(new Separator());
         menu.Items.Add(infoItem);
         menu.Items.Add(versionItem);
 
@@ -109,6 +111,20 @@ public partial class MainWindow
         menu.Items.Add(audioItem);
         menu.Items.Add(voiceItem);
         menu.Items.Add(asrItem);
+    }
+
+    private void BuildWebAccessMenuItem(ContextMenu menu)
+    {
+        var item = new MenuItem { Header = Properties.Loc.S("WebAccess_MenuTitle") };
+        item.Click += (_, _) => OpenWebAccessSettings();
+        menu.Items.Add(item);
+    }
+
+    internal void OpenWebAccessSettings()
+    {
+        var win = new WebAccessSettingsWindow(_currentThemePath) { Owner = this };
+        win.SourceInitialized += (_, _) => ApplyTitleBarTheme(win);
+        win.ShowDialog();
     }
 
     private void InitVoiceBackend()
@@ -894,13 +910,11 @@ public partial class MainWindow
         _participantsWindow.Closed += (_, _) =>
         {
             _participantsWindow = null;
+            // Snapshot live in-chat state BEFORE teardown so we can restore
+            // "removed from chat" and "deactivated in chat" states afterwards.
+            var chatStates = SnapshotChatStates();
             ReInitializeParticipants();
-            // If a project is open, restore its saved per-participant enabled/disabled states.
-            // ReInitializeParticipants re-adds everyone from global settings (all enabled);
-            // without this re-application, participants that were manually disabled in a project
-            // session would be activated again on every ParticipantsWindow close.
-            if (_currentProjectFolder is not null && _projectSettings?.ActiveParticipants is { Count: > 0 })
-                ApplyProjectParticipantEnabledStates(_projectSettings.ActiveParticipants);
+            RestoreChatStates(chatStates);
             var settingsAfter = SettingsService.Load();
             ApplyThrottleSettings(settingsAfter);
             ApplyChatFont(settingsAfter);

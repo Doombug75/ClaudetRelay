@@ -42,6 +42,13 @@ public class BridgeAgent
     /// <summary>Max tokens to generate per reply (num_predict). 0 = use Ollama default. Local Ollama only.</summary>
     public int OllamaNumPredict { get; set; } = 2048;
 
+    /// <summary>
+    /// Max tokens per reply for cloud / API providers (max_tokens / maxOutputTokens).
+    /// 0 = use the provider's built-in default (usually 4096).
+    /// Has no effect for local Ollama — use OllamaNumPredict instead.
+    /// </summary>
+    public int CloudMaxTokens { get; set; } = 0;
+
     public string Label => string.IsNullOrWhiteSpace(DisplayName) ? Model : DisplayName;
     public bool   IsLocal => string.Equals(Provider, "Ollama", StringComparison.OrdinalIgnoreCase);
 }
@@ -129,6 +136,9 @@ public class ParticipantConfig
 
     /// <summary>Max tokens to generate per reply (num_predict). 0 = use Ollama default. Local Ollama only.</summary>
     public int OllamaNumPredict { get; set; } = 2048;
+
+    /// <summary>Max tokens per reply for cloud / API providers. 0 = provider default.</summary>
+    public int CloudMaxTokens { get; set; } = 0;
 }
 
 public class AppSettings
@@ -384,6 +394,14 @@ public class AppSettings
     /// Leave empty to use the built-in editor.
     /// </summary>
     public string ExternalWorldEditorPath { get; set; } = "";
+
+    // ── Web browsing ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Web browsing settings — whitelist, timeout, per-model-type char limits, download rules.
+    /// The 🌐 toggle in the chat toolbar enables/disables access at runtime; this persists config only.
+    /// </summary>
+    public WebBrowsingSettings WebBrowsing { get; set; } = new();
 }
 
 public static class SettingsService

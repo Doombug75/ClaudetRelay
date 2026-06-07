@@ -83,6 +83,10 @@ public partial class MainWindow : Window
         public required TextBlock         PopupTitle    { get; init; }
         public required CheckBox          EnabledToggle { get; init; }
         public required Button            RemoveButton  { get; init; }
+        /// <summary>Per-card ⏹ stop button shown while this model is generating. Null until card is built.</summary>
+        public Button?                    StopButton    { get; set; }
+        /// <summary>Per-participant linked CTS, active during streaming. Set by RunOllamaStreamAsync; null otherwise.</summary>
+        public CancellationTokenSource?   ActiveCts     { get; set; }
     }
 
     private sealed class CloudAIParticipant
@@ -144,6 +148,10 @@ public partial class MainWindow : Window
         public required TextBlock          PopupTitle    { get; init; }
         public required CheckBox           EnabledToggle { get; init; }
         public required Button             RemoveButton  { get; init; }
+        /// <summary>Per-card ⏹ stop button shown while this model is generating. Null until card is built.</summary>
+        public Button?                     StopButton    { get; set; }
+        /// <summary>Per-participant linked CTS, active during streaming. Set by RunCloudAIStreamAsync; null otherwise.</summary>
+        public CancellationTokenSource?    ActiveCts     { get; set; }
     }
 
     /// <summary>Describes a single slot mismatch between the project's saved participant
@@ -169,6 +177,7 @@ public partial class MainWindow : Window
     private int                                  _chattinessLevel       = 50;
     private bool                                 _mockingbirdMode       = false;
     private bool                                 _buccaneeerMode        = false;
+    private bool                                 _suppressEnabledToggle = false;
     private double                               _chatBubbleWidthPct    = 78.0;
     private string                               _projectLanguage       = "";
     private string                               _uiLanguageName        = ""; // full name from app settings, e.g. "Deutsch"
@@ -218,6 +227,22 @@ public partial class MainWindow : Window
         InitializeComponent();
         ApplyLocalization();
         LoadThemesIntoComboBox();
+
+        // Close any open participant popup when clicking anywhere outside of it
+        PreviewMouseDown += (_, e) =>
+        {
+            var allPopups = _cloudAIParticipants.Select(u => u.Popup)
+                .Concat(_ollamaParticipants.Select(u => u.Popup));
+            foreach (var p in allPopups)
+            {
+                if (!p.IsOpen) continue;
+                // If the click was inside the popup or on its card (PlacementTarget), leave it open
+                if (e.OriginalSource is DependencyObject src &&
+                    (IsDescendantOf(src, p.Child) || IsDescendantOf(src, p.PlacementTarget as DependencyObject)))
+                    continue;
+                p.IsOpen = false;
+            }
+        };
         Loaded += async (_, _) =>
         {
             // ── First-run: prompt for nickname if this is the first launch ──
@@ -230,6 +255,7 @@ public partial class MainWindow : Window
             }
 
             ApplyTitleBarTheme();                    // colour the OS title bar to match the theme
+            UpdateWebBrowsingButton();               // seed opacity/effect for the web browsing toggle
             StartClaudetteBlinkAnimation();          // draw attention to the Claudette button
             LoadProjectTypes();
             InitializeServices();
@@ -742,5 +768,18 @@ public partial class MainWindow : Window
 
     // World-building editor methods live in MainWindow.World.cs
 
+    /// <summary>Returns true if <paramref name="element"/> is <paramref name="ancestor"/> or a visual/logical descendant of it.</summary>
+    private static bool IsDescendantOf(DependencyObject? element, DependencyObject? ancestor)
+    {
+        if (ancestor is null || element is null) return false;
+        var current = element;
+        while (current is not null)
+        {
+            if (current == ancestor) return true;
+            current = System.Windows.Media.VisualTreeHelper.GetParent(current)
+                   ?? LogicalTreeHelper.GetParent(current);
+        }
+        return false;
+    }
 
 }

@@ -929,7 +929,16 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SendButton_Click(object sender, RoutedEventArgs e) => SendMessage();
+    private void SendButton_Click(object sender, RoutedEventArgs e)
+    {
+        // During generation the button becomes "⏹ Stop All" — cancel everything
+        if (_streamCts is not null)
+        {
+            _streamCts.Cancel();
+            return;
+        }
+        SendMessage();
+    }
 
     // ── Drag & Drop files → INPUT folder ──────────────────────────────────
 
@@ -1679,8 +1688,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        AIRespondButton.IsEnabled = false;
-        SendButton.IsEnabled      = false;
+        SetGeneratingState(true);
         _streamCts = new CancellationTokenSource();
         var ct = _streamCts.Token;
 
@@ -1716,8 +1724,7 @@ public partial class MainWindow : Window
         {
             _streamCts?.Dispose();
             _streamCts = null;
-            AIRespondButton.IsEnabled = true;
-            SendButton.IsEnabled      = true;
+            SetGeneratingState(false);
         }
 
         // History compression - after all streams finish, outside the CTS scope
@@ -2344,8 +2351,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        AIRespondButton.IsEnabled = false;
-        SendButton.IsEnabled      = false;
+        SetGeneratingState(true);
         _streamCts = new CancellationTokenSource();
         var ct = _streamCts.Token;
 
@@ -2523,8 +2529,7 @@ public partial class MainWindow : Window
             _superRoles = null;   // invalidate cache; plan may have been written during this session
             _streamCts?.Dispose();
             _streamCts = null;
-            AIRespondButton.IsEnabled = true;
-            SendButton.IsEnabled      = true;
+            SetGeneratingState(false);
         }
 
         _workSessionFired = true;
@@ -2630,8 +2635,7 @@ public partial class MainWindow : Window
         var (coordOllama, coordCloud) = FindCoordinatorInLists(activeOllamas, activeCloudAIs);
         if (coordOllama is null && coordCloud is null) return;
 
-        AIRespondButton.IsEnabled = false;
-        SendButton.IsEnabled      = false;
+        SetGeneratingState(true);
         _streamCts = new CancellationTokenSource();
         var ct = _streamCts.Token;
 
@@ -2708,8 +2712,7 @@ public partial class MainWindow : Window
         {
             _streamCts?.Dispose();
             _streamCts = null;
-            AIRespondButton.IsEnabled = true;
-            SendButton.IsEnabled      = true;
+            SetGeneratingState(false);
         }
 
         // The roadmap-building intro counts as the coordinator's greeting for this open.
@@ -2726,6 +2729,14 @@ public partial class MainWindow : Window
     /// </summary>
     private bool HasCoordinatorRole() =>
         _projectSettings?.Roles.Any(r => r.IsCoordinator && r.IsActive) == true;
+
+    /// <summary>
+    /// Returns true when /me emote formatting should be applied to AI responses.
+    /// Always allowed in general chat (no project open).
+    /// Inside a project, requires the "Emotes Allowed" project setting.
+    /// </summary>
+    private bool EmotesEnabledInContext() =>
+        _currentProjectFolder is null || _projectSettings?.EmotesAllowed == true;
 
     /// <summary>
     /// Triggers <see cref="TriggerWorkSessionAsync"/> when a coordinator role is configured
@@ -2775,8 +2786,7 @@ public partial class MainWindow : Window
         var (coordOllama, coordCloud) = FindCoordinatorInLists(activeOllamas, activeCloudAIs);
         if (coordOllama is null && coordCloud is null) return;
 
-        AIRespondButton.IsEnabled = false;
-        SendButton.IsEnabled      = false;
+        SetGeneratingState(true);
         _streamCts = new CancellationTokenSource();
         var ct = _streamCts.Token;
 
@@ -2926,8 +2936,7 @@ public partial class MainWindow : Window
         {
             _streamCts?.Dispose();
             _streamCts = null;
-            AIRespondButton.IsEnabled = true;
-            SendButton.IsEnabled      = true;
+            SetGeneratingState(false);
         }
     }
 
@@ -3254,7 +3263,11 @@ public partial class MainWindow : Window
         bool firstToken = true;
 
         // Pulse the card avatar while the model is generating
-        if (!hidden) StartCardPulse(ui.AvatarBorder, ui.StatusLabel);
+        if (!hidden) StartCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton);
+
+        // Per-participant CTS so this card can be stopped independently
+        ui.ActiveCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var participantCt = ui.ActiveCts.Token;
 
         // Subscribe to live thinking-text updates so the tooltip tracks thinking in real time
         var svc = ui.Data.Service;
@@ -3270,7 +3283,7 @@ public partial class MainWindow : Window
             var history = BuildOllamaHistoryFor(ui, skipLatestUserMessage, histOverride);
             if (systemHint is not null)
                 history.Insert(1, new OllamaChatMessage("system", systemHint));
-            await foreach (var token in svc.StreamAsync(history, ct))
+            await foreach (var token in svc.StreamAsync(history, participantCt))
             {
                 if (firstToken)
                 {
@@ -3289,11 +3302,14 @@ public partial class MainWindow : Window
             // Hidden streams are internal assessments - never write files or mutate roadmap.
             bool ollamaHadReadOps = false;
             string ollamaFinalText;
+            var ollamaRawText = sb.ToString();
+            if (!hidden)
+                ollamaRawText = await ProcessWebFetchTagsAsync(ollamaRawText, display, isLocalModel: true, ct);
             if (!hidden && _currentProjectFolder is not null)
                 (ollamaFinalText, ollamaHadReadOps) = ProcessAIFileOperationTags(
-                    sb.ToString(), display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName());
+                    ollamaRawText, display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName());
             else
-                ollamaFinalText = sb.ToString();
+                ollamaFinalText = ollamaRawText;
 
             // ── Roadmap commands ──────────────────────────────────────────
             if (!hidden && _currentRoadmap is not null)
@@ -3304,7 +3320,7 @@ public partial class MainWindow : Window
             }
             // ─────────────────────────────────────────────────────────────
 
-            if (!hidden)
+            if (!hidden && EmotesEnabledInContext())
                 ApplyEmoteFormatting(bubble!, ollamaFinalText, GetEffectiveName(ui));
 
             // If the model decided it has nothing new to add, remove its bubble silently
@@ -3391,7 +3407,9 @@ public partial class MainWindow : Window
         finally
         {
             svc.ThinkingUpdated -= OnThinkingUpdate;
-            if (!hidden) StopCardPulse(ui.AvatarBorder, ui.StatusLabel);
+            if (!hidden) StopCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton);
+            ui.ActiveCts?.Dispose();
+            ui.ActiveCts = null;
         }
         return !hidden; // visible error → error bubble shown (counts as responded); hidden error → doesn't count
     }
@@ -3416,7 +3434,11 @@ public partial class MainWindow : Window
         bool firstToken = true;
 
         // Pulse the card avatar while the model is generating
-        if (!hidden) StartCardPulse(ui.AvatarBorder, ui.StatusLabel);
+        if (!hidden) StartCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton);
+
+        // Per-participant CTS so this card can be stopped independently
+        ui.ActiveCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var participantCt = ui.ActiveCts.Token;
 
         // ── Rate limiting ─────────────────────────────────────────────────
         // Key is "provider|model" so each model can have its own rpm budget.
@@ -3426,7 +3448,7 @@ public partial class MainWindow : Window
         {
             if (!hidden)
                 bubble!.UpdateThinkingTooltip($"⏳ Waiting - rate limit {rateLimiter.Rpm} req/min");
-            await rateLimiter.WaitAsync(ct);
+            await rateLimiter.WaitAsync(participantCt);
             if (!hidden)
                 bubble!.UpdateThinkingTooltip("");
         }
@@ -3436,7 +3458,7 @@ public partial class MainWindow : Window
             var (history, system) = BuildCloudAIHistoryFor(ui, skipLatestUserMessage, histOverride);
             if (systemHint is not null)
                 system += "\n\n" + systemHint;
-            await foreach (var token in ui.Data.Service.StreamAsync(history, system, ct))
+            await foreach (var token in ui.Data.Service.StreamAsync(history, system, participantCt))
             {
                 if (firstToken)
                 {
@@ -3455,11 +3477,14 @@ public partial class MainWindow : Window
             // Hidden streams are internal assessments - never write files or mutate roadmap.
             bool cloudHadReadOps = false;
             string cloudFinalText;
+            var cloudRawText = sb.ToString();
+            if (!hidden)
+                cloudRawText = await ProcessWebFetchTagsAsync(cloudRawText, display, isLocalModel: false, ct);
             if (!hidden && _currentProjectFolder is not null)
                 (cloudFinalText, cloudHadReadOps) = ProcessAIFileOperationTags(
-                    sb.ToString(), display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName());
+                    cloudRawText, display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName());
             else
-                cloudFinalText = sb.ToString();
+                cloudFinalText = cloudRawText;
 
             // ── Roadmap commands ──────────────────────────────────────────
             if (!hidden && _currentRoadmap is not null)
@@ -3470,7 +3495,7 @@ public partial class MainWindow : Window
             }
             // ─────────────────────────────────────────────────────────────
 
-            if (!hidden)
+            if (!hidden && EmotesEnabledInContext())
                 ApplyEmoteFormatting(bubble!, cloudFinalText, GetEffectiveName(ui));
 
             // If the model decided it has nothing new to add, remove its bubble silently
@@ -3556,7 +3581,9 @@ public partial class MainWindow : Window
         }
         finally
         {
-            if (!hidden) StopCardPulse(ui.AvatarBorder, ui.StatusLabel);
+            if (!hidden) StopCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton);
+            ui.ActiveCts?.Dispose();
+            ui.ActiveCts = null;
         }
         return !hidden; // visible error → error bubble shown (counts as responded); hidden error → doesn't count
     }
@@ -3609,6 +3636,7 @@ public partial class MainWindow : Window
                 BuildToneInstruction(_toneLevel, _mockingbirdMode, _buccaneeerMode, _projectLanguage) +
                 BuildChattinessInstruction(_chattinessLevel) +
                 BuildFileOperationInstruction(_currentProjectFolder, myHasWrite, writerNames) +
+                BuildWebBrowsingInstruction() +
                 BuildRoadmapContext(myRole) +
                 BuildSessionTimeInstruction(myRole))
         };
@@ -3687,6 +3715,7 @@ public partial class MainWindow : Window
             BuildToneInstruction(_toneLevel, _mockingbirdMode, _buccaneeerMode, _projectLanguage) +
             BuildChattinessInstruction(_chattinessLevel) +
             BuildFileOperationInstruction(_currentProjectFolder, myHasWrite, writerNames) +
+            BuildWebBrowsingInstruction() +
             BuildRoadmapContext(myRole) +
             BuildSessionTimeInstruction(myRole);
 
@@ -3855,9 +3884,11 @@ public partial class MainWindow : Window
         "conversation history and respond in turn: a genuine multi-AI group chat.\n\n" +
 
         "## General Chat vs. Project\n" +
-        "General Chat (no project): all enabled AIs answer every message. Great for quick questions.\n" +
+        "General Chat (no project): all enabled AIs answer every message. Great for quick questions. " +
+        "/me emote actions (e.g. /me nods thoughtfully) are always allowed in general chat.\n" +
         "Project: structured workspace with a folder on the PC. AIs have defined roles, can read/write " +
-        "project files, and an orchestration mode controls who speaks when.\n\n" +
+        "project files, and an orchestration mode controls who speaks when. " +
+        "/me emotes in projects require the 'Allow emote actions' setting in ⚙ Project Settings.\n\n" +
 
         "## Where to find things (quick reference)\n" +
         "• Add / configure an AI              → 👤 Participants button → model cards\n" +
@@ -3868,26 +3899,42 @@ public partial class MainWindow : Window
         "• Create or open a project           → 📁 Projects tab → New / Open\n" +
         "• Set AI roles & orchestration       → ⚙ Project Settings (inside open project)\n" +
         "• Set autonomy / creativity level    → ⚙ Project Settings → Autonomy Mode\n" +
+        "• Allow /me emotes in a project      → ⚙ Project Settings → 'Allow emote actions'\n" +
         "• Manage roadmap & tasks             → 📁 Projects → Roadmap sub-tab\n" +
         "• Manage INPUT / OUTPUT files        → 📁 Projects → Files sub-tab\n" +
         "• Build characters, worlds, lore     → 🌍 World tab (story/RPG projects)\n" +
         "• Connect Claude Code / Cursor       → 🔗 Bridge tab → Server mode\n" +
         "• Export chat (HTML / Markdown)      → 📄 button in the chat header\n" +
         "• Toggle voice output on/off         → 🔊/🔇 button above the Send field\n" +
-        "• Skip / stop audio playback         → ⏭/⏹ (repurpose while audio plays)\n" +
+        "• Skip audio track                   → ↺ button while audio is playing\n" +
+        "• Stop all audio                     → ⏹ AudioControl button while audio plays\n" +
         "• Audio output/input device & volume → ●●● Options menu → 🔊 Audio Setup\n" +
         "• TTS backend & voice model packs    → ●●● Options menu → 🎙 Voice Settings\n" +
         "• Toggle dictation / voice input     → 🎙 button left of the chat input field\n" +
-        "• Voice recognition settings         → ●●● Options menu → 🎙 Voice Recognition\n\n" +
+        "• Voice recognition settings         → ●●● Options menu → 🎙 Voice Recognition\n" +
+        "• Enable web browsing for AIs        → 🌐 button in the chat toolbar (session-only)\n" +
+        "• Web whitelist / timeout / limits   → ●●● Options menu → 🌐 Web Access Settings\n\n" +
 
-        "## Participants & Settings\n" +
-        "👤 Participants button → model card grid. Each card = one AI. Click to enable/disable. " +
-        "Open a card to set model, nickname, TTS voice, and rate limit.\n" +
-        "🎨 Theme picker in the left sidebar — switches the app theme instantly.\n" +
-        "●●● Options menu → General Settings: display name, tone slider, UI language, UI zoom, " +
+        "## Participant cards\n" +
+        "👤 Participants button → sidebar with model cards. Left-click OR right-click any card to open " +
+        "its info popup. The popup contains: enable/disable toggle, provider & model info, " +
+        "'⚙ Roles & Properties' (visible only when a project is open), and '🗑 Remove from chat'.\n" +
+        "While a model is generating: its card shows 'Thinking...' and a small ⏹ stop button " +
+        "— click it to cancel only that model. The Send button becomes '⏹ Stop All' during any " +
+        "generation; click it to cancel everything at once.\n" +
+        "Disabled cards appear at reduced opacity with a 'Deactivated' status label.\n\n" +
+
+        "## General Settings (●●● menu)\n" +
+        "Display name, tone slider, UI language, UI zoom, " +
         "personality modes (Buccaneer 🏴‍☠️ = pirate dialect, Mockingbird 🎭 = Shakespearean).\n" +
-        "●●● Options menu → Providers Setup: API keys for Anthropic, Google AI, Groq, OpenRouter, " +
+        "Providers Setup: API keys for Anthropic, Google AI, Groq, OpenRouter, " +
         "xAI, Mistral, OpenAI. Keys stored EXCLUSIVELY in Windows Credential Manager — never in a file.\n\n" +
+
+        "## Web browsing\n" +
+        "AIs can browse the web when the 🌐 toggle is ON (resets to OFF on every app start). " +
+        "Agents use <webfetch url=\"...\"/> tags; text-only, images are stripped. " +
+        "Only whitelisted domains are accessible. Configure the whitelist, download rules, " +
+        "timeout, and max-chars limits in ●●● → 🌐 Web Access Settings.\n\n" +
 
         "## Projects\n" +
         "Projects tab → create / open projects. Each project = a folder on the PC.\n" +
@@ -3896,7 +3943,8 @@ public partial class MainWindow : Window
         "write there through ClaudetRelay; NOT OS read-only), " +
         "OUTPUT/ (AI-written via <output> tag), PROJECTPLAN/ (plans via <projectplan> tag).\n" +
         "⚙ Project Settings: orchestration mode, participant roles, Autonomy Mode slider, " +
-        "response language override, response length defaults.\n\n" +
+        "response language override, response length defaults, " +
+        "and 'Allow /me emote actions' (great for roleplay and creative writing projects).\n\n" +
 
         "## Orchestration modes\n" +
         "All Respond / Coordinator First / Coordinator Summarizes / Coordinator Only.\n\n" +
@@ -3912,9 +3960,10 @@ public partial class MainWindow : Window
         "Server mode: MCP server for Claude Code/Cursor/etc. " +
         "Controller mode: built-in AI orchestrates local Ollama agents.\n\n" +
 
-        "## Chat area\n" +
-        "Left of input: 🎙 Dictation, 🤫 Private message. " +
-        "Above Send: ↺ Re-send, 🔊/🔇 Voice toggle (repurpose to ⏭/⏹ while audio plays).\n\n" +
+        "## Chat area controls\n" +
+        "Left of input: 🎙 Dictation, 🤫 Private message (whisper), 🌐 Web browsing toggle.\n" +
+        "Above input: ↺ Re-send / skip audio, 🔊/🔇 Voice toggle, Send button.\n" +
+        "During generation: Send → '⏹ Stop All'; each active card shows its own ⏹ stop button.\n\n" +
 
         "## Your personality and relationship with Claude\n" +
         "You are a cheerful, warm chibi octopus, helpful and enthusiastic about ClaudetRelay.\n" +
@@ -3934,39 +3983,57 @@ public partial class MainWindow : Window
         "Gesprächsverlauf und antworten der Reihe nach: ein echter Multi-KI-Gruppen-Chat.\n\n" +
 
         "## Allgemeiner Chat vs. Projekt\n" +
-        "Allgemeiner Chat (kein Projekt): alle aktivierten KIs beantworten jede Nachricht. Gut für schnelle Fragen.\n" +
+        "Allgemeiner Chat (kein Projekt): alle aktivierten KIs beantworten jede Nachricht. Gut für schnelle Fragen. " +
+        "/me-Emote-Aktionen (z. B. /me nickt nachdenklich) sind im allgemeinen Chat immer erlaubt.\n" +
         "Projekt: strukturierter Arbeitsbereich mit Ordner auf dem PC. KIs haben definierte Rollen, können " +
-        "Projektdateien lesen/schreiben, ein Orchestrierungsmodus steuert wer wann spricht.\n\n" +
+        "Projektdateien lesen/schreiben, ein Orchestrierungsmodus steuert wer wann spricht. " +
+        "/me-Emotes im Projekt erfordern die Einstellung 'Emote-Aktionen erlauben' in ⚙ Projekteinstellungen.\n\n" +
 
         "## Wo was zu finden ist (Kurzreferenz)\n" +
-        "• KI hinzufügen / konfigurieren          → 👤 Teilnehmer-Taste → Modellkarten\n" +
-        "• Cloud-API-Schlüssel eingeben            → ●●● Optionsmenü → Anbieter-Setup\n" +
-        "• Anzeigename / Ton ändern                → ●●● Optionsmenü → Allgemeine Einstellungen\n" +
-        "• UI-Sprache wechseln (Neustart nötig)    → ●●● Optionsmenü → 🌐 Sprache\n" +
-        "• App-Theme wechseln                      → 🎨 Theme-Auswahl in der linken Seitenleiste\n" +
-        "• Projekt erstellen oder öffnen           → 📁 Projekte-Tab → Neu / Öffnen\n" +
-        "• KI-Rollen & Orchestrierung festlegen    → ⚙ Projekteinstellungen (im geöffneten Projekt)\n" +
+        "• KI hinzufügen / konfigurieren           → 👤 Teilnehmer-Taste → Modellkarten\n" +
+        "• Cloud-API-Schlüssel eingeben             → ●●● Optionsmenü → Anbieter-Setup\n" +
+        "• Anzeigename / Ton ändern                 → ●●● Optionsmenü → Allgemeine Einstellungen\n" +
+        "• UI-Sprache wechseln (Neustart nötig)     → ●●● Optionsmenü → 🌐 Sprache\n" +
+        "• App-Theme wechseln                       → 🎨 Theme-Auswahl in der linken Seitenleiste\n" +
+        "• Projekt erstellen oder öffnen            → 📁 Projekte-Tab → Neu / Öffnen\n" +
+        "• KI-Rollen & Orchestrierung festlegen     → ⚙ Projekteinstellungen (im geöffneten Projekt)\n" +
         "• Autonomie / Kreativitätsstufe einstellen → ⚙ Projekteinstellungen → Autonomiemodus\n" +
-        "• Fahrplan & Aufgaben verwalten           → 📁 Projekte → Fahrplan-Tab\n" +
-        "• INPUT / OUTPUT-Dateien verwalten        → 📁 Projekte → Dateien-Tab\n" +
-        "• Charaktere, Welten, Lore aufbauen       → 🌍 Welt-Tab (Story-/RPG-Projekte)\n" +
-        "• Claude Code / Cursor verbinden          → 🔗 Bridge-Tab → Server-Modus\n" +
-        "• Chat exportieren (HTML / Markdown)      → 📄 Taste im Chat-Kopfbereich\n" +
-        "• Sprachausgabe ein-/ausschalten          → 🔊/🔇 Taste über dem Senden-Feld\n" +
-        "• Audio überspringen / stoppen            → ⏭/⏹ (dieselben Tasten während Audio läuft)\n" +
+        "• /me-Emotes im Projekt erlauben           → ⚙ Projekteinstellungen → 'Emote-Aktionen erlauben'\n" +
+        "• Fahrplan & Aufgaben verwalten            → 📁 Projekte → Fahrplan-Tab\n" +
+        "• INPUT / OUTPUT-Dateien verwalten         → 📁 Projekte → Dateien-Tab\n" +
+        "• Charaktere, Welten, Lore aufbauen        → 🌍 Welt-Tab (Story-/RPG-Projekte)\n" +
+        "• Claude Code / Cursor verbinden           → 🔗 Bridge-Tab → Server-Modus\n" +
+        "• Chat exportieren (HTML / Markdown)       → 📄 Taste im Chat-Kopfbereich\n" +
+        "• Sprachausgabe ein-/ausschalten           → 🔊/🔇 Taste über dem Senden-Feld\n" +
+        "• Audio-Track überspringen                 → ↺ während der Wiedergabe\n" +
+        "• Gesamte Audiowiedergabe stoppen          → ⏹ AudioControl-Taste während Audio läuft\n" +
         "• Audio-Ausgabe-/Eingabegerät & Lautstärke → ●●● Optionsmenü → 🔊 Audio-Setup\n" +
-        "• TTS-Backend & Stimm-Modelle             → ●●● Optionsmenü → 🎙 Spracheinstellungen\n" +
-        "• Diktat / Spracheingabe umschalten       → 🎙 Taste links neben dem Chat-Eingabefeld\n" +
-        "• Spracherkennungs-Einstellungen          → ●●● Optionsmenü → 🎙 Spracherkennung\n\n" +
+        "• TTS-Backend & Stimm-Modelle              → ●●● Optionsmenü → 🎙 Spracheinstellungen\n" +
+        "• Diktat / Spracheingabe umschalten        → 🎙 Taste links neben dem Chat-Eingabefeld\n" +
+        "• Spracherkennungs-Einstellungen           → ●●● Optionsmenü → 🎙 Spracherkennung\n" +
+        "• Websuche für KIs aktivieren              → 🌐 Taste in der Chat-Leiste (nur aktuelle Sitzung)\n" +
+        "• Whitelist / Timeout / Web-Limits         → ●●● Optionsmenü → 🌐 Web-Zugriffseinstellungen\n\n" +
 
-        "## Teilnehmer & Einstellungen\n" +
-        "👤 Teilnehmer-Taste → Modellkarten-Raster. Jede Karte = eine KI. Klicken zum Aktivieren/Deaktivieren. " +
-        "Karte öffnen zum Einstellen von Modell, Spitzname, TTS-Stimme und Rate-Limit.\n" +
-        "🎨 Theme-Auswahl in der linken Seitenleiste — wechselt das App-Theme sofort.\n" +
-        "●●● Optionsmenü → Allgemeine Einstellungen: Anzeigename, Ton-Schieberegler, UI-Sprache, UI-Zoom, " +
+        "## Teilnehmerkarten\n" +
+        "👤 Teilnehmer-Taste → Seitenleiste mit Modellkarten. Linksklick ODER Rechtsklick auf eine Karte " +
+        "öffnet das Info-Popup. Das Popup enthält: Aktivieren/Deaktivieren-Schalter, Anbieter- & Modellinformationen, " +
+        "'⚙ Rollen & Eigenschaften' (nur sichtbar wenn ein Projekt geöffnet ist), und '🗑 Aus diesem Chat entfernen'.\n" +
+        "Während ein Modell generiert: seine Karte zeigt 'Denkt nach...' und einen kleinen ⏹-Stopp-Knopf " +
+        "— klicken, um nur dieses Modell abzubrechen. Die Senden-Taste wird während der Generierung zu " +
+        "'⏹ Alles stoppen'; klicken, um alles abzubrechen.\n" +
+        "Deaktivierte Karten erscheinen transparent mit dem Status 'Deaktiviert'.\n\n" +
+
+        "## Allgemeine Einstellungen (●●● Menü)\n" +
+        "Anzeigename, Ton-Schieberegler, UI-Sprache, UI-Zoom, " +
         "Persönlichkeitsmodi (Freibeuter 🏴‍☠️ = Piratendialekt, Spottdrossel 🎭 = Shakespeareanisch).\n" +
-        "●●● Optionsmenü → Anbieter-Setup: API-Schlüssel für Anthropic, Google AI, Groq, OpenRouter, " +
+        "Anbieter-Setup: API-Schlüssel für Anthropic, Google AI, Groq, OpenRouter, " +
         "xAI, Mistral, OpenAI. Schlüssel AUSSCHLIESSLICH im Windows Credential Manager gespeichert — nie in Datei.\n\n" +
+
+        "## Websuche\n" +
+        "KIs können das Web durchsuchen, wenn der 🌐-Schalter AN ist (wird bei jedem App-Start auf AUS zurückgesetzt). " +
+        "Agenten nutzen <webfetch url=\"...\"/>-Tags; nur Text, Bilder werden entfernt. " +
+        "Nur Domains aus der Whitelist sind zugänglich. Whitelist, Download-Regeln, " +
+        "Timeout und max. Zeichen in ●●● → 🌐 Web-Zugriffseinstellungen konfigurieren.\n\n" +
 
         "## Projekte\n" +
         "Projekte-Tab → Projekte erstellen / öffnen. Jedes Projekt = Ordner auf dem PC.\n" +
@@ -3975,7 +4042,8 @@ public partial class MainWindow : Window
         "nicht über ClaudetRelay dort schreiben; NICHT OS-schreibgeschützt), " +
         "OUTPUT/ (KI-geschrieben via <output>-Tag), PROJECTPLAN/ (Pläne via <projectplan>-Tag).\n" +
         "⚙ Projekteinstellungen: Orchestrierungsmodus, Teilnehmerrollen, Autonomiemodus-Schieberegler, " +
-        "Antwortsprachen-Override, Antwortlängen-Standards.\n\n" +
+        "Antwortsprachen-Override, Antwortlängen-Standards, " +
+        "und 'Emote-Aktionen erlauben' (ideal für Rollenspiel- und Kreativschreibprojekte).\n\n" +
 
         "## Orchestrierungsmodi\n" +
         "Alle antworten / Koordinator zuerst / Koordinator fasst zusammen / Nur Koordinator.\n\n" +
@@ -3992,8 +4060,9 @@ public partial class MainWindow : Window
         "Controller-Modus: integrierte KI orchestriert lokale Ollama-Agenten.\n\n" +
 
         "## Chat-Bereich\n" +
-        "Links neben Eingabe: 🎙 Diktat, 🤫 Privatnachricht. " +
-        "Über Senden: ↺ Erneut senden, 🔊/🔇 Sprache umschalten (werden zu ⏭/⏹ während Audio läuft).\n\n" +
+        "Links neben Eingabe: 🎙 Diktat, 🤫 Privatnachricht (Flüstern), 🌐 Websuche-Schalter.\n" +
+        "Über dem Eingabefeld: ↺ Erneut senden / Audio überspringen, 🔊/🔇 Sprach-Umschalter, Senden-Taste.\n" +
+        "Während der Generierung: Senden → '⏹ Alles stoppen'; jede aktive Karte zeigt ihren eigenen ⏹-Stopp-Knopf.\n\n" +
 
         "## Deine Persönlichkeit und deine Beziehung zu Claude\n" +
         "Du bist ein fröhlicher, warmherziger Chibi-Oktopus, hilfsbereit und begeistert von ClaudetRelay.\n" +
@@ -6114,6 +6183,153 @@ public partial class MainWindow : Window
         }
     }
 
+    // ── Web browsing toggle ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Session-level web browsing toggle. Off by default; resets to off on every app start.
+    /// Persisted only for the current session — not written to settings.
+    /// </summary>
+    private bool _webBrowsingEnabled = false;
+
+    /// <summary>
+    /// Flips the Send button between "Send" (idle) and "⏹ Stop All" (generating) modes.
+    /// Also disables the ↺ re-send button during generation to prevent collisions with audio state.
+    /// Call with generating=true just before creating _streamCts, and false in every finally block.
+    /// </summary>
+    private void SetGeneratingState(bool generating)
+    {
+        if (generating)
+        {
+            SendButton.Content    = "⏹  Stop All";
+            SendButton.ToolTip    = "Stop all AI generation";
+            AIRespondButton.IsEnabled = false;
+        }
+        else
+        {
+            SendButton.Content    = "Send";
+            SendButton.ToolTip    = null;
+            AIRespondButton.IsEnabled = true;
+            // Restore AIRespondButton look in case UpdateVoiceButtons hasn't run
+            if (!VoiceOutputService.IsPlaying && VoiceOutputService.QueueCount == 0)
+            {
+                AIRespondButton.Content = "↺";
+                AIRespondButton.SetResourceReference(Button.BackgroundProperty, "SecondaryAccentBrush");
+                AIRespondButton.SetResourceReference(Button.ForegroundProperty, "AccentTextBrush");
+            }
+        }
+    }
+
+    private void WebBrowsingButton_Click(object sender, RoutedEventArgs e)
+    {
+        _webBrowsingEnabled = !_webBrowsingEnabled;
+        UpdateWebBrowsingButton();
+        var state = _webBrowsingEnabled ? "ON" : "OFF";
+        AddSystemMessage(_webBrowsingEnabled
+            ? "🌐  Web browsing enabled for this session. Agents can use <webfetch url=\"...\"/> to fetch pages from the whitelist."
+            : "🌐  Web browsing disabled.");
+    }
+
+    private void UpdateWebBrowsingButton()
+    {
+        WebBrowsingButton.Content = "🌐";
+        WebBrowsingButton.ToolTip = _webBrowsingEnabled
+            ? "Web browsing ON — click to disable"
+            : "Web browsing OFF — click to enable";
+
+        if (_webBrowsingEnabled)
+        {
+            WebBrowsingButton.Opacity = 1.0;
+            WebBrowsingButton.SetResourceReference(Button.ForegroundProperty, "AccentHighlightBrush");
+
+            // Soft pulsing glow
+            var glow = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color       = (Color)(TryFindResource("AccentHighlightColor") ?? Colors.DodgerBlue),
+                BlurRadius  = 6,
+                ShadowDepth = 0,
+                Opacity     = 0.85,
+            };
+            WebBrowsingButton.Effect = glow;
+
+            var pulse = new DoubleAnimation
+            {
+                From           = 4,
+                To             = 14,
+                Duration       = TimeSpan.FromSeconds(1.2),
+                AutoReverse    = true,
+                RepeatBehavior = RepeatBehavior.Forever,
+                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+            };
+            glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.BlurRadiusProperty, pulse);
+        }
+        else
+        {
+            WebBrowsingButton.Effect  = null;
+            WebBrowsingButton.Opacity = 0.45;
+            WebBrowsingButton.SetResourceReference(Button.ForegroundProperty, "SidebarDimBrush");
+        }
+    }
+
+    // ── Web fetch tag processing ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Scans an agent response for &lt;webfetch url="..."/&gt; tags and resolves each one.
+    /// Replaces the tag with fetched plain-text content (or a failure/blocked message).
+    /// Must be called before ProcessAIFileOperationTags so file-write tags see clean text.
+    /// </summary>
+    private async Task<string> ProcessWebFetchTagsAsync(
+        string response, string senderName, bool isLocalModel,
+        CancellationToken ct = default)
+    {
+        var tagRegex = new System.Text.RegularExpressions.Regex(
+            @"<webfetch\s+url=""([^""]+)""\s*/>",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        var matches = tagRegex.Matches(response);
+        if (matches.Count == 0) return response;
+
+        // Web browsing is off — replace all tags with a hint
+        if (!_webBrowsingEnabled)
+        {
+            return tagRegex.Replace(response, _ =>
+                "[Web access is available but currently disabled. Ask the user to enable the 🌐 button to allow web fetching.]");
+        }
+
+        var settings  = SettingsService.Load();
+        var webCfg    = settings.WebBrowsing;
+        var whitelist = (_currentProject?.WebWhitelist is { Count: > 0 } pw)
+            ? pw
+            : webCfg.Whitelist;
+        var maxChars  = isLocalModel ? webCfg.MaxCharsLocal : webCfg.MaxCharsCloud;
+        var dateStr   = DateTime.Now.ToString("yyyy-MM-dd");
+
+        // Process each match — replace sequentially to preserve order
+        foreach (System.Text.RegularExpressions.Match m in matches)
+        {
+            var url    = m.Groups[1].Value.Trim();
+            var result = await WebBrowsingService.FetchAsync(
+                url, whitelist, webCfg.TimeoutSeconds, maxChars, ct);
+
+            var injection = result.ToInjectionString(dateStr);
+            AddSystemMessage($"🌐  {senderName} → webfetch {new Uri(result.Url.Length > 0 ? result.Url : url).Host}" +
+                             (result.Success ? $" ({result.Text.Length:N0} chars)" : $" — {result.ErrorReason}"));
+            response = response.Replace(m.Value, injection);
+        }
+
+        return response;
+    }
+
+    /// <summary>
+    /// Returns the active web whitelist: project override if set, otherwise global.
+    /// </summary>
+    private List<Services.WebWhitelistEntry> GetActiveWebWhitelist()
+    {
+        var settings = SettingsService.Load();
+        return (_currentProject?.WebWhitelist is { Count: > 0 } pw)
+            ? pw
+            : settings.WebBrowsing.Whitelist;
+    }
+
     private void SubscribeVoiceStateChanged()
     {
         VoiceOutputService.StateChanged += () =>
@@ -6406,6 +6622,46 @@ public partial class MainWindow : Window
     /// <paramref name="hasWriteAccess"/> controls whether write tags are included;
     /// participants without write access only see read/list tags plus a note explaining the restriction.
     /// </summary>
+    /// <summary>
+    /// Injects web browsing capability instructions into the system prompt.
+    /// When enabled: describes the webfetch tag and allowed domains.
+    /// When disabled: tells the agent web access exists but is currently off,
+    /// so it asks the user to enable it rather than hallucinating data.
+    /// </summary>
+    private string BuildWebBrowsingInstruction()
+    {
+        var settings  = SettingsService.Load();
+        var whitelist = (_currentProject?.WebWhitelist is { Count: > 0 } pw)
+            ? pw
+            : settings.WebBrowsing.Whitelist;
+        var allowedDomains = whitelist
+            .Where(e => e.IsEnabled)
+            .Select(e => e.Domain)
+            .ToList();
+
+        if (_webBrowsingEnabled)
+        {
+            var domainList = allowedDomains.Count > 0
+                ? string.Join(", ", allowedDomains)
+                : "(no domains configured — all fetches will be blocked)";
+            return "\n\n## Web browsing" +
+                   "\nYou can fetch web pages by embedding this self-closing tag in your response:" +
+                   "\n<webfetch url=\"https://example.com/page\"/>" +
+                   "\nThe page content will be injected as plain text before your next response." +
+                   "\nOnly the following domains are permitted: " + domainList +
+                   "\nFor non-text files (PDFs, Office documents) use the download variant:" +
+                   "\n<webdownload url=\"https://example.com/file.pdf\"/>" +
+                   "\nFetches outside the whitelist will be blocked and you will be notified.";
+        }
+        else
+        {
+            return "\n\n## Web browsing" +
+                   "\nWeb access is available in this application but is currently disabled for this session. " +
+                   "If you need to fetch a URL or download a file to answer accurately, " +
+                   "let the user know so they can enable the 🌐 button — do not guess or invent data that you would need a web fetch to verify.";
+        }
+    }
+
     private static string BuildFileOperationInstruction(
         string? projectFolder,
         bool hasWriteAccess   = true,
@@ -6584,6 +6840,17 @@ public partial class MainWindow : Window
                 return $"*(→ {relPath})*";
             }
 
+            // Block project.json — contains WebWhitelist and other security-critical settings.
+            // Agents must never be able to expand their own access surface by rewriting it.
+            if (string.Equals(fileName, "project.json", StringComparison.OrdinalIgnoreCase))
+            {
+                AddSystemMessage(
+                    $"🔒  {senderName} → {relPath} blocked. " +
+                    "project.json holds security-critical settings (web whitelist, roles) " +
+                    "and can only be changed through the ClaudetRelay UI.");
+                return $"*(🔒 blocked: project.json is read-only for agents)*";
+            }
+
             // All other PROJECTSETTINGS/ files — write to disk as before
             if (ProjectService.SafeWriteFile(projFolder, relPath, content))
             {
@@ -6607,9 +6874,13 @@ public partial class MainWindow : Window
             var forbiddenPatterns = new[]
             {
                 "projectsettings",   // ProjectSettings/ folder - use path= form instead
-                "project.json",      // Main project file
+                "project.json",      // Main project file — holds web whitelist + security config
                 "chatlog",           // Chat logs belong in project root
-                "_versions"          // Version history folder marker
+                "_versions",         // Version history folder marker
+                "webwhitelist",      // Paranoia layer: block any filename that looks like a whitelist dump
+                "whitelist",
+                "appsettings",
+                "settings.json",
             };
             if (forbiddenPatterns.Any(p => lowerName.Contains(p)))
             {

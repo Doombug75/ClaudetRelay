@@ -24,7 +24,10 @@ public sealed class AnthropicService : ICloudAIService
     private readonly HttpClient _http;
 
     public string CurrentModel { get; set; } = DefaultModels[0];
-    public int    MaxTokens    { get; set; } = 4096;
+
+    /// <inheritdoc/>
+    /// Anthropic requires max_tokens — 0 means "use default" (4096 sent to the API).
+    public int MaxTokens { get; set; } = 0;
 
     public AnthropicService(string apiKey)
     {
@@ -128,7 +131,7 @@ public sealed class AnthropicService : ICloudAIService
 
         writer.WriteStartObject();
         writer.WriteString ("model",      CurrentModel);
-        writer.WriteNumber ("max_tokens", MaxTokens);
+        writer.WriteNumber ("max_tokens", MaxTokens > 0 ? MaxTokens : 4096); // Anthropic requires this field
         writer.WriteBoolean("stream",     stream);
         if (!string.IsNullOrEmpty(system))
             writer.WriteString("system", system);

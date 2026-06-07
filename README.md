@@ -212,8 +212,8 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 
 | Feature | Notes |
 |---|---|
-| **Web browsing toggle** | Read-only, text-only web access for models — off by default to protect bandwidth |
 | **Chat file export** | Save individual AI outputs as files directly from the chat |
+| ~~**Web browsing toggle**~~ | ✅ Done — read-only, text-only web fetch for models; 🌐 session toggle + whitelist / timeout / limits in ●●● → Web Access Settings |
 | ~~**Voice output**~~ | ✅ Done — TTS playback via Windows voices, Sherpa-onnx neural voices, or VOICEVOX |
 | ~~**Voice input / dictation**~~ | ✅ Done — push-to-talk and voice-activation using locally-running Whisper models; no cloud required |
 | ~~**Multi-language UI**~~ | ✅ Done — German UI alongside English |
