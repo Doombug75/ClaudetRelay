@@ -5326,9 +5326,13 @@ public partial class MainWindow
                 RefreshParticipantBadges();
 
                 // Immediately apply IsActive changes to the live chat cards
-                // so participants unchecked in this dialog are deactivated right away.
+                // so participants unchecked in this dialog are removed right away.
                 if (ps.Roles is { Count: > 0 })
                     ApplyRoleActiveStatesToParticipants(ps.Roles);
+
+                // Persist the updated card layout so the next project load
+                // starts with the correct participant set.
+                SaveProjectParticipants();
             }
 
             win.DialogResult = true;

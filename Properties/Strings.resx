@@ -754,7 +754,7 @@ It will be removed from those boards automatically.</value></data>
   <data name="ProjSettings_ChattinessHint"    xml:space="preserve"><value>Overrides the global Chattiness setting for this project. Silent = only respond when addressed. Chatty = always keep discussing.</value></data>
   <data name="ProjSettings_ParticipantRoles"  xml:space="preserve"><value>PARTICIPANT ROLES</value></data>
   <data name="ProjSettings_NoParticipants"    xml:space="preserve"><value>No participants are currently enabled. Enable participants in 👤 Participant Config first.</value></data>
-  <data name="ProjSettings_ActiveInScene"     xml:space="preserve"><value>Active in this scene</value></data>
+  <data name="ProjSettings_ActiveInScene"     xml:space="preserve"><value>Present</value></data>
   <data name="ProjSettings_EditBtn"           xml:space="preserve"><value>✏ Edit</value></data>
 
   <!-- ── Wave 8+: Autonomy Mode slider ── -->

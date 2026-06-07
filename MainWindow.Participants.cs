@@ -336,29 +336,46 @@ public partial class MainWindow
     /// </summary>
     /// <summary>
     /// Applies <see cref="ProjectParticipantRole.IsActive"/> to the live card grid.
-    /// Inactive roles → participant deactivated in chat.
-    /// Active roles   → participant re-enabled (so toggling IsActive on→off→on works correctly).
+    /// <c>IsActive = false</c> → participant removed from chat entirely.
+    /// <c>IsActive = true</c>  → participant re-added from global settings if currently absent.
     /// </summary>
     private void ApplyRoleActiveStatesToParticipants(List<ProjectParticipantRole> roles)
     {
         foreach (var role in roles)
         {
-            var cloudMatch = _cloudAIParticipants.FirstOrDefault(ui =>
-                (string.IsNullOrEmpty(role.DisplayName) ||
-                 string.Equals(ui.Data.CustomName, role.DisplayName, StringComparison.OrdinalIgnoreCase)) &&
+            bool isOllama   = string.Equals(role.Provider, "Ollama", StringComparison.OrdinalIgnoreCase);
+            var  cloudMatch = isOllama ? null : _cloudAIParticipants.FirstOrDefault(ui =>
                 string.Equals(ui.Data.Service.ProviderName, role.Provider, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(ui.Data.Service.CurrentModel, role.Model,    StringComparison.OrdinalIgnoreCase));
+            var  ollamaMatch = !isOllama ? null : _ollamaParticipants.FirstOrDefault(ui =>
                 string.Equals(ui.Data.Service.CurrentModel, role.Model, StringComparison.OrdinalIgnoreCase));
-            if (cloudMatch is not null)
+
+            if (!role.IsActive)
             {
-                OnCloudAIEnabledChanged(cloudMatch, role.IsActive);
-                continue;
+                // Remove from chat entirely
+                if (cloudMatch  is not null) RemoveCloudAIParticipant(cloudMatch);
+                if (ollamaMatch is not null) RemoveOllamaParticipant(ollamaMatch);
             }
-            var ollamaMatch = _ollamaParticipants.FirstOrDefault(ui =>
-                (string.IsNullOrEmpty(role.DisplayName) ||
-                 string.Equals(ui.Data.CustomName, role.DisplayName, StringComparison.OrdinalIgnoreCase)) &&
-                string.Equals(ui.Data.Service.CurrentModel, role.Model, StringComparison.OrdinalIgnoreCase));
-            if (ollamaMatch is not null)
-                OnOllamaEnabledChanged(ollamaMatch, role.IsActive);
+            else
+            {
+                // Re-add from global settings if currently absent
+                if (cloudMatch is null && ollamaMatch is null)
+                {
+                    var settings = SettingsService.Load();
+                    var config   = settings.Participants.FirstOrDefault(p =>
+                        string.Equals(p.Type,  role.Provider, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(p.Model, role.Model,    StringComparison.OrdinalIgnoreCase));
+                    if (config is not null)
+                    {
+                        if (config.Type == "Ollama")
+                            AddOllamaParticipant(config.Model, config.ServerUrl, config.Name,
+                                                 config.OllamaNumCtx, config.OllamaNumPredict);
+                        else
+                            AddCloudAIParticipant(config.Type, config.Model, config.Name,
+                                                  config.ServerUrl, config.CloudMaxTokens);
+                    }
+                }
+            }
         }
     }
 

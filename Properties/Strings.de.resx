@@ -754,7 +754,7 @@ Er wird von diesen Boards automatisch entfernt.</value></data>
   <data name="ProjSettings_ChattinessHint"    xml:space="preserve"><value>Überschreibt die globale Gesprächigkeitseinstellung für dieses Projekt. Still = nur antworten wenn angesprochen. Gesprächig = immer weiter diskutieren.</value></data>
   <data name="ProjSettings_ParticipantRoles"  xml:space="preserve"><value>TEILNEHMERROLLEN</value></data>
   <data name="ProjSettings_NoParticipants"    xml:space="preserve"><value>Derzeit sind keine Teilnehmer aktiv. Aktiviere zunächst Teilnehmer unter 👤 Teilnehmer-Konfiguration.</value></data>
-  <data name="ProjSettings_ActiveInScene"     xml:space="preserve"><value>In dieser Szene aktiv</value></data>
+  <data name="ProjSettings_ActiveInScene"     xml:space="preserve"><value>Anwesend</value></data>
   <data name="ProjSettings_EditBtn"           xml:space="preserve"><value>✏ Bearbeiten</value></data>
 
   <!-- ── Wave 8+: Autonomy Mode slider ── -->
