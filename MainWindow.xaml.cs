@@ -170,6 +170,14 @@ public partial class MainWindow : Window
     private readonly List<CloudAIMessage>                _sharedHistory       = [];
     private readonly Dictionary<string, ProviderRateLimiter> _rateLimiters    = new();
     private CancellationTokenSource?                     _streamCts;
+
+    /// <summary>
+    /// One semaphore per Ollama base URL — ensures only one model streams at a time
+    /// per Ollama instance (Ollama is single-threaded; parallel requests queue up and
+    /// can produce empty/corrupted responses). Cloud AI participants are unaffected.
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Threading.SemaphoreSlim>
+        _ollamaServerSemaphores = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>
     /// Set to true when the ParticipantsWindow is closed while generation is active.
     /// ReInitializeParticipants() is deferred until the current generation completes.

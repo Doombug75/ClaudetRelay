@@ -3266,12 +3266,50 @@ public partial class MainWindow : Window
         var sb         = new StringBuilder();
         bool firstToken = true;
 
-        // Pulse the card avatar while the model is generating
-        if (!hidden) StartCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton);
-
         // Per-participant CTS so this card can be stopped independently
         ui.ActiveCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var participantCt = ui.ActiveCts.Token;
+
+        // ── Ollama server serialization ───────────────────────────────────────
+        // Ollama processes requests sequentially per instance — firing two models
+        // on the same URL in parallel causes the second to queue inside Ollama and
+        // can produce empty or corrupted responses. Serialize per base URL.
+        var serverUrl  = ui.Data.Service.BaseUrl;
+        var serverSem  = _ollamaServerSemaphores.GetOrAdd(serverUrl,
+                             _ => new System.Threading.SemaphoreSlim(1, 1));
+
+        // Show "Waiting…" while queued behind another request on the same server.
+        // Use CurrentCount to peek without acquiring — WaitAsync does the real acquire below.
+        bool semAcquired = false;
+        // Always set "Waiting…" before acquiring — if the semaphore is free StartCardPulse
+        // overwrites it immediately (imperceptible); if taken it stays until the slot opens.
+        // This avoids a TOCTOU race on CurrentCount.
+        if (!hidden)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (ui.StatusLabel != null)
+                {
+                    ui.StatusLabel.Text       = Properties.Loc.S("Status_Waiting");
+                    ui.StatusLabel.Foreground = (System.Windows.Media.Brush)Application.Current.Resources["AccentTextBrush"];
+                    ui.StatusLabel.Visibility = Visibility.Visible;
+                }
+            });
+        }
+
+        try { await serverSem.WaitAsync(participantCt); }
+        catch (OperationCanceledException)
+        {
+            // Cancelled while queued — reset label and bail out cleanly
+            if (!hidden) SetParticipantError(ui, null);   // clears "Waiting…" → "Ready"
+            ui.ActiveCts?.Dispose();
+            ui.ActiveCts = null;
+            return false;
+        }
+        semAcquired = true;
+
+        // Pulse the card avatar while the model is generating (overwrites "Waiting…" → "Thinking…")
+        if (!hidden) StartCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton);
 
         // Subscribe to live thinking-text updates so the tooltip tracks thinking in real time
         var svc = ui.Data.Service;
@@ -3421,10 +3459,12 @@ public partial class MainWindow : Window
         }
         finally
         {
+            if (semAcquired) serverSem.Release();
             svc.ThinkingUpdated -= OnThinkingUpdate;
             if (!hidden) StopCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton);
             ui.ActiveCts?.Dispose();
             ui.ActiveCts = null;
+            if (!hidden) SetParticipantError(ui, null); // restore "Ready"/mood now that ActiveCts is null
         }
         return !hidden; // visible error → error bubble shown (counts as responded); hidden error → doesn't count
     }

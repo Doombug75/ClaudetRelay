@@ -2058,13 +2058,22 @@ public partial class MainWindow : Window
         {
             if (capturedAgent.IsLocal)
             {
-                var svc = new OllamaService(capturedAgent.ServerUrl) { CurrentModel = capturedAgent.Model, NumCtx = capturedAgent.OllamaNumCtx, NumPredict = capturedAgent.OllamaNumPredict };
+                var svc        = new OllamaService(capturedAgent.ServerUrl) { CurrentModel = capturedAgent.Model, NumCtx = capturedAgent.OllamaNumCtx, NumPredict = capturedAgent.OllamaNumPredict };
+                var serverUrl  = capturedAgent.ServerUrl;
                 return async (msg, c) =>
                 {
-                    var history = new List<OllamaChatMessage> { new("user", msg) };
-                    var sb2 = new StringBuilder();
-                    await foreach (var tok in svc.StreamAsync(history, c)) sb2.Append(tok);
-                    return sb2.ToString().Trim();
+                    // Serialize per Ollama instance — same guard as RunOllamaStreamAsync
+                    var sem = _ollamaServerSemaphores.GetOrAdd(serverUrl,
+                                  _ => new System.Threading.SemaphoreSlim(1, 1));
+                    await sem.WaitAsync(c);
+                    try
+                    {
+                        var history = new List<OllamaChatMessage> { new("user", msg) };
+                        var sb2 = new StringBuilder();
+                        await foreach (var tok in svc.StreamAsync(history, c)) sb2.Append(tok);
+                        return sb2.ToString().Trim();
+                    }
+                    finally { sem.Release(); }
                 };
             }
             else

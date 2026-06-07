@@ -237,6 +237,7 @@
   <data name="FileCheckout_LockedTip"       xml:space="preserve"><value>Ausgecheckt von {participant} ({mode}) — nicht bearbeiten, solange die Aufgabe läuft</value></data>
   <data name="Status_Busy"                 xml:space="preserve"><value>Beschäftigt...</value></data>
   <data name="Status_Thinking"             xml:space="preserve"><value>Denkt nach...</value></data>
+  <data name="Status_Waiting"              xml:space="preserve"><value>Wartet...</value></data>
   <data name="Status_Deactivated"          xml:space="preserve"><value>Deaktiviert</value></data>
   <data name="Participant_RemoveFromChat"  xml:space="preserve"><value>Aus diesem Chat entfernen</value></data>
   <!-- ── Allgemeine Einstellungen ──────────────────────────────────────────── -->
