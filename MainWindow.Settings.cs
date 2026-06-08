@@ -167,6 +167,19 @@ public partial class MainWindow
     {
         var win = new VoiceRecognitionSettingsWindow(_currentThemePath, _dictation, ApplyThemeToDialog) { Owner = this };
         win.ShowDialog();
+
+        // Re-initialise the dictation service so any mode / model / device change
+        // takes effect immediately (mode change is the most common case — e.g. switching
+        // from VoiceActivated to PushToTalk must reconfigure the running service).
+        if (_dictationModelLoaded)
+        {
+            _dictation.Deactivate();
+            _dictationActive      = false;
+            _dictationModelLoaded = false;
+            UpdateDictationPower(loaded: false);
+            UpdateMicButton(Services.DictationState.Idle);
+            _ = LoadDictationAsync();
+        }
     }
 
     private void OpenGeneralSettings()

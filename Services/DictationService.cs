@@ -8,7 +8,7 @@ using SherpaOnnx;
 namespace ClaudetRelay.Services;
 
 public enum DictationActivationMode { AlwaysOn, PushToTalk, VoiceActivated }
-public enum DictationState         { Idle, Listening, Processing }
+public enum DictationState         { Idle, Listening, Recording, Processing }
 
 /// <summary>
 /// Records microphone audio via NAudio and transcribes it using a
@@ -36,6 +36,13 @@ public sealed class DictationService : IDisposable
     private int                     _deviceNumber = 0;
 
     // ── Runtime state ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Microphone gain multiplier. 1.0 = no boost, 2.0 = double, 3.0 = triple.
+    /// Applied to raw samples before RMS calculation and before passing to the recognizer.
+    /// </summary>
+    public float MicBoost { get; set; } = 1.0f;
+
     private DictationState _state    = DictationState.Idle;
     private WaveInEvent?   _waveIn;
     private List<float>    _samples  = new();
@@ -45,11 +52,12 @@ public sealed class DictationService : IDisposable
     private OfflineRecognizer? _recognizer;
 
     private const int SampleRate      = 16000;
-    private const int SilenceMs       = 1500;   // silence → stop in VoiceActivated mode
+    private const int SilenceMs       = 3000;   // silence → stop in VoiceActivated mode
     private const float SilenceFactor = 0.5f;   // silence threshold = threshold * factor
 
-    public bool           IsActive => _state != DictationState.Idle || _recording;
-    public DictationState State    => _state;
+    public bool           IsActive    => _state != DictationState.Idle || _recording;
+    public bool           IsRecording => _recording;
+    public DictationState State       => _state;
 
     // ── Model loading ──────────────────────────────────────────────────────
 
@@ -127,8 +135,13 @@ public sealed class DictationService : IDisposable
         _deviceNumber = deviceNumber;
     }
 
-    /// <summary>Start the microphone capture and enter the configured mode.</summary>
-    public void Activate()
+    /// <summary>
+    /// Start the microphone capture and enter the configured mode.
+    /// Pass <paramref name="startRecordingChunk"/> = false to open the mic for level
+    /// monitoring / standby without immediately starting to accumulate samples —
+    /// useful for pre-loading so the first button press is instant.
+    /// </summary>
+    public void Activate(bool startRecordingChunk = true)
     {
         if (_waveIn is not null) return;   // already active
 
@@ -149,10 +162,22 @@ public sealed class DictationService : IDisposable
             return;
         }
 
-        if (_mode == DictationActivationMode.AlwaysOn)
+        if (_mode == DictationActivationMode.AlwaysOn && startRecordingChunk)
             BeginRecording();
 
         SetState(DictationState.Listening);
+    }
+
+    /// <summary>
+    /// Starts accumulating a new recording chunk without reopening the mic.
+    /// Use this when the mic is already open (pre-activated) and the user clicks
+    /// the record button — response is instant.
+    /// </summary>
+    public void StartRecordingChunk()
+    {
+        if (_waveIn is null || _recording) return;
+        BeginRecording();
+        SetState(DictationState.Recording);
     }
 
     /// <summary>Stop capture and release the microphone.</summary>
@@ -189,16 +214,19 @@ public sealed class DictationService : IDisposable
         _samples.Clear();
         _silenceSamples = 0;
         _recording      = true;
+        SetState(DictationState.Recording);
     }
 
     private void OnData(object? sender, WaveInEventArgs e)
     {
-        // Compute RMS of buffer
+        var boost = MathF.Max(0f, MicBoost);
+
+        // Compute RMS of buffer (boost applied)
         int   count = e.BytesRecorded / 2;
         float sumSq = 0;
         for (int i = 0; i < e.BytesRecorded; i += 2)
         {
-            float f = MemoryMarshal.Read<short>(e.Buffer.AsSpan(i)) / 32768f;
+            float f = MemoryMarshal.Read<short>(e.Buffer.AsSpan(i)) / 32768f * boost;
             sumSq += f * f;
         }
         float rms = count > 0 ? MathF.Sqrt(sumSq / count) : 0f;
@@ -216,10 +244,10 @@ public sealed class DictationService : IDisposable
 
         if (!_recording) return;
 
-        // Accumulate samples as normalised floats
+        // Accumulate samples as normalised floats (boosted, clamped to -1..1)
         for (int i = 0; i < e.BytesRecorded; i += 2)
         {
-            _samples.Add(MemoryMarshal.Read<short>(e.Buffer.AsSpan(i)) / 32768f);
+            _samples.Add(Math.Clamp(MemoryMarshal.Read<short>(e.Buffer.AsSpan(i)) / 32768f * boost, -1f, 1f));
         }
 
         // Voice-activated: stop after silence
@@ -240,6 +268,14 @@ public sealed class DictationService : IDisposable
             }
         }
     }
+
+    /// <summary>
+    /// Stops the current recording chunk and sends it to the ASR engine.
+    /// Use this when the mic button is clicked in AlwaysOn mode so the
+    /// accumulated audio gets transcribed before the service is deactivated.
+    /// Safe to call from any thread.
+    /// </summary>
+    public void FinalizeRecording() => StopAndTranscribe();
 
     private void StopAndTranscribe()
     {
@@ -274,9 +310,9 @@ public sealed class DictationService : IDisposable
             {
                 // In AlwaysOn mode restart recording immediately
                 if (_waveIn is not null && _mode == DictationActivationMode.AlwaysOn)
-                    BeginRecording();
-
-                SetState(_waveIn is not null ? DictationState.Listening : DictationState.Idle);
+                    BeginRecording();  // sets state to Recording
+                else
+                    SetState(_waveIn is not null ? DictationState.Listening : DictationState.Idle);
             }
         });
     }

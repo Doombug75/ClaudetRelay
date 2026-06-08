@@ -685,14 +685,23 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Column 0: Mic (dictation) button above whisper/recipient picker -->
+                        <!-- Column 0: Dictation power + mic buttons above whisper/recipient picker -->
                         <StackPanel Grid.Column="0" Orientation="Vertical" Margin="0,0,6,0">
+                            <Button x:Name="DictationPowerButton"
+                                    Content="⏻"
+                                    Style="{StaticResource ModernButton}"
+                                    Background="{DynamicResource ControlBgBrush}"
+                                    Foreground="{DynamicResource SidebarDimBrush}"
+                                    FontSize="13" Width="42" Padding="4,4" Margin="0,0,0,2"
+                                    ToolTip="Load / unload dictation model"
+                                    Click="DictationPowerButton_Click"/>
                             <Button x:Name="MicButton"
                                     Content="🎙"
                                     Style="{StaticResource ModernButton}"
                                     Background="{DynamicResource ControlBgBrush}"
                                     Foreground="{DynamicResource SidebarDimBrush}"
-                                    FontSize="13" Width="42" Padding="4,9" Margin="0,0,0,4"
+                                    IsEnabled="False"
+                                    FontSize="13" Width="42" Padding="4,4" Margin="0,0,0,4"
                                     ToolTip="Dictation (Voice Recognition)"
                                     Click="MicButton_Click"/>
                             <Button x:Name="PrivateMsgButton"

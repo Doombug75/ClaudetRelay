@@ -203,7 +203,8 @@ public partial class MainWindow : Window
     private Window?                              _helpWindow;
     // ── Dictation / voice recognition ────────────────────────────────────
     private readonly DictationService            _dictation = new();
-    private bool                                 _dictationActive = false;
+    private bool                                 _dictationActive      = false;
+    private bool                                 _dictationModelLoaded = false;
     // ── Private-message target (null = broadcast to all) ──────────────────
     private OllamaParticipantUI?                 _privateMsgOllamaTarget;
     private CloudAIParticipantUI?                _privateMsgCloudTarget;
@@ -302,6 +303,7 @@ public partial class MainWindow : Window
 
             // ── Dictation service wiring ──────────────────────────────────
             InitDictationService();
+            _ = LoadDictationAsync();   // load model + open mic in background; instant first press
         };
         // Recalculate bubble MaxWidth whenever the chat area resizes (e.g. window drag / maximize).
         //
@@ -693,20 +695,28 @@ public partial class MainWindow : Window
         _dictation.StateChanged += state =>
             Dispatcher.Invoke(() => UpdateMicButton(state));
 
-        // Wire PTT key: listen on main window PreviewKeyDown/Up
+        // Wire PTT key: listen on main window PreviewKeyDown/Up.
+        // When focus is in a TextBox we allow the key through so you can still type
+        // (holding Space while in the chat box types spaces AND records — both work).
+        // When focus is anywhere else (buttons, panels, etc.) we suppress the key so
+        // it never clicks a focused button or shifts focus to the chat input.
         PreviewKeyDown += (_, e) =>
         {
             if (!_dictationActive) return;
             var s = SettingsService.Load();
             if (s.AsrActivationMode != "PushToTalk") return;
-            if (IsPttKeyMatch(e, s)) { _dictation.PttDown(); e.Handled = false; }
+            if (!IsPttKeyMatch(e, s)) return;
+            _dictation.PttDown();
+            e.Handled = Keyboard.FocusedElement is not System.Windows.Controls.TextBox;
         };
         PreviewKeyUp += (_, e) =>
         {
             if (!_dictationActive) return;
             var s = SettingsService.Load();
             if (s.AsrActivationMode != "PushToTalk") return;
-            if (IsPttKeyMatch(e, s)) _dictation.PttUp();
+            if (!IsPttKeyMatch(e, s)) return;
+            _dictation.PttUp();
+            e.Handled = Keyboard.FocusedElement is not System.Windows.Controls.TextBox;
         };
     }
 
@@ -721,36 +731,129 @@ public partial class MainWindow : Window
         return ctrl == s.PushToTalkCtrl && shift == s.PushToTalkShift && alt == s.PushToTalkAlt;
     }
 
-    private void MicButton_Click(object sender, RoutedEventArgs e)
+    // ── Dictation power button (⏻) ─────────────────────────────────────────
+    // Loads / unloads the model and opens / closes the microphone.
+    // Use this to free RAM when you don't need dictation.
+
+    private async void DictationPowerButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_dictationActive)
+        if (_dictationModelLoaded)
         {
+            // Unload: stop recording, release mic, free model RAM
+            if (_dictation.IsRecording) _dictation.FinalizeRecording();
             _dictation.Deactivate();
-            _dictationActive = false;
+            _dictationActive      = false;
+            _dictationModelLoaded = false;
+            UpdateDictationPower(loaded: false);
             UpdateMicButton(DictationState.Idle);
         }
         else
         {
-            var s = SettingsService.Load();
-
-            // Load/reload model if needed
-            if (!string.IsNullOrEmpty(s.AsrModelName) && !string.IsNullOrEmpty(s.AsrModelsFolder))
-            {
-                var modelFolder = System.IO.Path.Combine(s.AsrModelsFolder, s.AsrModelName);
-                _dictation.LoadModel(s.AsrModelType, modelFolder);
-            }
-
-            var mode = s.AsrActivationMode switch
-            {
-                "PushToTalk"     => DictationActivationMode.PushToTalk,
-                "VoiceActivated" => DictationActivationMode.VoiceActivated,
-                _                => DictationActivationMode.AlwaysOn
-            };
-            var device = DictationService.FindInputDeviceNumber(s.AudioInputDevice);
-            _dictation.Configure(mode, s.VoiceActivationThreshold, device);
-            _dictation.Activate();
-            _dictationActive = true;
+            await LoadDictationAsync();
         }
+    }
+
+    /// <summary>
+    /// Loads the ASR model and opens the microphone.
+    /// Called by the power button and automatically at startup.
+    /// Also call after Voice Recognition settings are saved to hot-swap the model.
+    /// </summary>
+    public async Task LoadDictationAsync()
+    {
+        var s = SettingsService.Load();
+        if (string.IsNullOrEmpty(s.AsrModelName) || string.IsNullOrEmpty(s.AsrModelsFolder))
+            return;
+
+        Dispatcher.Invoke(() =>
+        {
+            UpdateDictationPower(loading: true);
+            if (MicButton is not null) MicButton.IsEnabled = false;
+        });
+
+        var modelFolder = System.IO.Path.Combine(s.AsrModelsFolder, s.AsrModelName);
+        var loaded      = await Task.Run(() => _dictation.LoadModel(s.AsrModelType, modelFolder));
+
+        if (!loaded)
+        {
+            Dispatcher.Invoke(() => { UpdateDictationPower(loaded: false); UpdateMicButton(DictationState.Idle); });
+            return;
+        }
+
+        var mode   = s.AsrActivationMode switch
+        {
+            "PushToTalk"     => DictationActivationMode.PushToTalk,
+            "VoiceActivated" => DictationActivationMode.VoiceActivated,
+            _                => DictationActivationMode.AlwaysOn
+        };
+        _dictation.Configure(
+            mode,
+            s.VoiceActivationThreshold,
+            DictationService.FindInputDeviceNumber(s.AudioInputDevice));
+        _dictation.MicBoost = AudioSetupWindow.QuadraticBoost(Math.Clamp(s.AudioInputBoost, 0, 300));
+
+        // For AlwaysOn: open mic in standby — no chunk recording yet; user presses 🎙 to start.
+        // For VoiceActivated / PushToTalk: Activate() arms voice detection / key listening.
+        _dictation.Activate(startRecordingChunk: false);
+        _dictationActive      = true;
+        _dictationModelLoaded = true;
+
+        Dispatcher.Invoke(() =>
+        {
+            UpdateDictationPower(loaded: true);
+            UpdateMicButton(_dictation.State);
+        });
+    }
+
+    // ── Dictation mic button (🎙) ──────────────────────────────────────────
+    // Controls recording only — power must be on first.
+    // AlwaysOn:      press = start chunk, press again = stop + transcribe
+    // VoiceActivated: press = trigger a one-shot manual chunk (auto-transcribes on silence)
+    // PushToTalk:    not used here — PTT key handles everything
+
+    private void MicButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_dictationModelLoaded) return;   // power button handles loading
+
+        if (_dictation.IsRecording)
+        {
+            // Stop recording; transcription runs on background thread
+            _dictation.FinalizeRecording();
+        }
+        else
+        {
+            // Start a recording chunk immediately — WaveIn already open, zero latency
+            _dictation.StartRecordingChunk();
+        }
+    }
+
+    /// <summary>Called by AudioSetupWindow when the user moves the boost slider.</summary>
+    public void ApplyMicBoost(float gain) => _dictation.MicBoost = gain;
+
+    private void UpdateDictationPower(bool loaded = false, bool loading = false)
+    {
+        if (DictationPowerButton is null) return;
+        if (loading)
+        {
+            DictationPowerButton.Content   = "⏳";
+            DictationPowerButton.IsEnabled = false;
+            DictationPowerButton.SetResourceReference(ForegroundProperty, "ContentDimBrush");
+            DictationPowerButton.SetResourceReference(BackgroundProperty, "ControlBgBrush");
+        }
+        else if (loaded)
+        {
+            DictationPowerButton.Content   = "⏻";
+            DictationPowerButton.IsEnabled = true;
+            DictationPowerButton.SetResourceReference(ForegroundProperty, "PrimaryAccentBrush");
+            DictationPowerButton.SetResourceReference(BackgroundProperty, "ControlBgBrush");
+        }
+        else
+        {
+            DictationPowerButton.Content   = "⏻";
+            DictationPowerButton.IsEnabled = true;
+            DictationPowerButton.SetResourceReference(ForegroundProperty, "SidebarDimBrush");
+            DictationPowerButton.SetResourceReference(BackgroundProperty, "ControlBgBrush");
+        }
+        if (MicButton is not null) MicButton.IsEnabled = loaded && !loading;
     }
 
     private void UpdateMicButton(DictationState state)
@@ -759,12 +862,19 @@ public partial class MainWindow : Window
         switch (state)
         {
             case DictationState.Idle:
-                MicButton.Content    = "🎙";
-                MicButton.ToolTip    = Properties.Loc.S("Asr_MicBtn_Idle");
+                MicButton.Content = "🎙";
+                MicButton.ToolTip = Properties.Loc.S("Asr_MicBtn_Idle");
                 MicButton.SetResourceReference(BackgroundProperty, "ControlBgBrush");
                 MicButton.SetResourceReference(ForegroundProperty, "SidebarDimBrush");
                 break;
             case DictationState.Listening:
+                // Mic open — waiting for manual press, voice trigger, or PTT key
+                MicButton.Content = "🎙";
+                MicButton.ToolTip = Properties.Loc.S("Asr_MicBtn_Ready");
+                MicButton.SetResourceReference(BackgroundProperty, "ControlBgBrush");
+                MicButton.SetResourceReference(ForegroundProperty, "PrimaryAccentBrush");
+                break;
+            case DictationState.Recording:
                 MicButton.Content    = "🔴";
                 MicButton.ToolTip    = Properties.Loc.S("Asr_MicBtn_On");
                 MicButton.Background = new SolidColorBrush(Color.FromArgb(60, 220, 50, 50));

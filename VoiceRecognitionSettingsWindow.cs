@@ -327,14 +327,16 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         // Wire up size changes to resize bg and mask
         _meterCanvas.SizeChanged += (_, _) => PositionMeterChildren();
 
-        // Drag threshold line
+        // Drag threshold line — position uses sqrt curve, drag reverses it via squaring
         bool dragging = false;
         _thresholdLine.MouseLeftButtonDown += (_, e) => { dragging = true; _thresholdLine.CaptureMouse(); e.Handled = true; };
         _thresholdLine.MouseMove += (_, e) =>
         {
             if (!dragging) return;
-            var x = Math.Clamp(e.GetPosition(_meterCanvas).X, 0, _meterCanvas.ActualWidth);
-            _threshold = (float)(x / _meterCanvas.ActualWidth);
+            var x    = Math.Clamp(e.GetPosition(_meterCanvas).X, 0, _meterCanvas.ActualWidth);
+            var frac = x / _meterCanvas.ActualWidth;           // 0-1 display position
+            // Inverse of sqrt(threshold * LevelScale): threshold = frac² / LevelScale
+            _threshold = (float)(frac * frac / LevelScale);
             PositionMeterChildren();
         };
         _thresholdLine.MouseLeftButtonUp += (_, e) => { dragging = false; _thresholdLine.ReleaseMouseCapture(); };
@@ -345,10 +347,32 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         {
             Text = Properties.Loc.S("Asr_ThresholdHint"),
             FontSize = 10, TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 2, 0, 0)
+            Margin = new Thickness(0, 2, 0, 8)
         };
         thintTb.SetResourceReference(ForegroundProperty, "ContentDimBrush");
         _voicePanel.Children.Add(thintTb);
+
+        // ── Mic test (inside voice panel, next to the level bar it belongs to) ──
+        bool micTestActive = false;
+        var micTestBtn = MakeBtn("🎤  " + Properties.Loc.S("Asr_TestMic"), false);
+        micTestBtn.HorizontalAlignment = HorizontalAlignment.Left;
+        micTestBtn.Margin = new Thickness(0, 0, 0, 4);
+        micTestBtn.Click += (_, _) =>
+        {
+            micTestActive = !micTestActive;
+            if (micTestActive)
+            {
+                micTestBtn.Content = "⏹  " + Properties.Loc.S("Asr_TestMicStop");
+                if (!_dictation.IsActive) _dictation.Activate();
+            }
+            else
+            {
+                micTestBtn.Content = "🎤  " + Properties.Loc.S("Asr_TestMic");
+                _dictation.Deactivate();
+            }
+        };
+        _voicePanel.Children.Add(micTestBtn);
+        Closed += (_, _) => { if (micTestActive) _dictation.Deactivate(); };
 
         // Show/hide panels based on radio selection
         void UpdatePanels()
@@ -391,6 +415,13 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         PositionMeterChildren();
     }
 
+    // Maps raw RMS/threshold values into a 0-1 display fraction via sqrt curve.
+    // Higher value = more sensitive meter (quiet mics fill more of the bar).
+    // Tune: loud speech at RMS ~0.05 should fill ~80% of bar → LevelScale ≈ 12.
+    private const float LevelScale = 12f;
+    private static float ToDisplay(float rawValue)
+        => MathF.Sqrt(Math.Clamp(rawValue * LevelScale, 0f, 1f));
+
     private void PositionMeterChildren()
     {
         if (_meterCanvas is null) return;
@@ -407,18 +438,18 @@ public sealed class VoiceRecognitionSettingsWindow : Window
             }
         }
 
-        // Position black mask: fills right side, width = (1 - level) * w
+        // Black mask fills the right side; left edge = display level (sqrt curve)
         if (_meterFill is not null)
         {
-            var levelW = Math.Clamp(_currentLevel * 3.5f, 0f, 1f); // scale RMS (0.3 typical max) to 0-1
-            _meterFill.Width = Math.Max(0, w * (1 - levelW));
+            var levelW = ToDisplay(_currentLevel);
+            _meterFill.Width = Math.Max(0, w * (1f - levelW));
             Canvas.SetLeft(_meterFill, w * levelW);
         }
 
-        // Position threshold line
+        // Threshold line position — same sqrt curve so it tracks with perceived loudness
         if (_thresholdLine is not null)
         {
-            var tx = Math.Clamp(_threshold * 3.5f, 0f, 1f) * w;
+            var tx = ToDisplay(_threshold) * w;
             Canvas.SetLeft(_thresholdLine, tx);
         }
     }

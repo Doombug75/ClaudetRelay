@@ -361,12 +361,27 @@
   <data name="Asr_PttAlt"               xml:space="preserve"><value>Alt</value></data>
   <data name="Asr_ThresholdSection"     xml:space="preserve"><value>Activation Threshold</value></data>
   <data name="Asr_ThresholdHint"        xml:space="preserve"><value>Drag the marker to set when voice detection triggers. Green = clear speech, Orange = clipping risk.</value></data>
+  <data name="Audio_MicBoost"            xml:space="preserve"><value>Microphone Boost</value></data>
+  <data name="Audio_MicBoostHint"        xml:space="preserve"><value>100 % = no boost. Raise if the mic level shows little movement when speaking.</value></data>
+  <data name="Audio_TestSection"         xml:space="preserve"><value>🎤  Microphone &amp; Speaker Test</value></data>
+  <data name="Audio_TestMicStart"        xml:space="preserve"><value>▶  Start Mic Test</value></data>
+  <data name="Audio_TestMicStop"         xml:space="preserve"><value>⏹  Stop &amp; Play Back</value></data>
+  <data name="Audio_TestSpeaker"         xml:space="preserve"><value>🔊  Test Speaker</value></data>
+  <data name="Audio_TestRecording"       xml:space="preserve"><value>🔴 Recording…</value></data>
+  <data name="Audio_TestPlaying"         xml:space="preserve"><value>▶ Playing back…</value></data>
+  <data name="Audio_TestHint"            xml:space="preserve"><value>Press Start, speak for up to 20 s, then press Stop — the recording plays back on the selected output device.</value></data>
+  <data name="Asr_TestSection"          xml:space="preserve"><value>Microphone &amp; Speaker Test</value></data>
+  <data name="Asr_TestMic"             xml:space="preserve"><value>Test Microphone</value></data>
+  <data name="Asr_TestMicStop"         xml:space="preserve"><value>Stop Mic Test</value></data>
+  <data name="Asr_TestSpeaker"         xml:space="preserve"><value>Test Speaker</value></data>
+  <data name="Asr_TestHint"            xml:space="preserve"><value>Mic test activates the microphone — watch the level meter above. Speaker test plays a system sound.</value></data>
   <data name="Asr_MicLevel"             xml:space="preserve"><value>Microphone Level</value></data>
   <data name="Asr_BrowseFolder"         xml:space="preserve"><value>Browse…</value></data>
   <data name="Asr_ManageModels"         xml:space="preserve"><value>Manage ASR Models…</value></data>
   <data name="Asr_NoModelWarning"       xml:space="preserve"><value>No ASR model loaded. Select a model folder and model name, then click OK.</value></data>
   <data name="Asr_MicBtn_Idle"          xml:space="preserve"><value>🎙  Dictation Off</value></data>
-  <data name="Asr_MicBtn_On"            xml:space="preserve"><value>🔴  Listening…</value></data>
+  <data name="Asr_MicBtn_Ready"         xml:space="preserve"><value>🎙  Ready — press to record</value></data>
+  <data name="Asr_MicBtn_On"            xml:space="preserve"><value>🔴  Recording…</value></data>
   <data name="Asr_MicBtn_Processing"    xml:space="preserve"><value>⏳  Transcribing…</value></data>
   <data name="Asr_TypeWhisper"          xml:space="preserve"><value>Whisper  (multilingual, recommended)</value></data>
   <data name="Asr_TypeSenseVoice"       xml:space="preserve"><value>SenseVoice  (fast, EN/ZH/JA/KO)</value></data>

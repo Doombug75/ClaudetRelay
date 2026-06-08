@@ -361,12 +361,27 @@
   <data name="Asr_PttAlt"               xml:space="preserve"><value>Alt</value></data>
   <data name="Asr_ThresholdSection"     xml:space="preserve"><value>Aktivierungsschwellwert</value></data>
   <data name="Asr_ThresholdHint"        xml:space="preserve"><value>Markierung verschieben, um den Auslösepunkt festzulegen. Grün = deutliche Sprache, Orange = Übersteuerungsrisiko.</value></data>
+  <data name="Audio_MicBoost"            xml:space="preserve"><value>Mikrofon-Boost</value></data>
+  <data name="Audio_MicBoostHint"        xml:space="preserve"><value>100 % = kein Boost. Erhöhen, wenn der Pegel beim Sprechen kaum Ausschlag zeigt.</value></data>
+  <data name="Audio_TestSection"         xml:space="preserve"><value>🎤  Mikrofon &amp; Lautsprecher Test</value></data>
+  <data name="Audio_TestMicStart"        xml:space="preserve"><value>▶  Mic-Test starten</value></data>
+  <data name="Audio_TestMicStop"         xml:space="preserve"><value>⏹  Stopp &amp; Wiedergabe</value></data>
+  <data name="Audio_TestSpeaker"         xml:space="preserve"><value>🔊  Lautsprecher testen</value></data>
+  <data name="Audio_TestRecording"       xml:space="preserve"><value>🔴 Aufnahme läuft…</value></data>
+  <data name="Audio_TestPlaying"         xml:space="preserve"><value>▶ Wiedergabe…</value></data>
+  <data name="Audio_TestHint"            xml:space="preserve"><value>Start drücken, bis zu 20 s sprechen, dann Stopp — die Aufnahme wird über das gewählte Ausgabegerät abgespielt.</value></data>
+  <data name="Asr_TestSection"          xml:space="preserve"><value>Mikrofon &amp; Lautsprecher Test</value></data>
+  <data name="Asr_TestMic"             xml:space="preserve"><value>Mikrofon testen</value></data>
+  <data name="Asr_TestMicStop"         xml:space="preserve"><value>Mikrofon-Test stoppen</value></data>
+  <data name="Asr_TestSpeaker"         xml:space="preserve"><value>Lautsprecher testen</value></data>
+  <data name="Asr_TestHint"            xml:space="preserve"><value>Mikrofon-Test aktiviert das Mikrofon — der Pegelanzeiger oben zeigt die Eingabe. Lautsprecher-Test spielt einen Systemton ab.</value></data>
   <data name="Asr_MicLevel"             xml:space="preserve"><value>Mikrofonpegel</value></data>
   <data name="Asr_BrowseFolder"         xml:space="preserve"><value>Durchsuchen…</value></data>
   <data name="Asr_ManageModels"         xml:space="preserve"><value>ASR-Modelle verwalten…</value></data>
   <data name="Asr_NoModelWarning"       xml:space="preserve"><value>Kein ASR-Modell geladen. Bitte Modellordner und Modellname auswählen.</value></data>
   <data name="Asr_MicBtn_Idle"          xml:space="preserve"><value>🎙  Diktat aus</value></data>
-  <data name="Asr_MicBtn_On"            xml:space="preserve"><value>🔴  Höre zu…</value></data>
+  <data name="Asr_MicBtn_Ready"         xml:space="preserve"><value>🎙  Bereit — Drücken zum Aufnehmen</value></data>
+  <data name="Asr_MicBtn_On"            xml:space="preserve"><value>🔴  Aufnahme…</value></data>
   <data name="Asr_MicBtn_Processing"    xml:space="preserve"><value>⏳  Erkenne…</value></data>
   <data name="Asr_TypeWhisper"          xml:space="preserve"><value>Whisper  (mehrsprachig, empfohlen)</value></data>
   <data name="Asr_TypeSenseVoice"       xml:space="preserve"><value>SenseVoice  (schnell, EN/ZH/JA/KO)</value></data>

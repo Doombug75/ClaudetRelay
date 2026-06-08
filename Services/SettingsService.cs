@@ -227,6 +227,9 @@ public class AppSettings
     /// <summary>ProductName of the preferred audio input (microphone) device. Empty = OS default.</summary>
     public string AudioInputDevice { get; set; } = "";
 
+    /// <summary>Microphone input boost (gain). 100 = no boost, 200 = double, 300 = triple. Range 0–300.</summary>
+    public int AudioInputBoost { get; set; } = 100;
+
     /// <summary>Master playback volume for TTS output. Range 0.0–1.0. Default 1.0 (100 %).</summary>
     public double AudioVolume { get; set; } = 1.0;
 
