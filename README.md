@@ -95,10 +95,10 @@ No conversion tools, no LibreOffice install, no Adobe — everything is generate
 | Cloud | Local |
 |---|---|
 | Anthropic Claude | Ollama (any model) |
-| Ollama(cloud-hosted)|
-| OpenAI GPT | | LM Studio |
-| Google Gemini |
-| Mistral | vLLM |
+| Ollama ☁ (cloud-hosted) | LM Studio |
+| OpenAI GPT | vLLM |
+| Google Gemini | |
+| Mistral | |
 | Groq | |
 | OpenRouter | |
 | xAI Grok | |
