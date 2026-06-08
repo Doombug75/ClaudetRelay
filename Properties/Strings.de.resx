@@ -323,6 +323,7 @@
   <data name="Audio_CuratedModels"      xml:space="preserve"><value>Empfohlene Stimmenmodelle</value></data>
   <data name="Audio_Installed"          xml:space="preserve"><value>Installiert</value></data>
   <data name="Audio_Install"            xml:space="preserve"><value>Installieren</value></data>
+  <data name="Audio_Extracting"         xml:space="preserve"><value>Entpacken…</value></data>
   <data name="Audio_Remove"             xml:space="preserve"><value>Entfernen</value></data>
   <data name="Audio_NoFolderSelected"   xml:space="preserve"><value>Bitte zuerst einen Modellordner auswählen.</value></data>
   <data name="Audio_ConfirmRemove"      xml:space="preserve"><value>Stimmenmodell entfernen</value></data>

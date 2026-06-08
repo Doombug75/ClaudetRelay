@@ -258,12 +258,8 @@ public sealed class AsrModelManagerWindow : Window
 
             // ── Download + extract ─────────────────────────────────────────
             actionBtn.IsEnabled = false;
-            actionBtn.Content   = "⠋";
-            var spinChars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
-            int spinIdx   = 0;
-            var spinTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-            spinTimer.Tick += (_, _) => actionBtn.Content = spinChars[spinIdx++ % spinChars.Length].ToString();
-            spinTimer.Start();
+            actionBtn.Content   = "⬇";
+            statusLbl.Text      = "Connecting…";
 
             try
             {
@@ -272,10 +268,33 @@ public sealed class AsrModelManagerWindow : Window
                     Directory.CreateDirectory(folder);
                     SaveFolder();
                 }
+
                 var tmp = Path.Combine(Path.GetTempPath(), Path.GetFileName(m.DownloadUrl));
-                using var http = new HttpClient();
-                var bytes = await http.GetByteArrayAsync(m.DownloadUrl);
-                await File.WriteAllBytesAsync(tmp, bytes);
+
+                // Stream download with progress — no timeout (model files can be several GB)
+                using var http = new HttpClient { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+                using var resp = await http.GetAsync(m.DownloadUrl, HttpCompletionOption.ResponseHeadersRead);
+                resp.EnsureSuccessStatusCode();
+
+                var totalBytes = resp.Content.Headers.ContentLength ?? (long)m.SizeMb * 1024 * 1024;
+
+                await using var src  = await resp.Content.ReadAsStreamAsync();
+                await using var dest = File.Create(tmp);
+
+                var buf         = new byte[81920];  // 80 KB chunks
+                long downloaded = 0;
+                int  read;
+                while ((read = await src.ReadAsync(buf)) > 0)
+                {
+                    await dest.WriteAsync(buf.AsMemory(0, read));
+                    downloaded += read;
+                    var pct = (int)(downloaded * 100 / totalBytes);
+                    var mb  = downloaded / (1024 * 1024);
+                    var tot = totalBytes  / (1024 * 1024);
+                    statusLbl.Text = $"{pct}%  —  {mb} / {tot} MB";
+                }
+
+                statusLbl.Text = Properties.Loc.S("Audio_Extracting");
                 await Task.Run(() => ExtractTarBz2(tmp, folder));
                 try { File.Delete(tmp); } catch { }
             }
@@ -285,7 +304,6 @@ public sealed class AsrModelManagerWindow : Window
             }
             finally
             {
-                spinTimer.Stop();
                 actionBtn.IsEnabled = true;
                 RefreshRow();
             }
