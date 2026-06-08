@@ -207,8 +207,9 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 ## Requirements
 
 - Windows 10 / 11
-- .NET 10 Desktop Runtime
-- At least one API key **OR** a running [Ollama](https://ollama.com) instance
+- [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
+
+Everything else is optional — AI providers, local model servers, and API keys are only needed if you want AI participation. Projects, World Builder, Roadmap, and file output all work without any AI connected.
 
 ---
 
