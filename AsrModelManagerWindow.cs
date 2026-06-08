@@ -34,13 +34,10 @@ public sealed class AsrModelManagerWindow : Window
             "Whisper", "EN/DE/+98 langs · small  (~2 GB RAM)",   "★★★★",   466,
             "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-small.tar.bz2"),
         new("sherpa-onnx-whisper-medium",
-            "Whisper", "EN/DE/+98 langs · medium  (~5 GB RAM)",  "★★★★★", 1500,
+            "Whisper", "EN/DE/+98 langs · medium  (~2 GB RAM)",  "★★★★★", 1800,
             "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-medium.tar.bz2"),
-        new("sherpa-onnx-whisper-large-v3-turbo",
-            "Whisper", "EN/DE/+98 langs · large turbo  (~6 GB RAM)",  "★★★★★", 1600,
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-large-v3-turbo.tar.bz2"),
         new("sherpa-onnx-whisper-large-v3",
-            "Whisper", "EN/DE/+98 langs · large v3  (~10 GB RAM)", "★★★★★", 3100,
+            "Whisper", "EN/DE/+98 langs · large v3  (~1 GB RAM)", "★★★★★", 1020,
             "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-large-v3.tar.bz2"),
         // SenseVoice — fast, EN/ZH/JA/KO only
         new("sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
@@ -278,21 +275,22 @@ public sealed class AsrModelManagerWindow : Window
 
                 var totalBytes = resp.Content.Headers.ContentLength ?? (long)m.SizeMb * 1024 * 1024;
 
-                await using var src  = await resp.Content.ReadAsStreamAsync();
-                await using var dest = File.Create(tmp);
-
-                var buf         = new byte[81920];  // 80 KB chunks
-                long downloaded = 0;
-                int  read;
-                while ((read = await src.ReadAsync(buf)) > 0)
+                await using (var src  = await resp.Content.ReadAsStreamAsync())
+                await using (var dest = File.Create(tmp))
                 {
-                    await dest.WriteAsync(buf.AsMemory(0, read));
-                    downloaded += read;
-                    var pct = (int)(downloaded * 100 / totalBytes);
-                    var mb  = downloaded / (1024 * 1024);
-                    var tot = totalBytes  / (1024 * 1024);
-                    statusLbl.Text = $"{pct}%  —  {mb} / {tot} MB";
-                }
+                    var buf         = new byte[81920];  // 80 KB chunks
+                    long downloaded = 0;
+                    int  read;
+                    while ((read = await src.ReadAsync(buf)) > 0)
+                    {
+                        await dest.WriteAsync(buf.AsMemory(0, read));
+                        downloaded += read;
+                        var pct = (int)(downloaded * 100 / totalBytes);
+                        var mb  = downloaded / (1024 * 1024);
+                        var tot = totalBytes  / (1024 * 1024);
+                        statusLbl.Text = $"{pct}%  —  {mb} / {tot} MB";
+                    }
+                } // dest flushed and closed here before extraction starts
 
                 statusLbl.Text = Properties.Loc.S("Audio_Extracting");
                 await Task.Run(() => ExtractTarBz2(tmp, folder));
@@ -322,7 +320,7 @@ public sealed class AsrModelManagerWindow : Window
             CreateNoWindow        = true,
             RedirectStandardError = true,
         })!;
-        proc.WaitForExit(120_000);
+        proc.WaitForExit(600_000); // 10 minutes — large models can take a while to extract
     }
 
     private void SaveFolder()
