@@ -29,6 +29,9 @@ Unlike a simple chatbot, ClaudetRelay organises your work into **structured proj
 | **Software planning** | Break a codebase into tasks on the roadmap, have agents draft specs, architecture diagrams, and READMEs, output them as PDF or Word docs. |
 | **Brainstorming & research** | Throw a question to six models at once and compare answers side by side. Use a Coordinator agent to synthesise the best ideas from the group. |
 
+Supports many API- and local Server (Ollama, vLLM) based Providers. You can connect them all. 
+Projects and world builder also work without using AI models, if necessary.
+
 ---
 
 ### Boards on boards — the World Builder
@@ -92,8 +95,9 @@ No conversion tools, no LibreOffice install, no Adobe — everything is generate
 | Cloud | Local |
 |---|---|
 | Anthropic Claude | Ollama (any model) |
-| OpenAI GPT | Ollama ☁ (cloud-hosted) |
-| Google Gemini | LM Studio |
+| Ollama(cloud-hosted)|
+| OpenAI GPT | | LM Studio |
+| Google Gemini |
 | Mistral | vLLM |
 | Groq | |
 | OpenRouter | |
