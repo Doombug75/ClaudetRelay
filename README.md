@@ -245,3 +245,10 @@ Use **[OXSUIT Theminator](https://github.com/Doombug75/Theminator)** to create a
 Project types define the initial system prompt, suggested roles, and structural guidelines applied when a new project is created. They live as `.xaml` files in the `ProjectTypes/` folder and load at runtime — no recompilation needed.
 
 Copy an existing file, adjust the name, description, and system prompt, and restart the app. Your new type appears in the project type picker immediately.
+
+
+---
+
+## Upcoming / Things at work
+-**Text filters** - Right now, you can easily buzz out any local model with PDF bigger that a few pages or even a noisy markdown. Filtered file streams will improve that behaviour and should also help reduce context useage.
+-**Memory improvements** - Right now, every bigger conversation between different models, some being very talkative (so you have to push that ruler down to "Brief" to Keep longer conversations working), goes into the context. Means you have to delete the conversation and Restart the app after a while. Gotta think About a few ways to store history locally and give the model a compacted Version back to Keep context at some Level.
