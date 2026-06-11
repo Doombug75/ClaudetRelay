@@ -87,6 +87,16 @@ public partial class MainWindow : Window
         public Button?                    StopButton    { get; set; }
         /// <summary>Per-participant linked CTS, active during streaming. Set by RunOllamaStreamAsync; null otherwise.</summary>
         public CancellationTokenSource?   ActiveCts     { get; set; }
+        /// <summary>Thin context-window usage bar at the bottom of the card. Updated after each response.</summary>
+        public Border?                    ContextBar       { get; set; }
+        /// <summary>Popup label showing "X / Y tokens (Z%)" for the last response. Updated after each response.</summary>
+        public TextBlock?                 PopupContextVal  { get; set; }
+        /// <summary>Popup label showing accumulated session token totals. Updated after each response.</summary>
+        public TextBlock?                 PopupSessionVal  { get; set; }
+        /// <summary>Running total of input tokens sent this session.</summary>
+        public int                        SessionInputTokens  { get; set; }
+        /// <summary>Running total of output tokens received this session.</summary>
+        public int                        SessionOutputTokens { get; set; }
     }
 
     private sealed class CloudAIParticipant
@@ -152,6 +162,16 @@ public partial class MainWindow : Window
         public Button?                     StopButton    { get; set; }
         /// <summary>Per-participant linked CTS, active during streaming. Set by RunCloudAIStreamAsync; null otherwise.</summary>
         public CancellationTokenSource?    ActiveCts     { get; set; }
+        /// <summary>Thin context-window usage bar at the bottom of the card. Updated after each response.</summary>
+        public Border?                     ContextBar          { get; set; }
+        /// <summary>Popup label showing "X / Y tokens (Z%)" for the last response.</summary>
+        public TextBlock?                  PopupContextVal     { get; set; }
+        /// <summary>Popup label showing accumulated session token totals.</summary>
+        public TextBlock?                  PopupSessionVal     { get; set; }
+        /// <summary>Running total of input tokens sent this session.</summary>
+        public int                         SessionInputTokens  { get; set; }
+        /// <summary>Running total of output tokens received this session.</summary>
+        public int                         SessionOutputTokens { get; set; }
     }
 
     /// <summary>Describes a single slot mismatch between the project's saved participant
@@ -170,6 +190,10 @@ public partial class MainWindow : Window
     private readonly List<CloudAIMessage>                _sharedHistory       = [];
     private readonly Dictionary<string, ProviderRateLimiter> _rateLimiters    = new();
     private CancellationTokenSource?                     _streamCts;
+    // Temporary char counts captured immediately before each provider StreamAsync call,
+    // used to calibrate the per-participant chars-per-token ratio after the response.
+    private int _sentCharsOllama;
+    private int _sentCharsCloud;
 
     /// <summary>
     /// One semaphore per Ollama base URL — ensures only one model streams at a time
@@ -195,6 +219,7 @@ public partial class MainWindow : Window
     private string                               _projectLanguage       = "";
     private string                               _uiLanguageName        = ""; // full name from app settings, e.g. "Deutsch"
     private int                                  _maxDialogDepth        = 1;
+    private int                                  _maxFileOpDepth        = 10;
     private bool                                 _aiDialogueEnabled     = false;
     private int                                  _aiDialogueMaxTurns    = 10;
     private int                                  _globalResponseLength  = 50;
@@ -261,7 +286,10 @@ public partial class MainWindow : Window
         {
             // ── First-run: prompt for nickname if this is the first launch ──
             // (Must be done after window is loaded so theme resources are available)
-            var settings = SettingsService.Load();
+            var settings = SettingsService.Load(out bool settingsCorrupt);
+            if (settingsCorrupt)
+                PromptCorruptFile(SettingsService.FilePath, "App Settings");
+
             if (settings.UserName == "User")  // unchanged default
             {
                 ShowNicknameDialog();
@@ -303,7 +331,8 @@ public partial class MainWindow : Window
 
             // ── Dictation service wiring ──────────────────────────────────
             InitDictationService();
-            _ = LoadDictationAsync();   // load model + open mic in background; instant first press
+            if (SettingsService.Load().DictationEnabled)
+                _ = LoadDictationAsync();   // restore last active state; instant first press
         };
         // Recalculate bubble MaxWidth whenever the chat area resizes (e.g. window drag / maximize).
         //
@@ -746,6 +775,7 @@ public partial class MainWindow : Window
             _dictationModelLoaded = false;
             UpdateDictationPower(loaded: false);
             UpdateMicButton(DictationState.Idle);
+            var s = SettingsService.Load(); s.DictationEnabled = false; SettingsService.Save(s);
         }
         else
         {
@@ -788,7 +818,8 @@ public partial class MainWindow : Window
         _dictation.Configure(
             mode,
             s.VoiceActivationThreshold,
-            DictationService.FindInputDeviceNumber(s.AudioInputDevice));
+            DictationService.FindInputDeviceNumber(s.AudioInputDevice),
+            s.VoiceSilenceMs);
         _dictation.MicBoost = AudioSetupWindow.QuadraticBoost(Math.Clamp(s.AudioInputBoost, 0, 300));
 
         // For AlwaysOn: open mic in standby — no chunk recording yet; user presses 🎙 to start.
@@ -796,6 +827,7 @@ public partial class MainWindow : Window
         _dictation.Activate(startRecordingChunk: false);
         _dictationActive      = true;
         _dictationModelLoaded = true;
+        var sOn = SettingsService.Load(); sOn.DictationEnabled = true; SettingsService.Save(sOn);
 
         Dispatcher.Invoke(() =>
         {

@@ -86,10 +86,18 @@ public sealed class AudioSetupWindow : Window
             Resources[SystemColors.ActiveBorderBrushKey] = border;
     }
 
-    private void BuildUI()
+    /// <summary>Builds content into an externally supplied panel (used by the combined Audio &amp; Voice window).</summary>
+    internal Panel BuildTabContent()
     {
-        var root = new StackPanel { Margin = new Thickness(24, 20, 24, 24) };
-        Content  = root;
+        var root = new StackPanel { Margin = new Thickness(0) };
+        PopulateContent(root);
+        return root;
+    }
+
+    internal void Save() => SaveSettings();
+
+    private void PopulateContent(Panel root)
+    {
 
         var s = SettingsService.Load();
 
@@ -510,7 +518,14 @@ public sealed class AudioSetupWindow : Window
             }
         };
 
-        // ── Close ──────────────────────────────────────────────────────────
+    }
+
+    private void BuildUI()
+    {
+        var root = new StackPanel { Margin = new Thickness(24, 20, 24, 24) };
+        Content  = root;
+        PopulateContent(root);
+
         var closeBtn = MakeBtn(Properties.Loc.S("Btn_Close"), isPrimary: true);
         closeBtn.Click += (_, _) => { StopMicTest(); SaveSettings(); DialogResult = true; };
         root.Children.Add(closeBtn);

@@ -39,8 +39,8 @@ public class BridgeAgent
     /// <summary>Ollama context window size (num_ctx). 0 = use Ollama default. Local Ollama only.</summary>
     public int OllamaNumCtx     { get; set; } = 8192;
 
-    /// <summary>Max tokens to generate per reply (num_predict). 0 = use Ollama default. Local Ollama only.</summary>
-    public int OllamaNumPredict { get; set; } = 2048;
+    /// <summary>Max tokens to generate per reply (num_predict). -1 = no limit (recommended). 0 = Ollama built-in default (usually 128 — avoid). Local Ollama only.</summary>
+    public int OllamaNumPredict { get; set; } = -1;
 
     /// <summary>
     /// Max tokens per reply for cloud / API providers (max_tokens / maxOutputTokens).
@@ -134,8 +134,8 @@ public class ParticipantConfig
     /// <summary>Ollama context window size (num_ctx). 0 = use Ollama default. Local Ollama only.</summary>
     public int OllamaNumCtx     { get; set; } = 8192;
 
-    /// <summary>Max tokens to generate per reply (num_predict). 0 = use Ollama default. Local Ollama only.</summary>
-    public int OllamaNumPredict { get; set; } = 2048;
+    /// <summary>Max tokens to generate per reply (num_predict). -1 = no limit (recommended). 0 = Ollama built-in default (usually 128 — avoid). Local Ollama only.</summary>
+    public int OllamaNumPredict { get; set; } = -1;
 
     /// <summary>Max tokens per reply for cloud / API providers. 0 = provider default.</summary>
     public int CloudMaxTokens { get; set; } = 0;
@@ -143,9 +143,6 @@ public class ParticipantConfig
 
 public class AppSettings
 {
-    // Legacy — kept only for one-time migration to Windows Credential Manager
-    public string ClaudeApiKey        { get; set; } = "";
-
     // Legacy — kept for backward compat and migration source
     public string OllamaBaseUrl       { get; set; } = "http://localhost:11434";
     public string OllamaModel         { get; set; } = "llama3.2";
@@ -262,6 +259,18 @@ public class AppSettings
     /// <summary>RMS threshold (0–1) for voice-activated mode. Speech above this level triggers recording.</summary>
     public float VoiceActivationThreshold { get; set; } = 0.04f;
 
+    /// <summary>Milliseconds of silence after speech ends before transcription is triggered (300–5000).</summary>
+    public int VoiceSilenceMs { get; set; } = 1500;
+
+    /// <summary>Whether dictation (speech-to-text) was active when the app was last closed.</summary>
+    public bool DictationEnabled { get; set; } = false;
+
+    /// <summary>Display name of the participant used to summarise the chat for context compression. Empty = auto (trigger model).</summary>
+    public string CompressionParticipantName { get; set; } = "";
+
+    /// <summary>Display name of the participant that powers the Claudette live chat. Empty = auto-detect.</summary>
+    public string ClaudetteBrainName { get; set; } = "";
+
     /// <summary>
     /// UI language code, e.g. "" (English) or "de" (German).
     /// <c>null</c> = never configured → OS locale is used on first launch.
@@ -309,6 +318,12 @@ public class AppSettings
     /// Range: 1–30. Default: 5.
     /// </summary>
     public int FileCheckoutTimeoutMinutes { get; set; } = 5;
+
+    /// <summary>
+    /// Seconds of stream silence before a participant response is considered hung and cancelled.
+    /// Applies to both Ollama and Cloud AI streams. Range: 30–600. Default: 300 (5 min).
+    /// </summary>
+    public int StreamIdleTimeoutSeconds { get; set; } = 300;
 
     /// <summary>
     /// Default response length for general (non-project) chat (0–100).
@@ -405,11 +420,24 @@ public class AppSettings
     /// The 🌐 toggle in the chat toolbar enables/disables access at runtime; this persists config only.
     /// </summary>
     public WebBrowsingSettings WebBrowsing { get; set; } = new();
+
+    // ── File reading ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Semicolon-separated file extensions treated as code/binary — ContentFilter skips these
+    /// so raw source is injected unmodified (table-row / HTML sanitisation is for docs, not code).
+    /// </summary>
+    public string CodeFileExtensions { get; set; } =
+        ".bash;.bat;.bicep;.c;.cc;.cfg;.cjs;.cmake;.cmd;.conf;.config;.cpp;.cs;.csproj;.css;" +
+        ".dockerfile;.env;.ex;.exs;.fs;.fsproj;.go;.gradle;.h;.hh;.hpp;.htm;.html;" +
+        ".ini;.java;.js;.json;.jsonc;.jsx;.kt;.kts;.less;.lua;.m;.makefile;.mjs;" +
+        ".php;.pl;.props;.ps1;.psm1;.py;.r;.rb;.rs;.sass;.scala;.scss;.sh;.sln;.sql;" +
+        ".swift;.targets;.tf;.toml;.ts;.tsx;.vb;.vbproj;.vcxproj;.xml;.yaml;.yml;.zsh";
 }
 
 public static class SettingsService
 {
-    private static readonly string FilePath = Path.Combine(
+    public static readonly string FilePath = Path.Combine(
         AppDomain.CurrentDomain.BaseDirectory, "Settings", "settings.json");
 
     private static readonly JsonSerializerOptions ReadOpts = new()
@@ -422,8 +450,14 @@ public static class SettingsService
         WriteIndented = true
     };
 
-    public static AppSettings Load()
+    /// <summary>
+    /// Loads app settings.  <paramref name="wasCorrupt"/> is set to true when the file
+    /// existed but could not be parsed — caller may prompt the user and offer to open
+    /// the file or reset it.  Falls back to fresh defaults so the app always starts.
+    /// </summary>
+    public static AppSettings Load(out bool wasCorrupt)
     {
+        wasCorrupt = false;
         AppSettings settings;
         if (!File.Exists(FilePath))
         {
@@ -439,7 +473,8 @@ public static class SettingsService
             }
             catch
             {
-                settings = new AppSettings();
+                wasCorrupt = true;
+                settings   = new AppSettings();
             }
         }
 
@@ -483,6 +518,9 @@ public static class SettingsService
 
         return settings;
     }
+
+    /// <summary>Convenience overload — discards the corrupt flag.</summary>
+    public static AppSettings Load() => Load(out _);
 
     public static void Save(AppSettings settings)
     {

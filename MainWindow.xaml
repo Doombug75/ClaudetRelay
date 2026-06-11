@@ -656,6 +656,40 @@
                 <StackPanel x:Name="InputAreaStack">
                     <Rectangle Height="1" Fill="{DynamicResource ControlBgBrush}" Margin="0,0,0,12"/>
 
+                    <!-- File read progress bar (hidden during normal operation) -->
+                    <Border x:Name="FileReadProgressArea" Visibility="Collapsed" Margin="0,0,0,6">
+                        <StackPanel>
+                            <TextBlock x:Name="FileReadProgressLabel"
+                                       Text=""
+                                       Foreground="{DynamicResource SidebarDimBrush}"
+                                       FontSize="12" FontFamily="Segoe UI"
+                                       Margin="0,0,0,4"/>
+                            <ProgressBar x:Name="FileReadProgressBar"
+                                         Height="3"
+                                         Minimum="0" Maximum="1" Value="0"
+                                         Foreground="{DynamicResource SecondaryAccentBrush}"
+                                         Background="{DynamicResource ControlBgBrush}"
+                                         BorderThickness="0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Compression progress bar (hidden during normal operation) -->
+                    <Border x:Name="CompressionProgressArea" Visibility="Collapsed" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock x:Name="CompressionProgressLabel"
+                                       Text="🗜  Compressing conversation history…"
+                                       Foreground="{DynamicResource SidebarDimBrush}"
+                                       FontSize="12" FontFamily="Segoe UI"
+                                       Margin="0,0,0,5"/>
+                            <ProgressBar x:Name="CompressionProgressBar"
+                                         IsIndeterminate="True"
+                                         Height="4"
+                                         Foreground="{DynamicResource PrimaryAccentBrush}"
+                                         Background="{DynamicResource ControlBgBrush}"
+                                         BorderThickness="0"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Private-message target chip (address line, shown above when recipient selected) -->
                     <Border x:Name="PrivateMsgChip" Visibility="Collapsed"
                             CornerRadius="8" Margin="0,0,0,8" Padding="10,5,6,5"

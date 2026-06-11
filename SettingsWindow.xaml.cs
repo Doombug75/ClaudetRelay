@@ -68,7 +68,8 @@ public partial class SettingsWindow : Window
     private Slider       _responseLengthSlider     = null!;
     private Slider       _chattinessSlider         = null!;
     private Slider       _zoomSlider               = null!;
-    private Slider       _fileCheckoutTimeoutSlider = null!;
+    private TextBox      _fileCheckoutTimeoutBox    = null!;
+    private TextBox      _streamIdleTimeoutBox      = null!;
 
     // ── Constructor ────────────────────────────────────────────────────────
 
@@ -525,44 +526,52 @@ public partial class SettingsWindow : Window
             Margin = new Thickness(0, 4, 0, 6)
         };
 
-        var fctCurrentValue = Math.Clamp(settings.FileCheckoutTimeoutMinutes, 1, 30);
-        var fctValueLabel = new TextBlock
+        var fctBox = new TextBox
         {
-            FontSize   = 12,
-            FontFamily = new FontFamily("Segoe UI"),
-            Text       = $"{fctCurrentValue} min",
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin     = new Thickness(0, 0, 0, 4)
+            Text      = Math.Clamp(settings.FileCheckoutTimeoutMinutes, 1, 30).ToString(),
+            Width     = 60,
+            FontSize  = 13,
+            Padding   = new Thickness(6, 4, 6, 4),
         };
-        fctValueLabel.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+        fctBox.SetResourceReference(TextBox.ForegroundProperty,   "InputTextBrush");
+        fctBox.SetResourceReference(TextBox.BackgroundProperty,   "InputBgBrush");
+        fctBox.SetResourceReference(TextBox.BorderBrushProperty,  "InputBorderBrush");
+        _fileCheckoutTimeoutBox = fctBox;
 
-        var fctSlider = new Slider
-        {
-            Minimum             = 1,
-            Maximum             = 30,
-            Value               = fctCurrentValue,
-            TickFrequency       = 1,
-            IsSnapToTickEnabled = true,
-            Margin              = new Thickness(0, 0, 0, 4)
-        };
-        _fileCheckoutTimeoutSlider = fctSlider;
-        fctSlider.ValueChanged += (_, e) =>
-            fctValueLabel.Text = $"{(int)e.NewValue} min";
+        var fctResetBtn = MakeResetButton();
+        fctResetBtn.Click += (_, _) => fctBox.Text = "5";
 
-        var fctRow = new Grid { Margin = new Thickness(0, 0, 0, 4) };
-        fctRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        fctRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        fctRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var fctLeft  = MakeHintText(Loc.S("Settings_FCT_Min"));
-        var fctRight = MakeHintText(Loc.S("Settings_FCT_Max"));
-        Grid.SetColumn(fctLeft,   0);
-        Grid.SetColumn(fctSlider, 1);
-        Grid.SetColumn(fctRight,  2);
-        fctRow.Children.Add(fctLeft);
-        fctRow.Children.Add(fctSlider);
-        fctRow.Children.Add(fctRight);
-
+        var fctRow = MakeTimeoutRow(fctBox, Loc.S("Settings_FCT_Unit"), fctResetBtn);
         var fctHint = MakeHintText(Loc.S("Settings_FileCheckoutTimeoutHint"));
+
+        // ── STREAM IDLE TIMEOUT ─────────────────────────────────────────────
+        var sitSep = new Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 12) };
+        sitSep.SetResourceReference(Rectangle.FillProperty, "ControlBorderBrush");
+
+        var sitLabel = new TextBlock
+        {
+            Style  = (Style)FindResource("SLabel"),
+            Text   = Loc.S("Settings_StreamIdleTimeout"),
+            Margin = new Thickness(0, 4, 0, 6)
+        };
+
+        var sitBox = new TextBox
+        {
+            Text     = Math.Clamp(settings.StreamIdleTimeoutSeconds, 30, 600).ToString(),
+            Width    = 60,
+            FontSize = 13,
+            Padding  = new Thickness(6, 4, 6, 4),
+        };
+        sitBox.SetResourceReference(TextBox.ForegroundProperty,  "InputTextBrush");
+        sitBox.SetResourceReference(TextBox.BackgroundProperty,  "InputBgBrush");
+        sitBox.SetResourceReference(TextBox.BorderBrushProperty, "InputBorderBrush");
+        _streamIdleTimeoutBox = sitBox;
+
+        var sitResetBtn = MakeResetButton();
+        sitResetBtn.Click += (_, _) => sitBox.Text = "300";
+
+        var sitRow  = MakeTimeoutRow(sitBox, Loc.S("Settings_SIT_Unit"), sitResetBtn);
+        var sitHint = MakeHintText(Loc.S("Settings_StreamIdleTimeoutHint"));
 
         var root = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         root.Children.Add(nameLabel);
@@ -595,9 +604,12 @@ public partial class SettingsWindow : Window
         root.Children.Add(zoomHint);
         root.Children.Add(fctSep);
         root.Children.Add(fctLabel);
-        root.Children.Add(fctValueLabel);
         root.Children.Add(fctRow);
         root.Children.Add(fctHint);
+        root.Children.Add(sitSep);
+        root.Children.Add(sitLabel);
+        root.Children.Add(sitRow);
+        root.Children.Add(sitHint);
 
         var scroll = new ScrollViewer
         {
@@ -1465,7 +1477,10 @@ public partial class SettingsWindow : Window
         settings.GlobalResponseLength         = (int)_responseLengthSlider.Value;
         settings.GlobalChattiness             = (int)_chattinessSlider.Value;
         settings.UiZoom                       = Math.Clamp(_zoomSlider.Value / 100.0, 0.5, 3.0);
-        settings.FileCheckoutTimeoutMinutes   = Math.Clamp((int)_fileCheckoutTimeoutSlider.Value, 1, 30);
+        settings.FileCheckoutTimeoutMinutes =
+            int.TryParse(_fileCheckoutTimeoutBox.Text, out var fctVal) ? Math.Clamp(fctVal, 1, 30) : 5;
+        settings.StreamIdleTimeoutSeconds =
+            int.TryParse(_streamIdleTimeoutBox.Text,   out var sitVal) ? Math.Clamp(sitVal, 30, 600) : 300;
         settings.Participants.Clear();
 
         foreach (var form in _forms)
@@ -1644,6 +1659,46 @@ public partial class SettingsWindow : Window
         < 85  => Loc.S("Settings_Ch_Engaged"),
         _     => Loc.S("Settings_Ch_VeryChatty")
     };
+
+    private Button MakeResetButton()
+    {
+        var btn = new Button
+        {
+            Content = Loc.S("Btn_LoadDefault"),
+            Padding = new Thickness(8, 4, 8, 4),
+            FontSize = 11,
+            Margin  = new Thickness(8, 0, 0, 0),
+        };
+        btn.Style = (Style)FindResource("ModernButton");
+        return btn;
+    }
+
+    private static Grid MakeTimeoutRow(TextBox box, string unitLabel, Button resetBtn)
+    {
+        var row = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var unit = new TextBlock
+        {
+            Text              = unitLabel,
+            FontSize          = 12,
+            FontFamily        = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin            = new Thickness(6, 0, 0, 0),
+        };
+        unit.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+
+        Grid.SetColumn(box,      0);
+        Grid.SetColumn(unit,     1);
+        Grid.SetColumn(resetBtn, 2);
+        row.Children.Add(box);
+        row.Children.Add(unit);
+        row.Children.Add(resetBtn);
+        return row;
+    }
 
     private TextBlock MakeHintText(string text) => new TextBlock
     {

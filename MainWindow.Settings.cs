@@ -72,6 +72,9 @@ public partial class MainWindow
         menu.Items.Add(langItem);
         menu.Items.Add(new Separator());
         BuildAudioMenuItems(menu);
+        var managerItem = new MenuItem { Header = Properties.Loc.S("Menu_Manager") };
+        managerItem.Click += (_, _) => OpenManagerSettings();
+        menu.Items.Add(managerItem);
         menu.Items.Add(new Separator());
         BuildWebAccessMenuItem(menu);
         menu.Items.Add(new Separator());
@@ -100,17 +103,15 @@ public partial class MainWindow
 
     private void BuildAudioMenuItems(ContextMenu menu)
     {
-        var audioItem = new MenuItem { Header = Properties.Loc.S("Audio_AudioSetup") };
-        var voiceItem = new MenuItem { Header = Properties.Loc.S("Audio_VoiceSettings") };
-        var asrItem   = new MenuItem { Header = Properties.Loc.S("Asr_MenuTitle") };
+        var item = new MenuItem { Header = Properties.Loc.S("Menu_AudioAndVoice") };
+        item.Click += (_, _) => OpenAudioAndVoiceSettings();
+        menu.Items.Add(item);
+    }
 
-        audioItem.Click += (_, _) => OpenAudioSetup();
-        voiceItem.Click += (_, _) => OpenVoiceSettings();
-        asrItem  .Click += (_, _) => OpenVoiceRecognitionSettings();
-
-        menu.Items.Add(audioItem);
-        menu.Items.Add(voiceItem);
-        menu.Items.Add(asrItem);
+    internal void OpenManagerSettings()
+    {
+        var win = new ManagerSettingsWindow(_currentThemePath, ApplyThemeToDialog) { Owner = this };
+        win.ShowDialog();
     }
 
     private void BuildWebAccessMenuItem(ContextMenu menu)
@@ -125,6 +126,27 @@ public partial class MainWindow
         var win = new WebAccessSettingsWindow(_currentThemePath) { Owner = this };
         win.SourceInitialized += (_, _) => ApplyTitleBarTheme(win);
         win.ShowDialog();
+    }
+
+    internal void OpenAudioAndVoiceSettings(int initialTab = 0)
+    {
+        var win = new AudioAndVoiceSettingsWindow(
+            _currentThemePath, _dictation,
+            applyTheme: ApplyThemeToDialog,
+            initialTab: initialTab)
+        { Owner = this };
+        win.ShowDialog();
+
+        // Re-initialise dictation after any ASR settings change (same logic as old OpenVoiceRecognitionSettings)
+        if (_dictationModelLoaded)
+        {
+            _dictation.Deactivate();
+            _dictationActive      = false;
+            _dictationModelLoaded = false;
+            UpdateDictationPower(loaded: false);
+            UpdateMicButton(Services.DictationState.Idle);
+            _ = LoadDictationAsync();
+        }
     }
 
     private void InitVoiceBackend()
@@ -1146,6 +1168,30 @@ public partial class MainWindow
         return 0.2126 * Lin(c.R / 255.0) +
                0.7152 * Lin(c.G / 255.0) +
                0.0722 * Lin(c.B / 255.0);
+    }
+
+    /// <summary>
+    /// Shown when a settings or project.json file fails to parse.
+    /// Offers to open the file in Notepad or silently reset (already done by caller).
+    /// </summary>
+    internal void PromptCorruptFile(string filePath, string label)
+    {
+        var msg = $"⚠  The {label} file could not be read and has been reset to defaults.\n\n" +
+                  $"File: {filePath}\n\n" +
+                  "Would you like to open the file to inspect or recover it?";
+
+        var result = MessageBox.Show(msg, $"Corrupt {label} File",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+        if (result == MessageBoxResult.Yes && SysIO.File.Exists(filePath))
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo(filePath) { UseShellExecute = true });
+            }
+            catch { /* best effort */ }
+        }
     }
 
     private static string FormatThemeName(string name)

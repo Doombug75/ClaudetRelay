@@ -88,9 +88,14 @@ public sealed class SherpaOnnxTtsBackend : ITtsBackend
 
         return await Task.Run(() =>
         {
-            OfflineTts tts = GetOrCreateTts(modelName, onnx, tokens);
-            var audio = tts.Generate(text, speed, speakerId);
-            return PcmToWav(audio.Samples, audio.SampleRate);
+            // Hold _cacheLock for the full Generate() call so Dispose() cannot free
+            // the native OfflineTts object while synthesis is running (ExecutionEngineException).
+            lock (_cacheLock)
+            {
+                OfflineTts tts = GetOrCreateTts(modelName, onnx, tokens);
+                var audio = tts.Generate(text, speed, speakerId);
+                return PcmToWav(audio.Samples, audio.SampleRate);
+            }
         }, ct);
     }
 

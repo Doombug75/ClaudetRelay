@@ -31,9 +31,10 @@ public sealed class DictationService : IDisposable
     public event Action<DictationState>? StateChanged;
 
     // ── Config ─────────────────────────────────────────────────────────────
-    private DictationActivationMode _mode      = DictationActivationMode.AlwaysOn;
-    private float                   _threshold = 0.04f;
+    private DictationActivationMode _mode        = DictationActivationMode.AlwaysOn;
+    private float                   _threshold   = 0.04f;
     private int                     _deviceNumber = 0;
+    private int                     _silenceMs   = 1500;
 
     // ── Runtime state ──────────────────────────────────────────────────────
 
@@ -50,9 +51,12 @@ public sealed class DictationService : IDisposable
     private bool           _voiceTriggered  = false;
     private int            _silenceSamples  = 0;
     private OfflineRecognizer? _recognizer;
+    // Serialises Decode() on background threads with Dispose() in LoadModel(),
+    // preventing use-after-free crashes (ExecutionEngineException) in native code.
+    private readonly object _recognizerLock = new();
 
     private const int SampleRate      = 16000;
-    private const int SilenceMs       = 3000;   // silence → stop in VoiceActivated mode
+    private const int SilenceMs       = 1500;   // fallback only — overridden by Configure()
     private const float SilenceFactor = 0.5f;   // silence threshold = threshold * factor
 
     public bool           IsActive    => _state != DictationState.Idle || _recording;
@@ -70,9 +74,6 @@ public sealed class DictationService : IDisposable
     {
         try
         {
-            _recognizer?.Dispose();
-            _recognizer = null;
-
             var config = new OfflineRecognizerConfig();
             config.FeatConfig.SampleRate = SampleRate;
             config.FeatConfig.FeatureDim = 80;
@@ -110,7 +111,15 @@ public sealed class DictationService : IDisposable
                     return false;
             }
 
-            _recognizer = new OfflineRecognizer(config);
+            // Swap under lock so any in-flight Decode() finishes before we dispose.
+            OfflineRecognizer? old;
+            var fresh = new OfflineRecognizer(config);
+            lock (_recognizerLock)
+            {
+                old         = _recognizer;
+                _recognizer = fresh;
+            }
+            old?.Dispose();
             return true;
         }
         catch (Exception ex)
@@ -128,11 +137,12 @@ public sealed class DictationService : IDisposable
 
     // ── Activation ─────────────────────────────────────────────────────────
 
-    public void Configure(DictationActivationMode mode, float threshold, int deviceNumber)
+    public void Configure(DictationActivationMode mode, float threshold, int deviceNumber, int silenceMs = 1500)
     {
         _mode         = mode;
         _threshold    = Math.Max(0.001f, threshold);
         _deviceNumber = deviceNumber;
+        _silenceMs    = Math.Clamp(silenceMs, 300, 5000);
     }
 
     /// <summary>
@@ -183,9 +193,15 @@ public sealed class DictationService : IDisposable
     /// <summary>Stop capture and release the microphone.</summary>
     public void Deactivate()
     {
-        _waveIn?.StopRecording();
-        _waveIn?.Dispose();
-        _waveIn = null;
+        if (_waveIn is not null)
+        {
+            // Unsubscribe before stopping to prevent late DataAvailable callbacks
+            // from firing after the device is disposed (causes native ExecutionEngineException).
+            _waveIn.DataAvailable -= OnData;
+            _waveIn.StopRecording();
+            _waveIn.Dispose();
+            _waveIn = null;
+        }
         _recording      = false;
         _voiceTriggered = false;
         _samples.Clear();
@@ -256,7 +272,7 @@ public sealed class DictationService : IDisposable
             if (rms < _threshold * SilenceFactor)
             {
                 _silenceSamples += count;
-                if (_silenceSamples >= SampleRate * SilenceMs / 1000)
+                if (_silenceSamples >= SampleRate * _silenceMs / 1000)
                 {
                     _voiceTriggered = false;
                     StopAndTranscribe();
@@ -290,15 +306,24 @@ public sealed class DictationService : IDisposable
 
         SetState(DictationState.Processing);
 
+        var recognizer = _recognizer;
         Task.Run(() =>
         {
+            string? text = null;
             try
             {
-                if (_recognizer is null) return;
-                var stream = _recognizer.CreateStream();
-                stream.AcceptWaveform(SampleRate, samples);
-                _recognizer.Decode(stream);
-                var text = stream.Result.Text.Trim();
+                if (recognizer is null) return;
+                // Hold the lock for the entire native decode so LoadModel's Dispose()
+                // cannot run concurrently — that race causes ExecutionEngineException.
+                lock (_recognizerLock)
+                {
+                    // Bail if the recognizer was already replaced (settings reload).
+                    if (_recognizer != recognizer) return;
+                    var stream = recognizer.CreateStream();
+                    stream.AcceptWaveform(SampleRate, samples);
+                    recognizer.Decode(stream);
+                    text = stream.Result.Text.Trim();
+                }
                 if (!string.IsNullOrWhiteSpace(text))
                     TextAvailable?.Invoke(text);
             }
@@ -308,9 +333,9 @@ public sealed class DictationService : IDisposable
             }
             finally
             {
-                // In AlwaysOn mode restart recording immediately
+                // Only re-arm if the mic is still open (Deactivate() sets _waveIn=null)
                 if (_waveIn is not null && _mode == DictationActivationMode.AlwaysOn)
-                    BeginRecording();  // sets state to Recording
+                    BeginRecording();
                 else
                     SetState(_waveIn is not null ? DictationState.Listening : DictationState.Idle);
             }
@@ -347,7 +372,12 @@ public sealed class DictationService : IDisposable
     public void Dispose()
     {
         Deactivate();
-        _recognizer?.Dispose();
-        _recognizer = null;
+        OfflineRecognizer? old;
+        lock (_recognizerLock)
+        {
+            old         = _recognizer;
+            _recognizer = null;
+        }
+        old?.Dispose();
     }
 }

@@ -22,12 +22,20 @@ public sealed class AnthropicService : ICloudAIService
     ];
 
     private readonly HttpClient _http;
+    private int _pendingInputTokens;
 
     public string CurrentModel { get; set; } = DefaultModels[0];
 
     /// <inheritdoc/>
     /// Anthropic requires max_tokens — 0 means "use default" (4096 sent to the API).
     public int MaxTokens { get; set; } = 0;
+
+    /// <inheritdoc/>
+    public UsageInfo? LastUsage { get; private set; }
+
+    /// <inheritdoc/>
+    /// All current Claude models have a 200 K context window.
+    public int ContextWindowTokens => 200_000;
 
     public AnthropicService(string apiKey)
     {
@@ -107,6 +115,14 @@ public sealed class AnthropicService : ICloudAIService
 
             switch (typeEl.GetString())
             {
+                case "message_start":
+                    // {"type":"message_start","message":{"usage":{"input_tokens":X,...}}}
+                    if (root.TryGetProperty("message", out var msgEl) &&
+                        msgEl.TryGetProperty("usage", out var startUsage) &&
+                        startUsage.TryGetProperty("input_tokens", out var itEl))
+                        _pendingInputTokens = itEl.GetInt32();
+                    break;
+
                 case "content_block_delta":
                     if (root.TryGetProperty("delta", out var delta) &&
                         delta.TryGetProperty("text", out var textEl))
@@ -115,6 +131,14 @@ public sealed class AnthropicService : ICloudAIService
                         if (!string.IsNullOrEmpty(token)) yield return token;
                     }
                     break;
+
+                case "message_delta":
+                    // {"type":"message_delta","usage":{"output_tokens":Y}}
+                    if (root.TryGetProperty("usage", out var deltaUsage) &&
+                        deltaUsage.TryGetProperty("output_tokens", out var otEl))
+                        LastUsage = new UsageInfo(_pendingInputTokens, otEl.GetInt32());
+                    break;
+
                 case "message_stop":
                     yield break;
             }

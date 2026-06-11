@@ -19,6 +19,13 @@ public abstract class OpenAICompatibleService : ICloudAIService
     /// <inheritdoc/>
     public int MaxTokens { get; set; } = 0;
 
+    /// <inheritdoc/>
+    public UsageInfo? LastUsage { get; private set; }
+
+    /// <inheritdoc/>
+    /// Override in subclasses that know their model's context window precisely.
+    public virtual int ContextWindowTokens => 128_000;
+
     protected readonly HttpClient _http;
     protected readonly string     _baseUrl;
 
@@ -101,6 +108,17 @@ public abstract class OpenAICompatibleService : ICloudAIService
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
+            // Usage chunk: arrives just before [DONE] when stream_options.include_usage=true.
+            // Has empty or missing choices array and a top-level "usage" object.
+            if (root.TryGetProperty("usage", out var usageEl) &&
+                usageEl.ValueKind == JsonValueKind.Object)
+            {
+                var input  = usageEl.TryGetProperty("prompt_tokens",     out var pt) ? pt.GetInt32() : 0;
+                var output = usageEl.TryGetProperty("completion_tokens", out var ct2) ? ct2.GetInt32() : 0;
+                if (input > 0 || output > 0)
+                    LastUsage = new UsageInfo(input, output);
+            }
+
             if (!root.TryGetProperty("choices", out var choices) ||
                 choices.GetArrayLength() == 0) continue;
 
@@ -125,6 +143,14 @@ public abstract class OpenAICompatibleService : ICloudAIService
         writer.WriteString ("model",  CurrentModel);
         writer.WriteBoolean("stream", stream);
         if (MaxTokens > 0) writer.WriteNumber("max_tokens", MaxTokens);
+        if (stream)
+        {
+            // Ask provider to include token-usage data in the final stream chunk.
+            // Providers that don't support this field silently ignore it.
+            writer.WriteStartObject("stream_options");
+            writer.WriteBoolean("include_usage", true);
+            writer.WriteEndObject();
+        }
         writer.WriteStartArray("messages");
 
         if (!string.IsNullOrEmpty(system))

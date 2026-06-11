@@ -25,9 +25,13 @@ public class OllamaService : IDisposable
 
     /// <summary>
     /// Max tokens to generate per reply (num_predict).
-    /// 0 = use Ollama default. -1 = no limit.
+    /// -1 = no limit (Ollama default behaviour). 0 = use Ollama built-in default (usually 128 — avoid).
     /// </summary>
-    public int NumPredict { get; set; } = 2048;
+    public int NumPredict { get; set; } = -1;
+
+    /// <summary>Token usage from the last completed stream (prompt_eval_count + eval_count).
+    /// Null until the first stream that returns a done=true final frame.</summary>
+    public UsageInfo? LastUsage { get; private set; }
 
     /// <summary>Last line of &lt;thinking&gt; text received during the most recent stream.
     /// Updated while streaming; empty if the model doesn't expose thinking.</summary>
@@ -236,7 +240,13 @@ public class OllamaService : IDisposable
             }
 
             if (root.TryGetProperty("done", out var done) && done.GetBoolean())
+            {
+                var inputTokens  = root.TryGetProperty("prompt_eval_count", out var pec) ? pec.GetInt32() : 0;
+                var outputTokens = root.TryGetProperty("eval_count",        out var ec)  ? ec.GetInt32()  : 0;
+                if (inputTokens > 0 || outputTokens > 0)
+                    LastUsage = new UsageInfo(inputTokens, outputTokens);
                 yield break;
+            }
         }
     }
 
@@ -330,13 +340,14 @@ public class OllamaService : IDisposable
         }
         writer.WriteEndArray();
 
-        // Emit options block — num_ctx prevents context-window exhaustion in long conversations.
-        // Both values are only written when non-zero so callers can opt out by leaving them at 0.
-        if (NumCtx > 0 || NumPredict > 0)
+        // Emit options block.
+        // NumCtx > 0 sends the context window size.
+        // NumPredict != 0: -1 = unlimited (explicit), positive = cap. 0 = omit (let Ollama use its built-in default).
+        if (NumCtx > 0 || NumPredict != 0)
         {
             writer.WriteStartObject("options");
-            if (NumCtx     > 0) writer.WriteNumber("num_ctx",     NumCtx);
-            if (NumPredict > 0) writer.WriteNumber("num_predict", NumPredict);
+            if (NumCtx     > 0)           writer.WriteNumber("num_ctx",     NumCtx);
+            if (NumPredict != 0)          writer.WriteNumber("num_predict", NumPredict);
             writer.WriteEndObject();
         }
 

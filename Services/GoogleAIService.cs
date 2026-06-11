@@ -29,6 +29,13 @@ public sealed class GoogleAIService : ICloudAIService
     /// 0 = use default (4096 sent to the API).
     public int MaxTokens { get; set; } = 0;
 
+    /// <inheritdoc/>
+    public UsageInfo? LastUsage { get; private set; }
+
+    /// <inheritdoc/>
+    /// Gemini 1.5 / 2.0 models have a 1 M token context window.
+    public int ContextWindowTokens => 1_000_000;
+
     public GoogleAIService(string apiKey)
     {
         _apiKey = apiKey;
@@ -106,7 +113,18 @@ public sealed class GoogleAIService : ICloudAIService
             if (string.IsNullOrEmpty(json)) continue;
 
             using var doc = JsonDocument.Parse(json);
-            var text = ExtractText(doc.RootElement);
+            var root = doc.RootElement;
+
+            // usageMetadata is present in every chunk; final chunk has the definitive counts.
+            if (root.TryGetProperty("usageMetadata", out var meta))
+            {
+                var input  = meta.TryGetProperty("promptTokenCount",     out var p) ? p.GetInt32() : 0;
+                var output = meta.TryGetProperty("candidatesTokenCount", out var c) ? c.GetInt32() : 0;
+                if (input > 0 || output > 0)
+                    LastUsage = new UsageInfo(input, output);
+            }
+
+            var text = ExtractText(root);
             if (!string.IsNullOrEmpty(text)) yield return text;
         }
     }

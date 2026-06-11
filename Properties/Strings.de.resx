@@ -243,8 +243,13 @@
   <!-- ── Allgemeine Einstellungen ──────────────────────────────────────────── -->
   <data name="Settings_FileCheckoutTimeout"     xml:space="preserve"><value>Dateisperre-Timeout</value></data>
   <data name="Settings_FileCheckoutTimeoutHint" xml:space="preserve"><value>Minuten, bevor ein inaktiver Teilnehmer daran erinnert wird, eine Dateisperre freizugeben. Aktiv generierende Teilnehmer erhalten automatisch eine 1-Minuten-Verlängerung statt einer Erinnerung.</value></data>
-  <data name="Settings_FCT_Min"                 xml:space="preserve"><value>1 Min</value></data>
-  <data name="Settings_FCT_Max"                 xml:space="preserve"><value>30 Min</value></data>
+  <data name="Settings_FCT_Unit"                xml:space="preserve"><value>Minuten  (1–30)</value></data>
+  <data name="Settings_StreamIdleTimeout"       xml:space="preserve"><value>Stream-Leerlauf-Timeout</value></data>
+  <data name="Settings_StreamIdleTimeoutHint"   xml:space="preserve"><value>Sekunden ohne Token, bevor ein hängender Stream automatisch abgebrochen wird. Wird bei jedem empfangenen Token zurückgesetzt — langsam denkende Modelle sind sicher, solange sie weiter ausgeben.</value></data>
+  <data name="Settings_SIT_Unit"                xml:space="preserve"><value>Sekunden  (30–600)</value></data>
+  <data name="StreamTimeout_Msg"                xml:space="preserve"><value>Stream-Timeout nach {0}s Stille. Prüfen ob das Modell noch läuft.</value></data>
+  <data name="StreamTimeout_Badge"              xml:space="preserve"><value>Timeout</value></data>
+  <data name="Btn_LoadDefault"                  xml:space="preserve"><value>↺ Standard</value></data>
 
   <!-- ── Language names ─────────────────────────────────────────────────── -->
   <data name="Lang_English"  xml:space="preserve"><value>English</value></data>
@@ -333,6 +338,11 @@
   <data name="Audio_SherpaNoModels"     xml:space="preserve"><value>Noch keine Modelle installiert</value></data>
   <data name="Audio_VoicevoxRunning"    xml:space="preserve"><value>VOICEVOX verbunden</value></data>
   <data name="Audio_VoicevoxNotRunning" xml:space="preserve"><value>VOICEVOX läuft nicht</value></data>
+  <data name="Menu_AudioAndVoice"        xml:space="preserve"><value>🔊  Ton- und Spracheinstellungen</value></data>
+  <data name="Menu_Manager"             xml:space="preserve"><value>⚙  Verwalter-Einstellungen</value></data>
+  <data name="AudioVoice_TabAudio"      xml:space="preserve"><value>Audioeinstellungen</value></data>
+  <data name="AudioVoice_TabVoice"      xml:space="preserve"><value>Sprachausgabe</value></data>
+  <data name="AudioVoice_TabAsr"        xml:space="preserve"><value>Spracherkennung</value></data>
   <data name="Audio_AudioSetup"         xml:space="preserve"><value>🔊  Audioeinstellungen</value></data>
   <data name="Audio_VoiceSettings"      xml:space="preserve"><value>🎙  Spracheinstellungen</value></data>
   <data name="Audio_OutputDevice"       xml:space="preserve"><value>Ausgabegerät</value></data>
@@ -762,9 +772,12 @@ Er wird von diesen Boards automatisch entfernt.</value></data>
   <data name="ProjSettings_EmotesAllowedHint" xml:space="preserve"><value>Teilnehmer dürfen /me-Aktionen für Emotionen und Rollenspiel verwenden (z. B. /me nickt nachdenklich). Nützlich für kreatives Schreiben, Erzählprojekte und Rollenspiele. Standardmäßig deaktiviert für Arbeitsprojekte.</value></data>
   <data name="ProjSettings_ResponseLang"      xml:space="preserve"><value>ANTWORTSPRACHE</value></data>
   <data name="ProjSettings_LangHint"          xml:space="preserve"><value>Leer = Gesprächssprache folgen</value></data>
-  <data name="ProjSettings_MaxDepth"          xml:space="preserve"><value>MAX. DIALOGTIEFE</value></data>
-  <data name="ProjSettings_MaxDepthTip"       xml:space="preserve"><value>Positive ganze Zahl. 1 = nur auf Nutzer antworten (keine KI-zu-KI-Verkettung).</value></data>
-  <data name="ProjSettings_MaxDepthHint"      xml:space="preserve"><value>Wie viele KI-zu-KI-Antwortrunden erlaubt sind, bevor der Nutzer eine neue Nachricht senden muss.</value></data>
+  <data name="ProjSettings_MaxDepth"              xml:space="preserve"><value>MAX. DIALOGTIEFE</value></data>
+  <data name="ProjSettings_MaxDepthTip"           xml:space="preserve"><value>Positive ganze Zahl. 1 = nur auf Nutzer antworten (keine KI-zu-KI-Verkettung).</value></data>
+  <data name="ProjSettings_MaxDepthHint"          xml:space="preserve"><value>Wie viele KI-zu-KI-Antwortrunden erlaubt sind, bevor der Nutzer eine neue Nachricht senden muss.</value></data>
+  <data name="ProjSettings_MaxFileOpDepth"        xml:space="preserve"><value>MAX. DATEIOPERATIONSTIEFE</value></data>
+  <data name="ProjSettings_MaxFileOpDepthTip"     xml:space="preserve"><value>Positive ganze Zahl. Wie viele aufeinanderfolgende Dateioperationen ein Modell automatisch verketten darf.</value></data>
+  <data name="ProjSettings_MaxFileOpDepthHint"    xml:space="preserve"><value>Max. automatisch verkettete Datei-Lese-/Listenoperationen pro Antwort. Zählt nicht zur Dialogtiefe.</value></data>
   <data name="ProjSettings_ResponseLength"    xml:space="preserve"><value>STANDARDANTWORTLÄNGE</value></data>
   <data name="ProjSettings_ApplyAll"          xml:space="preserve"><value>Auf alle</value></data>
   <data name="ProjSettings_ApplyAllTip"       xml:space="preserve"><value>Antwortlänge auf alle Teilnehmer in diesem Projekt anwenden</value></data>
@@ -839,9 +852,13 @@ Er wird von diesen Boards automatisch entfernt.</value></data>
   <data name="CharEditor_SavedTitle"          xml:space="preserve"><value>Gespeichert</value></data>
   <data name="CharEditor_Reset"               xml:space="preserve"><value>↩ Zurücksetzen</value></data>
 
-  <!-- ── Web Access Settings window ──────────────────────────────────────── -->
-  <data name="WebAccess_MenuTitle"            xml:space="preserve"><value>🌐  Web-Zugriff-Einstellungen</value></data>
-  <data name="WebAccess_WindowTitle"          xml:space="preserve"><value>Web-Zugriff-Einstellungen</value></data>
+  <!-- ── Files and Downloads window ──────────────────────────────────────── -->
+  <data name="WebAccess_MenuTitle"            xml:space="preserve"><value>📁  Dateien und Downloads</value></data>
+  <data name="WebAccess_WindowTitle"          xml:space="preserve"><value>Dateien und Downloads</value></data>
+  <data name="WebAccess_TabWeb"               xml:space="preserve"><value>🌐  Web &amp; Downloads</value></data>
+  <data name="WebAccess_TabFiles"             xml:space="preserve"><value>📄  Datei-Lesen</value></data>
+  <data name="WebAccess_SectionCodeExt"       xml:space="preserve"><value>Code-Dateiendungen (Inhaltsfilter überspringen)</value></data>
+  <data name="WebAccess_CodeExtHint"          xml:space="preserve"><value>Semikolon-getrennte Endungen, deren Inhalt ungefiltert weitergegeben wird. Alle anderen Text-/Dokumentdateien werden gefiltert (Tabellenzeilen, HTML, Base64 usw.), bevor sie an ein Modell gesendet werden.</value></data>
   <data name="WebAccess_SectionDownloads"     xml:space="preserve"><value>Downloads</value></data>
   <data name="WebAccess_AllowDownloads"       xml:space="preserve"><value>Downloads erlauben</value></data>
   <data name="WebAccess_AllowDownloadsHint"   xml:space="preserve"><value>Wenn deaktiviert, können Agenten Webseiten lesen, aber keine Dateien auf dem Gerät speichern.</value></data>
@@ -864,5 +881,24 @@ Er wird von diesen Boards automatisch entfernt.</value></data>
   <data name="WebAccess_AddDomainHint"        xml:space="preserve"><value>Domain, z. B. wikipedia.org</value></data>
   <data name="WebAccess_AddBtn"               xml:space="preserve"><value>Hinzufügen</value></data>
   <data name="WebAccess_RemoveBtn"            xml:space="preserve"><value>Entfernen</value></data>
+
+  <!-- ── Compression messages ──────────────────────────────────────────── -->
+  <data name="Compression_ProgressLabel"    xml:space="preserve"><value>🗜  Gesprächsverlauf wird komprimiert…</value></data>
+  <data name="Compression_Starting"         xml:space="preserve"><value>🗜  Kontextfenster nähert sich dem Limit — Gesprächsverlauf wird komprimiert…</value></data>
+  <data name="Compression_NoManager"        xml:space="preserve"><value>⚠  Kein Komprimierungsmanager verfügbar. Bitte einen in ●●● → ⚙ Manager-Einstellungen auswählen oder einen Teilnehmer aktivieren.</value></data>
+  <data name="Compression_TooShort"         xml:space="preserve"><value>ℹ  Verlauf ist noch zu kurz zum Komprimieren.</value></data>
+  <data name="Compression_Cancelled"        xml:space="preserve"><value>ℹ  Komprimierung abgebrochen.</value></data>
+  <data name="Compression_Failed"           xml:space="preserve"><value>⚠  Komprimierung fehlgeschlagen: {0}</value></data>
+  <data name="Compression_Done"             xml:space="preserve"><value>✓  Komprimierung abgeschlossen: {0} Nachricht(en) → {1} Zusammenfassung(en) + {2} aktuelle Nachricht(en) behalten.</value></data>
+
+  <!-- ── Clear Chat dialog ─────────────────────────────────────────────── -->
+  <data name="ClearChat_Title"               xml:space="preserve"><value>Chat leeren</value></data>
+  <data name="ClearChat_Question"            xml:space="preserve"><value>Was soll geleert werden?</value></data>
+  <data name="ClearChat_MemoryOnly"          xml:space="preserve"><value>🧠  Nur Chat-Gedächtnis leeren  (KI vergisst — Dateien bleiben)</value></data>
+  <data name="ClearChat_FilesOnly"           xml:space="preserve"><value>🗂  Nur Verlaufs-Dateien löschen  (Gedächtnis bleibt aktiv)</value></data>
+  <data name="ClearChat_Both"               xml:space="preserve"><value>🗑  Alles leeren  (Gedächtnis + Dateien)</value></data>
+  <data name="ClearChat_DoneMemory"          xml:space="preserve"><value>Chat-Gedächtnis geleert.</value></data>
+  <data name="ClearChat_DoneFiles"           xml:space="preserve"><value>Verlaufs-Dateien gelöscht.</value></data>
+  <data name="ClearChat_DoneBoth"            xml:space="preserve"><value>Chat vollständig geleert.</value></data>
 
 </root>

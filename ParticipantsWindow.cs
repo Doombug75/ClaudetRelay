@@ -1082,7 +1082,13 @@ public class ParticipantsWindow : Window
 
                 var predBox = new TextBox { Text = p.OllamaNumPredict.ToString(), Width = 80, VerticalAlignment = VerticalAlignment.Center };
                 if (win.TryFindResource("ModernTextBox") is Style predStyle) predBox.Style = predStyle;
-                predBox.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsAsciiDigit);
+                // Allow digits and a leading minus (for -1 = unlimited)
+                predBox.PreviewTextInput += (_, e) =>
+                {
+                    bool isMinus  = e.Text == "-" && predBox.SelectionStart == 0 && !predBox.Text.Contains('-');
+                    bool isDigits = e.Text.All(char.IsAsciiDigit);
+                    e.Handled = !(isMinus || isDigits);
+                };
                 predRow.Children.Add(predBox);
 
                 var predTokens = new TextBlock
@@ -1093,7 +1099,7 @@ public class ParticipantsWindow : Window
                 };
                 predTokens.SetResourceReference(TextBlock.ForegroundProperty, "ControlDimBrush");
                 predRow.Children.Add(predTokens);
-                predRow.Children.Add(BuildSpinner(predBox, min: 0));
+                predRow.Children.Add(BuildSpinner(predBox, min: -1));
 
                 _editNumCtxBox     = ctxBox;
                 _editNumPredictBox = predBox;

@@ -147,6 +147,9 @@ public class ProjectSettings
     /// <summary>Max consecutive AI-to-AI response rounds per user message.</summary>
     public int MaxDialogDepth { get; set; } = 3;
 
+    /// <summary>Max automatic re-invocations per participant response for file operations (readfile, listfiles, etc.).</summary>
+    public int MaxFileOpDepth { get; set; } = 10;
+
     /// <summary>Default response length (0–100) for new participants. 50 = model default.</summary>
     public int DefaultResponseLength { get; set; } = 50;
 
@@ -321,9 +324,11 @@ public static class ProjectService
     /// <summary>
     /// Loads the project from <c>PROJECTSETTINGS/project.json</c>.
     /// Returns <c>null</c> when the file is absent (not a project folder).
+    /// <paramref name="wasCorrupt"/> is set to true when the file exists but could not be parsed.
     /// </summary>
-    public static ProjectSettings? LoadProject(string projectFolder)
+    public static ProjectSettings? LoadProject(string projectFolder, out bool wasCorrupt)
     {
+        wasCorrupt = false;
         var path = ProjectFilePath(projectFolder);
         if (!File.Exists(path))
         {
@@ -353,9 +358,14 @@ public static class ProjectService
 #if DEBUG
             System.Diagnostics.Debug.WriteLine($"✗ [LoadProject] ERROR loading {Path.GetFileName(projectFolder)}: {ex.Message}");
 #endif
+            wasCorrupt = true;
             return null;
         }
     }
+
+    /// <summary>Convenience overload — discards the corrupt flag.</summary>
+    public static ProjectSettings? LoadProject(string projectFolder)
+        => LoadProject(projectFolder, out _);
 
     /// <summary>
     /// Saves all project data to <c>PROJECTSETTINGS/project.json</c>.
@@ -577,6 +587,14 @@ public static class ProjectService
         var input = Path.Combine(projectFolder, "INPUT");
         if (!Directory.Exists(input)) return [];
         return Directory.GetFiles(input).Select(Path.GetFileName).ToList()!;
+    }
+
+    /// <summary>Lists all files in OUTPUT sub-folder (sandboxed).</summary>
+    public static List<string> ListOutputFiles(string projectFolder)
+    {
+        var output = Path.Combine(projectFolder, "OUTPUT");
+        if (!Directory.Exists(output)) return [];
+        return Directory.GetFiles(output).Select(Path.GetFileName).ToList()!;
     }
 
     // ── AI-Characters folder ───────────────────────────────────────────────

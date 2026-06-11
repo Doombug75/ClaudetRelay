@@ -50,11 +50,29 @@ public sealed class VoiceSettingsWindow : Window
         UiZoomHelper.Apply(this, UiZoomHelper.FromSettings());
     }
 
+    internal Panel BuildTabContent()
+    {
+        var root = new StackPanel { Margin = new Thickness(0) };
+        PopulateContent(root);
+        return root;
+    }
+
+    internal void Save() => SaveSettings();
+
     private void BuildUI()
     {
         var root = new StackPanel { Margin = new Thickness(24, 20, 24, 24) };
         Content  = root;
+        PopulateContent(root);
 
+        var closeBtn = MakeBtn(Properties.Loc.S("Btn_Close"), isPrimary: true);
+        closeBtn.HorizontalAlignment = HorizontalAlignment.Right;
+        closeBtn.Click += (_, _) => { SaveSettings(); DialogResult = true; };
+        root.Children.Add(closeBtn);
+    }
+
+    private void PopulateContent(Panel root)
+    {
         var s = SettingsService.Load();
 
         root.Children.Add(SectionHeading("🎤  " + Properties.Loc.S("Audio_VoiceBackendTitle")));
@@ -260,13 +278,6 @@ public sealed class VoiceSettingsWindow : Window
         _interruptChk = interruptChk;
         _maxCharsBox  = maxBox;
 
-        // ── Separator + Close ──────────────────────────────────────────────
-        root.Children.Add(new Separator { Margin = new Thickness(0, 20, 0, 12) });
-
-        var closeBtn = MakeBtn(Properties.Loc.S("Btn_Close"), isPrimary: true);
-        closeBtn.HorizontalAlignment = HorizontalAlignment.Right;
-        closeBtn.Click += (_, _) => { SaveSettings(); DialogResult = true; };
-        root.Children.Add(closeBtn);
     }
 
     private void UpdatePanels()

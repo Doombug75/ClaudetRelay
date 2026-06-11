@@ -30,4 +30,16 @@ public interface ICloudAIService : IDisposable
 
     Task<bool>         IsAvailableAsync(CancellationToken ct = default);
     Task<List<string>> GetModelsAsync  (CancellationToken ct = default);
+
+    /// <summary>
+    /// Token usage from the last completed StreamAsync or SendAsync call.
+    /// Null until the first call completes. Used for context-window bar and AIMEM.SYS accounting.
+    /// </summary>
+    UsageInfo? LastUsage { get; }
+
+    /// <summary>
+    /// Maximum context window for the currently selected model (tokens).
+    /// Used to compute the fill ratio of the usage bar.
+    /// </summary>
+    int ContextWindowTokens { get; }
 }

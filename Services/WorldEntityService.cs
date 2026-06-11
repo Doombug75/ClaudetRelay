@@ -341,6 +341,73 @@ public static class WorldEntityService
         }
     }
 
+    // ── AI form-fill helper ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Creates a new entity or merges field values into an existing one by name.
+    /// Blank values in <paramref name="fields"/> are skipped (existing value kept).
+    /// Returns the saved entity and whether it was newly created.
+    /// </summary>
+    public static (WorldEntity Entity, bool Created) CreateOrUpdate(
+        string projFolder, string entityType, string name,
+        Dictionary<string, string> fields, string notes)
+    {
+        // Normalise entity type to singular canonical form
+        var singularType = entityType.TrimEnd('s');
+        if (string.IsNullOrEmpty(singularType)) singularType = entityType;
+        // Capitalise first letter so "character" → "Character"
+        singularType = char.ToUpper(singularType[0]) + singularType[1..];
+
+        // Try to find an existing entity with this name
+        var existing = List(projFolder, singularType)
+            .FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase));
+
+        bool created = existing is null;
+        var entity   = existing ?? new WorldEntity
+        {
+            Id         = Guid.NewGuid().ToString("N")[..8],
+            Name       = name,
+            EntityType = singularType,
+            CreatedAt  = DateTime.UtcNow
+        };
+
+        // Merge non-blank fields
+        foreach (var (k, v) in fields)
+        {
+            if (!string.IsNullOrWhiteSpace(v))
+                entity.Fields[k] = v.Trim();
+        }
+
+        // Append or set notes
+        if (!string.IsNullOrWhiteSpace(notes))
+            entity.Notes = string.IsNullOrWhiteSpace(entity.Notes)
+                ? notes.Trim()
+                : entity.Notes.TrimEnd() + "\n" + notes.Trim();
+
+        Save(projFolder, entity);
+        return (entity, created);
+    }
+
+    /// <summary>
+    /// Returns a form template string showing all schema fields for an entity type,
+    /// pre-populated with the entity's current values (empty string if none).
+    /// </summary>
+    public static string BuildFormTemplate(string entityType)
+    {
+        var singular = entityType.TrimEnd('s');
+        if (string.IsNullOrEmpty(singular)) singular = entityType;
+        singular = char.ToUpper(singular[0]) + singular[1..];
+
+        var fields = WorldEntitySchemas.For(singular);
+        if (fields.Count == 0) return "";
+
+        var sb = new System.Text.StringBuilder();
+        foreach (var (field, hint) in fields)
+            sb.AppendLine(hint.Length > 0 ? $"{field}: ({hint})" : $"{field}: ");
+        sb.AppendLine("Notes: ");
+        return sb.ToString().TrimEnd();
+    }
+
     // ── Helper ─────────────────────────────────────────────────────────────
 
     public static string GetPortraitsFolder(string projFolder) =>

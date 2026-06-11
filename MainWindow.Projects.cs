@@ -842,7 +842,9 @@ public partial class MainWindow
 
     private void OpenProject(string projFolder)
     {
-        var loaded = ProjectService.LoadProject(projFolder);
+        var loaded = ProjectService.LoadProject(projFolder, out bool projectCorrupt);
+        if (projectCorrupt)
+            PromptCorruptFile(ProjectService.ProjectFilePath(projFolder), "Project Settings");
         if (loaded is null) { MessageBox.Show(Loc.S("Err_CouldNotReadProject"), Loc.S("Dlg_BridgeError")); return; }
 
         // ── Guard: ask before switching away from an already-open project ────
@@ -917,6 +919,7 @@ public partial class MainWindow
         _currentRoadmap       = RoadmapService.Load(projFolder);
         _projectLanguage      = loaded.Language;
         _maxDialogDepth       = Math.Max(1, loaded.MaxDialogDepth);
+        _maxFileOpDepth       = Math.Max(1, loaded.MaxFileOpDepth);
         _sessionStartTime     = DateTime.Now;
         _workSessionFired     = false;
 
@@ -1058,6 +1061,7 @@ public partial class MainWindow
         _superRoles                      = null;
         _projectLanguage                 = "";
         _maxDialogDepth                  = 1;
+        _maxFileOpDepth                  = 10;
         _sessionStartTime                = null;
         _workSessionFired                = false;
         // Restore top tab bar — back to general (no-project) mode.
@@ -1913,9 +1917,25 @@ public partial class MainWindow
                 .ToList()
             : [];
 
+        // Collect files from non-internal subfolders (e.g. PROJECTPLAN/Character/)
+        var subfolderFiles = new List<(string SubfolderName, string FilePath)>();
+        if (SysIO.Directory.Exists(absFolder))
+        {
+            foreach (var subDir in SysIO.Directory.GetDirectories(absFolder)
+                         .Where(d => !SysIO.Path.GetFileName(d).StartsWith("_"))
+                         .OrderBy(d => SysIO.Path.GetFileName(d), StringComparer.OrdinalIgnoreCase))
+            {
+                var subName = SysIO.Path.GetFileName(subDir);
+                foreach (var f in SysIO.Directory.GetFiles(subDir)
+                             .Where(f => !SysIO.Path.GetFileName(f).StartsWith("_"))
+                             .OrderBy(f => SysIO.Path.GetFileName(f), StringComparer.OrdinalIgnoreCase))
+                    subfolderFiles.Add((subName!, f));
+            }
+        }
+
         var fileRows = new List<(string Name, FrameworkElement Row)>();
 
-        if (files.Count == 0)
+        if (files.Count == 0 && subfolderFiles.Count == 0)
         {
             var empty = new TextBlock
             {
@@ -1929,14 +1949,35 @@ public partial class MainWindow
         }
         else
         {
-            // Use body as parentPanel so refresh (delete/promote) rebuilds relative to body
             foreach (var filePath in files)
             {
-                var fileRow = BuildFileRow(filePath, projFolder, folder, canDelete, canPromote,
-                    // parentPanel is still inner so promote/delete refresh works
-                    inner);
+                var fileRow = BuildFileRow(filePath, projFolder, folder, canDelete, canPromote, inner);
                 body.Children.Add(fileRow);
                 fileRows.Add((SysIO.Path.GetFileName(filePath), fileRow));
+            }
+
+            // Subfolder groups
+            string? lastSub = null;
+            foreach (var (subName, filePath) in subfolderFiles)
+            {
+                if (subName != lastSub)
+                {
+                    var subHeader = new TextBlock
+                    {
+                        Text       = subName + "/",
+                        FontSize   = 11,
+                        FontWeight = FontWeights.SemiBold,
+                        FontFamily = new FontFamily("Segoe UI"),
+                        Margin     = new Thickness(4, 8, 0, 2)
+                    };
+                    subHeader.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+                    body.Children.Add(subHeader);
+                    lastSub = subName;
+                }
+                var subFolderPath = $"{folder}/{subName}";
+                var fileRow = BuildFileRow(filePath, projFolder, subFolderPath, canDelete, canPromote, inner);
+                body.Children.Add(fileRow);
+                fileRows.Add(($"{subName}/{SysIO.Path.GetFileName(filePath)}", fileRow));
             }
         }
 
@@ -4547,6 +4588,7 @@ public partial class MainWindow
             Margin                = new Thickness(0, 0, 0, 6),
             ToolTip               = "Leave empty to let the model follow the conversation language"
         };
+        langCombo.SetResourceReference(Control.StyleProperty, "SComboBox");
         foreach (var lang in new[]
         {
             "", "English", "Deutsch", "Français", "Español", "Italiano",
@@ -4617,6 +4659,53 @@ public partial class MainWindow
 
         root.Children.Add(depthLabel);
         root.Children.Add(depthRow);
+
+        // ── Max File-Op Depth ──────────────────────────────────────────────
+        var fileOpDepthLabel = new TextBlock
+        {
+            Text       = Properties.Loc.S("ProjSettings_MaxFileOpDepth"),
+            FontSize   = 11, FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin     = new Thickness(0, 0, 0, 6),
+            Foreground = (Brush)FindResource("ContentDimBrush")
+        };
+
+        var fileOpDepthBox = new TextBox
+        {
+            Text              = ps.MaxFileOpDepth.ToString(),
+            Width             = 60,
+            Height            = 32,
+            FontSize          = 13,
+            FontFamily        = new FontFamily("Segoe UI"),
+            TextAlignment     = TextAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Margin            = new Thickness(0, 0, 10, 0),
+            Foreground        = (Brush)FindResource("ContentTextBrush"),
+            Background        = (Brush)FindResource("ControlBgBrush"),
+            BorderBrush       = (Brush)FindResource("ControlBgBrush"),
+            ToolTip           = Properties.Loc.S("ProjSettings_MaxFileOpDepthTip")
+        };
+        fileOpDepthBox.PreviewTextInput += (_, e) => e.Handled = !e.Text.All(char.IsDigit);
+
+        var fileOpDepthHintTb = new TextBlock
+        {
+            Text              = Properties.Loc.S("ProjSettings_MaxFileOpDepthHint"),
+            FontSize          = 11, FontFamily = new FontFamily("Segoe UI"),
+            TextWrapping      = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground        = (Brush)FindResource("ContentDimBrush")
+        };
+
+        var fileOpDepthRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin      = new Thickness(0, 0, 0, 16)
+        };
+        fileOpDepthRow.Children.Add(fileOpDepthBox);
+        fileOpDepthRow.Children.Add(fileOpDepthHintTb);
+
+        root.Children.Add(fileOpDepthLabel);
+        root.Children.Add(fileOpDepthRow);
 
         // ── Default Response Length ────────────────────────────────────────
         var defLenLabel = new TextBlock
@@ -5269,6 +5358,9 @@ public partial class MainWindow
             // Collect max dialog depth
             ps.MaxDialogDepth = int.TryParse(depthBox.Text, out var d) && d >= 1 ? d : 1;
 
+            // Collect max file-op depth
+            ps.MaxFileOpDepth = int.TryParse(fileOpDepthBox.Text, out var fod) && fod >= 1 ? fod : 10;
+
             // Collect default response length
             ps.DefaultResponseLength = (int)defLenSlider.Value;
 
@@ -5322,6 +5414,7 @@ public partial class MainWindow
             {
                 _projectLanguage  = ps.Language;
                 _maxDialogDepth   = ps.MaxDialogDepth;
+                _maxFileOpDepth   = ps.MaxFileOpDepth;
                 _projectSettings  = ps;
                 _currentProject   = ps;
                 RefreshParticipantBadges();

@@ -18,14 +18,6 @@ public partial class MainWindow
     {
         var settings = SettingsService.Load();
 
-        // One-time migration: move legacy ClaudeApiKey → Windows Credential Manager
-        if (!string.IsNullOrWhiteSpace(settings.ClaudeApiKey))
-        {
-            WindowsCredentialManager.Save("Anthropic", settings.ClaudeApiKey);
-            settings.ClaudeApiKey = "";
-            SettingsService.Save(settings);
-        }
-
         // Create participants from settings (welcome hint handles the no-participants state)
         foreach (var p in settings.Participants.Where(p => p.Enabled))
         {
@@ -779,9 +771,12 @@ public partial class MainWindow
         badgeRow.Children.Add(rsBadge);
         badgeRow.Children.Add(wrBadge);
 
+        var contextBarCloud = BuildContextBar();
+
         var cardContent = new StackPanel();
         cardContent.Children.Add(grid);
         cardContent.Children.Add(badgeRow);
+        cardContent.Children.Add(contextBarCloud);
 
         var card = new Border
         {
@@ -825,6 +820,16 @@ public partial class MainWindow
         infoModelKey.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         var infoModelVal = new TextBlock { Text = FormatModelDisplayName(participant.Service.CurrentModel), FontSize = 12, TextWrapping = TextWrapping.Wrap };
         infoModelVal.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+
+        var infoCtxKey = new TextBlock { Text = "CONTEXT", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 10, 0, 3) };
+        infoCtxKey.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+        var infoCtxVal = new TextBlock { Text = "—", FontSize = 12, Margin = new Thickness(0, 0, 0, 2), TextWrapping = TextWrapping.Wrap };
+        infoCtxVal.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+
+        var infoSesKey = new TextBlock { Text = "SESSION TOKENS", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 6, 0, 3) };
+        infoSesKey.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+        var infoSesVal = new TextBlock { Text = "—", FontSize = 12, TextWrapping = TextWrapping.Wrap };
+        infoSesVal.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
 
         var settingsLink = new Button
         {
@@ -870,6 +875,10 @@ public partial class MainWindow
         popupContent.Children.Add(infoProviderVal);
         popupContent.Children.Add(infoModelKey);
         popupContent.Children.Add(infoModelVal);
+        popupContent.Children.Add(infoCtxKey);
+        popupContent.Children.Add(infoCtxVal);
+        popupContent.Children.Add(infoSesKey);
+        popupContent.Children.Add(infoSesVal);
         popupContent.Children.Add(settingsLink);
         popupContent.Children.Add(popupRemoveSep);
         popupContent.Children.Add(removeButton);
@@ -919,8 +928,11 @@ public partial class MainWindow
             Popup         = popup,
             PopupTitle    = popupTitle,
             EnabledToggle = enabledToggle,
-            RemoveButton  = removeButton,
-            StopButton    = stopButtonCloud
+            RemoveButton    = removeButton,
+            StopButton      = stopButtonCloud,
+            ContextBar      = contextBarCloud,
+            PopupContextVal = infoCtxVal,
+            PopupSessionVal = infoSesVal
         };
 
         void OpenCloudPopup()
@@ -1261,9 +1273,12 @@ public partial class MainWindow
         badgeRow.Children.Add(rsBadge);
         badgeRow.Children.Add(wrBadge);
 
+        var contextBarOllama = BuildContextBar();
+
         var cardContent = new StackPanel();
         cardContent.Children.Add(grid);
         cardContent.Children.Add(badgeRow);
+        cardContent.Children.Add(contextBarOllama);
 
         var card = new Border
         {
@@ -1307,6 +1322,16 @@ public partial class MainWindow
         infoModelKey.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
         var infoModelVal = new TextBlock { Text = FormatModelDisplayName(participant.Service.CurrentModel), FontSize = 12, TextWrapping = TextWrapping.Wrap };
         infoModelVal.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+
+        var ollamaCtxKey = new TextBlock { Text = "CONTEXT", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 10, 0, 3) };
+        ollamaCtxKey.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+        var ollamaCtxVal = new TextBlock { Text = "—", FontSize = 12, Margin = new Thickness(0, 0, 0, 2), TextWrapping = TextWrapping.Wrap };
+        ollamaCtxVal.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
+
+        var ollamaSesKey = new TextBlock { Text = "SESSION TOKENS", FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 6, 0, 3) };
+        ollamaSesKey.SetResourceReference(TextBlock.ForegroundProperty, "ContentDimBrush");
+        var ollamaSesVal = new TextBlock { Text = "—", FontSize = 12, TextWrapping = TextWrapping.Wrap };
+        ollamaSesVal.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
 
         var ollamaSettingsLink = new Button
         {
@@ -1352,6 +1377,10 @@ public partial class MainWindow
         popupContent.Children.Add(infoServerVal);
         popupContent.Children.Add(infoModelKey);
         popupContent.Children.Add(infoModelVal);
+        popupContent.Children.Add(ollamaCtxKey);
+        popupContent.Children.Add(ollamaCtxVal);
+        popupContent.Children.Add(ollamaSesKey);
+        popupContent.Children.Add(ollamaSesVal);
         popupContent.Children.Add(ollamaSettingsLink);
         popupContent.Children.Add(ollamaPopupRemoveSep);
         popupContent.Children.Add(removeButton);
@@ -1401,8 +1430,11 @@ public partial class MainWindow
             Popup         = popup,
             PopupTitle    = popupTitle,
             EnabledToggle = enabledToggle,
-            RemoveButton  = removeButton,
-            StopButton    = stopButtonOllama
+            RemoveButton    = removeButton,
+            StopButton      = stopButtonOllama,
+            ContextBar      = contextBarOllama,
+            PopupContextVal = ollamaCtxVal,
+            PopupSessionVal = ollamaSesVal
         };
 
         void OpenOllamaPopup()
@@ -1670,50 +1702,35 @@ public partial class MainWindow
     private void OnParticipantResponded(OllamaParticipantUI ui)
     {
         ui.Data.ResponseCount++;
-        if (ui.Data.ResponseCount % 5 != 0) return;
-        var type  = "Ollama";
-        var model = ui.Data.Service.CurrentModel;
-        var url   = ui.Data.Service.BaseUrl;
-        SelfDescriptionService.FetchMoodAsync(type, model, url)
-            .ContinueWith(t =>
+        // Mood is now set inline by ParseAndStripMoodTag during response finalization.
+        // Update the status label whenever a mood word is available.
+        var mood = ui.Data.Mood;
+        if (string.IsNullOrWhiteSpace(mood)) return;
+        Dispatcher.InvokeAsync(() =>
+        {
+            if (ui.ErrorBadge.Visibility == Visibility.Collapsed)
             {
-                var mood = t.Result;
-                if (string.IsNullOrWhiteSpace(mood)) return;
-                ui.Data.Mood = mood;
-                Dispatcher.InvokeAsync(() =>
-                {
-                    if (ui.ErrorBadge.Visibility == Visibility.Collapsed)
-                    {
-                        ui.StatusLabel.Text       = mood;
-                        ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
-                        ui.StatusLabel.Visibility = Visibility.Visible;
-                    }
-                });
-            }, TaskScheduler.Default);
+                ui.StatusLabel.Text       = mood;
+                ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
+                ui.StatusLabel.Visibility = Visibility.Visible;
+            }
+        });
     }
 
     private void OnParticipantResponded(CloudAIParticipantUI ui)
     {
         ui.Data.ResponseCount++;
-        if (ui.Data.ResponseCount % 5 != 0) return;
-        var type  = ui.Data.Service.ProviderName;
-        var model = ui.Data.Service.CurrentModel;
-        SelfDescriptionService.FetchMoodAsync(type, model, serverUrl: "")
-            .ContinueWith(t =>
+        var mood = ui.Data.Mood;
+        if (string.IsNullOrWhiteSpace(mood)) return;
+        Dispatcher.InvokeAsync(() =>
+        {
+            if (ui.ErrorBadge.Visibility == Visibility.Collapsed)
             {
-                var mood = t.Result;
-                if (string.IsNullOrWhiteSpace(mood)) return;
-                ui.Data.Mood = mood;
-                Dispatcher.InvokeAsync(() =>
-                {
-                    if (ui.ErrorBadge.Visibility == Visibility.Collapsed)
-                    {
-                        ui.StatusLabel.Text       = mood;
-                        ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
-                        ui.StatusLabel.Visibility = Visibility.Visible;
-                    }
-                });
-            }, TaskScheduler.Default);
+                ui.StatusLabel.Text       = mood;
+                ui.StatusLabel.Foreground = new SolidColorBrush(Color.FromRgb(100, 190, 100));
+                ui.StatusLabel.Visibility = Visibility.Visible;
+            }
+        });
     }
 
     /// <summary>
@@ -2044,6 +2061,75 @@ public partial class MainWindow
     /// Starts a pulsing glow on the participant's avatar to indicate the model is actively
     /// generating a response. Pair every call with <see cref="StopCardPulse"/>.
     /// </summary>
+    // ── Context-window bar ────────────────────────────────────────────────
+
+    private static readonly System.Windows.Media.SolidColorBrush BarGreen  =
+        new(System.Windows.Media.Color.FromRgb(76,  175,  80));
+    private static readonly System.Windows.Media.SolidColorBrush BarAmber  =
+        new(System.Windows.Media.Color.FromRgb(255, 160,   0));
+    private static readonly System.Windows.Media.SolidColorBrush BarRed    =
+        new(System.Windows.Media.Color.FromRgb(229,  57,  53));
+
+    /// <summary>Builds the thin track+fill bar added to the bottom of each participant card.</summary>
+    private static Border BuildContextBar()
+    {
+        var fill = new Border { CornerRadius = new CornerRadius(2), Background = BarGreen };
+
+        var barGrid = new Grid();
+        barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0, GridUnitType.Star) });
+        barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(fill, 0);
+        barGrid.Children.Add(fill);
+
+        var track = new Border
+        {
+            Height          = 4,
+            Margin          = new Thickness(0, 5, 0, 0),
+            CornerRadius    = new CornerRadius(2),
+            BorderThickness = new Thickness(1),
+            Background      = System.Windows.Media.Brushes.Black,
+            Child           = barGrid,
+        };
+        // 1px frame uses the dim brush — always visible regardless of theme brightness
+        track.SetResourceReference(Border.BorderBrushProperty, "ContentDimBrush");
+        return track;
+    }
+
+    /// <summary>
+    /// Updates the context-window bar and popup stats for a participant card.
+    /// Must be called on the UI thread.
+    /// </summary>
+    internal void UpdateContextBar(Border? track, int inputTokens, int contextWindow)
+    {
+        if (track?.Child is not Grid barGrid) return;
+        if (contextWindow <= 0) return;
+
+        var ratio = Math.Clamp((double)inputTokens / contextWindow, 0.0, 1.0);
+        barGrid.ColumnDefinitions[0].Width = new GridLength(ratio,       GridUnitType.Star);
+        barGrid.ColumnDefinitions[1].Width = new GridLength(1.0 - ratio, GridUnitType.Star);
+
+        ((Border)barGrid.Children[0]).Background =
+            ratio < 0.5 ? BarGreen :
+            ratio < 0.8 ? BarAmber : BarRed;
+
+        track.ToolTip = $"~{inputTokens:N0} / {contextWindow:N0} tokens  ({ratio:P0} context used)";
+    }
+
+    /// <summary>Updates the context and session token labels inside the participant popup.</summary>
+    internal static void UpdatePopupStats(
+        TextBlock? ctxVal, TextBlock? sesVal,
+        int inputTokens, int contextWindow,
+        int sessionIn, int sessionOut)
+    {
+        if (ctxVal is not null)
+        {
+            var ratio = contextWindow > 0 ? (double)inputTokens / contextWindow : 0;
+            ctxVal.Text = $"{inputTokens:N0} / {contextWindow:N0}  ({ratio:P0})";
+        }
+        if (sesVal is not null)
+            sesVal.Text = $"{sessionIn:N0} in  ·  {sessionOut:N0} out";
+    }
+
     /// <summary>
     /// Starts the pulsing glow animation on a participant's avatar card.
     /// Also updates the status label to show "Busy..." while generating.

@@ -36,6 +36,7 @@ public sealed class VoiceRecognitionSettingsWindow : Window
     private DispatcherTimer? _meterTimer;
     private float       _currentLevel;
     private float       _threshold;
+    private int         _silenceMs;
     private bool        _recordingKey;
 
     public VoiceRecognitionSettingsWindow(string? themePath, DictationService dictation,
@@ -95,10 +96,27 @@ public sealed class VoiceRecognitionSettingsWindow : Window
 
     // ── UI construction ────────────────────────────────────────────────────
 
+    internal Panel BuildTabContent()
+    {
+        var root = new StackPanel { Margin = new Thickness(0) };
+        PopulateContent(root);
+        return root;
+    }
+
+    internal void Save() => DoSave();
+
+    /// <summary>Called by combined window on close: stops the meter refresh timer.</summary>
+    internal void StopMeterTimer() => _meterTimer?.Stop();
+
+    /// <summary>Called by combined window on close: unsubscribes the level event so the
+    /// dictation service doesn't hold a reference to a dead window.</summary>
+    internal void DetachFromDictation() => _dictation.LevelChanged -= OnLevelChanged;
+
     private void BuildUI()
     {
         var s = SettingsService.Load();
-        _threshold = s.VoiceActivationThreshold;
+        _threshold  = s.VoiceActivationThreshold;
+        _silenceMs  = s.VoiceSilenceMs;
 
         var scroll = new ScrollViewer
         {
@@ -108,6 +126,27 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         var root = new StackPanel { Margin = new Thickness(24, 20, 24, 24) };
         scroll.Content = root;
         Content = scroll;
+        // ── Buttons (standalone window only) ──────────────────────────────
+        var sep2 = new System.Windows.Shapes.Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 16) };
+        sep2.SetResourceReference(System.Windows.Shapes.Rectangle.FillProperty, "ControlBorderBrush");
+        root.Children.Add(sep2);
+        var btnRow2 = new StackPanel { Orientation = Orientation.Horizontal,
+                                       HorizontalAlignment = HorizontalAlignment.Right };
+        var cancelBtn2 = MakeBtn(Properties.Loc.S("Btn_Cancel"), false);
+        cancelBtn2.Margin = new Thickness(0, 0, 8, 0);
+        cancelBtn2.Click += (_, _) => Close();
+        var okBtn2 = MakeBtn(Properties.Loc.S("Btn_OK"), true);
+        okBtn2.Click += (_, _) => { SaveAndClose(); };
+        btnRow2.Children.Add(cancelBtn2);
+        btnRow2.Children.Add(okBtn2);
+        root.Children.Add(btnRow2);
+    }
+
+    private void PopulateContent(Panel root)
+    {
+        var s = SettingsService.Load();
+        _threshold = s.VoiceActivationThreshold;
+        _silenceMs = s.VoiceSilenceMs;
 
         // ── Model section ──────────────────────────────────────────────────
         root.Children.Add(Heading(Properties.Loc.S("Asr_ModelSection")));
@@ -352,6 +391,48 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         thintTb.SetResourceReference(ForegroundProperty, "ContentDimBrush");
         _voicePanel.Children.Add(thintTb);
 
+        // ── Silence delay slider ───────────────────────────────────────────────
+        var silenceLabelRow = new StackPanel { Orientation = Orientation.Horizontal,
+                                               Margin = new Thickness(0, 0, 0, 2) };
+        var silenceLbl = new TextBlock { Text = "Silence delay before processing:",
+                                         FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                                         VerticalAlignment = VerticalAlignment.Center };
+        silenceLbl.SetResourceReference(ForegroundProperty, "ContentTextBrush");
+        var silenceValLbl = new TextBlock { FontSize = 11, FontFamily = new FontFamily("Segoe UI"),
+                                            Margin = new Thickness(8, 0, 0, 0),
+                                            VerticalAlignment = VerticalAlignment.Center,
+                                            FontWeight = FontWeights.SemiBold };
+        silenceValLbl.SetResourceReference(ForegroundProperty, "AccentHighlightBrush");
+        silenceLabelRow.Children.Add(silenceLbl);
+        silenceLabelRow.Children.Add(silenceValLbl);
+        _voicePanel.Children.Add(silenceLabelRow);
+
+        void UpdateSilenceLabel() => silenceValLbl.Text = $"{_silenceMs} ms";
+        UpdateSilenceLabel();
+
+        var silenceSlider = new Slider
+        {
+            Minimum = 300, Maximum = 5000, Value = _silenceMs,
+            TickFrequency = 100, IsSnapToTickEnabled = true,
+            Margin = new Thickness(0, 0, 0, 2)
+        };
+        silenceSlider.ValueChanged += (_, e) =>
+        {
+            _silenceMs = (int)e.NewValue;
+            UpdateSilenceLabel();
+        };
+        _voicePanel.Children.Add(silenceSlider);
+
+        var silenceHint = new TextBlock
+        {
+            Text = "How long after you stop speaking before transcription starts. " +
+                   "Lower = faster response; higher = less likely to cut off mid-sentence.",
+            FontSize = 10, TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 2, 0, 8)
+        };
+        silenceHint.SetResourceReference(ForegroundProperty, "ContentDimBrush");
+        _voicePanel.Children.Add(silenceHint);
+
         // ── Mic test (inside voice panel, next to the level bar it belongs to) ──
         bool micTestActive = false;
         var micTestBtn = MakeBtn("🎤  " + Properties.Loc.S("Asr_TestMic"), false);
@@ -385,26 +466,6 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         _rbVoice .Checked += (_, _) => UpdatePanels();
         UpdatePanels();
 
-        // ── Buttons ────────────────────────────────────────────────────────
-        var sep = new System.Windows.Shapes.Rectangle { Height = 1, Margin = new Thickness(0, 16, 0, 16) };
-        sep.SetResourceReference(System.Windows.Shapes.Rectangle.FillProperty, "ControlBorderBrush");
-        root.Children.Add(sep);
-
-        var btnRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-        var cancelBtn = MakeBtn(Properties.Loc.S("Btn_Cancel"), false);
-        cancelBtn.Margin = new Thickness(0, 0, 8, 0);
-        cancelBtn.Click += (_, _) => Close();
-
-        var okBtn = MakeBtn(Properties.Loc.S("Btn_OK"), true);
-        okBtn.Click += (_, _) => { SaveAndClose(); };
-
-        btnRow.Children.Add(cancelBtn);
-        btnRow.Children.Add(okBtn);
-        root.Children.Add(btnRow);
     }
 
     // ── Level meter update (called on dispatcher timer) ────────────────────
@@ -507,11 +568,12 @@ public sealed class VoiceRecognitionSettingsWindow : Window
 
     // ── Save ───────────────────────────────────────────────────────────────
 
-    private void SaveAndClose()
+    private void SaveAndClose() { DoSave(); Close(); }
+
+    internal void DoSave()
     {
         var s = SettingsService.Load();
 
-        // Persist the folder even if the user never manually browsed (default pre-fill)
         s.AsrModelsFolder = _folderBox?.Text.Trim() ?? "";
         s.AsrModelName    = _modelCombo?.SelectedIndex > 0 ? _modelCombo.SelectedItem?.ToString() ?? "" : "";
         s.AsrModelType    = _typeCombo?.SelectedIndex == 1 ? "sense_voice" : "whisper";
@@ -525,9 +587,9 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         s.PushToTalkShift = _cbShift?.IsChecked == true;
         s.PushToTalkAlt   = _cbAlt?.IsChecked   == true;
         s.VoiceActivationThreshold = _threshold;
+        s.VoiceSilenceMs           = Math.Clamp(_silenceMs, 300, 5000);
 
         SettingsService.Save(s);
-        Close();
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────

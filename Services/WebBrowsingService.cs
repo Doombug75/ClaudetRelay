@@ -205,9 +205,10 @@ public static class WebBrowsingService
         // Decode common HTML entities
         html = System.Net.WebUtility.HtmlDecode(html);
 
-        // Collapse whitespace — keep single blank lines, remove runs of 3+
-        html = Regex.Replace(html, @"[ \t]+", " ");
-        html = Regex.Replace(html, @"\n{3,}", "\n\n");
+        // Trim each line (removes indent spaces and trailing spaces left by tag stripping)
+        html = Regex.Replace(html, @"[ \t]+", " ");          // collapse horizontal whitespace
+        html = Regex.Replace(html, @"(?m)^ | $", "");        // strip leading/trailing space per line
+        html = Regex.Replace(html, @"\n{2,}", "\n\n");       // max one blank line between paragraphs
 
         return html.Trim();
     }

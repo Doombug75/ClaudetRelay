@@ -243,8 +243,13 @@
   <!-- ── General settings ─────────────────────────────────────────────────── -->
   <data name="Settings_FileCheckoutTimeout"     xml:space="preserve"><value>File Lock Timeout</value></data>
   <data name="Settings_FileCheckoutTimeoutHint" xml:space="preserve"><value>Minutes before an idle participant is reminded to release a file lock. Participants who are actively generating get an automatic 1-minute extension instead of a reminder.</value></data>
-  <data name="Settings_FCT_Min"                 xml:space="preserve"><value>1 min</value></data>
-  <data name="Settings_FCT_Max"                 xml:space="preserve"><value>30 min</value></data>
+  <data name="Settings_FCT_Unit"                xml:space="preserve"><value>minutes  (1–30)</value></data>
+  <data name="Settings_StreamIdleTimeout"       xml:space="preserve"><value>Stream Idle Timeout</value></data>
+  <data name="Settings_StreamIdleTimeoutHint"   xml:space="preserve"><value>Seconds of silence before a participant's stream is considered hung and cancelled automatically. Resets with each received token, so a slow-thinking model is safe as long as it keeps producing output.</value></data>
+  <data name="Settings_SIT_Unit"                xml:space="preserve"><value>seconds  (30–600)</value></data>
+  <data name="StreamTimeout_Msg"                xml:space="preserve"><value>stream timed out after {0}s of silence. Check if the model is still running.</value></data>
+  <data name="StreamTimeout_Badge"              xml:space="preserve"><value>Timeout</value></data>
+  <data name="Btn_LoadDefault"                  xml:space="preserve"><value>↺ Default</value></data>
 
   <!-- ── Language names (shown in the picker itself) ────────────────────── -->
   <data name="Lang_English"  xml:space="preserve"><value>English</value></data>
@@ -333,6 +338,11 @@
   <data name="Audio_SherpaNoModels"     xml:space="preserve"><value>No models installed yet</value></data>
   <data name="Audio_VoicevoxRunning"    xml:space="preserve"><value>VOICEVOX connected</value></data>
   <data name="Audio_VoicevoxNotRunning" xml:space="preserve"><value>VOICEVOX not running</value></data>
+  <data name="Menu_AudioAndVoice"        xml:space="preserve"><value>🔊  Audio and Voice Settings</value></data>
+  <data name="Menu_Manager"             xml:space="preserve"><value>⚙  Manager Settings</value></data>
+  <data name="AudioVoice_TabAudio"      xml:space="preserve"><value>Audio Setup</value></data>
+  <data name="AudioVoice_TabVoice"      xml:space="preserve"><value>Voice Output</value></data>
+  <data name="AudioVoice_TabAsr"        xml:space="preserve"><value>Voice Recognition</value></data>
   <data name="Audio_AudioSetup"         xml:space="preserve"><value>🔊  Audio Setup</value></data>
   <data name="Audio_VoiceSettings"      xml:space="preserve"><value>🎙  Voice Settings</value></data>
   <data name="Audio_OutputDevice"       xml:space="preserve"><value>Output Device</value></data>
@@ -762,9 +772,12 @@ It will be removed from those boards automatically.</value></data>
   <data name="ProjSettings_EmotesAllowedHint" xml:space="preserve"><value>Participants may use /me actions for emotion and roleplay (e.g. /me nods thoughtfully). Useful for creative writing, narrative, and roleplay projects. Off by default for work projects.</value></data>
   <data name="ProjSettings_ResponseLang"      xml:space="preserve"><value>RESPONSE LANGUAGE</value></data>
   <data name="ProjSettings_LangHint"          xml:space="preserve"><value>Empty = follow the conversation language</value></data>
-  <data name="ProjSettings_MaxDepth"          xml:space="preserve"><value>MAX. DIALOG DEPTH</value></data>
-  <data name="ProjSettings_MaxDepthTip"       xml:space="preserve"><value>Positive integer. 1 = only respond to user (no AI-to-AI chaining).</value></data>
-  <data name="ProjSettings_MaxDepthHint"      xml:space="preserve"><value>How many AI-to-AI response rounds are allowed before the user must send a new message.</value></data>
+  <data name="ProjSettings_MaxDepth"              xml:space="preserve"><value>MAX. DIALOG DEPTH</value></data>
+  <data name="ProjSettings_MaxDepthTip"           xml:space="preserve"><value>Positive integer. 1 = only respond to user (no AI-to-AI chaining).</value></data>
+  <data name="ProjSettings_MaxDepthHint"          xml:space="preserve"><value>How many AI-to-AI response rounds are allowed before the user must send a new message.</value></data>
+  <data name="ProjSettings_MaxFileOpDepth"        xml:space="preserve"><value>MAX. FILE OP DEPTH</value></data>
+  <data name="ProjSettings_MaxFileOpDepthTip"     xml:space="preserve"><value>Positive integer. How many consecutive file operations a model may chain automatically.</value></data>
+  <data name="ProjSettings_MaxFileOpDepthHint"    xml:space="preserve"><value>Max auto-chained file reads / list ops per response. Does not count toward dialog depth.</value></data>
   <data name="ProjSettings_ResponseLength"    xml:space="preserve"><value>DEFAULT RESPONSE LENGTH</value></data>
   <data name="ProjSettings_ApplyAll"          xml:space="preserve"><value>Apply to all</value></data>
   <data name="ProjSettings_ApplyAllTip"       xml:space="preserve"><value>Override the response length for every participant in this project</value></data>
@@ -839,9 +852,13 @@ It will be removed from those boards automatically.</value></data>
   <data name="CharEditor_SavedTitle"          xml:space="preserve"><value>Saved</value></data>
   <data name="CharEditor_Reset"               xml:space="preserve"><value>↩ Reset</value></data>
 
-  <!-- ── Web Access Settings window ──────────────────────────────────────── -->
-  <data name="WebAccess_MenuTitle"            xml:space="preserve"><value>🌐  Web Access Settings</value></data>
-  <data name="WebAccess_WindowTitle"          xml:space="preserve"><value>Web Access Settings</value></data>
+  <!-- ── Files and Downloads window ──────────────────────────────────────── -->
+  <data name="WebAccess_MenuTitle"            xml:space="preserve"><value>📁  Files and Downloads</value></data>
+  <data name="WebAccess_WindowTitle"          xml:space="preserve"><value>Files and Downloads</value></data>
+  <data name="WebAccess_TabWeb"               xml:space="preserve"><value>🌐  Web &amp; Downloads</value></data>
+  <data name="WebAccess_TabFiles"             xml:space="preserve"><value>📄  File Reading</value></data>
+  <data name="WebAccess_SectionCodeExt"       xml:space="preserve"><value>Code file extensions (skip content filter)</value></data>
+  <data name="WebAccess_CodeExtHint"          xml:space="preserve"><value>Semicolon-separated extensions injected as-is, without sanitisation. All other text/document files are filtered (table rows, HTML, base64, etc.) before being sent to a model.</value></data>
   <data name="WebAccess_SectionDownloads"     xml:space="preserve"><value>Downloads</value></data>
   <data name="WebAccess_AllowDownloads"       xml:space="preserve"><value>Allow downloads</value></data>
   <data name="WebAccess_AllowDownloadsHint"   xml:space="preserve"><value>When unchecked, agents may read web pages but no files will be saved to disk.</value></data>
@@ -864,5 +881,24 @@ It will be removed from those boards automatically.</value></data>
   <data name="WebAccess_AddDomainHint"        xml:space="preserve"><value>domain, e.g. wikipedia.org</value></data>
   <data name="WebAccess_AddBtn"               xml:space="preserve"><value>Add</value></data>
   <data name="WebAccess_RemoveBtn"            xml:space="preserve"><value>Remove</value></data>
+
+  <!-- ── Compression messages ──────────────────────────────────────────── -->
+  <data name="Compression_ProgressLabel"    xml:space="preserve"><value>🗜  Compressing conversation history…</value></data>
+  <data name="Compression_Starting"         xml:space="preserve"><value>🗜  Context window approaching limit — compressing conversation history…</value></data>
+  <data name="Compression_NoManager"        xml:space="preserve"><value>⚠  No compression manager available. Select one in ●●● → ⚙ Manager Settings, or enable a participant.</value></data>
+  <data name="Compression_TooShort"         xml:space="preserve"><value>ℹ  History is too short to compress yet.</value></data>
+  <data name="Compression_Cancelled"        xml:space="preserve"><value>ℹ  Compression cancelled.</value></data>
+  <data name="Compression_Failed"           xml:space="preserve"><value>⚠  Compression failed: {0}</value></data>
+  <data name="Compression_Done"             xml:space="preserve"><value>✓  Compression done: {0} message(s) → {1} summary part(s) + {2} recent message(s) kept.</value></data>
+
+  <!-- ── Clear Chat dialog ─────────────────────────────────────────────── -->
+  <data name="ClearChat_Title"               xml:space="preserve"><value>Clear Chat</value></data>
+  <data name="ClearChat_Question"            xml:space="preserve"><value>What would you like to clear?</value></data>
+  <data name="ClearChat_MemoryOnly"          xml:space="preserve"><value>🧠  Clear memory only  (AI forgets — files kept)</value></data>
+  <data name="ClearChat_FilesOnly"           xml:space="preserve"><value>🗂  Delete history files only  (memory stays active)</value></data>
+  <data name="ClearChat_Both"               xml:space="preserve"><value>🗑  Clear everything  (memory + files)</value></data>
+  <data name="ClearChat_DoneMemory"          xml:space="preserve"><value>Chat memory cleared.</value></data>
+  <data name="ClearChat_DoneFiles"           xml:space="preserve"><value>History files deleted.</value></data>
+  <data name="ClearChat_DoneBoth"            xml:space="preserve"><value>Chat cleared.</value></data>
 
 </root>

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Markup;
 using System.Windows.Media;
 using ClaudetRelay.Services;
 
@@ -30,6 +31,9 @@ public sealed class WebAccessSettingsWindow : Window
     private List<WebWhitelistEntry> _whitelist = [];
     private ListView?               _whitelistView;
     private TextBox?                _newDomainBox;
+
+    // File Reading tab
+    private TextBox? _codeExtBox;
 
     // ── Localisation helpers ───────────────────────────────────────────────
     private static string L(string key) => Properties.Loc.S(key);
@@ -72,24 +76,62 @@ public sealed class WebAccessSettingsWindow : Window
             AllowDownloads = e.AllowDownloads,
         }).ToList();
 
-        BuildUI(s.WebBrowsing);
+        BuildUI(s.WebBrowsing, s.CodeFileExtensions);
         UiZoomHelper.Apply(this, UiZoomHelper.FromSettings());
     }
 
     // ── UI ─────────────────────────────────────────────────────────────────
-    private void BuildUI(WebBrowsingSettings wb)
+    private void BuildUI(WebBrowsingSettings wb, string codeExts)
+    {
+        // ── Outer grid: tabs + close button ───────────────────────────────
+        var outer = new Grid { Margin = new Thickness(0) };
+        outer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        outer.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Content = outer;
+
+        var tabs = new TabControl
+        {
+            BorderThickness = new Thickness(0),
+            Padding         = new Thickness(0),
+        };
+        tabs.SetResourceReference(BackgroundProperty, "ContentBgBrush");
+        ApplyTabStyle(tabs);
+        Grid.SetRow(tabs, 0);
+        outer.Children.Add(tabs);
+
+        // ── Tab 1: Web & Downloads ─────────────────────────────────────────
+        tabs.Items.Add(BuildWebTab(wb));
+
+        // ── Tab 2: File Reading ────────────────────────────────────────────
+        tabs.Items.Add(BuildFileReadingTab(codeExts));
+
+        // ── Close / Save strip ─────────────────────────────────────────────
+        var btnRow = new Border
+        {
+            Padding         = new Thickness(16, 10, 16, 12),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+        };
+        btnRow.SetResourceReference(BorderBrushProperty, "ControlBorderBrush");
+        Grid.SetRow(btnRow, 1);
+        outer.Children.Add(btnRow);
+
+        var closeBtn = MakeBtn(L("Btn_Close"), isPrimary: true);
+        closeBtn.HorizontalAlignment = HorizontalAlignment.Right;
+        closeBtn.Click += (_, _) => { SaveSettings(); DialogResult = true; };
+        btnRow.Child = closeBtn;
+    }
+
+    private TabItem BuildWebTab(WebBrowsingSettings wb)
     {
         var scroll = new ScrollViewer
         {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         };
-        Content = scroll;
-
-        var root = new StackPanel { Margin = new Thickness(24, 20, 24, 24) };
+        var root = new StackPanel { Margin = new Thickness(24, 16, 24, 16) };
         scroll.Content = root;
 
-        // ── Downloads section ──────────────────────────────────────────────
+        // Downloads section
         root.Children.Add(SectionHeading("⬇  " + L("WebAccess_SectionDownloads")));
 
         _allowDownloadsChk = new CheckBox
@@ -104,54 +146,27 @@ public sealed class WebAccessSettingsWindow : Window
         root.Children.Add(_allowDownloadsChk);
         root.Children.Add(HintText(L("WebAccess_AllowDownloadsHint")));
 
-        // Always-allowed extensions
         root.Children.Add(FieldLabel(L("WebAccess_AutoAllowLabel"), topMargin: 14));
-        var autoRow = ExtRow(
-            initialText: wb.AutoDownloadExtensions.Count > 0
-                ? string.Join(";", wb.AutoDownloadExtensions)
-                : DefaultAutoExt,
-            defaultText: DefaultAutoExt,
-            out _autoExtBox);
-        root.Children.Add(autoRow);
+        root.Children.Add(ExtRow(
+            wb.AutoDownloadExtensions.Count > 0 ? string.Join(";", wb.AutoDownloadExtensions) : DefaultAutoExt,
+            DefaultAutoExt, out _autoExtBox));
         root.Children.Add(HintText(L("WebAccess_AutoAllowHint")));
 
-        // Ask-before extensions
         root.Children.Add(FieldLabel(L("WebAccess_AskLabel"), topMargin: 12));
-        var askRow = ExtRow(
-            initialText: wb.AskDownloadExtensions.Count > 0
-                ? string.Join(";", wb.AskDownloadExtensions)
-                : DefaultAskExt,
-            defaultText: DefaultAskExt,
-            out _askExtBox);
-        root.Children.Add(askRow);
+        root.Children.Add(ExtRow(
+            wb.AskDownloadExtensions.Count > 0 ? string.Join(";", wb.AskDownloadExtensions) : DefaultAskExt,
+            DefaultAskExt, out _askExtBox));
         root.Children.Add(HintText(L("WebAccess_AskHint")));
 
-        // ── Fetch settings section ─────────────────────────────────────────
+        // Fetch settings section
         root.Children.Add(new Separator { Margin = new Thickness(0, 20, 0, 16) });
         root.Children.Add(SectionHeading("⚙  " + L("WebAccess_SectionFetch")));
 
-        root.Children.Add(NumericRow(
-            L("WebAccess_TimeoutLabel"),
-            L("WebAccess_TimeoutSuffix"),
-            wb.TimeoutSeconds.ToString(),
-            out _timeoutBox,
-            width: 60));
+        root.Children.Add(NumericRow(L("WebAccess_TimeoutLabel"),      L("WebAccess_TimeoutSuffix"), wb.TimeoutSeconds.ToString(), out _timeoutBox,  width: 60));
+        root.Children.Add(NumericRow(L("WebAccess_MaxCharsCloudLabel"), L("WebAccess_CharsSuffix"),   wb.MaxCharsCloud.ToString(),  out _maxCloudBox, width: 80));
+        root.Children.Add(NumericRow(L("WebAccess_MaxCharsLocalLabel"), L("WebAccess_CharsSuffix"),   wb.MaxCharsLocal.ToString(),  out _maxLocalBox, width: 80));
 
-        root.Children.Add(NumericRow(
-            L("WebAccess_MaxCharsCloudLabel"),
-            L("WebAccess_CharsSuffix"),
-            wb.MaxCharsCloud.ToString(),
-            out _maxCloudBox,
-            width: 80));
-
-        root.Children.Add(NumericRow(
-            L("WebAccess_MaxCharsLocalLabel"),
-            L("WebAccess_CharsSuffix"),
-            wb.MaxCharsLocal.ToString(),
-            out _maxLocalBox,
-            width: 80));
-
-        // ── Whitelist section ──────────────────────────────────────────────
+        // Whitelist section
         root.Children.Add(new Separator { Margin = new Thickness(0, 20, 0, 16) });
         root.Children.Add(SectionHeading("🌐  " + L("WebAccess_SectionWhitelist")));
         root.Children.Add(HintText(L("WebAccess_WhitelistHint")));
@@ -159,7 +174,6 @@ public sealed class WebAccessSettingsWindow : Window
         _whitelistView = BuildWhitelistView();
         root.Children.Add(_whitelistView);
 
-        // Add-domain row
         var addRow = new Grid { Margin = new Thickness(0, 8, 0, 0) };
         addRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         addRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -176,7 +190,6 @@ public sealed class WebAccessSettingsWindow : Window
         _newDomainBox.SetResourceReference(ForegroundProperty, "InputTextBrush");
         _newDomainBox.SetResourceReference(BackgroundProperty, "ControlBgBrush");
         _newDomainBox.SetResourceReference(BorderBrushProperty, "ControlBorderBrush");
-        // Watermark hint via placeholder
         _newDomainBox.GotFocus  += (_, _) => { if (_newDomainBox.Text == L("WebAccess_AddDomainHint")) { _newDomainBox.Text = ""; _newDomainBox.SetResourceReference(ForegroundProperty, "InputTextBrush"); } };
         _newDomainBox.LostFocus += (_, _) => { if (string.IsNullOrWhiteSpace(_newDomainBox.Text)) { _newDomainBox.Text = L("WebAccess_AddDomainHint"); _newDomainBox.SetResourceReference(ForegroundProperty, "ContentDimBrush"); } };
         _newDomainBox.Text = L("WebAccess_AddDomainHint");
@@ -197,13 +210,31 @@ public sealed class WebAccessSettingsWindow : Window
         Grid.SetColumn(removeBtn, 2);
         addRow.Children.Add(removeBtn);
 
-        // ── Close / Save ───────────────────────────────────────────────────
-        root.Children.Add(new Separator { Margin = new Thickness(0, 20, 0, 12) });
+        return new TabItem { Header = L("WebAccess_TabWeb"), Content = scroll };
+    }
 
-        var closeBtn = MakeBtn(L("Btn_Close"), isPrimary: true);
-        closeBtn.HorizontalAlignment = HorizontalAlignment.Right;
-        closeBtn.Click += (_, _) => { SaveSettings(); DialogResult = true; };
-        root.Children.Add(closeBtn);
+    private TabItem BuildFileReadingTab(string codeExts)
+    {
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        };
+        var root = new StackPanel { Margin = new Thickness(24, 16, 24, 16) };
+        scroll.Content = root;
+
+        root.Children.Add(SectionHeading("💻  " + L("WebAccess_SectionCodeExt")));
+        root.Children.Add(HintText(L("WebAccess_CodeExtHint")));
+
+        var defaultExts = new AppSettings().CodeFileExtensions;
+        var extRow = ExtRow(
+            string.IsNullOrWhiteSpace(codeExts) ? defaultExts : codeExts,
+            defaultExts,
+            out _codeExtBox,
+            lines: 8);
+        root.Children.Add(extRow);
+
+        return new TabItem { Header = L("WebAccess_TabFiles"), Content = scroll };
     }
 
     // ── Whitelist DataGrid ─────────────────────────────────────────────────
@@ -313,13 +344,17 @@ public sealed class WebAccessSettingsWindow : Window
         wb.AutoDownloadExtensions = ParseExtList(_autoExtBox?.Text);
         wb.AskDownloadExtensions  = ParseExtList(_askExtBox?.Text);
 
-        if (int.TryParse(_timeoutBox?.Text.Trim(), out var t)    && t > 0)        wb.TimeoutSeconds = t;
-        if (int.TryParse(_maxCloudBox?.Text.Trim(), out var mc) && mc > 0)        wb.MaxCharsCloud  = mc;
-        if (int.TryParse(_maxLocalBox?.Text.Trim(), out var ml) && ml > 0)        wb.MaxCharsLocal  = ml;
+        if (int.TryParse(_timeoutBox?.Text.Trim(), out var t)   && t  > 0) wb.TimeoutSeconds = t;
+        if (int.TryParse(_maxCloudBox?.Text.Trim(), out var mc) && mc > 0) wb.MaxCharsCloud  = mc;
+        if (int.TryParse(_maxLocalBox?.Text.Trim(), out var ml) && ml > 0) wb.MaxCharsLocal  = ml;
 
         wb.Whitelist = _whitelist.ToList();
 
+        if (!string.IsNullOrWhiteSpace(_codeExtBox?.Text))
+            s.CodeFileExtensions = _codeExtBox.Text.Trim();
+
         SettingsService.Save(s);
+        Services.ContentFilter.InvalidateCache();
     }
 
     private static List<string> ParseExtList(string? raw)
@@ -331,26 +366,102 @@ public sealed class WebAccessSettingsWindow : Window
                   .ToList();
     }
 
+    // ── Tab theming ────────────────────────────────────────────────────────
+
+    private void ApplyTabStyle(TabControl tabs)
+    {
+        const string xaml = """
+            <ResourceDictionary
+                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+              <ControlTemplate x:Key="TabCtrlTpl" TargetType="TabControl">
+                <DockPanel>
+                  <Border DockPanel.Dock="Top"
+                          Background="{DynamicResource ControlHoverBrush}"
+                          Padding="10,4,10,0">
+                    <TabPanel IsItemsHost="True"/>
+                  </Border>
+                  <Border Background="{DynamicResource ContentBgBrush}">
+                    <ContentPresenter ContentSource="SelectedContent"/>
+                  </Border>
+                </DockPanel>
+              </ControlTemplate>
+
+              <Style x:Key="TabItemSty" TargetType="TabItem">
+                <Setter Property="FontSize"   Value="12"/>
+                <Setter Property="FontFamily" Value="Segoe UI"/>
+                <Setter Property="Padding"    Value="14,7"/>
+                <Setter Property="Foreground" Value="{DynamicResource ContentDimBrush}"/>
+                <Setter Property="Template">
+                  <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                      <Border x:Name="Bd" Padding="{TemplateBinding Padding}"
+                              CornerRadius="8,8,0,0" Cursor="Hand">
+                        <TextBlock x:Name="Tb"
+                                   Text="{TemplateBinding Header}"
+                                   FontSize="{TemplateBinding FontSize}"
+                                   FontFamily="{TemplateBinding FontFamily}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{TemplateBinding Foreground}"/>
+                      </Border>
+                      <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                          <Setter TargetName="Bd" Property="Background"
+                                  Value="{DynamicResource ContentBgBrush}"/>
+                          <Setter TargetName="Tb" Property="Foreground"
+                                  Value="{DynamicResource ContentTextBrush}"/>
+                        </Trigger>
+                        <MultiTrigger>
+                          <MultiTrigger.Conditions>
+                            <Condition Property="IsMouseOver" Value="True"/>
+                            <Condition Property="IsSelected"  Value="False"/>
+                          </MultiTrigger.Conditions>
+                          <Setter TargetName="Bd" Property="Background"
+                                  Value="{DynamicResource ControlHoverBrush}"/>
+                        </MultiTrigger>
+                      </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                  </Setter.Value>
+                </Setter>
+              </Style>
+
+            </ResourceDictionary>
+            """;
+
+        var dict = (ResourceDictionary)XamlReader.Parse(xaml);
+        Resources.MergedDictionaries.Add(dict);
+        tabs.Template            = (ControlTemplate)Resources["TabCtrlTpl"];
+        tabs.ItemContainerStyle  = (Style)Resources["TabItemSty"];
+    }
+
     // ── Row builders ───────────────────────────────────────────────────────
 
     /// <summary>
-    /// Builds a horizontal row: text box + Reset button.
+    /// Builds a row: text box (optionally multiline) + Reset button.
     /// The reset button restores <paramref name="defaultText"/>.
+    /// When <paramref name="lines"/> &gt; 1 the text box wraps and the Reset button
+    /// is top-aligned so it doesn't stretch.
     /// </summary>
-    private UIElement ExtRow(string initialText, string defaultText, out TextBox box)
+    private UIElement ExtRow(string initialText, string defaultText, out TextBox box, int lines = 1)
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+        var multiline = lines > 1;
         var tb = new TextBox
         {
-            Text            = initialText,
-            FontFamily      = new FontFamily("Segoe UI"),
-            FontSize        = 12,
-            Padding         = new Thickness(8, 5, 8, 5),
-            BorderThickness = new Thickness(1),
+            Text             = initialText,
+            FontFamily       = new FontFamily("Segoe UI"),
+            FontSize         = 12,
+            Padding          = new Thickness(8, 5, 8, 5),
+            BorderThickness  = new Thickness(1),
+            AcceptsReturn    = false,
+            TextWrapping     = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap,
+            VerticalScrollBarVisibility = multiline ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled,
         };
+        if (multiline) tb.MinHeight = lines * 22 + 10;
         tb.SetResourceReference(ForegroundProperty,  "InputTextBrush");
         tb.SetResourceReference(BackgroundProperty,  "ControlBgBrush");
         tb.SetResourceReference(BorderBrushProperty, "ControlBorderBrush");
@@ -358,7 +469,8 @@ public sealed class WebAccessSettingsWindow : Window
         row.Children.Add(tb);
 
         var resetBtn = MakeBtn(L("WebAccess_ResetBtn"));
-        resetBtn.Margin = new Thickness(6, 0, 0, 0);
+        resetBtn.Margin            = new Thickness(6, 0, 0, 0);
+        resetBtn.VerticalAlignment = multiline ? VerticalAlignment.Top : VerticalAlignment.Stretch;
         resetBtn.Click += (_, _) => tb.Text = defaultText;
         Grid.SetColumn(resetBtn, 1);
         row.Children.Add(resetBtn);

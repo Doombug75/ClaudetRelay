@@ -986,6 +986,7 @@ public partial class MainWindow : Window
 
     private void SendMessage()
     {
+        if (_compressionInProgress) return;
         var text = InputTextBox.Text.Trim();
         if (string.IsNullOrEmpty(text)) return;
 
@@ -3252,6 +3253,7 @@ public partial class MainWindow : Window
                                                    bool skipLatestUserMessage = false,
                                                    bool hidden = false,
                                                    int _loopDepth = 0,
+                                                   int _fileOpDepth = 0,
                                                    IReadOnlyList<CloudAIMessage>? histOverride = null)
     {
         var modelName = ui.Data.Service.CurrentModel;
@@ -3320,13 +3322,20 @@ public partial class MainWindow : Window
                 Dispatcher.Invoke(() => bubble!.UpdateThinkingTooltip(thought));
         }
 
+        var ollamaIdleSecs = SettingsService.Load().StreamIdleTimeoutSeconds;
+        using var ollamaIdleCts = CancellationTokenSource.CreateLinkedTokenSource(participantCt);
+        ollamaIdleCts.CancelAfter(TimeSpan.FromSeconds(ollamaIdleSecs));
+
         try
         {
             var history = BuildOllamaHistoryFor(ui, skipLatestUserMessage, histOverride);
             if (systemHint is not null)
                 history.Insert(1, new OllamaChatMessage("system", systemHint));
-            await foreach (var token in svc.StreamAsync(history, participantCt))
+            // Capture total chars sent for token calibration (read after potential systemHint insert)
+            _sentCharsOllama = history.Sum(m => m.Content.Length);
+            await foreach (var token in svc.StreamAsync(history, ollamaIdleCts.Token))
             {
+                ollamaIdleCts.CancelAfter(TimeSpan.FromSeconds(ollamaIdleSecs)); // reset on each token
                 if (firstToken)
                 {
                     if (!hidden) bubble!.StopThinking();   // hides dots + tooltip disappears naturally
@@ -3351,7 +3360,8 @@ public partial class MainWindow : Window
                 (ollamaRawText, ollamaHadFetch, ollamaWebNote) = await ProcessWebFetchTagsAsync(ollamaRawText, display, isLocalModel: true, ct);
             if (!hidden && _currentProjectFolder is not null)
                 (ollamaFinalText, ollamaHadReadOps) = ProcessAIFileOperationTags(
-                    ollamaRawText, display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName());
+                    ollamaRawText, display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName(),
+                    AdaptivePageSize(ui.Data.Service.NumCtx, ui.SessionInputTokens));
             else
                 ollamaFinalText = ollamaRawText;
 
@@ -3363,6 +3373,14 @@ public partial class MainWindow : Window
                 if (cleaned != ollamaFinalText) ollamaFinalText = cleaned;
             }
             // ─────────────────────────────────────────────────────────────
+
+            // Strip [mood:word] tag before storing or displaying
+            var ollamaMood = ParseAndStripMoodTag(ref ollamaFinalText);
+            if (ollamaMood is not null)
+            {
+                ui.Data.Mood = ollamaMood;
+                if (!hidden) bubble!.Content.Text = ollamaFinalText;
+            }
 
             if (!hidden && EmotesEnabledInContext())
                 ApplyEmoteFormatting(bubble!, ollamaFinalText, GetEffectiveName(ui));
@@ -3398,37 +3416,67 @@ public partial class MainWindow : Window
                 SpeakMessageIfEnabled(ui.Data.Service.CurrentModel, "Ollama", ollamaFinalText);
             }
             // ── Auto-loop: re-invoke after file reads, web fetches, or syntax correction ──
-            if (!hidden && _loopDepth < MaxToolLoopDepth)
+            int ollamaFileOpMax = _projectSettings is not null ? _maxFileOpDepth : MaxToolLoopDepth;
+            bool ollamaCanFileOp = !hidden && (ollamaHadReadOps || ollamaHadFetch || ollamaWebNote is not null)
+                                   && _fileOpDepth < ollamaFileOpMax;
+            if (ollamaCanFileOp)
             {
-                if (ollamaHadReadOps || ollamaHadFetch || ollamaWebNote is not null)
-                {
-                    var reason = ollamaHadFetch && ollamaHadReadOps ? "web fetch + file results"
-                               : ollamaHadFetch    ? "web fetch results"
-                               : ollamaHadReadOps  ? "file results"
-                               : "web fetch syntax correction";
-                    AddSystemMessage($"🔄  {display} received {reason} - continuing " +
-                                     $"(step {_loopDepth + 2} of {MaxToolLoopDepth + 1} max)…");
-                    return await RunOllamaStreamAsync(ui, ct, systemHint,
-                        skipLatestUserMessage: false, hidden: false, _loopDepth: _loopDepth + 1);
-                }
+                var reason = ollamaHadFetch && ollamaHadReadOps ? "web fetch + file results"
+                           : ollamaHadFetch    ? "web fetch results"
+                           : ollamaHadReadOps  ? "file results"
+                           : "web fetch syntax correction";
+                AddSystemMessage($"🔄  {display} received {reason} - continuing " +
+                                 $"(file op {_fileOpDepth + 1} of {ollamaFileOpMax} max)…");
+                return await RunOllamaStreamAsync(ui, ct, systemHint,
+                    skipLatestUserMessage: false, hidden: false,
+                    _loopDepth: _loopDepth, _fileOpDepth: _fileOpDepth + 1);
             }
             // ────────────────────────────────────────────────────────────────────────────
             if (!hidden)
             {
+                // Update context-window bar and popup stats with real token counts
+                if (svc.LastUsage is { } ollamaUsage)
+                {
+                    // Calibrate chars-per-token for this participant
+                    _tokenCalibration.Record(display, _sentCharsOllama, ollamaUsage.InputTokens);
+
+                    ui.SessionInputTokens  += ollamaUsage.InputTokens;
+                    ui.SessionOutputTokens += ollamaUsage.OutputTokens;
+                    var ctxWin = ui.Data.Service.NumCtx;
+                    var si = ui.SessionInputTokens; var so = ui.SessionOutputTokens;
+                    Dispatcher.Invoke(() => {
+                        UpdateContextBar(ui.ContextBar, ollamaUsage.InputTokens, ctxWin);
+                        UpdatePopupStats(ui.PopupContextVal, ui.PopupSessionVal,
+                            ollamaUsage.InputTokens, ctxWin, si, so);
+                    });
+                }
+
                 OnParticipantResponded(ui);   // moodlet counter
                 // If we sent a checkin reminder, parse this response for yes/no
                 ProcessCheckinResponse(display, ollamaFinalText);
+
+                // Trigger context compression if any participant is at ≥80 %
+                TriggerCompressionCheck();
             }
             return true;
         }
         catch (OperationCanceledException)
         {
-            // User cancelled - show partial text already in the bubble (if any) and stop cleanly.
-            // Do NOT re-throw: callers check ct.IsCancellationRequested to decide whether to continue.
+            bool isIdleTimeout = ollamaIdleCts.IsCancellationRequested && !ct.IsCancellationRequested;
             if (!hidden)
             {
-                if (firstToken) bubble!.StopThinking();
-                else            bubble!.Content.Text = sb.Append("… [cancelled]").ToString();
+                if (isIdleTimeout)
+                {
+                    if (firstToken) ChatPanel.Children.Remove(bubble!.OuterWrapper);
+                    else            bubble!.Content.Text = sb.Append("… [timeout]").ToString();
+                    AddSystemMessage($"⚠  {display} — {string.Format(Properties.Loc.S("StreamTimeout_Msg"), SettingsService.Load().StreamIdleTimeoutSeconds)}");
+                    SetParticipantError(ui, Properties.Loc.S("StreamTimeout_Badge"));
+                }
+                else
+                {
+                    if (firstToken) ChatPanel.Children.Remove(bubble!.OuterWrapper);
+                    else            bubble!.Content.Text = sb.Append("… [cancelled]").ToString();
+                }
             }
             return false;
         }
@@ -3465,6 +3513,8 @@ public partial class MainWindow : Window
             ui.ActiveCts?.Dispose();
             ui.ActiveCts = null;
             if (!hidden) SetParticipantError(ui, null); // restore "Ready"/mood now that ActiveCts is null
+            _fileReadInProgress = false;
+            Dispatcher.Invoke(() => FileReadProgressArea.Visibility = Visibility.Collapsed);
         }
         return !hidden; // visible error → error bubble shown (counts as responded); hidden error → doesn't count
     }
@@ -3474,6 +3524,7 @@ public partial class MainWindow : Window
                                                     bool skipLatestUserMessage = false,
                                                     bool hidden = false,
                                                     int _loopDepth = 0,
+                                                    int _fileOpDepth = 0,
                                                     IReadOnlyList<CloudAIMessage>? histOverride = null)
     {
         var model       = ui.Data.Service.CurrentModel;
@@ -3508,13 +3559,19 @@ public partial class MainWindow : Window
                 bubble!.UpdateThinkingTooltip("");
         }
 
+        var cloudIdleSecs = SettingsService.Load().StreamIdleTimeoutSeconds;
+        using var cloudIdleCts = CancellationTokenSource.CreateLinkedTokenSource(participantCt);
+        cloudIdleCts.CancelAfter(TimeSpan.FromSeconds(cloudIdleSecs));
+
         try
         {
             var (history, system) = BuildCloudAIHistoryFor(ui, skipLatestUserMessage, histOverride);
             if (systemHint is not null)
                 system += "\n\n" + systemHint;
-            await foreach (var token in ui.Data.Service.StreamAsync(history, system, participantCt))
+            _sentCharsCloud = history.Sum(m => m.Content.Length) + system.Length;
+            await foreach (var token in ui.Data.Service.StreamAsync(history, system, cloudIdleCts.Token))
             {
+                cloudIdleCts.CancelAfter(TimeSpan.FromSeconds(cloudIdleSecs)); // reset on each token
                 if (firstToken)
                 {
                     if (!hidden) bubble!.StopThinking();
@@ -3539,7 +3596,8 @@ public partial class MainWindow : Window
                 (cloudRawText, cloudHadFetch, cloudWebNote) = await ProcessWebFetchTagsAsync(cloudRawText, display, isLocalModel: false, ct);
             if (!hidden && _currentProjectFolder is not null)
                 (cloudFinalText, cloudHadReadOps) = ProcessAIFileOperationTags(
-                    cloudRawText, display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName());
+                    cloudRawText, display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName(),
+                    AdaptivePageSize(ui.Data.Service.ContextWindowTokens, ui.SessionInputTokens));
             else
                 cloudFinalText = cloudRawText;
 
@@ -3551,6 +3609,14 @@ public partial class MainWindow : Window
                 if (cleaned != cloudFinalText) cloudFinalText = cleaned;
             }
             // ─────────────────────────────────────────────────────────────
+
+            // Strip [mood:word] tag before storing or displaying
+            var cloudMood = ParseAndStripMoodTag(ref cloudFinalText);
+            if (cloudMood is not null)
+            {
+                ui.Data.Mood = cloudMood;
+                if (!hidden) bubble!.Content.Text = cloudFinalText;
+            }
 
             if (!hidden && EmotesEnabledInContext())
                 ApplyEmoteFormatting(bubble!, cloudFinalText, GetEffectiveName(ui));
@@ -3586,37 +3652,65 @@ public partial class MainWindow : Window
                 SpeakMessageIfEnabled(model, ui.Data.Service.ProviderName, cloudFinalText);
             }
             // ── Auto-loop: re-invoke after file reads, web fetches, or syntax correction ──
-            if (!hidden && _loopDepth < MaxToolLoopDepth)
+            int cloudFileOpMax = _projectSettings is not null ? _maxFileOpDepth : MaxToolLoopDepth;
+            bool cloudCanFileOp = !hidden && (cloudHadReadOps || cloudHadFetch || cloudWebNote is not null)
+                                  && _fileOpDepth < cloudFileOpMax;
+            if (cloudCanFileOp)
             {
-                if (cloudHadReadOps || cloudHadFetch || cloudWebNote is not null)
-                {
-                    var reason = cloudHadFetch && cloudHadReadOps ? "web fetch + file results"
-                               : cloudHadFetch   ? "web fetch results"
-                               : cloudHadReadOps ? "file results"
-                               : "web fetch syntax correction";
-                    AddSystemMessage($"🔄  {display} received {reason} - continuing " +
-                                     $"(step {_loopDepth + 2} of {MaxToolLoopDepth + 1} max)…");
-                    return await RunCloudAIStreamAsync(ui, ct, systemHint,
-                        skipLatestUserMessage: false, hidden: false, _loopDepth: _loopDepth + 1);
-                }
+                var reason = cloudHadFetch && cloudHadReadOps ? "web fetch + file results"
+                           : cloudHadFetch   ? "web fetch results"
+                           : cloudHadReadOps ? "file results"
+                           : "web fetch syntax correction";
+                AddSystemMessage($"🔄  {display} received {reason} - continuing " +
+                                 $"(file op {_fileOpDepth + 1} of {cloudFileOpMax} max)…");
+                return await RunCloudAIStreamAsync(ui, ct, systemHint,
+                    skipLatestUserMessage: false, hidden: false,
+                    _loopDepth: _loopDepth, _fileOpDepth: _fileOpDepth + 1);
             }
             // ────────────────────────────────────────────────────────────────────────────
             if (!hidden)
             {
+                // Update context-window bar and popup stats with real token counts
+                if (ui.Data.Service.LastUsage is { } cloudUsage)
+                {
+                    _tokenCalibration.Record(display, _sentCharsCloud, cloudUsage.InputTokens);
+
+                    ui.SessionInputTokens  += cloudUsage.InputTokens;
+                    ui.SessionOutputTokens += cloudUsage.OutputTokens;
+                    var ctxWin = ui.Data.Service.ContextWindowTokens;
+                    var si = ui.SessionInputTokens; var so = ui.SessionOutputTokens;
+                    Dispatcher.Invoke(() => {
+                        UpdateContextBar(ui.ContextBar, cloudUsage.InputTokens, ctxWin);
+                        UpdatePopupStats(ui.PopupContextVal, ui.PopupSessionVal,
+                            cloudUsage.InputTokens, ctxWin, si, so);
+                    });
+                }
+
                 OnParticipantResponded(ui);   // moodlet counter
                 // If we sent a checkin reminder, parse this response for yes/no
                 ProcessCheckinResponse(display, cloudFinalText);
+
+                TriggerCompressionCheck();
             }
             return true;
         }
         catch (OperationCanceledException)
         {
-            // User cancelled - show partial text already in the bubble (if any) and stop cleanly.
-            // Do NOT re-throw: callers check ct.IsCancellationRequested to decide whether to continue.
+            bool isIdleTimeout = cloudIdleCts.IsCancellationRequested && !ct.IsCancellationRequested;
             if (!hidden)
             {
-                if (firstToken) bubble!.StopThinking();
-                else            bubble!.Content.Text = sb.Append("… [cancelled]").ToString();
+                if (isIdleTimeout)
+                {
+                    if (firstToken) ChatPanel.Children.Remove(bubble!.OuterWrapper);
+                    else            bubble!.Content.Text = sb.Append("… [timeout]").ToString();
+                    AddSystemMessage($"⚠  {display} — {string.Format(Properties.Loc.S("StreamTimeout_Msg"), SettingsService.Load().StreamIdleTimeoutSeconds)}");
+                    SetParticipantError(ui, Properties.Loc.S("StreamTimeout_Badge"));
+                }
+                else
+                {
+                    if (firstToken) ChatPanel.Children.Remove(bubble!.OuterWrapper);
+                    else            bubble!.Content.Text = sb.Append("… [cancelled]").ToString();
+                }
             }
             return false;
         }
@@ -3650,6 +3744,8 @@ public partial class MainWindow : Window
             if (!hidden) StopCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton);
             ui.ActiveCts?.Dispose();
             ui.ActiveCts = null;
+            _fileReadInProgress = false;
+            Dispatcher.Invoke(() => FileReadProgressArea.Visibility = Visibility.Collapsed);
         }
         return !hidden; // visible error → error bubble shown (counts as responded); hidden error → doesn't count
     }
@@ -3725,12 +3821,41 @@ public partial class MainWindow : Window
             : -1;
 
         var myEffectiveName = GetEffectiveName(forUi);
+
+        // Append any compression summary system messages to the main system prompt
+        // (history builders skip system-role entries from the shared history, so we
+        //  inject them here so the model is aware of the summarised prior context).
+        var summaryParts = source
+            .Where(m => m.Role == "system" && m.Sender == "compression")
+            .Select(m => m.Content)
+            .ToList();
+        if (summaryParts.Count > 0)
+            result[0] = result[0] with
+            {
+                Content = result[0].Content +
+                          "\n\n" + string.Join("\n\n", summaryParts)
+            };
+
+        // Decide whether to inject a transient behavioral reminder this turn.
+        // Fires on turn 0 (first call) and every MoodReminderInterval turns after.
+        bool injectReminder = forUi.Data.ResponseCount % MoodReminderInterval == 0;
+        string? reminder    = injectReminder ? BuildParticipantReminder(myHasWrite) : null;
+
         for (int i = 0; i < source.Count; i++)
         {
             if (i == skipIndex) continue;
             var msg = source[i];
             if (msg.Role == "user")
+            {
+                // Inject reminder as a synthetic user message just before the last real user message
+                if (reminder is not null && i == source.Count - 1)
+                {
+                    result.Add(new OllamaChatMessage("user", reminder));
+                    result.Add(new OllamaChatMessage("assistant", "Understood."));
+                    reminder = null;
+                }
                 result.Add(new OllamaChatMessage("user", msg.Content));
+            }
             else if (msg.Role == "assistant")
             {
                 // Sender is now the effective display name - compare directly (no label lookup needed)
@@ -3739,6 +3864,13 @@ public partial class MainWindow : Window
                 else
                     result.Add(new OllamaChatMessage("user", $"[{msg.Sender}]: {msg.Content}"));
             }
+        }
+
+        // If no user message existed to trigger the injection (empty history edge case), append now
+        if (reminder is not null)
+        {
+            result.Add(new OllamaChatMessage("user", reminder));
+            result.Add(new OllamaChatMessage("assistant", "Understood."));
         }
 
         return result;
@@ -3810,13 +3942,34 @@ public partial class MainWindow : Window
             : -1;
 
         var myEffectiveName = GetEffectiveName(forUi);
+
+        // Append any compression summary system messages to the main system prompt
+        var summaryParts = source
+            .Where(m => m.Role == "system" && m.Sender == "compression")
+            .Select(m => m.Content)
+            .ToList();
+        if (summaryParts.Count > 0)
+            system += "\n\n" + string.Join("\n\n", summaryParts);
+
+        // Transient behavioral reminder — same cadence as Ollama path
+        bool cloudInjectReminder = forUi.Data.ResponseCount % MoodReminderInterval == 0;
+        string? cloudReminder    = cloudInjectReminder ? BuildParticipantReminder(myHasWrite) : null;
+
         var history = new List<CloudAIMessage>();
         for (int i = 0; i < source.Count; i++)
         {
             if (i == skipIndex) continue;
             var msg = source[i];
             if (msg.Role == "user")
+            {
+                if (cloudReminder is not null && i == source.Count - 1)
+                {
+                    history.Add(new CloudAIMessage("user",      cloudReminder));
+                    history.Add(new CloudAIMessage("assistant", "Understood."));
+                    cloudReminder = null;
+                }
                 history.Add(new CloudAIMessage("user", msg.Content));
+            }
             else if (msg.Role == "assistant")
             {
                 // Sender is now the effective display name - compare directly (no label lookup needed)
@@ -3825,6 +3978,12 @@ public partial class MainWindow : Window
                 else
                     history.Add(new CloudAIMessage("user", $"[{msg.Sender}]: {msg.Content}"));
             }
+        }
+
+        if (cloudReminder is not null)
+        {
+            history.Add(new CloudAIMessage("user",      cloudReminder));
+            history.Add(new CloudAIMessage("assistant", "Understood."));
         }
 
         return (history, system);
@@ -3988,12 +4147,13 @@ public partial class MainWindow : Window
         "• Toggle voice output on/off         → 🔊/🔇 button above the Send field\n" +
         "• Skip audio track                   → ↺ button while audio is playing\n" +
         "• Stop all audio                     → ⏹ AudioControl button while audio plays\n" +
-        "• Audio output/input device & volume → ●●● Options menu → 🔊 Audio Setup\n" +
-        "• TTS backend & voice model packs    → ●●● Options menu → 🎙 Voice Settings\n" +
+        "• Audio device, volume & TTS backend  → ●●● Options menu → 🔊 Audio and Voice Settings\n" +
         "• Toggle dictation / voice input     → 🎙 button left of the chat input field\n" +
-        "• Voice recognition settings         → ●●● Options menu → 🎙 Voice Recognition\n" +
+        "• Context compression participant    → ●●● Options menu → ⚙ Manager Settings\n" +
+        "• Claudette brain participant        → ●●● Options menu → ⚙ Manager Settings\n" +
         "• Enable web browsing for AIs        → 🌐 button in the chat toolbar (session-only)\n" +
-        "• Web whitelist / timeout / limits   → ●●● Options menu → 🌐 Web Access Settings\n\n" +
+        "• Web & download / file-read config  → ●●● Options menu → Files and Downloads\n" +
+        "• Code-file extension list           → ●●● Options menu → Files and Downloads → File Reading tab\n\n" +
 
         "## Participant cards\n" +
         "👤 Participants button → sidebar with model cards. Left-click OR right-click any card to open " +
@@ -4014,7 +4174,55 @@ public partial class MainWindow : Window
         "AIs can browse the web when the 🌐 toggle is ON (resets to OFF on every app start). " +
         "Agents use <webfetch url=\"...\"/> tags; text-only, images are stripped. " +
         "Only whitelisted domains are accessible. Configure the whitelist, download rules, " +
-        "timeout, and max-chars limits in ●●● → 🌐 Web Access Settings.\n\n" +
+        "timeout, and max-chars limits in ●●● → Files and Downloads → Tab 1 (Web & Downloads).\n\n" +
+
+        "## Files & Downloads (●●● Options menu)\n" +
+        "Two-tab settings window:\n" +
+        "Tab 1 — Web & Downloads: allow web browsing, allow file downloads, download folder path, max file size.\n" +
+        "Tab 2 — File Reading: content filter + code-file protection.\n\n" +
+
+        "## File reading & content filter\n" +
+        "AIs read local files using <readfile path=\"path/to/file\"/>. " +
+        "Text files (.txt, .md, .docx, etc.) are sanitised before injection: table separators, HTML tags, " +
+        "base64 blocks, and images removed; image tags replaced with alt text; blank lines collapsed. " +
+        "Code files are NOT filtered — their syntax must not be altered. " +
+        "The 'Code file extensions' field in File Reading tab lists ~70 extensions (semicolon-separated, " +
+        "alphabetically sorted from .bash to .zsh). Add/remove extensions to control what counts as code.\n\n" +
+
+        "## Paged file reading\n" +
+        "Large files are split into pages of 3,000 characters. " +
+        "Page 1: <readfile path=\"file.txt\"/>  — Page 2+: <readfile path=\"file.txt\" page=\"2\"/>. " +
+        "After each page the model receives a hint: 'Page X of Y — read page X+1 for more.' " +
+        "AIs can chain page reads themselves to work through very large documents.\n\n" +
+
+        "## Context window bar\n" +
+        "A 4 px coloured bar at the bottom of every participant card shows context-window fill level. " +
+        "Green = below 50 %, Amber = 50–80 %, Red = above 80 % (approaching context limit). " +
+        "Token data comes directly from each provider's API — no estimates. " +
+        "Click a card to open its info popup and see two new rows: " +
+        "CONTEXT TOKENS (X / Y — Z %) and SESSION TOKENS (X in · Y out since app start). " +
+        "Context window sizes: Anthropic Claude = 200,000 · Google Gemini = 1,000,000 · " +
+        "OpenAI/Groq/OpenRouter = 128,000 · Ollama = model-dependent.\n\n" +
+
+        "## Audio & Voice Settings (●●● menu)\n" +
+        "Single window with three tabs — opened from ●●● → 🔊 Audio and Voice Settings.\n" +
+        "Tab 1 Audio Setup: output device, input (microphone) device, master volume.\n" +
+        "Tab 2 Voice Output: TTS backend (Windows TTS / Sherpa-onnx / VOICEVOX), model folder or port. " +
+        "Switching a radio button applies the backend live.\n" +
+        "Tab 3 Voice Recognition: ASR model, activation mode (Always On / Push to Talk / Voice Activated), " +
+        "PTT key picker, live level meter with draggable threshold, " +
+        "silence delay slider (300–5000 ms, default 1500 ms — how long after speech ends before transcription triggers). " +
+        "Dictation active state and silence delay are persisted across app restarts.\n\n" +
+
+        "## Manager Settings (●●● menu)\n" +
+        "Two settings in one dialog — opened from ●●● → ⚙ Manager Settings.\n" +
+        "Compression Participant: which AI summarises the conversation when any participant's context " +
+        "window hits 80 % capacity. Older messages are replaced with a compact summary; the latest ~15 messages " +
+        "are kept intact. A warning is shown if a local Ollama model with a smaller context window than other " +
+        "participants is chosen.\n" +
+        "Claudette Brain: which participant powers the Claudette live-chat panel. " +
+        "Empty = auto-detect (Gemma → any Cloud AI → any other Ollama). " +
+        "Selecting a participant forces that model regardless of the auto-detect order.\n\n" +
 
         "## Projects\n" +
         "Projects tab → create / open projects. Each project = a folder on the PC.\n" +
@@ -4087,12 +4295,13 @@ public partial class MainWindow : Window
         "• Sprachausgabe ein-/ausschalten           → 🔊/🔇 Taste über dem Senden-Feld\n" +
         "• Audio-Track überspringen                 → ↺ während der Wiedergabe\n" +
         "• Gesamte Audiowiedergabe stoppen          → ⏹ AudioControl-Taste während Audio läuft\n" +
-        "• Audio-Ausgabe-/Eingabegerät & Lautstärke → ●●● Optionsmenü → 🔊 Audio-Setup\n" +
-        "• TTS-Backend & Stimm-Modelle              → ●●● Optionsmenü → 🎙 Spracheinstellungen\n" +
+        "• Audio-Gerät, Lautstärke & TTS-Backend    → ●●● Optionsmenü → 🔊 Ton- und Spracheinstellungen\n" +
         "• Diktat / Spracheingabe umschalten        → 🎙 Taste links neben dem Chat-Eingabefeld\n" +
-        "• Spracherkennungs-Einstellungen           → ●●● Optionsmenü → 🎙 Spracherkennung\n" +
+        "• Komprimierungs-Teilnehmer konfigurieren  → ●●● Optionsmenü → ⚙ Verwalter-Einstellungen\n" +
+        "• Claudette-Gehirn-Teilnehmer konfigurieren→ ●●● Optionsmenü → ⚙ Verwalter-Einstellungen\n" +
         "• Websuche für KIs aktivieren              → 🌐 Taste in der Chat-Leiste (nur aktuelle Sitzung)\n" +
-        "• Whitelist / Timeout / Web-Limits         → ●●● Optionsmenü → 🌐 Web-Zugriffseinstellungen\n\n" +
+        "• Web & Downloads / Dateilesen konfigurieren → ●●● Optionsmenü → Dateien und Downloads\n" +
+        "• Codedatei-Erweiterungsliste              → ●●● Optionsmenü → Dateien und Downloads → Tab Dateilesen\n\n" +
 
         "## Teilnehmerkarten\n" +
         "👤 Teilnehmer-Taste → Seitenleiste mit Modellkarten. Linksklick ODER Rechtsklick auf eine Karte " +
@@ -4113,7 +4322,55 @@ public partial class MainWindow : Window
         "KIs können das Web durchsuchen, wenn der 🌐-Schalter AN ist (wird bei jedem App-Start auf AUS zurückgesetzt). " +
         "Agenten nutzen <webfetch url=\"...\"/>-Tags; nur Text, Bilder werden entfernt. " +
         "Nur Domains aus der Whitelist sind zugänglich. Whitelist, Download-Regeln, " +
-        "Timeout und max. Zeichen in ●●● → 🌐 Web-Zugriffseinstellungen konfigurieren.\n\n" +
+        "Timeout und max. Zeichen in ●●● → Dateien und Downloads → Tab 1 (Web & Downloads) konfigurieren.\n\n" +
+
+        "## Dateien & Downloads (●●● Optionsmenü)\n" +
+        "Einstellungsfenster mit zwei Tabs:\n" +
+        "Tab 1 — Web & Downloads: Websuche erlauben, Downloads erlauben, Download-Ordner, max. Dateigröße.\n" +
+        "Tab 2 — Dateilesen: Inhaltsfilter + Codedatei-Schutz.\n\n" +
+
+        "## Dateilesen & Inhaltsfilter\n" +
+        "KIs lesen lokale Dateien mit <readfile path=\"pfad/zur/datei\"/>. " +
+        "Textdateien (.txt, .md, .docx usw.) werden vor dem Einschleusen bereinigt: Tabellen-Trennzeilen, " +
+        "HTML-Tags, Base64-Blöcke und Bilder entfernt; Bild-Tags durch Alt-Text ersetzt; Leerzeilen reduziert. " +
+        "Codedateien werden NICHT gefiltert — ihre Syntax darf nicht verändert werden. " +
+        "Das Feld 'Codedatei-Erweiterungen' im Tab Dateilesen listet ~70 Erweiterungen (Semikolon-getrennt, " +
+        "alphabetisch von .bash bis .zsh). Erweiterungen hinzufügen/entfernen um festzulegen was als Code gilt.\n\n" +
+
+        "## Seitenweises Dateilesen\n" +
+        "Große Dateien werden in Seiten à 3.000 Zeichen aufgeteilt. " +
+        "Seite 1: <readfile path=\"datei.txt\"/>  — Seite 2+: <readfile path=\"datei.txt\" page=\"2\"/>. " +
+        "Nach jeder Seite erhält das Modell einen Hinweis: 'Seite X von Y — lies Seite X+1 für mehr.' " +
+        "KIs können Seiten selbst verketten, um sehr große Dokumente durchzuarbeiten.\n\n" +
+
+        "## Kontextfenster-Balken\n" +
+        "Ein 4 px farbiger Balken am unteren Rand jeder Teilnehmerkarte zeigt die Kontextfenster-Auslastung. " +
+        "Grün = unter 50 %, Gelb = 50–80 %, Rot = über 80 % (Kontextlimit nähert sich). " +
+        "Token-Daten kommen direkt von der API jedes Anbieters — keine Schätzungen. " +
+        "Karte klicken öffnet das Info-Popup mit zwei neuen Zeilen: " +
+        "KONTEXT-TOKENS (X / Y — Z %) und SITZUNGS-TOKENS (X ein · Y aus seit App-Start). " +
+        "Kontextfenstergrößen: Anthropic Claude = 200.000 · Google Gemini = 1.000.000 · " +
+        "OpenAI/Groq/OpenRouter = 128.000 · Ollama = modellabhängig.\n\n" +
+
+        "## Ton- und Spracheinstellungen (●●● Menü)\n" +
+        "Ein Fenster mit drei Tabs — geöffnet über ●●● → 🔊 Ton- und Spracheinstellungen.\n" +
+        "Tab 1 Audioeinstellungen: Ausgabegerät, Eingabegerät (Mikrofon), Hauptlautstärke.\n" +
+        "Tab 2 Sprachausgabe: TTS-Backend (Windows TTS / Sherpa-onnx / VOICEVOX), Modellordner oder Port. " +
+        "Optionsfeld auswählen wendet Backend sofort an.\n" +
+        "Tab 3 Spracherkennung: ASR-Modell, Aktivierungsmodus (Immer aktiv / Sprechtaste / Sprachaktivierung), " +
+        "Tastenpicker, Live-Pegelanzeige mit ziehbarer Schwelle, " +
+        "Stille-Verzögerungs-Schieberegler (300–5000 ms, Standard 1500 ms — Zeit nach Sprechende bis Transkription startet). " +
+        "Diktat-Status und Stille-Verzögerung bleiben nach App-Neustart erhalten.\n\n" +
+
+        "## Verwalter-Einstellungen (●●● Menü)\n" +
+        "Zwei Einstellungen in einem Dialog — geöffnet über ●●● → ⚙ Verwalter-Einstellungen.\n" +
+        "Komprimierungs-Teilnehmer: welche KI den Chatverlauf zusammenfasst, wenn ein Teilnehmer 80 % " +
+        "seines Kontextfensters erreicht. Ältere Nachrichten werden durch eine kompakte Zusammenfassung ersetzt; " +
+        "die neuesten ~15 Nachrichten bleiben erhalten. Eine Warnung erscheint, wenn ein lokales Ollama-Modell " +
+        "mit kleinerem Kontextfenster als andere Teilnehmer gewählt wird.\n" +
+        "Claudette-Gehirn: welcher Teilnehmer die Claudette-Live-Chat-Funktion antreibt. " +
+        "Leer = automatisch (Gemma → beliebige Cloud-KI → beliebiges Ollama). " +
+        "Einen Teilnehmer auswählen erzwingt immer dieses Modell.\n\n" +
 
         "## Projekte\n" +
         "Projekte-Tab → Projekte erstellen / öffnen. Jedes Projekt = Ordner auf dem PC.\n" +
@@ -4870,7 +5127,7 @@ public partial class MainWindow : Window
                   "     Die KIs kennen diese Syntax und nutzen sie selbst.\n" +
                   "▶  Pulsierendes Karte: der Avatar eines Teilnehmers leuchtet, während er eine Antwort generiert.\n" +
                   "▶  👤 Teilnehmer-Taste: KI-Modellkarten hinzufügen oder konfigurieren.\n" +
-                  "▶  ●●● Optionsmenü: Allgemeine Einstellungen, Anbieter (API-Schlüssel), Audio & Sprache, 🌐 Sprache.\n" +
+                  "▶  ●●● Optionsmenü: Allgemeine Einstellungen, Anbieter (API-Schlüssel), 🔊 Ton- und Spracheinstellungen, ⚙ Verwalter-Einstellungen, 🌐 Sprache.\n" +
                   "▶  🎨 Theme-Auswahl: linke Seitenleiste, über dem 👤 Konfig-Knopf.\n\n" +
                   "Vollständige Referenz im Abschnitt 💬 Chat unten."
                 : "You are in General Chat — every enabled, online AI sees your message and replies in turn.\n\n" +
@@ -4882,7 +5139,7 @@ public partial class MainWindow : Window
                   "     AIs know this syntax and will use it too.\n" +
                   "▶  Pulsing card: a participant's avatar glows while they are generating a response.\n" +
                   "▶  👤 Participants button: add or configure AI model cards.\n" +
-                  "▶  ●●● Options menu: General Settings, Providers (API keys), Audio & Voice, 🌐 Language.\n" +
+                  "▶  ●●● Options menu: General Settings, Providers (API keys), 🔊 Audio and Voice Settings, ⚙ Manager Settings, 🌐 Language.\n" +
                   "▶  🎨 Theme picker: left sidebar, above the 👤 Config button.\n\n" +
                   "Full reference in the 💬 Chat section below.");
         }
@@ -4950,9 +5207,14 @@ public partial class MainWindow : Window
             ("Unterhaltung exportieren (HTML / Markdown)",  "📄  Taste im Chat-Kopfbereich"),
             ("Sprachausgabe ein- / ausschalten",            "🔊/🔇  Taste über dem Senden-Feld"),
             ("TTS-Stimme einem Teilnehmer zuweisen",        "👤 Teilnehmer  →  ✏ Bearbeiten  →  🔊 TTS-Stimme"),
-            ("Audio-Ausgabegerät oder Lautstärke ändern",   "●●● Optionsmenü  →  🔊 Audio-Setup"),
-            ("TTS-Backend / Stimmen herunterladen",         "●●● Optionsmenü  →  🎙 Spracheinstellungen"),
+            ("Audio-Gerät, Lautstärke & TTS-Backend ändern",  "●●● Optionsmenü  →  🔊 Ton- und Spracheinstellungen"),
             ("Diktat / Spracherkennung aktivieren",         "🎙 Taste links neben dem Chat-Eingabefeld"),
+            ("Komprimierung / Claudette-Gehirn konfigurieren", "●●● Optionsmenü  →  ⚙ Verwalter-Einstellungen"),
+            ("Web-Zugriff / Dateilesen konfigurieren",       "●●● Optionsmenü  →  Dateien und Downloads"),
+            ("Codedateien vor Inhaltsfilter schützen",       "●●● Optionsmenü  →  Dateien und Downloads  →  Tab Dateilesen"),
+            ("Große Datei seitenweise lesen",                "KI bitten, <readfile path=\"...\" page=\"2\"/> zu nutzen"),
+            ("Kontextfenster-Auslastung einer KI sehen",    "4-px-Balken am unteren Rand jeder Teilnehmerkarte"),
+            ("Token-Anzahl pro Sitzung sehen",               "Teilnehmerkarte klicken  →  KONTEXT / SITZUNGS-TOKENS"),
         ] : [
             ("Add or configure an AI model",           "👤 Participants button  →  model cards"),
             ("Enter cloud API keys",                   "●●● Options menu  →  Providers Setup"),
@@ -4972,9 +5234,14 @@ public partial class MainWindow : Window
             ("Export a conversation (HTML / Markdown)", "📄  button in the chat header"),
             ("Toggle voice output on / off",            "🔊/🔇  button above the Send field"),
             ("Assign a TTS voice to a participant",     "👤 Participants  →  ✏ Edit on a card  →  🔊 TTS Voice"),
-            ("Change audio output device or volume",   "●●● Options menu  →  🔊 Audio Setup"),
-            ("Choose TTS backend / download voices",   "●●● Options menu  →  🎙 Voice Settings"),
+            ("Change audio device, volume & TTS backend",  "●●● Options menu  →  🔊 Audio and Voice Settings"),
             ("Toggle dictation / voice recognition",   "🎙 button left of the chat input field"),
+            ("Configure compression / Claudette brain","●●● Options menu  →  ⚙ Manager Settings"),
+            ("Configure web browsing / file reading",  "●●● Options menu  →  Files and Downloads"),
+            ("Protect code files from content filter", "●●● Options menu  →  Files and Downloads  →  File Reading tab"),
+            ("Read a large file in pages",             "Ask the AI to use  <readfile path=\"...\" page=\"2\"/>"),
+            ("See context-window usage for an AI",     "4 px bar at the bottom of each participant card"),
+            ("See token counts per session",           "Click a participant card  →  CONTEXT / SESSION TOKENS"),
         ], mapContainer);
 
         mapToggleBtn.Click += (_, _) =>
@@ -5353,9 +5620,15 @@ public partial class MainWindow : Window
               "file-size limits for read/write operations.");
 
         // ── 🔊 Audio & Voice ──────────────────────────────────────────────
-        BeginSection("🔊", isDE ? "Audio & Sprache  (●●● Optionsmenü)" : "Audio & Voice  (●●● Options menu)");
+        BeginSection("🔊", isDE ? "Ton- und Spracheinstellungen  (●●● Optionsmenü)" : "Audio and Voice Settings  (●●● Options menu)");
 
-        AddSubHeader(isDE ? "🔊 Audio-Setup" : "🔊 Audio Setup");
+        AddBody(isDE
+            ? "Alle Audio- und Sprach-Einstellungen befinden sich jetzt in einem einzigen Fenster mit drei Tabs, " +
+              "geöffnet über ●●● → 🔊 Ton- und Spracheinstellungen."
+            : "All audio and voice settings are now in a single window with three tabs, " +
+              "opened from ●●● → 🔊 Audio and Voice Settings.");
+
+        AddSubHeader(isDE ? "Tab 1: Audioeinstellungen" : "Tab 1: Audio Setup");
         AddBody(isDE
             ? "Ausgabegerät für TTS-Wiedergabe wählen und Hauptlautstärke einstellen (0–100 %). " +
               "Lautstärkeänderungen gelten sofort für alles, was gerade spricht. " +
@@ -5363,28 +5636,25 @@ public partial class MainWindow : Window
             : "Select the audio output and input (microphone) device ClaudetRelay uses and set the " +
               "master volume (0–100 %). Volume changes apply live to anything currently speaking.");
 
-        AddSubHeader(isDE ? "🎙 Spracheinstellungen" : "🎙 Voice Settings");
+        AddSubHeader(isDE ? "Tab 2: Sprachausgabe  (TTS-Backend)" : "Tab 2: Voice Output  (TTS backend)");
         AddBody(isDE
             ? "TTS-Backend wählen und konfigurieren:\n" +
               "  Windows TTS — eingebaute Windows-Stimmen, funktioniert offline, kein Setup nötig.\n" +
               "  Sherpa-onnx — hochwertige Offline-Neural-Stimmen (Piper TTS-kompatibel). " +
-              "Modellordner wählen, dann einzelne Stimmpakete über den integrierten Stimm-Modell-Manager herunterladen. " +
-              "Modelle liegen standardmäßig im Voices/-Ordner neben der .exe.\n" +
+              "Modellordner wählen, dann einzelne Stimmpakete über den integrierten Stimm-Modell-Manager herunterladen.\n" +
               "  VOICEVOX — anime-inspirierte Charakterstimmen über eine separate VOICEVOX-Installation " +
               "die lokal läuft (Standard-Port 50021). Kompatible Alternativen: AivisSpeech, COEIROINK."
             : "Choose the TTS backend and configure it:\n" +
               "  Windows TTS — built-in Windows voices, works offline, no setup required.\n" +
               "  Sherpa-onnx — high-quality offline neural voices (Piper TTS-compatible). " +
-              "Pick a model folder, then download individual voice packs from the built-in " +
-              "Voice Model Manager. Models live next to the .exe in a Voices/ folder by default.\n" +
+              "Pick a model folder, then download individual voice packs from the built-in Voice Model Manager.\n" +
               "  VOICEVOX — anime-inspired character voices via a separate VOICEVOX installation " +
               "running locally (default port 50021). Compatible alternatives: AivisSpeech, COEIROINK.");
         AddBody(isDE
             ? "Ein Optionsfeld auswählen wendet das Backend sofort an, damit der Unterschied ohne Schließen des Dialogs gehört werden kann."
-            : "Switching a radio button applies the backend immediately so you can hear the " +
-              "difference without closing the dialog.");
+            : "Switching a radio button applies the backend immediately so you can hear the difference without closing the dialog.");
 
-        AddSubHeader(isDE ? "🎙 Spracherkennung  (Diktat-Modus)" : "🎙 Voice Recognition  (Dictation Mode)");
+        AddSubHeader(isDE ? "Tab 3: Spracherkennung  (Diktat-Modus)" : "Tab 3: Voice Recognition  (Dictation Mode)");
         AddBody(isDE
             ? "Die 🎙-Taste links neben dem Chat-Eingabefeld schaltet das Diktat um. " +
               "Gesprochene Wörter werden offline transkribiert und ins Eingabefeld eingefügt. " +
@@ -5392,20 +5662,20 @@ public partial class MainWindow : Window
               "  Immer aktiv — Mikrofon nimmt kontinuierlich auf, solange Diktat aktiv ist.\n" +
               "  Sprechtaste — konfigurierbare Taste halten (Standard: Leertaste) zum Aufnehmen.\n" +
               "  Sprachaktivierung — Aufnahme startet automatisch, wenn die Stimme eine " +
-              "konfigurierbare Lautstärke-Schwelle überschreitet, und stoppt nach kurzer Stille."
+              "konfigurierbare Lautstärke-Schwelle überschreitet, und stoppt nach einer Stille-Verzögerung (300–5000 ms, Standard 1500 ms)."
             : "The 🎙 button to the left of the chat input toggles dictation. " +
               "Spoken words are transcribed offline and inserted into the input field. " +
               "Three activation modes:\n" +
               "  Always On — microphone records continuously while dictation is active.\n" +
               "  Push to Talk — hold a configurable key (default: Space) to record.\n" +
               "  Voice Activated — recording starts automatically when your voice exceeds " +
-              "a configurable volume threshold and stops after a short silence.");
+              "a configurable volume threshold and stops after a silence delay (300–5000 ms, default 1500 ms).");
         AddBody(isDE
-            ? "ASR-Modelle herunterladen über ●●● → 🎙 Spracherkennung → ⬇ ASR-Modelle verwalten. " +
+            ? "ASR-Modelle herunterladen über ⬇ ASR-Modelle verwalten im Spracherkennung-Tab. " +
               "Modelle werden standardmäßig im ASR/-Ordner neben der .exe gespeichert. " +
               "Whisper-Modelle unterstützen ~100 Sprachen inkl. Deutsch und Englisch. " +
               "SenseVoice ist schneller, unterstützt aber nur Englisch, Chinesisch, Japanisch und Koreanisch."
-            : "ASR models are downloaded via ●●● → 🎙 Voice Recognition → ⬇ Manage ASR Models. " +
+            : "ASR models are downloaded via ⬇ Manage ASR Models in the Voice Recognition tab. " +
               "Models are stored in an ASR/ folder next to the .exe by default. " +
               "Whisper models support ~100 languages including German and English. " +
               "SenseVoice is faster but supports English, Chinese, Japanese and Korean only.");
@@ -5416,18 +5686,143 @@ public partial class MainWindow : Window
               "bis die App geschlossen wird. Das Mikrofon bleibt in allen Aktivierungsmodi offen " +
               "(für den Pegelanzeiger), aber die eigentliche Transkription — die CPU-intensive Arbeit — " +
               "erfolgt nur wenn ein Aufnahme-Chunk übermittelt wird: bei Freigabe der Sprechtaste, " +
-              "nach Stille im Sprachaktivierungs-Modus, oder am Ende eines Chunks im Immer-aktiv-Modus. " +
-              "Wenn lokale Agenten laufen und die CPU knapp ist, hält die Sprechtaste Transkriptions-Bursts " +
-              "kurz und vorhersehbar."
+              "nach der Stille-Verzögerung im Sprachaktivierungs-Modus, oder am Ende eines Chunks im Immer-aktiv-Modus. " +
+              "Wenn lokale Agenten laufen und die CPU knapp ist, hält die Sprechtaste Transkriptions-Bursts kurz und vorhersehbar."
             : "💡  ASR models run entirely on CPU using system RAM — they do not use your GPU or VRAM " +
               "and do not compete with Ollama models for GPU resources. " +
               "The model is loaded into RAM the first time you activate dictation and stays there " +
               "until you close the app. The microphone stays open in all activation modes " +
               "(needed for the level meter), but the heavy CPU work — the actual transcription — " +
               "only happens when a recording chunk is submitted: on PTT key release, " +
-              "after a silence in Voice Activated mode, or at the end of each chunk in Always On mode. " +
-              "If CPU headroom is tight while local agents are running, Push-to-Talk keeps " +
-              "transcription bursts short and predictable.");
+              "after the silence delay in Voice Activated mode, or at the end of each chunk in Always On mode. " +
+              "If CPU headroom is tight while local agents are running, Push-to-Talk keeps transcription bursts short and predictable.");
+
+        // ── ⚙ Manager Settings ────────────────────────────────────────────
+        BeginSection("⚙", isDE ? "Verwalter-Einstellungen  (●●● Optionsmenü)" : "Manager Settings  (●●● Options menu)");
+
+        AddSubHeader(isDE ? "Kontext-Komprimierung" : "Context Compression");
+        AddBody(isDE
+            ? "Wählt welcher Teilnehmer den Chatverlauf zusammenfasst, wenn das Kontextfenster zu 80 % voll ist. " +
+              "Der gewählte Teilnehmer erstellt eine kompakte Zusammenfassung der bisherigen Unterhaltung; " +
+              "ältere Nachrichten werden durch diese Zusammenfassung ersetzt, die neuesten ~15 Nachrichten bleiben erhalten. " +
+              "Empfehlung: Teilnehmer mit großem Kontextfenster wählen.\n\n" +
+              "⚠  Falls ein lokales Ollama-Modell mit kleinerem Kontextfenster als andere Teilnehmer gewählt wird, " +
+              "erscheint automatisch eine Warnung im Einstellungsfenster."
+            : "Selects which participant summarises the conversation when any participant's context window reaches 80 % capacity. " +
+              "The chosen participant produces a compact summary of the conversation so far; " +
+              "older messages are replaced with this summary while the most recent ~15 messages are kept intact. " +
+              "Recommendation: pick a participant with a large context window.\n\n" +
+              "⚠  If you select a local Ollama model with a smaller context window than other participants, " +
+              "a warning is shown automatically in the settings window.");
+
+        AddSubHeader(isDE ? "Claudette-Gehirn" : "Claudette Brain");
+        AddBody(isDE
+            ? "Legt fest welcher Teilnehmer die Claudette-Live-Chat-Funktion antreibt (das 🐙-Symbol in der Eingabeleiste). " +
+              "Leer lassen für automatische Erkennung — Reihenfolge: Gemma → beliebige Cloud-KI → beliebiges anderes Ollama-Modell. " +
+              "Hier einen Teilnehmer auswählen erzwingt immer dieses Modell als Claudette-Gehirn."
+            : "Selects which participant powers the Claudette live-chat feature (the 🐙 icon in the input bar). " +
+              "Leave empty for auto-detection — priority order: Gemma → any Cloud AI → any other Ollama model. " +
+              "Picking a participant here forces that model to always act as Claudette's brain.");
+
+        // ── 📂 Files & Downloads ──────────────────────────────────────────
+        BeginSection("📂", isDE ? "Dateien & Downloads  (●●● Optionsmenü)" : "Files & Downloads  (●●● Options menu)");
+
+        AddSubHeader(isDE ? "Tab 1: Web & Downloads" : "Tab 1: Web & Downloads");
+        AddBody(isDE
+            ? "Steuert, ob KIs aktiv auf das Internet zugreifen und Dateien herunterladen dürfen:\n" +
+              "  • Web-Browsing erlauben — KIs können Webseiten lesen, wenn sie <browse url=\"...\"/> nutzen.\n" +
+              "  • Downloads erlauben — KIs dürfen Dateien mit <download url=\"...\"/> herunterladen.\n" +
+              "  • Download-Ordner — Pfad, in dem heruntergeladene Dateien abgelegt werden.\n" +
+              "  • Maximale Dateigröße — Dateien, die größer sind, werden abgelehnt."
+            : "Controls whether AIs can access the internet and download files:\n" +
+              "  • Allow web browsing — AIs may read web pages using <browse url=\"...\"/>.\n" +
+              "  • Allow downloads — AIs may download files using <download url=\"...\"/>.\n" +
+              "  • Download folder — path where downloaded files are saved.\n" +
+              "  • Max file size — files larger than this limit are rejected.");
+
+        AddSubHeader(isDE ? "Tab 2: Dateilesen  (Inhaltsfilter & Codeschutz)" : "Tab 2: File Reading  (content filter & code protection)");
+        AddBody(isDE
+            ? "Wenn eine KI eine Datei mit <readfile path=\"...\"/> liest, wird ihr Inhalt vor dem\n" +
+              "Einschleusen in den Kontext bereinigt:\n\n" +
+              "  • Textdateien (.txt, .md, .docx, usw.) — werden gefiltert:\n" +
+              "      Tabellen-Trennzeilen, HTML-Tags, Base64-Blöcke und Bilder werden entfernt,\n" +
+              "      Bildtags werden durch ihren Alt-Text ersetzt, leere Zeilen werden reduziert.\n\n" +
+              "  • Codedateien — werden NICHT gefiltert (Syntax darf nicht verändert werden).\n" +
+              "      Das Feld 'Codedatei-Erweiterungen' legt die Liste fest — alle dort eingetragenen\n" +
+              "      Erweiterungen (Semikolon-getrennt) werden ohne Änderung an das Modell weitergegeben."
+            : "When an AI reads a file using <readfile path=\"...\"/>, its content is sanitised\n" +
+              "before being injected into the context:\n\n" +
+              "  • Text files (.txt, .md, .docx, etc.) — are filtered:\n" +
+              "      Table separator rows, HTML tags, base64 blocks, and images are removed,\n" +
+              "      image tags are replaced with their alt text, blank lines are collapsed.\n\n" +
+              "  • Code files — are NOT filtered (syntax must not be altered).\n" +
+              "      The 'Code file extensions' field defines the list — any extension listed there\n" +
+              "      (semicolon-separated) is passed to the model unchanged.");
+        AddHighlight(isDE
+            ? "📝  Die Code-Erweiterungs-Liste enthält gut 70 Typen (von .bash bis .zsh) und ist alphabetisch sortiert, " +
+              "damit du leicht prüfen kannst ob eine Erweiterung dabei ist. Erweiterungen einfach hinzufügen oder entfernen."
+            : "📝  The code-extension list ships with 70+ types (from .bash to .zsh), sorted alphabetically " +
+              "so you can quickly check whether your file type is included. Add or remove extensions freely.");
+
+        AddSubHeader(isDE ? "Seitenweises Dateilesen" : "Paged file reading");
+        AddBody(isDE
+            ? "Große Dateien werden automatisch in Seiten à 3 000 Zeichen aufgeteilt.\n" +
+              "Das Modell erhält nach jeder Seite einen Hinweis, wie viele Seiten noch folgen:\n\n" +
+              "  Seite 1 lesen:  <readfile path=\"pfad/zur/datei.txt\"/>\n" +
+              "  Seite 2 lesen:  <readfile path=\"pfad/zur/datei.txt\" page=\"2\"/>\n\n" +
+              "AIs kennen diese Syntax und können sie eigenständig nutzen, um sich durch sehr\n" +
+              "umfangreiche Dokumente zu arbeiten, ohne den Kontext zu überfluten.\n" +
+              "Der Hinweis am Ende jeder Seite zeigt: Seite X von Y — lies Seite X+1 für mehr."
+            : "Large files are automatically split into pages of 3 000 characters each.\n" +
+              "The model receives a hint after each page showing how many pages remain:\n\n" +
+              "  Read page 1:  <readfile path=\"path/to/file.txt\"/>\n" +
+              "  Read page 2:  <readfile path=\"path/to/file.txt\" page=\"2\"/>\n\n" +
+              "AIs know this syntax and can use it on their own to work through very large\n" +
+              "documents without flooding the context window.\n" +
+              "The hint at the end of each page reads: Page X of Y — read page X+1 for more.");
+
+        // ── 📊 Context Window Bar ─────────────────────────────────────────
+        BeginSection("📊", isDE ? "Kontextfenster-Anzeige  (Teilnehmerkarten)" : "Context Window Bar  (participant cards)");
+        AddBody(isDE
+            ? "Am unteren Rand jeder Teilnehmerkarte befindet sich ein 4 px dünner Balken, der die\n" +
+              "Kontextfenster-Auslastung des Modells in Echtzeit anzeigt:"
+            : "A 4 px thin bar at the bottom of every participant card shows the model's\n" +
+              "context-window fill level in real time:");
+        AddBody(isDE
+            ? "  🟢 Grün   — unter 50 % genutzt  (viel Platz übrig)\n" +
+              "  🟡 Gelb   — 50–80 % genutzt      (Kontext füllt sich)\n" +
+              "  🔴 Rot    — über 80 % genutzt     (Kontext wird knapp — bald Chatverlauf kürzen!)"
+            : "  🟢 Green  — below 50 % used    (plenty of room left)\n" +
+              "  🟡 Amber  — 50–80 % used        (context filling up)\n" +
+              "  🔴 Red    — above 80 % used     (context running low — consider clearing chat history soon!)");
+        AddBody(isDE
+            ? "Die Werte stammen direkt aus den API-Antworten der Anbieter — keine Schätzungen:\n" +
+              "  • Anthropic (Claude): aus message_start- und message_delta-Ereignissen.\n" +
+              "  • Google (Gemini): usageMetadata in jedem Streaming-Chunk.\n" +
+              "  • OpenAI / Groq / OpenRouter / Mistral usw.: usage-Chunk vor [DONE].\n" +
+              "  • Ollama: prompt_eval_count + eval_count aus dem finalen done-Chunk."
+            : "Values come directly from each provider's API responses — no estimates:\n" +
+              "  • Anthropic (Claude): from message_start and message_delta SSE events.\n" +
+              "  • Google (Gemini): usageMetadata in every streaming chunk.\n" +
+              "  • OpenAI / Groq / OpenRouter / Mistral etc.: usage chunk before [DONE].\n" +
+              "  • Ollama: prompt_eval_count + eval_count from the final done chunk.");
+        AddSubHeader(isDE ? "Token-Details im Popup" : "Token details in the popup");
+        AddBody(isDE
+            ? "Auf eine Teilnehmerkarte klicken öffnet ein Info-Popup mit zwei neuen Zeilen:\n\n" +
+              "  KONTEXT-TOKENS      X / Y  (Z %)  — bisher in dieser Antwort genutzte Tokens vs. Fenstergröße.\n" +
+              "  SITZUNGS-TOKENS     X ein · Y aus  — Gesamt-Eingabe- und Ausgabe-Tokens seit App-Start.\n\n" +
+              "Diese Daten helfen dabei, abzuschätzen, wann ein langer Chat auf Kontextgrenzen stößt."
+            : "Clicking a participant card opens an info popup with two new rows:\n\n" +
+              "  CONTEXT TOKENS    X / Y  (Z %)  — tokens used so far in this response vs. window size.\n" +
+              "  SESSION TOKENS    X in · Y out  — total input and output tokens since the app started.\n\n" +
+              "This data helps you judge when a long chat is approaching context limits.");
+        AddHighlight(isDE
+            ? "💡  Kontextfenstergröße nach Anbieter:  Anthropic Claude = 200 000 Tokens · " +
+              "Google Gemini = 1 000 000 Tokens · OpenAI / Groq / OpenRouter = 128 000 Tokens · " +
+              "Ollama = abhängig vom geladenen Modell (kein festes Limit)."
+            : "💡  Context window sizes by provider:  Anthropic Claude = 200,000 tokens · " +
+              "Google Gemini = 1,000,000 tokens · OpenAI / Groq / OpenRouter = 128,000 tokens · " +
+              "Ollama = depends on the loaded model (no fixed limit reported).");
 
         // ── Close ─────────────────────────────────────────────────────────
         currentTarget = root;   // back to root so the button lands outside any section
@@ -5453,62 +5848,122 @@ public partial class MainWindow : Window
 
     // ── Sidebar actions ────────────────────────────────────────────────────
 
+    private enum ClearChatChoice { Cancel, Memory, Files, Both }
+
+    private ClearChatChoice ShowClearChatDialog()
+    {
+        var win = new Window
+        {
+            Title           = Properties.Loc.S("ClearChat_Title"),
+            Width           = 400,
+            SizeToContent   = SizeToContent.Height,
+            ResizeMode      = ResizeMode.NoResize,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner           = this,
+        };
+        ApplyThemeToDialog(win);
+
+        var result = ClearChatChoice.Cancel;
+
+        var panel = new StackPanel { Margin = new Thickness(20) };
+
+        var label = new TextBlock
+        {
+            Text         = Properties.Loc.S("ClearChat_Question"),
+            FontSize     = 14,
+            FontWeight   = FontWeights.SemiBold,
+            Margin       = new Thickness(0, 0, 0, 16),
+            TextWrapping = TextWrapping.Wrap,
+        };
+        label.SetResourceReference(TextBlock.ForegroundProperty, "ChatTextBrush");
+        panel.Children.Add(label);
+
+        void AddBtn(string text, ClearChatChoice choice, bool isDestructive = false)
+        {
+            var btn = new Button
+            {
+                Content    = text,
+                Margin     = new Thickness(0, 0, 0, 8),
+                Padding    = new Thickness(12, 8, 12, 8),
+                FontSize   = 13,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+            };
+            btn.Style = (Style)FindResource("ModernButton");
+            if (isDestructive)
+                btn.SetResourceReference(Button.ForegroundProperty, "ErrorTextBrush");
+            btn.Click += (_, _) => { result = choice; win.Close(); };
+            panel.Children.Add(btn);
+        }
+
+        AddBtn(Properties.Loc.S("ClearChat_MemoryOnly"), ClearChatChoice.Memory);
+        AddBtn(Properties.Loc.S("ClearChat_FilesOnly"),  ClearChatChoice.Files);
+        AddBtn(Properties.Loc.S("ClearChat_Both"),       ClearChatChoice.Both, isDestructive: true);
+
+        var cancelBtn = new Button
+        {
+            Content = Properties.Loc.S("Btn_Cancel"),
+            Margin  = new Thickness(0, 8, 0, 0),
+            Padding = new Thickness(12, 6, 12, 6),
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        cancelBtn.Style = (Style)FindResource("ModernButton");
+        cancelBtn.Click += (_, _) => win.Close();
+        panel.Children.Add(cancelBtn);
+
+        win.Content = panel;
+        win.ShowDialog();
+        return result;
+    }
+
     private void ClearChat_Click(object sender, RoutedEventArgs e)
     {
-        // ── Project mode: clear only the project chat, keep project open ──
-        if (_currentProjectFolder is not null && _currentProject is not null)
-        {
-            var isDE = System.Globalization.CultureInfo.CurrentUICulture
-                           .TwoLetterISOLanguageName
-                           .Equals("de", StringComparison.OrdinalIgnoreCase);
+        var choice = ShowClearChatDialog();
+        if (choice == ClearChatChoice.Cancel) return;
 
-            var projectName = _currentProject.ProjectName;
-            var msg   = isDE
-                ? $"Alle gespeicherten Nachrichten im Projekt \"{projectName}\" werden dauerhaft gelöscht.\n\n" +
-                  "Die KI-Teilnehmer werden sich an keine frühere Unterhaltung mehr erinnern.\n\n" +
-                  "Wirklich fortfahren?"
-                : $"All stored messages in project \"{projectName}\" will be permanently deleted.\n\n" +
-                  "AI participants will have no memory of this conversation.\n\n" +
-                  "Continue?";
-            var title = isDE ? "Projektchat leeren" : "Clear Project Chat";
-
-            if (MessageBox.Show(msg, title, MessageBoxButton.YesNo, MessageBoxImage.Warning)
-                    != MessageBoxResult.Yes) return;
-
-            _streamCts?.Cancel();
-            CancelAllPrivateTasks();
-            ChatPanel.Children.Clear();
-            _sharedHistory.Clear();
-
-            // Delete all chatlog segment files for this project
-            try
-            {
-                foreach (var f in ProjectService.GetChatLogFiles(_currentProjectFolder))
-                    SysIO.File.Delete(f);
-            }
-            catch { /* non-fatal */ }
-
-            AddSystemMessage(isDE ? "Projektchat geleert." : "Project chat cleared.");
-            return;
-        }
-
-        // ── General chat: existing behaviour ──────────────────────────────
         _streamCts?.Cancel();
         CancelAllPrivateTasks();
-        ChatPanel.Children.Clear();
-        _sharedHistory.Clear();
-        CloseCurrentProject();
 
-        // Delete all general-chat log files (chatlog.json, chatlog-prev.json, summary.md)
-        try
+        if (choice is ClearChatChoice.Memory or ClearChatChoice.Both)
         {
-            if (SysIO.Directory.Exists(GeneralChatLogService.LogFolder))
-                foreach (var file in SysIO.Directory.GetFiles(GeneralChatLogService.LogFolder))
-                    SysIO.File.Delete(file);
+            ChatPanel.Children.Clear();
+            _sharedHistory.Clear();
+            foreach (var ui in _ollamaParticipants)  { ui.SessionInputTokens = 0; ui.SessionOutputTokens = 0; }
+            foreach (var ui in _cloudAIParticipants) { ui.SessionInputTokens = 0; ui.SessionOutputTokens = 0; }
         }
-        catch { /* non-fatal - log cleanup is best-effort */ }
 
-        AddSystemMessage("Chat cleared.");
+        if (choice is ClearChatChoice.Files or ClearChatChoice.Both)
+        {
+            // ── Project chat logs ──────────────────────────────────────────
+            if (_currentProjectFolder is not null)
+            {
+                try
+                {
+                    foreach (var f in ProjectService.GetChatLogFiles(_currentProjectFolder))
+                        SysIO.File.Delete(f);
+                }
+                catch { /* non-fatal */ }
+            }
+
+            // ── General chat logs ──────────────────────────────────────────
+            try
+            {
+                if (SysIO.Directory.Exists(GeneralChatLogService.LogFolder))
+                    foreach (var file in SysIO.Directory.GetFiles(GeneralChatLogService.LogFolder))
+                        SysIO.File.Delete(file);
+            }
+            catch { /* non-fatal */ }
+        }
+
+        if (choice is ClearChatChoice.Both)
+            CloseCurrentProject();
+
+        AddSystemMessage(choice switch
+        {
+            ClearChatChoice.Memory => Properties.Loc.S("ClearChat_DoneMemory"),
+            ClearChatChoice.Files  => Properties.Loc.S("ClearChat_DoneFiles"),
+            _                      => Properties.Loc.S("ClearChat_DoneBoth"),
+        });
     }
 
     /// <summary>
@@ -6450,10 +6905,19 @@ public partial class MainWindow : Window
                 fetchErrors.AppendLine($"  • {url} — {result.ErrorReason}");
             }
 
-            AddSystemMessage($"🌐  {senderName} → webfetch {new Uri(result.Url.Length > 0 ? result.Url : url).Host}" +
+            var fetchHost = new Uri(result.Url.Length > 0 ? result.Url : url).Host;
+            AddSystemMessage($"🌐  {senderName} → webfetch {fetchHost}" +
                              (result.Success ? $" ({result.Text.Length:N0} chars)" : $" — {result.ErrorReason}") +
                              (result.Success && _currentProjectFolder is not null ? " → DOWNLOADS/" : ""));
-            response = response.Replace(m.Value, injection);
+
+            // Replace the tag in the visible bubble with a short placeholder.
+            // Inject the full content into _sharedHistory as a context message (like file reads).
+            var placeholder = result.Success
+                ? $"*(→ fetched: {fetchHost})*"
+                : $"*(→ fetch failed: {fetchHost})*";
+            response = response.Replace(m.Value, placeholder);
+            if (result.Success)
+                _sharedHistory.Add(new CloudAIMessage("user", injection, "System"));
         }
 
         // Build a corrective note for the model if any fetches failed
@@ -6595,49 +7059,94 @@ public partial class MainWindow : Window
     {
         if (string.IsNullOrEmpty(projectFolder)) return "";
 
-        var files = ProjectService.ListInputFiles(projectFolder);
-        if (files.Count == 0) return "";
+        var sb = new System.Text.StringBuilder();
 
-        var sb    = new System.Text.StringBuilder();
-        var large = new List<(string Name, long Size)>();
-        bool hasInlined = false;
-
-        sb.Append("\n\n--- Project INPUT files (read-only reference) ---");
-
-        foreach (var fileName in files)
+        // ── INPUT section ──────────────────────────────────────────────────
+        var inputFiles = ProjectService.ListInputFiles(projectFolder);
+        if (inputFiles.Count > 0)
         {
-            var fullPath = SysIO.Path.Combine(projectFolder, "INPUT", fileName);
-            var size     = new SysIO.FileInfo(fullPath).Length;
+            var largeInput   = new List<(string Name, long Size)>();
+            bool hasInlined  = false;
 
-            if (size > InputAutoInjectMaxBytes)
+            sb.Append("\n\n--- Project INPUT files (read-only reference) ---");
+
+            foreach (var fileName in inputFiles)
             {
-                large.Add((fileName, size));
-                continue;
+                var fullPath = SysIO.Path.Combine(projectFolder, "INPUT", fileName);
+                var size     = new SysIO.FileInfo(fullPath).Length;
+
+                if (size > InputAutoInjectMaxBytes)
+                {
+                    largeInput.Add((fileName, size));
+                    continue;
+                }
+
+                var content = ProjectService.SafeReadFile(
+                    projectFolder, SysIO.Path.Combine("INPUT", fileName));
+                if (content is null) continue;
+
+                sb.Append($"\n\n[{fileName}]\n");
+                sb.Append(content);
+                hasInlined = true;
             }
 
-            var content = ProjectService.SafeReadFile(
-                projectFolder, SysIO.Path.Combine("INPUT", fileName));
-            if (content is null) continue;
+            if (largeInput.Count > 0)
+            {
+                sb.Append("\n\nThe following INPUT files are too large for automatic injection " +
+                          "and must be requested on demand:");
+                foreach (var (name, size) in largeInput)
+                    sb.Append($"\n  {name} ({size / 1024.0:F1} KB)" +
+                              $" - request with: <readfile path=\"INPUT/{name}\"/>");
+            }
 
-            sb.Append($"\n\n[{fileName}]\n");
-            sb.Append(content);
-            hasInlined = true;
+            if (hasInlined || largeInput.Count > 0)
+            {
+                sb.Append("\n\n--- End of INPUT files ---");
+                sb.Append("\nYou may read and reference these files. You cannot modify them.");
+            }
         }
 
-        if (large.Count > 0)
+        // ── OUTPUT section ─────────────────────────────────────────────────
+        var outputFiles = ProjectService.ListOutputFiles(projectFolder);
+        if (outputFiles.Count > 0)
         {
-            sb.Append("\n\nThe following INPUT files are too large for automatic injection " +
-                      "and must be requested on demand:");
-            foreach (var (name, size) in large)
-                sb.Append($"\n  {name} ({size / 1024.0:F1} KB)" +
-                          $" - request with: <readfile path=\"INPUT/{name}\"/>");
+            var largeOutput = new List<(string Name, long Size)>();
+
+            sb.Append("\n\n--- Project OUTPUT files (readable and writable) ---");
+
+            foreach (var fileName in outputFiles)
+            {
+                var fullPath = SysIO.Path.Combine(projectFolder, "OUTPUT", fileName);
+                var size     = new SysIO.FileInfo(fullPath).Length;
+
+                if (size > InputAutoInjectMaxBytes)
+                {
+                    largeOutput.Add((fileName, size));
+                    continue;
+                }
+
+                var content = ProjectService.SafeReadFile(
+                    projectFolder, SysIO.Path.Combine("OUTPUT", fileName));
+                if (content is null) continue;
+
+                sb.Append($"\n\n[OUTPUT/{fileName}]\n");
+                sb.Append(content);
+            }
+
+            if (largeOutput.Count > 0)
+            {
+                sb.Append("\n\nThe following OUTPUT files are too large for automatic injection " +
+                          "and must be requested on demand:");
+                foreach (var (name, size) in largeOutput)
+                    sb.Append($"\n  {name} ({size / 1024.0:F1} KB)" +
+                              $" - request with: <readfile path=\"OUTPUT/{name}\"/>");
+            }
+
+            sb.Append("\n\n--- End of OUTPUT files ---");
+            sb.Append("\nYou may read these files and overwrite them using the <output> tag.");
         }
 
-        if (!hasInlined && large.Count == 0) return "";
-
-        sb.Append("\n\n--- End of INPUT files ---");
-        sb.Append("\nYou may read and reference these files. You cannot modify them.");
-        return sb.ToString();
+        return sb.Length > 0 ? sb.ToString() : "";
     }
 
     // ── Tone helper ────────────────────────────────────────────────────────
@@ -6813,6 +7322,78 @@ public partial class MainWindow : Window
         }
     }
 
+    // ── Project folder helpers ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns entity type names (singular, e.g. "Character") for world-building folders
+    /// that actually exist on disk under PROJECTPLAN/.
+    /// </summary>
+    private static List<string> GetAvailableEntityTypes(string? projectFolder)
+    {
+        if (string.IsNullOrEmpty(projectFolder)) return [];
+        var planDir = SysIO.Path.Combine(projectFolder, "PROJECTPLAN");
+        if (!SysIO.Directory.Exists(planDir)) return [];
+        return SysIO.Directory.GetDirectories(planDir)
+            .Select(SysIO.Path.GetFileName)
+            .Where(n => !string.IsNullOrEmpty(n) && !n!.StartsWith('_'))
+            .OrderBy(n => n)
+            .ToList()!;
+    }
+
+    /// <summary>
+    /// Returns a comma-prefixed list of PROJECTPLAN subfolders for the listfiles hint,
+    /// e.g. ", PROJECTPLAN/Character, PROJECTPLAN/Faction".
+    /// Skips internal folders (starting with _) and empty strings.
+    /// </summary>
+    private static string BuildProjectPlanSubfolderHint(string? projectFolder)
+    {
+        if (string.IsNullOrEmpty(projectFolder)) return "";
+        var planDir = SysIO.Path.Combine(projectFolder, "PROJECTPLAN");
+        if (!SysIO.Directory.Exists(planDir)) return "";
+        var subs = SysIO.Directory.GetDirectories(planDir)
+            .Select(SysIO.Path.GetFileName)
+            .Where(n => !string.IsNullOrEmpty(n) && !n!.StartsWith('_'))
+            .OrderBy(n => n)
+            .ToList();
+        if (subs.Count == 0) return "";
+        return ", " + string.Join(", ", subs.Select(n => $"PROJECTPLAN/{n}"));
+    }
+
+    // ── Moodlet tag parsing ───────────────────────────────────────────────────
+
+    private const int MoodReminderInterval = 25;
+
+    /// <summary>
+    /// Strips the last [mood:word] tag from <paramref name="text"/> (case-insensitive).
+    /// Returns the extracted word (Title-cased), or null if no tag found.
+    /// </summary>
+    private static string? ParseAndStripMoodTag(ref string text)
+    {
+        // Match [mood:word] — allow optional whitespace, letters/hyphens only in the word
+        var m = System.Text.RegularExpressions.Regex.Match(
+            text,
+            @"\[mood\s*:\s*([A-Za-z][A-Za-z\-]{0,19})\]",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase |
+            System.Text.RegularExpressions.RegexOptions.RightToLeft);
+        if (!m.Success) return null;
+
+        text = text.Remove(m.Index, m.Length).TrimEnd();
+        var word = m.Groups[1].Value.Trim();
+        return char.ToUpper(word[0]) + word[1..].ToLower();
+    }
+
+    /// <summary>
+    /// Short transient reminder injected every <see cref="MoodReminderInterval"/> turns.
+    /// Never stored in _sharedHistory — zero per-turn overhead between reminder turns.
+    /// </summary>
+    private static string BuildParticipantReminder(bool hasWriteAccess) =>
+        "[Periodic behavioral reminder — follow these rules silently, do not acknowledge this message]\n" +
+        "• Append [mood:word] on its own line at the very end of your response " +
+        "(one lowercase word, e.g. [mood:focused]). It is stripped before display.\n" +
+        (hasWriteAccess
+            ? "• Never put emoji into .md or other project files — plain text and standard markdown only.\n"
+            : "");
+
     private static string BuildFileOperationInstruction(
         string? projectFolder,
         bool hasWriteAccess   = true,
@@ -6832,7 +7413,25 @@ public partial class MainWindow : Window
                 "<projectplan file=\"filename.md\">\nContent here.\n</projectplan>\n" +
 
                 "\n**Write to OUTPUT** (deliverables, reports, generated documents, final results):\n" +
-                "<output file=\"filename.md\">\nContent here.\n</output>\n");
+                "<output file=\"filename.md\">\nContent here.\n</output>\n" +
+
+                "\n**File content rules:** Never put emoji into .md or any other project files — " +
+                "keep file content clean plain text or standard markdown only.\n");
+
+            // World entity tag — only shown when world-building folders exist
+            var worldTypes = GetAvailableEntityTypes(projectFolder);
+            if (worldTypes.Count > 0)
+            {
+                sb.Append(
+                    "\n**Create or update a world entity** (Characters, Locations, Factions, Lore, etc.):\n" +
+                    "<worldentity type=\"Character\" name=\"Full Name\">\n" +
+                    WorldEntityService.BuildFormTemplate("Character") + "\n" +
+                    "</worldentity>\n" +
+                    $"Available types: {string.Join(", ", worldTypes)}\n" +
+                    "Rules: leave a field blank to keep its current value. " +
+                    "Only filled fields are written. Unknown field names are stored as custom fields. " +
+                    "To see existing entities: <listfiles folder=\"PROJECTPLAN/Character\"/>\n");
+            }
         }
         else
         {
@@ -6855,10 +7454,15 @@ public partial class MainWindow : Window
         sb.Append(
             "\n**Read a specific file on demand** (content is injected into the conversation):\n" +
             "<readfile path=\"INPUT/filename.txt\"/>\n" +
+            "Large files are split into pages (~3 000 characters each). " +
+            "The first read always returns page 1 and tells you how many pages exist. " +
+            "Request further pages with the page attribute:\n" +
+            "<readfile path=\"INPUT/filename.txt\" page=\"2\"/>\n" +
+            "A continue-hint is appended automatically when more pages remain — follow it to read on.\n" +
 
             "\n**List the contents of a folder:**\n" +
             "<listfiles folder=\"INPUT\"/>\n" +
-            "(Available folders: INPUT, PROJECTPLAN, OUTPUT, Characters)\n");
+            $"(Available folders: INPUT, PROJECTPLAN, OUTPUT{BuildProjectPlanSubfolderHint(projectFolder)})\n");
 
         if (hasWriteAccess)
         {
@@ -6918,7 +7522,8 @@ public partial class MainWindow : Window
     /// </summary>
     private (string Text, bool HadReadOps) ProcessAIFileOperationTags(
         string response, string senderName, string projFolder,
-        bool hasWriteAccess = true, string? coordinatorName = null)
+        bool hasWriteAccess = true, string? coordinatorName = null,
+        int pageSize = FileReadPageSize)
     {
         var coName     = coordinatorName ?? "the Coordinator";
         bool hadReadOps = false;
@@ -6965,6 +7570,7 @@ public partial class MainWindow : Window
         // ── Write to PROJECTSETTINGS ────────────────────────────────────────
         // Handles both the new ParticipantRolePlan.json (stored in project.json)
         // and any other PROJECTSETTINGS/ files written by the coordinator.
+        // Only participants with write access (coordinator) may use this path form.
         response = new Regex(
             @"<output\s+path=""(PROJECTSETTINGS/[^""]+)"">\s*([\s\S]*?)\s*</output>",
             RegexOptions.IgnoreCase).Replace(response, m =>
@@ -6972,6 +7578,14 @@ public partial class MainWindow : Window
             var relPath  = m.Groups[1].Value.Trim();
             var content  = m.Groups[2].Value;
             var fileName = SysIO.Path.GetFileName(relPath);
+
+            if (!hasWriteAccess)
+            {
+                AddSystemMessage(
+                    $"🔒  {senderName} → {relPath} blocked (no write access). " +
+                    "Only the Coordinator may write to PROJECTSETTINGS/.");
+                return $"*(🔒 blocked: PROJECTSETTINGS/ requires coordinator write access)*";
+            }
 
             // ParticipantRolePlan.json → parse and merge into project.json
             if (string.Equals(fileName, "ParticipantRolePlan.json",
@@ -7075,19 +7689,19 @@ public partial class MainWindow : Window
             return $"*(→ OUTPUT/{fileName})*";
         });
 
-        // ── Read file on demand ────────────────────────────────────────────
+        // ── Read file on demand (supports optional page="N" for large files) ──
         response = new Regex(
-            @"<readfile\s+path=""([^""]+)""\s*/>",
+            @"<readfile\s+path=""([^""]+)""(?:\s+page=""(\d+)"")?\s*/>",
             RegexOptions.IgnoreCase).Replace(response, m =>
         {
-            var path = m.Groups[1].Value.Trim();
+            var path    = m.Groups[1].Value.Trim();
+            var pageReq = m.Groups[2].Success ? Math.Max(1, int.Parse(m.Groups[2].Value)) : 1;
 
             string? content;
             string  formatNote = "";
 
             if (Services.PdfFileReader.IsSupported(path))
             {
-                // PDF — extract text via PdfPig
                 var full = SysIO.Path.GetFullPath(SysIO.Path.Combine(projFolder, path));
                 if (!ProjectService.IsPathSafe(full, projFolder) || !SysIO.File.Exists(full))
                     content = null;
@@ -7099,7 +7713,6 @@ public partial class MainWindow : Window
             }
             else if (Services.OfficeFileService.IsSupported(path))
             {
-                // Binary Office/ODF format — extract readable text instead of raw bytes.
                 var full = SysIO.Path.GetFullPath(SysIO.Path.Combine(projFolder, path));
                 if (!ProjectService.IsPathSafe(full, projFolder) || !SysIO.File.Exists(full))
                     content = null;
@@ -7120,13 +7733,43 @@ public partial class MainWindow : Window
                 return $"*(⚠ not found: {path})*";
             }
 
-            AddSystemMessage($"📂  {senderName} read: {path}{formatNote}");
+            var ext = SysIO.Path.GetExtension(path);
+            content = Services.ContentFilter.Apply(content, ext);
 
-            // Inject into shared history so all subsequent AI responses can see the content
+            // ── Pagination ─────────────────────────────────────────────────
+            var totalPages = Math.Max(1, (int)Math.Ceiling((double)content.Length / pageSize));
+            var page       = Math.Min(pageReq, totalPages);
+            var start      = (page - 1) * pageSize;
+            var chunk      = content.Substring(start, Math.Min(pageSize, content.Length - start));
+
+            var pageLabel  = totalPages > 1 ? $" — page {page}/{totalPages}" : "";
+            var pageNote   = totalPages > 1 ? $"\n\nℹ  Page {page} of {totalPages}." +
+                             (page < totalPages
+                                ? $" Continue reading with: <readfile path=\"{path}\" page=\"{page + 1}\"/>"
+                                : " This is the last page.")
+                             : "";
+
+            // Show / update file-read progress bar for multi-page files
+            if (totalPages > 1)
+            {
+                // Keep compression from firing mid-read; cleared when last page is delivered
+                _fileReadInProgress = page < totalPages;
+                Dispatcher.Invoke(() =>
+                {
+                    FileReadProgressLabel.Text      = $"📂  {senderName} reading {SysIO.Path.GetFileName(path)} — page {page} of {totalPages}";
+                    FileReadProgressBar.Value       = (double)page / totalPages;
+                    FileReadProgressArea.Visibility = Visibility.Visible;
+                    if (page >= totalPages)
+                        FileReadProgressArea.Visibility = Visibility.Collapsed;
+                });
+            }
+
+            AddSystemMessage($"📂  {senderName} read: {path}{formatNote}{(totalPages > 1 ? $" (page {page}/{totalPages})" : "")}");
+
             _sharedHistory.Add(new CloudAIMessage("user",
-                $"[File content: {path}]\n\n{content}", "System"));
+                $"[File content: {path}{pageLabel}]\n\n{chunk}{pageNote}", "System"));
             hadReadOps = true;
-            return $"*(→ read: {path})*";
+            return $"*(→ read: {path}{pageLabel})*";
         });
 
         // ── Write PDF output ───────────────────────────────────────────────
@@ -7223,31 +7866,108 @@ public partial class MainWindow : Window
             @"<listfiles\s+folder=""([^""]+)""\s*/>",
             RegexOptions.IgnoreCase).Replace(response, m =>
         {
-            var folder    = m.Groups[1].Value.Trim();
-            var allowed   = new[] { "INPUT", "PROJECTPLAN", "OUTPUT", "AI-Characters" };
-            var canonical = allowed.FirstOrDefault(f =>
+            var folder    = m.Groups[1].Value.Trim().Replace('\\', '/');
+            // Allow top-level folders or PROJECTPLAN/subfolder paths
+            var topAllowed = new[] { "INPUT", "PROJECTPLAN", "OUTPUT", "AI-Characters" };
+            string absFolder;
+            string displayLabel;
+
+            var topMatch = topAllowed.FirstOrDefault(f =>
                 string.Equals(f, folder, StringComparison.OrdinalIgnoreCase));
-            if (canonical is null)
+            if (topMatch is not null)
+            {
+                absFolder    = SysIO.Path.Combine(projFolder, topMatch);
+                displayLabel = topMatch + "/";
+            }
+            else if (folder.StartsWith("PROJECTPLAN/", StringComparison.OrdinalIgnoreCase))
+            {
+                var sub = folder["PROJECTPLAN/".Length..];
+                // Reject path-escape attempts
+                if (sub.Contains("..") || sub.Contains('/'))
+                {
+                    AddSystemMessage($"⚠  {senderName} listed invalid path '{folder}' - ignored.");
+                    return $"*(⚠ invalid path: {folder})*";
+                }
+                absFolder    = SysIO.Path.Combine(projFolder, "PROJECTPLAN", sub);
+                displayLabel = folder + "/";
+            }
+            else
             {
                 AddSystemMessage($"⚠  {senderName} listed unknown folder '{folder}' - ignored.");
                 return $"*(⚠ unknown folder: {folder})*";
             }
-            var absFolder = SysIO.Path.Combine(projFolder, canonical);
-            var files     = SysIO.Directory.Exists(absFolder)
+
+            var files = SysIO.Directory.Exists(absFolder)
                 ? SysIO.Directory.GetFiles(absFolder)
                     .Select(SysIO.Path.GetFileName)
+                    .Where(f => !f!.StartsWith("_"))
                     .OrderBy(f => f)
                     .ToList()
                 : [];
             var listing = files.Count > 0
                 ? string.Join("\n", files.Select(f => $"  {f}"))
                 : "  (empty)";
-            var summary = $"{canonical}/ ({files.Count} file{(files.Count == 1 ? "" : "s")}):\n{listing}";
-            AddSystemMessage($"📁  {senderName} listed {canonical}/");
+            var summary = $"{displayLabel} ({files.Count} file{(files.Count == 1 ? "" : "s")}):\n{listing}";
+            AddSystemMessage($"📁  {senderName} listed {displayLabel}");
             _sharedHistory.Add(new CloudAIMessage("user",
-                $"[Directory listing: {canonical}/]\n\n{summary}", "System"));
+                $"[Directory listing: {displayLabel}]\n\n{summary}", "System"));
             hadReadOps = true;
-            return $"*(→ listed {canonical}/)*";
+            return $"*(→ listed {displayLabel})*";
+        });
+
+        // ── World entity create / update ──────────────────────────────────
+        // Syntax: <worldentity type="Character" name="Aria">Field: value\nNotes: ...</worldentity>
+        response = new Regex(
+            @"<worldentity\s+type=""([^""]+)""\s+name=""([^""]+)""\s*>\s*([\s\S]*?)\s*</worldentity>",
+            RegexOptions.IgnoreCase).Replace(response, m =>
+        {
+            if (!hasWriteAccess)
+            {
+                AddSystemMessage($"🔒  {senderName} → worldentity blocked (no write access).");
+                return $"*(🔒 worldentity blocked — write access required)*";
+            }
+
+            var entityType = m.Groups[1].Value.Trim();
+            var entityName = m.Groups[2].Value.Trim();
+            var body       = m.Groups[3].Value;
+
+            if (string.IsNullOrWhiteSpace(entityName))
+                return "*(⚠ worldentity: name attribute is required)*";
+
+            // Parse key: value lines — everything after "Notes:" goes into Notes
+            var fields    = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var notesSb   = new System.Text.StringBuilder();
+            bool inNotes  = false;
+            foreach (var rawLine in body.Split('\n'))
+            {
+                var line = rawLine.TrimEnd();
+                if (inNotes) { notesSb.AppendLine(line); continue; }
+                var colon = line.IndexOf(':');
+                if (colon <= 0) continue;
+                var key = line[..colon].Trim();
+                var val = line[(colon + 1)..].Trim();
+                if (string.Equals(key, "Notes", StringComparison.OrdinalIgnoreCase))
+                    { notesSb.AppendLine(val); inNotes = true; }
+                else
+                    fields[key] = val;
+            }
+
+            try
+            {
+                var (entity, created) = WorldEntityService.CreateOrUpdate(
+                    projFolder, entityType, entityName, fields, notesSb.ToString().Trim());
+                var filledCount = fields.Count(kv => !string.IsNullOrWhiteSpace(kv.Value));
+                var action      = created ? "created" : "updated";
+                AddSystemMessage(
+                    $"🌍  {senderName} → {entity.EntityType}/{entityName} {action} ({filledCount} field(s))");
+                hadReadOps = true; // re-invoke so model can confirm or continue
+                return $"*(→ {entity.EntityType}/{entityName} {action})*";
+            }
+            catch (Exception ex)
+            {
+                AddSystemMessage($"⚠  worldentity write failed: {ex.Message}");
+                return $"*(⚠ worldentity write failed)*";
+            }
         });
 
         // ── Delete file (OUTPUT and PROJECTPLAN only) ──────────────────────
@@ -7349,6 +8069,23 @@ public partial class MainWindow : Window
     private const int HistoryCompressThreshold = 50;  // messages before compression runs
     private const int HistoryKeepRecent        = 16;  // most-recent messages kept verbatim
     private const int MaxToolLoopDepth         = 5;   // max auto-iterations per readfile/listfiles loop
+    private const int FileReadPageSize         = 3_000; // chars per readfile page — default for cloud/large models
+    private const int FileReadPageSizeMin      = 800;  // floor so pages never become unusably tiny
+
+    /// <summary>
+    /// Computes a safe readfile page size for a participant based on their remaining
+    /// context budget. Caps at FileReadPageSize; floors at FileReadPageSizeMin.
+    /// Keeps the injected chunk to at most 40% of whatever headroom remains,
+    /// so the participant still has room to generate a meaningful response.
+    /// </summary>
+    private int AdaptivePageSize(int contextWindowTokens, int usedTokens)
+    {
+        if (contextWindowTokens <= 0) return FileReadPageSize;
+        int remaining     = Math.Max(0, contextWindowTokens - usedTokens);
+        int safeTokens    = (int)(remaining * 0.40);  // use at most 40% of headroom
+        int safeChars     = safeTokens * 4;           // conservative 4 chars/token
+        return Math.Clamp(safeChars, FileReadPageSizeMin, FileReadPageSize);
+    }
 
     /// <summary>Returns the first active coordinator, preferring Cloud AI over Ollama
     /// (cloud models usually have larger context windows for summarisation).</summary>
