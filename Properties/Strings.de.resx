@@ -68,8 +68,8 @@
   <data name="Settings_NameHint"          xml:space="preserve"><value>Wird auf Ihren Chat-Blasen angezeigt</value></data>
   <data name="Settings_ResponseTone"      xml:space="preserve"><value>ANTWORT-TON</value></data>
   <data name="Settings_ToneNeutral"       xml:space="preserve"><value>Neutral</value></data>
-  <data name="Settings_ToneFriendly"      xml:space="preserve"><value>Freundlich</value></data>
-  <data name="Settings_ToneHint"          xml:space="preserve"><value>0 = streng neutral  ·  50 = Modell-Standard (keine Änderung)  ·  100 = sehr freundlich</value></data>
+  <data name="Settings_ToneFriendly"      xml:space="preserve"><value>Enthusiastisch</value></data>
+  <data name="Settings_ToneHint"          xml:space="preserve"><value>0–9 = reine Fakten  ·  45–55 = App-Standard  ·  56–69 = Modell-Standard (keine Injektion)  ·  100 = warm &amp; enthusiastisch</value></data>
   <data name="Settings_PersonalityMode"   xml:space="preserve"><value>PERSÖNLICHKEITSMODUS</value></data>
   <data name="Settings_ModeNeutral"       xml:space="preserve"><value>Neutral</value></data>
   <data name="Settings_ModeMockingbird"   xml:space="preserve"><value>🐦 Mockingbird</value></data>

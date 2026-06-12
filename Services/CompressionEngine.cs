@@ -78,7 +78,13 @@ public sealed class CompressionEngine
         var priorSummaries = fullHistory.Where(m => m.Role == "system" && m.Sender == "compression").ToList();
         var otherSystemMsgs = fullHistory.Where(m => m.Role == "system" && m.Sender != "compression").ToList();
 
-        if (conversation.Count < 4) return null;
+        // Allow compression if we have enough messages, OR if the history is token-heavy
+        // relative to the context window (e.g. a handful of large file-read messages).
+        // Token-heavy threshold: estimated history tokens exceed 40 % of the smallest context.
+        int estimatedHistoryTokens = conversation.Sum(m => _cal.EstimateTokens(managerName, m.Content));
+        bool tokenHeavy = minParticipantContext > 0 &&
+                          estimatedHistoryTokens >= minParticipantContext * 0.40;
+        if (conversation.Count < 4 && !tokenHeavy) return null;
 
         // 1. Split into tail (keep intact) and compress block
         int tailBudget = Math.Max((int)(minParticipantContext * TailFraction), 200);

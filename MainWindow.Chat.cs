@@ -3460,7 +3460,13 @@ public partial class MainWindow : Window
             if (!hidden) _sharedHistory.Add(new CloudAIMessage("assistant", ollamaRawText, GetEffectiveName(ui)));
             // Each page's raw content is only needed for the immediately following re-invocation.
             // Strip it before injecting the next page so previous pages don't accumulate in context.
-            if (_fileOpDepth > 0) _sharedHistory.RemoveAll(m => m.Sender == "FileContent");
+            // Also strip pure-relay assistant messages (responses that contained only a readfile tag)
+            // — they have no semantic value once we're past that hop and would otherwise pile up.
+            if (_fileOpDepth > 0)
+            {
+                _sharedHistory.RemoveAll(m => m.Sender == "FileContent");
+                _sharedHistory.RemoveAll(m => m.Role == "assistant" && IsRelayOnlyMessage(m.Content));
+            }
             if (!hidden && _currentProjectFolder is not null)
                 (ollamaFinalText, ollamaHadReadOps) = ProcessAIFileOperationTags(
                     ollamaRawText, display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName(),
@@ -3737,7 +3743,11 @@ public partial class MainWindow : Window
             // Store assistant message BEFORE file-op processing so history order is:
             // model's message (with tags) → file content injection → re-invocation
             if (!hidden) _sharedHistory.Add(new CloudAIMessage("assistant", cloudRawText, GetEffectiveName(ui)));
-            if (_fileOpDepth > 0) _sharedHistory.RemoveAll(m => m.Sender == "FileContent");
+            if (_fileOpDepth > 0)
+            {
+                _sharedHistory.RemoveAll(m => m.Sender == "FileContent");
+                _sharedHistory.RemoveAll(m => m.Role == "assistant" && IsRelayOnlyMessage(m.Content));
+            }
             if (!hidden && _currentProjectFolder is not null)
                 (cloudFinalText, cloudHadReadOps) = ProcessAIFileOperationTags(
                     cloudRawText, display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName(),
@@ -3968,6 +3978,7 @@ public partial class MainWindow : Window
                 BuildLanguageInstruction(_projectLanguage) +
                 (string.IsNullOrEmpty(_projectLanguage) ? BuildUiLanguageInstruction(_uiLanguageName) : "") +
                 BuildInputFilesContext(_currentProjectFolder) +
+                BuildMissionContext(_currentProjectFolder) +
                 BuildWorldEntityContext() +
                 BuildToneInstruction(_toneLevel, _mockingbirdMode, _buccaneeerMode, _projectLanguage) +
                 BuildChattinessInstruction(_chattinessLevel) +
@@ -4090,6 +4101,7 @@ public partial class MainWindow : Window
             BuildLanguageInstruction(_projectLanguage) +
             (string.IsNullOrEmpty(_projectLanguage) ? BuildUiLanguageInstruction(_uiLanguageName) : "") +
             BuildInputFilesContext(_currentProjectFolder) +
+            BuildMissionContext(_currentProjectFolder) +
             BuildWorldEntityContext() +
             BuildToneInstruction(_toneLevel, _mockingbirdMode, _buccaneeerMode, _projectLanguage) +
             BuildChattinessInstruction(_chattinessLevel) +
@@ -4332,7 +4344,8 @@ public partial class MainWindow : Window
         "Disabled cards appear at reduced opacity with a 'Deactivated' status label.\n\n" +
 
         "## General Settings (●●● menu)\n" +
-        "Display name, tone slider, UI language, UI zoom, " +
+        "Display name, tone slider (0–9 = pure facts · 45–55 = app standard · 56–69 = model default · 100 = warm & enthusiastic), " +
+        "UI language, UI zoom, " +
         "personality modes (Buccaneer 🏴‍☠️ = pirate dialect, Mockingbird 🎭 = Shakespearean).\n" +
         "Providers Setup: API keys for Anthropic, Google AI, Groq, OpenRouter, " +
         "xAI, Mistral, OpenAI. Keys stored EXCLUSIVELY in Windows Credential Manager — never in a file.\n\n" +
@@ -4484,7 +4497,8 @@ public partial class MainWindow : Window
         "Deaktivierte Karten erscheinen transparent mit dem Status 'Deaktiviert'.\n\n" +
 
         "## Allgemeine Einstellungen (●●● Menü)\n" +
-        "Anzeigename, Ton-Schieberegler, UI-Sprache, UI-Zoom, " +
+        "Anzeigename, Ton-Schieberegler (0–9 = reine Fakten · 45–55 = App-Standard · 56–69 = Modell-Standard · 100 = warm & enthusiastisch), " +
+        "UI-Sprache, UI-Zoom, " +
         "Persönlichkeitsmodi (Freibeuter 🏴‍☠️ = Piratendialekt, Spottdrossel 🎭 = Shakespeareanisch).\n" +
         "Anbieter-Setup: API-Schlüssel für Anthropic, Google AI, Groq, OpenRouter, " +
         "xAI, Mistral, OpenAI. Schlüssel AUSSCHLIESSLICH im Windows Credential Manager gespeichert — nie in Datei.\n\n" +
@@ -5605,11 +5619,27 @@ public partial class MainWindow : Window
 
         AddSubHeader(isDE ? "●●● Optionsmenü  →  Allgemeine Einstellungen" : "●●● Options menu  →  General Settings");
         AddBody(isDE
-            ? "Dein Anzeigename, Ton-Schieberegler, UI-Zoom und die zwei Persönlichkeitsschalter:\n" +
+            ? "Dein Anzeigename, Ton-Schieberegler, UI-Zoom und die zwei Persönlichkeitsschalter.\n" +
+              "Ton-Schieberegler (nur Neutral-Modus):\n" +
+              "  0–9   = reine Fakten, keine Höflichkeiten\n" +
+              "  10–29 = sachlich und neutral\n" +
+              "  30–44 = direkt und faktisch, kein Füllmaterial\n" +
+              "  45–55 = App-Standard: hilfreiche, konstruktive Kritik\n" +
+              "  56–69 = Modell-Standard (keine Injektion)\n" +
+              "  70–89 = etwas wärmer und gesprächiger\n" +
+              "  90–100 = warm, ermutigend und enthusiastisch\n" +
               "  🏴‍☠️ Freibeuter — alle KIs sprechen im Piratendialekt  (Ton-Schieberegler = Intensität).\n" +
               "  🎭 Spottdrossel — alle KIs sprechen in shakespeareschen Versen  (Schieberegler = Chaos ↔ Wärme).\n" +
               "Sprache ist ein separater ●●● Menüeintrag — siehe 🌐 Sprache."
-            : "Your display name, response tone slider, UI zoom, and the two personality toggles:\n" +
+            : "Your display name, response tone slider, UI zoom, and the two personality toggles.\n" +
+              "Tone slider (neutral mode only):\n" +
+              "  0–9   = pure facts, no pleasantries\n" +
+              "  10–29 = neutral and objective\n" +
+              "  30–44 = direct and factual, no fluff\n" +
+              "  45–55 = app standard: helpful, constructive criticism\n" +
+              "  56–69 = model default (no injection)\n" +
+              "  70–89 = a little warmer and more conversational\n" +
+              "  90–100 = warm, encouraging and enthusiastic\n" +
               "  🏴‍☠️ Buccaneer — all AIs speak in pirate dialect  (tone slider = intensity).\n" +
               "  🎭 Mockingbird — all AIs go full Shakespearean verse  (slider = chaos ↔ warmth).\n" +
               "Language is a separate ●●● menu entry — see 🌐 Language below.");
@@ -7226,6 +7256,25 @@ public partial class MainWindow : Window
 
     // ── INPUT file context ─────────────────────────────────────────────────
 
+    // ── Mission context ───────────────────────────────────────────────────────
+
+    private const string MissionFile = "PROJECTPLAN/mission.md";
+
+    /// <summary>
+    /// Injects PROJECTPLAN/mission.md into every system prompt when it exists.
+    /// This file is the persistent task anchor — it survives compression because
+    /// it lives in the system prompt, not in the chat history.
+    /// </summary>
+    private static string BuildMissionContext(string? projectFolder)
+    {
+        if (string.IsNullOrEmpty(projectFolder)) return "";
+        var content = ProjectService.SafeReadFile(projectFolder, MissionFile);
+        if (string.IsNullOrWhiteSpace(content)) return "";
+        return $"\n\n## Current Mission\n{content.Trim()}";
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     /// <summary>Files under this size are injected into the system prompt automatically.
     /// Larger files are listed with a readfile hint so the AI can request them on demand.</summary>
     private const long InputAutoInjectMaxBytes = 8_192; // 8 KB
@@ -7323,6 +7372,21 @@ public partial class MainWindow : Window
 
         return sb.Length > 0 ? sb.ToString() : "";
     }
+
+    // ── File-read relay helper ─────────────────────────────────────────────
+
+    // Returns true when an assistant message contains nothing but a readfile tag
+    // (possibly surrounded by whitespace / the auto-continue hint injected by the system).
+    // These are pure relay hops with no user-visible value; strip them between pages
+    // to prevent context from growing by one readfile message per page read.
+    private static readonly System.Text.RegularExpressions.Regex RelayOnlyRegex =
+        new(@"^\s*<readfile\s[^>]*/>\s*$",
+            System.Text.RegularExpressions.RegexOptions.Singleline |
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase |
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static bool IsRelayOnlyMessage(string content) =>
+        !string.IsNullOrWhiteSpace(content) && RelayOnlyRegex.IsMatch(content);
 
     // ── Tone helper ────────────────────────────────────────────────────────
 
@@ -7426,24 +7490,26 @@ public partial class MainWindow : Window
             };
         }
 
-        // Honesty anchor - appended to every warm level.
+        // Honesty anchor - appended to app-standard and warmer levels where warmth could
+        // tempt the model to soften real problems. Lower levels (direct/factual) imply honesty.
         // The role-instruction override clause keeps acting / storytelling characters free.
         const string honest =
             " Unless your role or character instruction specifies otherwise: " +
-            "always be honest. Gentle criticism is not only allowed - it is expected. " +
-            "Never soften a real problem into invisibility. " +
+            "always be honest. When something needs improvement, say so constructively — " +
+            "frame it as what could be improved and how, not as a blunt negative judgment. " +
             "Truth and warmth are not opposites.";
 
         return level switch
         {
             < 10  => "\n\nRespond with strict neutrality: pure facts, no pleasantries, no emotional language, no greetings or affirmations.",
             < 30  => "\n\nKeep your tone neutral and objective. Minimise pleasantries and focus on accurate information.",
-            < 45  => "\n\nBe slightly more direct and factual; avoid excessive friendliness.",
-            <= 55 => "",   // 50 = model default - no injection
-            < 70  => "\n\nBe a little warmer and more conversational in your responses." + honest,
-            < 90  => "\n\nBe friendly and supportive in your responses." + honest,
+            < 45  => "\n\nBe direct and factual; avoid excessive friendliness or fluff.",
+            <= 55 => "\n\nBe helpful and honest. When something needs improvement, frame it constructively " +
+                     "— suggest what could be improved and how, rather than stating it negatively." + honest,
+            < 70  => "",   // pure model default — no injection
+            < 90  => "\n\nBe a little warmer and more conversational than your default." + honest,
             _     => "\n\nBe warm, encouraging, and enthusiastic in your responses. " +
-                     "Celebrate what genuinely works; name what doesn't, kindly but clearly. " +
+                     "Celebrate what genuinely works; name what could be improved — kindly and constructively. " +
                      "Enthusiasm without honesty is empty flattery." + honest
         };
     }
@@ -7590,6 +7656,16 @@ public partial class MainWindow : Window
                 "\n**Write to OUTPUT** (deliverables, reports, generated documents, final results):\n" +
                 "<output file=\"filename.md\">\nContent here.\n</output>\n" +
 
+                "\n**Mission anchor** — write `PROJECTPLAN/mission.md` at the start of any multi-step task " +
+                "to keep your goal visible even after heavy compression:\n" +
+                "<projectplan file=\"mission.md\">\n" +
+                "## Mission: <one-line goal>\n" +
+                "**Status:** <what has been done so far>\n" +
+                "**Next:** <immediate next action>\n" +
+                "</projectplan>\n" +
+                "Overwrite this file whenever the status or next step changes. " +
+                "Its contents are injected into every system prompt and survive compression.\n" +
+
                 "\n**File content rules:** Never put emoji into .md or any other project files — " +
                 "keep file content clean plain text or standard markdown only.\n");
 
@@ -7655,7 +7731,8 @@ public partial class MainWindow : Window
                   "   (ClaudetRelay will automatically re-invoke you once file contents are available.)\n" +
                   "3. Third response: process the content and write your results using <output> tags.\n" +
                   "You can include multiple <readfile> tags in a single response to load several files at once.\n" +
-                  "You can include multiple <output> tags in a single response to write several files at once.");
+                  "You can include multiple <output> tags in a single response to write several files at once.\n\n" +
+                  "**Need help with a tag or format?** Use <help/> for a topic list.");
 
         return sb.ToString();
     }
@@ -7846,6 +7923,35 @@ public partial class MainWindow : Window
             var relPath   = SysIO.Path.Combine("OUTPUT", fileName);
             var outFull   = SysIO.Path.GetFullPath(SysIO.Path.Combine(projFolder, relPath));
             var outBackup = BackupIfExists(outFull, projFolder);
+
+            // ── Route by extension for binary formats ─────────────────────────
+            var ext = SysIO.Path.GetExtension(fileName).ToLowerInvariant();
+
+            if (ext == ".pdf")
+            {
+                SysIO.Directory.CreateDirectory(SysIO.Path.GetDirectoryName(outFull)!);
+                if (outBackup is not null)
+                    AddSystemMessage($"💾  Previous OUTPUT/{fileName} saved to {outBackup}");
+                if (Services.PdfFileWriter.TryWrite(outFull, m.Groups[2].Value, out var pdfErr))
+                    AddSystemMessage($"📄  {senderName} → OUTPUT/{fileName}  (PDF)");
+                else
+                    AddSystemMessage($"⚠  {senderName} → OUTPUT/{fileName} failed: {pdfErr}");
+                return "";
+            }
+
+            if (ext == ".xlsx")
+            {
+                SysIO.Directory.CreateDirectory(SysIO.Path.GetDirectoryName(outFull)!);
+                if (outBackup is not null)
+                    AddSystemMessage($"💾  Previous OUTPUT/{fileName} saved to {outBackup}");
+                if (Services.OfficeFileService.TryWrite(outFull, m.Groups[2].Value, out var xlsxErr))
+                    AddSystemMessage($"📊  {senderName} → OUTPUT/{fileName}  (XLSX)");
+                else
+                    AddSystemMessage($"⚠  {senderName} → OUTPUT/{fileName} failed: {xlsxErr}");
+                return "";
+            }
+
+            // ── Plain text / markdown ─────────────────────────────────────────
             if (ProjectService.SafeWriteFile(projFolder, relPath, m.Groups[2].Value, out bool outDirCreated))
             {
                 if (outBackup is not null)
@@ -7958,8 +8064,9 @@ public partial class MainWindow : Window
 
         // ── Write PDF output ───────────────────────────────────────────────
         // Syntax: <outputpdf file="report.pdf">...markdown content...</outputpdf>
+        // Also accepts </output> as closing tag (models often shorten it).
         response = new Regex(
-            @"<outputpdf\s+file=""([^""]+)"">\s*([\s\S]*?)\s*</outputpdf>",
+            @"<outputpdf\s+file=""([^""]+)"">\s*([\s\S]*?)\s*</(?:outputpdf|output)>",
             RegexOptions.IgnoreCase).Replace(response, m =>
         {
             var fileName = SanitizeFileName(m.Groups[1].Value, "output.pdf");
@@ -7996,8 +8103,9 @@ public partial class MainWindow : Window
         // ── Write Office / ODF output ──────────────────────────────────────
         // Syntax: <outputoffice file="report.docx">...markdown...</outputoffice>
         // Supported extensions: .docx .odt .xlsx .ods
+        // Also accepts </output> as closing tag.
         response = new Regex(
-            @"<outputoffice\s+file=""([^""]+)"">\s*([\s\S]*?)\s*</outputoffice>",
+            @"<outputoffice\s+file=""([^""]+)"">\s*([\s\S]*?)\s*</(?:outputoffice|output)>",
             RegexOptions.IgnoreCase).Replace(response, m =>
         {
             var rawName = m.Groups[1].Value;
@@ -8185,8 +8293,290 @@ public partial class MainWindow : Window
             return $"*(→ deleted: {path})*";
         });
 
+        // ── AI Help system ─────────────────────────────────────────────────
+        // <help/>            → main menu (list of topic IDs)
+        // <help topic="N"/>  → detailed page for topic N
+        response = new Regex(
+            @"<help(?:\s+topic=""(\d+)"")?\s*/>",
+            RegexOptions.IgnoreCase).Replace(response, m =>
+        {
+            var topicStr = m.Groups[1].Success ? m.Groups[1].Value : "";
+            string helpText;
+            string label;
+            if (string.IsNullOrEmpty(topicStr))
+            {
+                helpText = BuildHelpMenu();
+                label    = "help menu";
+            }
+            else
+            {
+                int topic = int.Parse(topicStr);
+                helpText  = BuildHelpTopic(topic, hasWriteAccess);
+                label     = $"help topic {topic}";
+            }
+            AddSystemMessage($"❓  {senderName} requested {label}");
+            _sharedHistory.Add(new CloudAIMessage("user",
+                $"[System help — {label}]\n\n{helpText}", "System"));
+            hadReadOps = true;
+            return $"*(→ {label})*";
+        });
+
         return (response, hadReadOps);
     }
+
+    // ── Help content ───────────────────────────────────────────────────────────
+
+    private static string BuildHelpMenu() =>
+        """
+        Available help topics:
+
+        <help topic="1"/>   Reading files        — <readfile> tag, pagination, formats
+        <help topic="2"/>   Writing output       — <output> tag, all supported formats
+        <help topic="3"/>   PDF output           — Markdown → PDF details and tips
+        <help topic="4"/>   Office output        — .xlsx, .docx, .odt, .ods tips
+        <help topic="5"/>   Web browsing         — <webfetch> tag, whitelist, limits
+        <help topic="6"/>   Folder structure     — INPUT/, OUTPUT/, PROJECTPLAN/
+        <help topic="7"/>   Listing files        — <listfiles> tag
+        <help topic="8"/>   World entities       — <worldentity> tag: Characters, Locations, Factions, Lore
+        <help topic="9"/>   Project plan         — <projectplan> tag
+        <help topic="10"/>  Delete files         — <deletefile> tag, restrictions
+        <help topic="11"/>  Write access         — who can write, Coordinator role
+        <help topic="12"/>  Mission anchor       — survive compression on long tasks
+
+        Use the tag shown next to the topic to request that page.
+        """;
+
+    private static string BuildHelpTopic(int topic, bool hasWrite) => topic switch
+    {
+        1 => """
+             READING FILES  —  <readfile path="..." page="N"/>
+
+             Read any file in INPUT/ or PROJECTPLAN/:
+               <readfile path="INPUT/document.pdf"/>
+               <readfile path="INPUT/data.xlsx"/>
+               <readfile path="INPUT/notes.txt" page="2"/>
+
+             - path is relative to the project root (always forward slashes)
+             - page is optional; defaults to 1. If the file has multiple pages,
+               the response tells you the total and gives you the next tag to use.
+             - Supported read formats: .txt .md .csv .json .xml .html .pdf
+               .docx .odt .xlsx .ods and most plain-text formats
+             - Read ONE page per response. After receiving a page, output the next
+               <readfile> tag if more pages remain — never output multiple readfile
+               tags in a single response.
+             - Do not comment between pages; give your final answer only after
+               reading all pages you need.
+             """,
+
+        2 => """
+             WRITING OUTPUT  —  <output file="filename.ext">content</output>
+
+             Write any deliverable to the OUTPUT/ folder:
+               <output file="summary.md">
+               # My Summary
+               Content here...
+               </output>
+
+             File extension determines the format:
+               .md .txt .csv .json .xml .html  → plain text written as-is
+               .pdf                             → Markdown rendered to PDF
+               .xlsx .ods                       → CSV/Markdown table → spreadsheet
+               .docx .odt                       → Markdown → Word/Writer document
+
+             - Never write config files (.json project files, settings) to OUTPUT.
+             - Use PROJECTPLAN/ for project notes (see topic 9).
+             """ + (hasWrite ? "" : "\n⚠ You do not currently have write access. Only the Coordinator can write files."),
+
+        3 => """
+             PDF OUTPUT  —  <output file="report.pdf">markdown</output>
+
+             The content between the tags is Markdown, rendered to A4 PDF:
+               # Heading 1       — large bold title
+               ## Heading 2      — section heading
+               ### Heading 3     — sub-section heading
+               **bold**          — bold text
+               *italic*          — italic text
+               - item            — bullet list
+               1. item           — numbered list
+               | Col | Col |     — table (add a |---|---| separator row)
+               ```               — code block (monospace, grey background)
+               ---               — horizontal rule
+
+             Tips:
+             - Keep content focused; very long outputs may be truncated by context limits.
+             - Emoji are stripped from PDF output to avoid font issues.
+             - Use <output file="name.pdf"> — closing tag </output> is also accepted.
+             """,
+
+        4 => """
+             OFFICE OUTPUT  —  <output file="report.xlsx">content</output>
+
+             Supported formats: .xlsx (Excel), .ods (LibreOffice Calc),
+                                 .docx (Word), .odt (LibreOffice Writer)
+
+             For spreadsheets (.xlsx / .ods) — write CSV or a Markdown table:
+               CSV example:
+                 Name,Age,City
+                 Alice,30,Berlin
+                 Bob,25,Munich
+
+               Markdown table example:
+                 | Name  | Age | City   |
+                 |-------|-----|--------|
+                 | Alice |  30 | Berlin |
+
+             For documents (.docx / .odt) — write Markdown (same as PDF topic 3).
+
+             Tips:
+             - First row of CSV / first table row = header row (bold in spreadsheet).
+             - Multiple tables in one output = multiple sheets.
+             - Use <output file="name.xlsx"> — closing tag </output> is also accepted.
+             """,
+
+        5 => """
+             WEB BROWSING  —  <webfetch url="https://..."/>
+
+             Fetch a webpage when the web toggle is ON:
+               <webfetch url="https://example.com/page"/>
+
+             - Returns plain text only; images, scripts, and styles are stripped.
+             - Only domains on the project whitelist are accessible.
+               If a domain is blocked, the system message will tell you.
+             - Respect robots.txt and rate limits — do not fetch the same URL repeatedly.
+             - The web toggle resets to OFF on every app start.
+             - Fetched content counts toward context; prefer targeted URLs over homepages.
+             """,
+
+        6 => """
+             FOLDER STRUCTURE
+
+             INPUT/        — read-only source material provided by the user.
+                             Place documents, PDFs, spreadsheets here for AIs to read.
+                             INPUT/finished/ is a common subfolder for completed items.
+
+             OUTPUT/       — deliverables written by AIs with <output file="...">.
+                             Files here are results, not source material.
+                             Move finished OUTPUT files to INPUT/ to use them as references.
+
+             PROJECTPLAN/  — project notes, plans, and intermediate working files.
+                             AIs with write access can write here with <projectplan file="...">.
+                             Not for final deliverables — use OUTPUT/ for those.
+
+             AI-Characters/ — character definition files loaded automatically.
+                              Do not write here with output tags.
+             """,
+
+        7 => """
+             LISTING FILES  —  <listfiles folder="FOLDER"/>
+
+             List files in a top-level folder:
+               <listfiles folder="INPUT"/>
+               <listfiles folder="OUTPUT"/>
+               <listfiles folder="PROJECTPLAN"/>
+
+             - Returns filenames only (no sizes or dates).
+             - Hidden files (starting with _) are excluded.
+             - Subfolders of PROJECTPLAN are also supported:
+                 <listfiles folder="PROJECTPLAN/drafts"/>
+             """,
+
+        8 => """
+             WORLD ENTITIES  —  <worldentity type="..." name="...">fields</worldentity>
+
+             Create or update a named entity — Characters, Locations, Factions, Lore, and more:
+               <worldentity type="Character" name="Aria">
+               Role: Protagonist
+               Age: 24
+               Traits: Curious, determined
+               Notes: Met the group in Chapter 3. Has a secret past.
+               </worldentity>
+
+             - type can be: Character, Location, Faction, Lore, Item, Event, or any custom label.
+             - name must be unique within the type.
+             - Fields are free-form Key: Value lines.
+             - The special Notes: field accepts multi-line text.
+             - Entities are stored in PROJECTPLAN/WorldEntities/ and injected into
+               the system prompt automatically.
+             - Requires write access.
+             """,
+
+        9 => """
+             PROJECT PLAN  —  <projectplan file="name.md">content</projectplan>
+
+             Write a Markdown file to the PROJECTPLAN/ folder:
+               <projectplan file="outline.md">
+               # Story Outline
+               ...
+               </projectplan>
+
+             - Use for working notes, plans, outlines, drafts — not final deliverables.
+             - Files written here appear in INPUT/ context for all AIs automatically.
+             - Supports subdirectories: file="chapter1/notes.md"
+             - Requires write access.
+             """,
+
+        10 => """
+              DELETING FILES  —  <deletefile path="FOLDER/filename"/>
+
+              Delete a file from OUTPUT/ or PROJECTPLAN/:
+                <deletefile path="OUTPUT/old_report.pdf"/>
+                <deletefile path="PROJECTPLAN/draft.md"/>
+
+              - Only OUTPUT/ and PROJECTPLAN/ files may be deleted.
+              - INPUT/ files cannot be deleted by AIs.
+              - The path must not escape the project folder.
+              - Requires write access.
+              """,
+
+        11 => """
+              WRITE ACCESS
+
+              Only the Coordinator and Reasoner roles may write project files.
+              Reader and Watcher roles are read-only.
+
+              If you do not have write access:
+              - Your <output>, <projectplan>, <worldentity>, <deletefile> tags will be blocked.
+              - The system will suggest which participant can write the file instead.
+              - You can still read files, list folders, fetch web pages, and use <help/>.
+
+              The Coordinator is the AI assigned to orchestrate the project.
+              Write access is configured per participant in the project settings.
+              """,
+
+        12 => """
+              MISSION ANCHOR  —  PROJECTPLAN/mission.md
+
+              Long tasks can lose their goal through compression — after many pages of
+              reading, the original task description may be summarised away. The mission
+              file prevents this: its contents are injected into EVERY system prompt,
+              before the conversation history, so they always survive compression.
+
+              Write your mission at the start of a long task:
+                <projectplan file="mission.md">
+                ## Mission: Extract all character profiles from System-ALPHA-Test.pdf
+
+                **Goal:** Find every named character with Properties and Talents listed.
+                **Output:** Save each one as a worldentity (type="Character").
+                **Status:** Reading in progress — up to page 37 done.
+                **Next:** Continue from page 38.
+                </projectplan>
+
+              Update it as the task progresses (overwrite the same file):
+                <projectplan file="mission.md">
+                ## Mission: Extract character profiles
+                **Status:** DONE — 3 characters saved as world entities.
+                **Next:** Compare with ALT Sameah System.odt.
+                </projectplan>
+
+              Rules:
+              - Keep it short — it is injected on every call, so brevity saves tokens.
+              - Update the Status and Next fields as you go.
+              - Delete or clear it when the mission is complete.
+              - Only one mission file per project (PROJECTPLAN/mission.md).
+              """,
+
+        _ => $"Unknown help topic {topic}. Use <help/> to see the topic list."
+    };
 
     /// <summary>Strips invalid filename characters and trims separators. Returns fallback if empty.</summary>
     private static string SanitizeFileName(string raw, string fallback)

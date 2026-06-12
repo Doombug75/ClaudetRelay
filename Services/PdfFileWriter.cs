@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using PdfSharp.Drawing;
 using PdfSharp.Drawing.Layout;
+using PdfSharp.Fonts;
 using PdfSharp.Pdf;
 
 namespace ClaudetRelay.Services;
@@ -44,6 +45,60 @@ public static class PdfFileWriter
     private const double LineH      = 16;    // line height for body text
     private const double ParaGap    =  8;    // extra gap after a paragraph
 
+    // ── Font resolver ─────────────────────────────────────────────────────────
+
+    // PDFsharp 6.x on .NET does not use GDI+ for font access.
+    // This resolver reads Arial and Courier New directly from the Windows Fonts folder.
+    private sealed class WindowsFontResolver : IFontResolver
+    {
+        private static readonly string FontDir =
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts");
+
+        public string DefaultFontName => "Arial";
+
+        public FontResolverInfo? ResolveTypeface(string familyName, bool isBold, bool isItalic)
+        {
+            string key = familyName.ToLowerInvariant() switch
+            {
+                "arial" when isBold && isItalic => "Arial-BI",
+                "arial" when isBold             => "Arial-Bold",
+                "arial" when isItalic           => "Arial-Italic",
+                "arial"                         => "Arial",
+                "courier new" when isBold && isItalic => "Courier-BI",
+                "courier new" when isBold             => "Courier-Bold",
+                "courier new" when isItalic           => "Courier-Italic",
+                "courier new"                         => "Courier",
+                _                               => "Arial"
+            };
+            return new FontResolverInfo(key, isBold, isItalic);
+        }
+
+        public byte[]? GetFont(string faceName) => faceName switch
+        {
+            "Arial"        => TryRead("arial.ttf"),
+            "Arial-Bold"   => TryRead("arialbd.ttf"),
+            "Arial-Italic" => TryRead("ariali.ttf"),
+            "Arial-BI"     => TryRead("arialbi.ttf"),
+            "Courier"      => TryRead("cour.ttf"),
+            "Courier-Bold" => TryRead("courbd.ttf"),
+            "Courier-Italic" => TryRead("couri.ttf"),
+            "Courier-BI"   => TryRead("courbi.ttf"),
+            _              => TryRead("arial.ttf")
+        };
+
+        private byte[]? TryRead(string fileName)
+        {
+            var path = Path.Combine(FontDir, fileName);
+            return File.Exists(path) ? File.ReadAllBytes(path) : null;
+        }
+    }
+
+    private static void EnsureFontResolver()
+    {
+        if (GlobalFontSettings.FontResolver is WindowsFontResolver) return;
+        GlobalFontSettings.FontResolver = new WindowsFontResolver();
+    }
+
     // ── Entry point ───────────────────────────────────────────────────────────
 
     /// <summary>
@@ -56,6 +111,7 @@ public static class PdfFileWriter
         error = null;
         try
         {
+            EnsureFontResolver();
             var doc = new PdfDocument();
             doc.Info.Title   = Path.GetFileNameWithoutExtension(filePath);
             doc.Info.Creator = "ClaudetRelay";

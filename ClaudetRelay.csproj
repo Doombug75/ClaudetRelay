@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <Version>0.9.9</Version>
-    <AssemblyVersion>0.9.9</AssemblyVersion>
+    <Version>0.9.9.5</Version>
+    <AssemblyVersion>0.9.9.5</AssemblyVersion>
     <ApplicationIcon>Assets\Claudette.ico</ApplicationIcon>
   </PropertyGroup>
 

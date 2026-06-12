@@ -869,7 +869,11 @@ public partial class MainWindow
     {
         var asm     = System.Reflection.Assembly.GetExecutingAssembly();
         var ver     = asm.GetName().Version;
-        var verStr  = ver is not null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "dev";
+        var verStr  = ver is not null
+            ? ver.Revision > 0
+                ? $"{ver.Major}.{ver.Minor}.{ver.Build}.{ver.Revision}"
+                : $"{ver.Major}.{ver.Minor}.{ver.Build}"
+            : "dev";
         var exePath = Environment.ProcessPath ?? AppDomain.CurrentDomain.BaseDirectory;
         var built   = SysIO.File.GetLastWriteTime(exePath);
 

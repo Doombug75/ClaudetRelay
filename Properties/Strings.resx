@@ -68,8 +68,8 @@
   <data name="Settings_NameHint"          xml:space="preserve"><value>Shown on your own chat bubbles</value></data>
   <data name="Settings_ResponseTone"      xml:space="preserve"><value>RESPONSE TONE</value></data>
   <data name="Settings_ToneNeutral"       xml:space="preserve"><value>Neutral</value></data>
-  <data name="Settings_ToneFriendly"      xml:space="preserve"><value>Friendly</value></data>
-  <data name="Settings_ToneHint"          xml:space="preserve"><value>0 = strictly neutral  ·  50 = model default (no change)  ·  100 = very friendly</value></data>
+  <data name="Settings_ToneFriendly"      xml:space="preserve"><value>Enthusiastic</value></data>
+  <data name="Settings_ToneHint"          xml:space="preserve"><value>0–9 = pure facts  ·  45–55 = app standard  ·  56–69 = model default (no injection)  ·  100 = warm &amp; enthusiastic</value></data>
   <data name="Settings_PersonalityMode"   xml:space="preserve"><value>PERSONALITY MODE</value></data>
   <data name="Settings_ModeNeutral"       xml:space="preserve"><value>Neutral</value></data>
   <data name="Settings_ModeMockingbird"   xml:space="preserve"><value>🐦 Mockingbird</value></data>

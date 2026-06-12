@@ -1609,11 +1609,11 @@ public partial class SettingsWindow : Window
     {
         < 10  => "Strictly neutral",
         < 30  => "Neutral",
-        < 45  => "Slightly neutral",
-        <= 55 => "Model default",
-        < 70  => "Slightly friendly",
-        < 90  => "Friendly",
-        _     => "Very friendly"
+        < 45  => "Direct & factual",
+        <= 55 => "App standard",
+        < 70  => "Model default",
+        < 90  => "Warm & conversational",
+        _     => "Warm & enthusiastic"
     };
 
     private static string FormatToneLabelMockingbird(int v) => v switch
