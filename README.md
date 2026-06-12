@@ -201,6 +201,7 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 - **OXSUIT 1.0 format** — themes are plain `.oxsuit` XML files; drop them into the `Themes/` folder for instant loading — no restart required
 - **[OXSUIT Theminator](https://github.com/Doombug75/Theminator)** — free standalone visual theme editor for creating and previewing themes interactively
 - **UI zoom** — global zoom level applied to all windows and dialogs
+- **External language packs** — drop a `Languages/xx.json` file next to the exe to add or override any UI string; `en.json` and `de.json` example packs are included; missing keys fall back to English automatically
 
 ---
 
@@ -237,6 +238,24 @@ Themes use the [OXSUIT 1.0](https://github.com/Doombug75/OXSUIT) open theme stan
 
 Drop any `.oxsuit` file into the `Themes/` folder and it appears in the theme selector immediately.  
 Use **[OXSUIT Theminator](https://github.com/Doombug75/Theminator)** to create and preview themes visually — no XML editing required.
+
+---
+
+## Custom Language Packs
+
+The UI ships with English and German built in. To add a new language (or override individual strings), drop a JSON file named after your locale into the `Languages/` folder next to `ClaudetRelay.exe`:
+
+```
+ClaudetRelay.exe
+Languages/
+  en.json   ← English example (all 782 keys)
+  de.json   ← German example
+  fr.json   ← your translation (partial packs are fine)
+```
+
+The file format is a flat JSON object — copy `en.json`, rename it, translate the values, and save. Missing keys fall back to English automatically, so you can ship a partial pack and fill in the rest over time.
+
+Want to crowdsource translations? Run ClaudetRelay in Bridge mode, point a few AI agents at `en.json`, and have them translate it to French, Spanish, or Martian — the output drops straight into `Languages/`.
 
 ---
 
