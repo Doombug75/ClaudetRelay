@@ -26,7 +26,7 @@ Unlike a simple chatbot, ClaudetRelay organises your work into **structured proj
 | **RPG world building** | Build a campaign setting with Characters, Locations, Factions, and Lore. Visualise relationships on a free-canvas board. Let AI agents invent NPCs, histories, and plot hooks on demand. |
 | **Fiction & story writing** | Assign one agent as your plot architect, another as a character voice, a third as continuity checker. Run them in parallel and compare their takes. |
 | **Game design** | Use the roadmap to track milestones, let AI agents produce design docs, dialogue trees, and balance spreadsheets — all saved as real files in your project folder. |
-| **Software planning** | Break a codebase into tasks on the roadmap, have agents draft specs, architecture diagrams, and READMEs, output them as PDF or Word docs. |
+| **Software planning** | Break a codebase into tasks on the roadmap, have agents draft specs, architecture descriptions, and READMEs, output them as PDF or Word docs. |
 | **Brainstorming & research** | Throw a question to six models at once and compare answers side by side. Use a Coordinator agent to synthesise the best ideas from the group. |
 
 Supports many API- and local Server (Ollama, vLLM) based Providers. You can connect them all. 
