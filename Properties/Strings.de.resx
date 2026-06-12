@@ -776,8 +776,8 @@ Er wird von diesen Boards automatisch entfernt.</value></data>
   <data name="ProjSettings_MaxDepthTip"           xml:space="preserve"><value>Positive ganze Zahl. 1 = nur auf Nutzer antworten (keine KI-zu-KI-Verkettung).</value></data>
   <data name="ProjSettings_MaxDepthHint"          xml:space="preserve"><value>Wie viele KI-zu-KI-Antwortrunden erlaubt sind, bevor der Nutzer eine neue Nachricht senden muss.</value></data>
   <data name="ProjSettings_MaxFileOpDepth"        xml:space="preserve"><value>MAX. DATEIOPERATIONSTIEFE</value></data>
-  <data name="ProjSettings_MaxFileOpDepthTip"     xml:space="preserve"><value>Positive ganze Zahl. Wie viele aufeinanderfolgende Dateioperationen ein Modell automatisch verketten darf.</value></data>
-  <data name="ProjSettings_MaxFileOpDepthHint"    xml:space="preserve"><value>Max. automatisch verkettete Datei-Lese-/Listenoperationen pro Antwort. Zählt nicht zur Dialogtiefe.</value></data>
+  <data name="ProjSettings_MaxFileOpDepthTip"     xml:space="preserve"><value>Ganzzahl ≥ 0. Wie viele aufeinanderfolgende Dateioperationen ein Modell automatisch verketten darf. 0 = unbegrenzt.</value></data>
+  <data name="ProjSettings_MaxFileOpDepthHint"    xml:space="preserve"><value>Max. automatisch verkettete Datei-Lese-/Listenoperationen pro Antwort. 0 = unbegrenzt (liest die gesamte Datei unabhängig von der Seitenanzahl). Zählt nicht zur Dialogtiefe.</value></data>
   <data name="ProjSettings_ResponseLength"    xml:space="preserve"><value>STANDARDANTWORTLÄNGE</value></data>
   <data name="ProjSettings_ApplyAll"          xml:space="preserve"><value>Auf alle</value></data>
   <data name="ProjSettings_ApplyAllTip"       xml:space="preserve"><value>Antwortlänge auf alle Teilnehmer in diesem Projekt anwenden</value></data>

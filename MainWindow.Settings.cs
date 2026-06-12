@@ -945,6 +945,7 @@ public partial class MainWindow
         _participantsWindow.Closed += (_, _) =>
         {
             _participantsWindow = null;
+            Activate();
             // Snapshot live in-chat state BEFORE teardown so we can restore
             // "removed from chat" and "deactivated in chat" states afterwards.
             // ReInitializeParticipants preserves cards for actively generating

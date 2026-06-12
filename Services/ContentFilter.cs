@@ -22,7 +22,8 @@ public static partial class ContentFilter
     private static partial Regex HtmlTagRx();
 
     // Inline base64 blocks (data URIs or raw ≥80-char base64 strings)
-    [GeneratedRegex(@"data:[^;]{1,50};base64,[A-Za-z0-9+/=]+|(?:[A-Za-z0-9+/]{4}){20,}[A-Za-z0-9+/=]{0,3}")]
+    // NonBacktracking prevents catastrophic backtracking on long alphanumeric lines (URLs, code, etc.)
+    [GeneratedRegex(@"data:[^;]{1,50};base64,[A-Za-z0-9+/=]+|[A-Za-z0-9+/]{80,}[A-Za-z0-9+/=]{0,3}", RegexOptions.NonBacktracking)]
     private static partial Regex Base64Rx();
 
     // Markdown image tags  ![alt](url)  →  kept as [alt]
@@ -68,7 +69,7 @@ public static partial class ContentFilter
             }
 
             // Drop lines that are purely base64
-            if (Base64Rx().IsMatch(line) && line.Trim().Length > 60) continue;
+            if (line.Length > 60 && Base64Rx().IsMatch(line)) continue;
 
             // Image tags → alt text (or nothing if alt is empty)
             line = ImageRx().Replace(line, m =>

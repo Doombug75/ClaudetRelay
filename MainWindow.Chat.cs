@@ -365,11 +365,12 @@ public partial class MainWindow : Window
             AddSystemMessage(entry.Message);
             return;
         }
-        // Reconstruct _sharedHistory entry for AI context
+        // Reconstruct _sharedHistory entry for AI context.
+        // Use RawMessage for AI entries so models see their original tags, not display placeholders.
         if (entry.IsUser)
             _sharedHistory.Add(new CloudAIMessage("user", entry.Message, "User"));
         else if (entry.SenderType == "AI")
-            _sharedHistory.Add(new CloudAIMessage("assistant", entry.Message, entry.DisplayName));
+            _sharedHistory.Add(new CloudAIMessage("assistant", entry.RawMessage ?? entry.Message, entry.DisplayName));
 
         // Guard against legacy log entries that pre-date BubbleKey / AccentKey storage.
         // An empty key causes SetResourceReference to resolve nothing → WPF falls back to
@@ -882,6 +883,92 @@ public partial class MainWindow : Window
     {
         PlaceholderText.Visibility = string.IsNullOrEmpty(InputTextBox.Text)
             ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // ── Drag & drop file onto input area ──────────────────────────────────────
+
+    private static readonly HashSet<string> _dropAllowedExts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".txt", ".md", ".csv", ".json", ".xml", ".html", ".htm",
+        ".pdf", ".docx", ".odt", ".xlsx", ".ods", ".pptx", ".odp", ".rtf"
+    };
+
+    private void InputArea_DragOver(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop) && _currentProjectFolder is not null)
+        {
+            var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+            var allowed = files.Any(f => _dropAllowedExts.Contains(SysIO.Path.GetExtension(f)));
+            e.Effects = allowed ? DragDropEffects.Copy : DragDropEffects.None;
+        }
+        else
+        {
+            e.Effects = DragDropEffects.None;
+        }
+        e.Handled = true;
+    }
+
+    private async void InputArea_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop) || _currentProjectFolder is null) return;
+
+        var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+        var inputFolder = SysIO.Path.Combine(_currentProjectFolder, "INPUT");
+        SysIO.Directory.CreateDirectory(inputFolder);
+
+        foreach (var srcPath in files)
+        {
+            var ext = SysIO.Path.GetExtension(srcPath);
+            if (!_dropAllowedExts.Contains(ext)) continue;
+
+            var baseName = SysIO.Path.GetFileNameWithoutExtension(srcPath);
+
+            // Extract text content through the same pipeline the AI uses
+            string? raw = null;
+            string  formatNote = "";
+            try
+            {
+                if (Services.PdfFileReader.IsSupported(srcPath))
+                {
+                    raw = Services.PdfFileReader.TryExtractText(srcPath);
+                    formatNote = " (extracted from PDF)";
+                }
+                else if (Services.OfficeFileService.IsSupported(srcPath))
+                {
+                    raw = Services.OfficeFileService.TryExtractText(srcPath);
+                    formatNote = $" (extracted from {ext.TrimStart('.')})";
+                }
+                else
+                {
+                    raw = await SysIO.File.ReadAllTextAsync(srcPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                AddSystemMessage($"⚠  Could not read '{SysIO.Path.GetFileName(srcPath)}': {ex.Message}");
+                continue;
+            }
+
+            if (raw is null)
+            {
+                AddSystemMessage($"⚠  No text could be extracted from '{SysIO.Path.GetFileName(srcPath)}'.");
+                continue;
+            }
+
+            // Run through the content filter
+            var filtered = Services.ContentFilter.Apply(raw, ext);
+
+            // Save filtered text to INPUT folder
+            var destName = baseName + ".txt";
+            var destPath = SysIO.Path.Combine(inputFolder, destName);
+            await SysIO.File.WriteAllTextAsync(destPath, filtered);
+
+            var charsBefore = raw.Length;
+            var charsAfter  = filtered.Length;
+            AddSystemMessage(
+                $"📂  Dropped '{SysIO.Path.GetFileName(srcPath)}'{formatNote} → INPUT/{destName}" +
+                $"  ({charsBefore:N0} → {charsAfter:N0} chars after filter)");
+        }
     }
 
     private void InputTextBox_KeyDown(object sender, KeyEventArgs e)
@@ -1753,6 +1840,14 @@ public partial class MainWindow : Window
     /// Hint used in follow-up rounds in free-chat (non-project) dialogue mode.
     /// Encourages natural, conversational back-and-forth without structured round markers.
     /// </summary>
+    private const string AutoReadContinueHint =
+        "You have just received a page of file content. " +
+        "Do NOT produce any visible commentary or summary between pages. " +
+        "If there are more pages to read, output EXACTLY ONE <readfile> tag for the next page — " +
+        "never multiple readfile tags in a single response. " +
+        "Do NOT ask the user for permission to continue between pages. " +
+        "Only give your final answer once you have finished reading all pages you need.";
+
     private const string LiveDialogueHint =
         "You are in a live group conversation. Read what the other participants just wrote " +
         "and react naturally - agree or push back on a specific point, ask a follow-up question, " +
@@ -3311,7 +3406,7 @@ public partial class MainWindow : Window
         semAcquired = true;
 
         // Pulse the card avatar while the model is generating (overwrites "Waiting…" → "Thinking…")
-        if (!hidden) StartCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton);
+        if (!hidden) Dispatcher.Invoke(() => StartCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton, ui.TokenCountLabel));
 
         // Subscribe to live thinking-text updates so the tooltip tracks thinking in real time
         var svc = ui.Data.Service;
@@ -3347,6 +3442,8 @@ public partial class MainWindow : Window
                 {
                     bubble!.Content.Text = sb.ToString();
                     ChatScrollViewer.ScrollToBottom();
+                    if (ui.TokenCountLabel is { } tcl)
+                        Dispatcher.Invoke(() => tcl.Text = sb.Length.ToString());
                 }
             }
             if (firstToken && !hidden) bubble!.StopThinking(); // empty response
@@ -3358,6 +3455,12 @@ public partial class MainWindow : Window
             var ollamaRawText = sb.ToString();
             if (!hidden)
                 (ollamaRawText, ollamaHadFetch, ollamaWebNote) = await ProcessWebFetchTagsAsync(ollamaRawText, display, isLocalModel: true, ct);
+            // Store assistant message BEFORE file-op processing so history order is:
+            // Gemma's message (with tags) → file content injection → re-invocation
+            if (!hidden) _sharedHistory.Add(new CloudAIMessage("assistant", ollamaRawText, GetEffectiveName(ui)));
+            // Each page's raw content is only needed for the immediately following re-invocation.
+            // Strip it before injecting the next page so previous pages don't accumulate in context.
+            if (_fileOpDepth > 0) _sharedHistory.RemoveAll(m => m.Sender == "FileContent");
             if (!hidden && _currentProjectFolder is not null)
                 (ollamaFinalText, ollamaHadReadOps) = ProcessAIFileOperationTags(
                     ollamaRawText, display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName(),
@@ -3393,7 +3496,7 @@ public partial class MainWindow : Window
                 return false;
             }
 
-            _sharedHistory.Add(new CloudAIMessage("assistant", ollamaFinalText, GetEffectiveName(ui)));
+            if (hidden) _sharedHistory.Add(new CloudAIMessage("assistant", ollamaRawText, GetEffectiveName(ui)));
             if (!hidden && ollamaWebNote is not null)
                 _sharedHistory.Add(new CloudAIMessage("system", ollamaWebNote, "System"));
             if (!hidden)
@@ -3409,25 +3512,56 @@ public partial class MainWindow : Window
                     AccentKey   = colorKey,
                     BubbleKey   = "SecondaryBubbleBrush",
                     IsUser      = false,
-                    Message     = ollamaFinalText
+                    Message     = ollamaFinalText,
+                    RawMessage  = ollamaRawText != ollamaFinalText ? ollamaRawText : null
                 };
                 AppendToProjectLog(ollamaLogEntry);
                 AppendToGeneralLog(ollamaLogEntry);
                 SpeakMessageIfEnabled(ui.Data.Service.CurrentModel, "Ollama", ollamaFinalText);
             }
+            // ── Update context bar after every depth (re-invocations skip the block below) ──
+            if (!hidden && _fileOpDepth > 0 && svc.LastUsage is { } ollamaEarlyUsage)
+            {
+                var ctxWinEarly = svc.NumCtx;
+                Dispatcher.Invoke(() =>
+                    UpdateContextBar(ui.ContextBar, ollamaEarlyUsage.InputTokens, ctxWinEarly));
+            }
             // ── Auto-loop: re-invoke after file reads, web fetches, or syntax correction ──
             int ollamaFileOpMax = _projectSettings is not null ? _maxFileOpDepth : MaxToolLoopDepth;
+            // 0 = unlimited
             bool ollamaCanFileOp = !hidden && (ollamaHadReadOps || ollamaHadFetch || ollamaWebNote is not null)
-                                   && _fileOpDepth < ollamaFileOpMax;
+                                   && (ollamaFileOpMax == 0 || _fileOpDepth < ollamaFileOpMax);
             if (ollamaCanFileOp)
             {
                 var reason = ollamaHadFetch && ollamaHadReadOps ? "web fetch + file results"
                            : ollamaHadFetch    ? "web fetch results"
                            : ollamaHadReadOps  ? "file results"
                            : "web fetch syntax correction";
+                var maxLabel = ollamaFileOpMax == 0 ? "∞" : ollamaFileOpMax.ToString();
                 AddSystemMessage($"🔄  {display} received {reason} - continuing " +
-                                 $"(file op {_fileOpDepth + 1} of {ollamaFileOpMax} max)…");
-                return await RunOllamaStreamAsync(ui, ct, systemHint,
+                                 $"(file op {_fileOpDepth + 1} of {maxLabel} max)…");
+                // Allow compression to fire between pages if context threshold is reached.
+                // Briefly clear the in-progress flag so TriggerCompressionCheck isn't suppressed,
+                // then restore it so the progress bar stays visible during the next page load.
+                if (ollamaHadReadOps && _fileReadInProgress)
+                {
+                    _fileReadInProgress = false;
+                    // Await compression synchronously — fire-and-forget would wipe
+                    // the next page's injected content when _sharedHistory is replaced.
+                    if (AnyParticipantAtCapacity() && !_compressionInProgress)
+                        await RunCompressionAsync();
+                    _fileReadInProgress = true;
+                }
+                // When continuing after a file read, tell Gemma to keep reading
+                // without asking the user for permission between pages.
+                var reInvokeHint = ollamaHadReadOps
+                    ? (systemHint is null ? AutoReadContinueHint : systemHint + "\n\n" + AutoReadContinueHint)
+                    : systemHint;
+                // Release the semaphore before re-invoking so the recursive call
+                // can acquire it — holding it here would cause a deadlock.
+                serverSem.Release();
+                semAcquired = false;
+                return await RunOllamaStreamAsync(ui, ct, reInvokeHint,
                     skipLatestUserMessage: false, hidden: false,
                     _loopDepth: _loopDepth, _fileOpDepth: _fileOpDepth + 1);
             }
@@ -3465,17 +3599,18 @@ public partial class MainWindow : Window
             bool isIdleTimeout = ollamaIdleCts.IsCancellationRequested && !ct.IsCancellationRequested;
             if (!hidden)
             {
+                bubble!.StopThinking();
                 if (isIdleTimeout)
                 {
-                    if (firstToken) ChatPanel.Children.Remove(bubble!.OuterWrapper);
-                    else            bubble!.Content.Text = sb.Append("… [timeout]").ToString();
+                    if (firstToken) ChatPanel.Children.Remove(bubble.OuterWrapper);
+                    else            bubble.Content.Text = sb.Append("… [timeout]").ToString();
                     AddSystemMessage($"⚠  {display} — {string.Format(Properties.Loc.S("StreamTimeout_Msg"), SettingsService.Load().StreamIdleTimeoutSeconds)}");
                     SetParticipantError(ui, Properties.Loc.S("StreamTimeout_Badge"));
                 }
                 else
                 {
-                    if (firstToken) ChatPanel.Children.Remove(bubble!.OuterWrapper);
-                    else            bubble!.Content.Text = sb.Append("… [cancelled]").ToString();
+                    if (firstToken) ChatPanel.Children.Remove(bubble.OuterWrapper);
+                    else            bubble.Content.Text = sb.Append("… [cancelled]").ToString();
                 }
             }
             return false;
@@ -3509,12 +3644,15 @@ public partial class MainWindow : Window
         {
             if (semAcquired) serverSem.Release();
             svc.ThinkingUpdated -= OnThinkingUpdate;
-            if (!hidden) StopCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton);
             ui.ActiveCts?.Dispose();
             ui.ActiveCts = null;
-            if (!hidden) SetParticipantError(ui, null); // restore "Ready"/mood now that ActiveCts is null
             _fileReadInProgress = false;
-            Dispatcher.Invoke(() => FileReadProgressArea.Visibility = Visibility.Collapsed);
+            Dispatcher.Invoke(() =>
+            {
+                if (!hidden) StopCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton, ui.TokenCountLabel);
+                if (!hidden) SetParticipantError(ui, null); // restore "Ready"/mood now that ActiveCts is null
+                FileReadProgressArea.Visibility = Visibility.Collapsed;
+            });
         }
         return !hidden; // visible error → error bubble shown (counts as responded); hidden error → doesn't count
     }
@@ -3540,7 +3678,7 @@ public partial class MainWindow : Window
         bool firstToken = true;
 
         // Pulse the card avatar while the model is generating
-        if (!hidden) StartCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton);
+        if (!hidden) Dispatcher.Invoke(() => StartCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton, ui.TokenCountLabel));
 
         // Per-participant CTS so this card can be stopped independently
         ui.ActiveCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -3583,6 +3721,8 @@ public partial class MainWindow : Window
                 {
                     bubble!.Content.Text = sb.ToString();
                     ChatScrollViewer.ScrollToBottom();
+                    if (ui.TokenCountLabel is { } tcl)
+                        Dispatcher.Invoke(() => tcl.Text = sb.Length.ToString());
                 }
             }
             if (firstToken && !hidden) bubble!.StopThinking();
@@ -3594,6 +3734,10 @@ public partial class MainWindow : Window
             var cloudRawText = sb.ToString();
             if (!hidden)
                 (cloudRawText, cloudHadFetch, cloudWebNote) = await ProcessWebFetchTagsAsync(cloudRawText, display, isLocalModel: false, ct);
+            // Store assistant message BEFORE file-op processing so history order is:
+            // model's message (with tags) → file content injection → re-invocation
+            if (!hidden) _sharedHistory.Add(new CloudAIMessage("assistant", cloudRawText, GetEffectiveName(ui)));
+            if (_fileOpDepth > 0) _sharedHistory.RemoveAll(m => m.Sender == "FileContent");
             if (!hidden && _currentProjectFolder is not null)
                 (cloudFinalText, cloudHadReadOps) = ProcessAIFileOperationTags(
                     cloudRawText, display, _currentProjectFolder, HasWriteAccess(ui), GetCoordinatorName(),
@@ -3629,7 +3773,7 @@ public partial class MainWindow : Window
                 return false;
             }
 
-            _sharedHistory.Add(new CloudAIMessage("assistant", cloudFinalText, GetEffectiveName(ui)));
+            if (hidden) _sharedHistory.Add(new CloudAIMessage("assistant", cloudRawText, GetEffectiveName(ui)));
             if (!hidden && cloudWebNote is not null)
                 _sharedHistory.Add(new CloudAIMessage("system", cloudWebNote, "System"));
             if (!hidden)
@@ -3645,25 +3789,44 @@ public partial class MainWindow : Window
                     AccentKey   = colorKey,
                     BubbleKey   = "PrimaryBubbleBrush",
                     IsUser      = false,
-                    Message     = cloudFinalText
+                    Message     = cloudFinalText,
+                    RawMessage  = cloudRawText != cloudFinalText ? cloudRawText : null
                 };
                 AppendToProjectLog(cloudLogEntry);
                 AppendToGeneralLog(cloudLogEntry);
                 SpeakMessageIfEnabled(model, ui.Data.Service.ProviderName, cloudFinalText);
             }
+            // ── Update context bar after every depth (re-invocations skip the block below) ──
+            if (!hidden && _fileOpDepth > 0 && ui.Data.Service.LastUsage is { } cloudEarlyUsage)
+            {
+                var ctxWinEarly = ui.Data.Service.ContextWindowTokens;
+                Dispatcher.Invoke(() =>
+                    UpdateContextBar(ui.ContextBar, cloudEarlyUsage.InputTokens, ctxWinEarly));
+            }
             // ── Auto-loop: re-invoke after file reads, web fetches, or syntax correction ──
             int cloudFileOpMax = _projectSettings is not null ? _maxFileOpDepth : MaxToolLoopDepth;
             bool cloudCanFileOp = !hidden && (cloudHadReadOps || cloudHadFetch || cloudWebNote is not null)
-                                  && _fileOpDepth < cloudFileOpMax;
+                                  && (cloudFileOpMax == 0 || _fileOpDepth < cloudFileOpMax);
             if (cloudCanFileOp)
             {
                 var reason = cloudHadFetch && cloudHadReadOps ? "web fetch + file results"
                            : cloudHadFetch   ? "web fetch results"
                            : cloudHadReadOps ? "file results"
                            : "web fetch syntax correction";
+                var cloudMaxLabel = cloudFileOpMax == 0 ? "∞" : cloudFileOpMax.ToString();
                 AddSystemMessage($"🔄  {display} received {reason} - continuing " +
-                                 $"(file op {_fileOpDepth + 1} of {cloudFileOpMax} max)…");
-                return await RunCloudAIStreamAsync(ui, ct, systemHint,
+                                 $"(file op {_fileOpDepth + 1} of {cloudMaxLabel} max)…");
+                if (cloudHadReadOps && _fileReadInProgress)
+                {
+                    _fileReadInProgress = false;
+                    if (AnyParticipantAtCapacity() && !_compressionInProgress)
+                        await RunCompressionAsync();
+                    _fileReadInProgress = true;
+                }
+                var cloudReInvokeHint = cloudHadReadOps
+                    ? (systemHint is null ? AutoReadContinueHint : systemHint + "\n\n" + AutoReadContinueHint)
+                    : systemHint;
+                return await RunCloudAIStreamAsync(ui, ct, cloudReInvokeHint,
                     skipLatestUserMessage: false, hidden: false,
                     _loopDepth: _loopDepth, _fileOpDepth: _fileOpDepth + 1);
             }
@@ -3699,17 +3862,18 @@ public partial class MainWindow : Window
             bool isIdleTimeout = cloudIdleCts.IsCancellationRequested && !ct.IsCancellationRequested;
             if (!hidden)
             {
+                bubble!.StopThinking();
                 if (isIdleTimeout)
                 {
-                    if (firstToken) ChatPanel.Children.Remove(bubble!.OuterWrapper);
-                    else            bubble!.Content.Text = sb.Append("… [timeout]").ToString();
+                    if (firstToken) ChatPanel.Children.Remove(bubble.OuterWrapper);
+                    else            bubble.Content.Text = sb.Append("… [timeout]").ToString();
                     AddSystemMessage($"⚠  {display} — {string.Format(Properties.Loc.S("StreamTimeout_Msg"), SettingsService.Load().StreamIdleTimeoutSeconds)}");
                     SetParticipantError(ui, Properties.Loc.S("StreamTimeout_Badge"));
                 }
                 else
                 {
-                    if (firstToken) ChatPanel.Children.Remove(bubble!.OuterWrapper);
-                    else            bubble!.Content.Text = sb.Append("… [cancelled]").ToString();
+                    if (firstToken) ChatPanel.Children.Remove(bubble.OuterWrapper);
+                    else            bubble.Content.Text = sb.Append("… [cancelled]").ToString();
                 }
             }
             return false;
@@ -3741,11 +3905,14 @@ public partial class MainWindow : Window
         }
         finally
         {
-            if (!hidden) StopCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton);
             ui.ActiveCts?.Dispose();
             ui.ActiveCts = null;
             _fileReadInProgress = false;
-            Dispatcher.Invoke(() => FileReadProgressArea.Visibility = Visibility.Collapsed);
+            Dispatcher.Invoke(() =>
+            {
+                if (!hidden) StopCardPulse(ui.AvatarBorder, ui.StatusLabel, ui.StopButton, ui.TokenCountLabel);
+                FileReadProgressArea.Visibility = Visibility.Collapsed;
+            });
         }
         return !hidden; // visible error → error bubble shown (counts as responded); hidden error → doesn't count
     }
@@ -4193,7 +4360,10 @@ public partial class MainWindow : Window
         "Large files are split into pages of 3,000 characters. " +
         "Page 1: <readfile path=\"file.txt\"/>  — Page 2+: <readfile path=\"file.txt\" page=\"2\"/>. " +
         "After each page the model receives a hint: 'Page X of Y — read page X+1 for more.' " +
-        "AIs can chain page reads themselves to work through very large documents.\n\n" +
+        "AIs chain page reads automatically to work through very large documents without user prompting. " +
+        "The number of chained file operations is controlled by 'MAX. FILE OP DEPTH' in ⚙ Project Settings. " +
+        "Default is 0 = unlimited (reads the entire file regardless of page count). " +
+        "Set to a positive number (e.g. 5) to impose a page limit per response.\n\n" +
 
         "## Context window bar\n" +
         "A 4 px coloured bar at the bottom of every participant card shows context-window fill level. " +
@@ -4232,6 +4402,7 @@ public partial class MainWindow : Window
         "OUTPUT/ (AI-written via <output> tag), PROJECTPLAN/ (plans via <projectplan> tag).\n" +
         "⚙ Project Settings: orchestration mode, participant roles, Autonomy Mode slider, " +
         "response language override, response length defaults, " +
+        "MAX. FILE OP DEPTH (0 = unlimited auto-paging through large files, positive integer to cap it), " +
         "and 'Allow /me emote actions' (great for roleplay and creative writing projects).\n\n" +
 
         "## Orchestration modes\n" +
@@ -4341,7 +4512,10 @@ public partial class MainWindow : Window
         "Große Dateien werden in Seiten à 3.000 Zeichen aufgeteilt. " +
         "Seite 1: <readfile path=\"datei.txt\"/>  — Seite 2+: <readfile path=\"datei.txt\" page=\"2\"/>. " +
         "Nach jeder Seite erhält das Modell einen Hinweis: 'Seite X von Y — lies Seite X+1 für mehr.' " +
-        "KIs können Seiten selbst verketten, um sehr große Dokumente durchzuarbeiten.\n\n" +
+        "KIs verketten Seitenlesevorgänge automatisch, ohne dass der Nutzer zwischen den Seiten eingreifen muss. " +
+        "Die Anzahl der verketteten Dateioperationen wird durch 'MAX. DATEIOPERATIONSTIEFE' in ⚙ Projekteinstellungen gesteuert. " +
+        "Standard ist 0 = unbegrenzt (liest die gesamte Datei unabhängig von der Seitenanzahl). " +
+        "Auf eine positive Zahl (z. B. 5) setzen, um ein Seitenlimit pro Antwort festzulegen.\n\n" +
 
         "## Kontextfenster-Balken\n" +
         "Ein 4 px farbiger Balken am unteren Rand jeder Teilnehmerkarte zeigt die Kontextfenster-Auslastung. " +
@@ -4380,6 +4554,7 @@ public partial class MainWindow : Window
         "OUTPUT/ (KI-geschrieben via <output>-Tag), PROJECTPLAN/ (Pläne via <projectplan>-Tag).\n" +
         "⚙ Projekteinstellungen: Orchestrierungsmodus, Teilnehmerrollen, Autonomiemodus-Schieberegler, " +
         "Antwortsprachen-Override, Antwortlängen-Standards, " +
+        "MAX. DATEIOPERATIONSTIEFE (0 = unbegrenzt automatisches Seitenlesen großer Dateien, positive Zahl als Limit), " +
         "und 'Emote-Aktionen erlauben' (ideal für Rollenspiel- und Kreativschreibprojekte).\n\n" +
 
         "## Orchestrierungsmodi\n" +
@@ -7766,8 +7941,17 @@ public partial class MainWindow : Window
 
             AddSystemMessage($"📂  {senderName} read: {path}{formatNote}{(totalPages > 1 ? $" (page {page}/{totalPages})" : "")}");
 
+            // Remove any previously injected page content before adding this one.
+            // Prevents multi-readfile responses from stacking all pages in context at once.
+            int skippedPages = _sharedHistory.Count(m => m.Sender == "FileContent");
+            _sharedHistory.RemoveAll(m => m.Sender == "FileContent");
+            var skipWarning = skippedPages > 0
+                ? $"\n\n⚠ System note: {skippedPages} earlier readfile tag(s) in your last response were skipped " +
+                  $"because only one page is processed per response. " +
+                  $"Only this page has been loaded. Read remaining pages one at a time in subsequent responses."
+                : "";
             _sharedHistory.Add(new CloudAIMessage("user",
-                $"[File content: {path}{pageLabel}]\n\n{chunk}{pageNote}", "System"));
+                $"[File content: {path}{pageLabel}]\n\n{chunk}{pageNote}{skipWarning}", "FileContent"));
             hadReadOps = true;
             return $"*(→ read: {path}{pageLabel})*";
         });

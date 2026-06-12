@@ -232,12 +232,12 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background"   Value="{DynamicResource AccentBrush}"/>
-                                <Setter TargetName="Bd" Property="BorderBrush"  Value="{DynamicResource AccentBrush}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource SidebarBgBrush}"/>
+                                <Setter TargetName="Bd" Property="Background"   Value="{DynamicResource PrimaryAccentBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush"  Value="{DynamicResource PrimaryAccentBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource PrimaryAccentBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

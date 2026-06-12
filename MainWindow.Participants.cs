@@ -744,6 +744,20 @@ public partial class MainWindow
         labelPanel.Children.Add(offlineLabel);
         labelPanel.Children.Add(statusRowCloud);
 
+        var tokenCountLabelCloud = new TextBlock
+        {
+            FontSize            = 9,
+            FontFamily          = new FontFamily("Segoe UI"),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Visibility          = Visibility.Collapsed,
+            Margin              = new Thickness(0, 2, 0, 0),
+        };
+        tokenCountLabelCloud.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+
+        var col2StackCloud = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        col2StackCloud.Children.Add(statusDot);
+        col2StackCloud.Children.Add(tokenCountLabelCloud);
+
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -751,11 +765,11 @@ public partial class MainWindow
 
         Grid.SetColumn(avatarContainer, 0);
         Grid.SetColumn(labelPanel,      1);
-        Grid.SetColumn(statusDot,       2);
+        Grid.SetColumn(col2StackCloud,  2);
 
         grid.Children.Add(avatarContainer);
         grid.Children.Add(labelPanel);
-        grid.Children.Add(statusDot);
+        grid.Children.Add(col2StackCloud);
 
         // ── Badge row - themed pills in a horizontal strip below the main row ──
         var badgeRow = new StackPanel
@@ -932,7 +946,8 @@ public partial class MainWindow
             StopButton      = stopButtonCloud,
             ContextBar      = contextBarCloud,
             PopupContextVal = infoCtxVal,
-            PopupSessionVal = infoSesVal
+            PopupSessionVal = infoSesVal,
+            TokenCountLabel = tokenCountLabelCloud
         };
 
         void OpenCloudPopup()
@@ -1246,6 +1261,20 @@ public partial class MainWindow
         labelPanel.Children.Add(offlineLabel);
         labelPanel.Children.Add(statusRowOllama);
 
+        var tokenCountLabelOllama = new TextBlock
+        {
+            FontSize          = 9,
+            FontFamily        = new FontFamily("Segoe UI"),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Visibility        = Visibility.Collapsed,
+            Margin            = new Thickness(0, 2, 0, 0),
+        };
+        tokenCountLabelOllama.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+
+        var col2StackOllama = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        col2StackOllama.Children.Add(statusDot);
+        col2StackOllama.Children.Add(tokenCountLabelOllama);
+
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -1253,11 +1282,11 @@ public partial class MainWindow
 
         Grid.SetColumn(avatarContainer, 0);
         Grid.SetColumn(labelPanel,      1);
-        Grid.SetColumn(statusDot,       2);
+        Grid.SetColumn(col2StackOllama, 2);
 
         grid.Children.Add(avatarContainer);
         grid.Children.Add(labelPanel);
-        grid.Children.Add(statusDot);
+        grid.Children.Add(col2StackOllama);
 
         // ── Badge row - themed pills in a horizontal strip below the main row ──
         var badgeRow = new StackPanel
@@ -1434,7 +1463,8 @@ public partial class MainWindow
             StopButton      = stopButtonOllama,
             ContextBar      = contextBarOllama,
             PopupContextVal = ollamaCtxVal,
-            PopupSessionVal = ollamaSesVal
+            PopupSessionVal = ollamaSesVal,
+            TokenCountLabel = tokenCountLabelOllama
         };
 
         void OpenOllamaPopup()
@@ -2134,16 +2164,22 @@ public partial class MainWindow
     /// Starts the pulsing glow animation on a participant's avatar card.
     /// Also updates the status label to show "Busy..." while generating.
     /// </summary>
-    private void StartCardPulse(Border avatarBorder, TextBlock? statusLabel = null, Button? stopButton = null)
+    private void StartCardPulse(Border avatarBorder, TextBlock? statusLabel = null, Button? stopButton = null, TextBlock? tokenCountLabel = null)
     {
         // Show "Thinking..." status and per-card stop button
         if (statusLabel != null)
         {
             statusLabel.Text       = Properties.Loc.S("Status_Thinking");
+            statusLabel.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
             statusLabel.Visibility = Visibility.Visible;
         }
         if (stopButton != null)
             stopButton.Visibility = Visibility.Visible;
+        if (tokenCountLabel != null)
+        {
+            tokenCountLabel.Text       = "0";
+            tokenCountLabel.Visibility = Visibility.Visible;
+        }
 
         var glow = new System.Windows.Media.Effects.DropShadowEffect
         {
@@ -2173,7 +2209,7 @@ public partial class MainWindow
     /// Removes the thinking-pulse glow from the avatar border.
     /// Also clears the "Busy..." status label if provided.
     /// </summary>
-    private void StopCardPulse(Border avatarBorder, TextBlock? statusLabel = null, Button? stopButton = null)
+    private void StopCardPulse(Border avatarBorder, TextBlock? statusLabel = null, Button? stopButton = null, TextBlock? tokenCountLabel = null)
     {
         avatarBorder.Effect = null;
 
@@ -2185,5 +2221,7 @@ public partial class MainWindow
         }
         if (stopButton != null)
             stopButton.Visibility = Visibility.Collapsed;
+        if (tokenCountLabel != null)
+            tokenCountLabel.Visibility = Visibility.Collapsed;
     }
 }

@@ -547,7 +547,10 @@
             <ScrollViewer x:Name="ChatScrollViewer" Grid.Row="2"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
-                          Padding="20,12,20,12">
+                          Padding="20,12,20,12"
+                          AllowDrop="True"
+                          PreviewDragOver="InputArea_DragOver"
+                          PreviewDrop="InputArea_Drop">
                 <StackPanel x:Name="ChatPanel"/>
             </ScrollViewer>
 
@@ -751,7 +754,10 @@
                         <Border Grid.Column="1" Background="{DynamicResource InputBgBrush}"
                                 BorderBrush="{DynamicResource InputBorderBrush}"
                                 BorderThickness="1"
-                                CornerRadius="12" Margin="0,0,10,0">
+                                CornerRadius="12" Margin="0,0,10,0"
+                                AllowDrop="True"
+                                PreviewDragOver="InputArea_DragOver"
+                                PreviewDrop="InputArea_Drop">
                             <Grid Margin="14,10,14,10">
                                 <TextBox x:Name="InputTextBox"
                                          Background="Transparent"

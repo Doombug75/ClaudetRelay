@@ -97,6 +97,8 @@ public partial class MainWindow : Window
         public int                        SessionInputTokens  { get; set; }
         /// <summary>Running total of output tokens received this session.</summary>
         public int                        SessionOutputTokens { get; set; }
+        /// <summary>Small token counter shown top-right of card during generation. Null until card is built.</summary>
+        public TextBlock?                 TokenCountLabel { get; set; }
     }
 
     private sealed class CloudAIParticipant
@@ -172,6 +174,8 @@ public partial class MainWindow : Window
         public int                         SessionInputTokens  { get; set; }
         /// <summary>Running total of output tokens received this session.</summary>
         public int                         SessionOutputTokens { get; set; }
+        /// <summary>Small token counter shown top-right of card during generation. Null until card is built.</summary>
+        public TextBlock?                  TokenCountLabel { get; set; }
     }
 
     /// <summary>Describes a single slot mismatch between the project's saved participant
@@ -219,7 +223,7 @@ public partial class MainWindow : Window
     private string                               _projectLanguage       = "";
     private string                               _uiLanguageName        = ""; // full name from app settings, e.g. "Deutsch"
     private int                                  _maxDialogDepth        = 1;
-    private int                                  _maxFileOpDepth        = 10;
+    private int                                  _maxFileOpDepth        = 0;
     private bool                                 _aiDialogueEnabled     = false;
     private int                                  _aiDialogueMaxTurns    = 10;
     private int                                  _globalResponseLength  = 50;

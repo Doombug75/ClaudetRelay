@@ -919,7 +919,7 @@ public partial class MainWindow
         _currentRoadmap       = RoadmapService.Load(projFolder);
         _projectLanguage      = loaded.Language;
         _maxDialogDepth       = Math.Max(1, loaded.MaxDialogDepth);
-        _maxFileOpDepth       = Math.Max(1, loaded.MaxFileOpDepth);
+        _maxFileOpDepth       = Math.Max(0, loaded.MaxFileOpDepth);
         _sessionStartTime     = DateTime.Now;
         _workSessionFired     = false;
 
@@ -1061,7 +1061,7 @@ public partial class MainWindow
         _superRoles                      = null;
         _projectLanguage                 = "";
         _maxDialogDepth                  = 1;
-        _maxFileOpDepth                  = 10;
+        _maxFileOpDepth                  = 0;
         _sessionStartTime                = null;
         _workSessionFired                = false;
         // Restore top tab bar — back to general (no-project) mode.
@@ -4588,7 +4588,7 @@ public partial class MainWindow
             Margin                = new Thickness(0, 0, 0, 6),
             ToolTip               = "Leave empty to let the model follow the conversation language"
         };
-        langCombo.SetResourceReference(Control.StyleProperty, "SComboBox");
+        langCombo.SetResourceReference(Control.StyleProperty, "ModernComboBox");
         foreach (var lang in new[]
         {
             "", "English", "Deutsch", "Français", "Español", "Italiano",
@@ -4649,11 +4649,11 @@ public partial class MainWindow
             Foreground        = (Brush)FindResource("ContentDimBrush")
         };
 
-        var depthRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin      = new Thickness(0, 0, 0, 16)
-        };
+        var depthRow = new Grid { Margin = new Thickness(0, 0, 0, 16) };
+        depthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        depthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(depthBox,    0);
+        Grid.SetColumn(depthHintTb, 1);
         depthRow.Children.Add(depthBox);
         depthRow.Children.Add(depthHintTb);
 
@@ -4696,11 +4696,11 @@ public partial class MainWindow
             Foreground        = (Brush)FindResource("ContentDimBrush")
         };
 
-        var fileOpDepthRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin      = new Thickness(0, 0, 0, 16)
-        };
+        var fileOpDepthRow = new Grid { Margin = new Thickness(0, 0, 0, 16) };
+        fileOpDepthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        fileOpDepthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(fileOpDepthBox,    0);
+        Grid.SetColumn(fileOpDepthHintTb, 1);
         fileOpDepthRow.Children.Add(fileOpDepthBox);
         fileOpDepthRow.Children.Add(fileOpDepthHintTb);
 
@@ -5359,7 +5359,7 @@ public partial class MainWindow
             ps.MaxDialogDepth = int.TryParse(depthBox.Text, out var d) && d >= 1 ? d : 1;
 
             // Collect max file-op depth
-            ps.MaxFileOpDepth = int.TryParse(fileOpDepthBox.Text, out var fod) && fod >= 1 ? fod : 10;
+            ps.MaxFileOpDepth = int.TryParse(fileOpDepthBox.Text, out var fod) && fod >= 0 ? fod : 0;
 
             // Collect default response length
             ps.DefaultResponseLength = (int)defLenSlider.Value;

@@ -45,13 +45,15 @@ public partial class MainWindow
         {
             if (!ui.Data.Enabled) continue;
             int ctx = ui.Data.Service.NumCtx;
-            if (ctx > 0 && ui.SessionInputTokens >= ctx * 0.80) return true;
+            int last = ui.Data.Service.LastUsage?.InputTokens ?? 0;
+            if (ctx > 0 && last >= ctx * 0.65) return true;
         }
         foreach (var ui in _cloudAIParticipants)
         {
             if (!ui.Data.Enabled) continue;
             int ctx = ui.Data.Service.ContextWindowTokens;
-            if (ctx > 0 && ui.SessionInputTokens >= ctx * 0.80) return true;
+            int last = ui.Data.Service.LastUsage?.InputTokens ?? 0;
+            if (ctx > 0 && last >= ctx * 0.65) return true;
         }
         return false;
     }

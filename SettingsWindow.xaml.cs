@@ -1481,72 +1481,72 @@ public partial class SettingsWindow : Window
             int.TryParse(_fileCheckoutTimeoutBox.Text, out var fctVal) ? Math.Clamp(fctVal, 1, 30) : 5;
         settings.StreamIdleTimeoutSeconds =
             int.TryParse(_streamIdleTimeoutBox.Text,   out var sitVal) ? Math.Clamp(sitVal, 30, 600) : 300;
-        settings.Participants.Clear();
-
-        foreach (var form in _forms)
+        // Only rebuild participants when the provider/participant forms are loaded.
+        // In general-settings-only mode _forms is empty — skip to avoid wiping the saved list.
+        if (_forms.Count > 0)
         {
-            var isLocal = IsLocalUrlBased(form.CurrentProvider);
+            settings.Participants.Clear();
 
-            var model = isLocal
-                ? (form.OllamaModelCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? ""
-                : (form.CloudModelCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
-
-            var serverUrl = form.ServerUrlBox.Text.Trim();
-            if (string.IsNullOrEmpty(serverUrl) && isLocal)
-                serverUrl = LocalDefaultUrl(form.CurrentProvider);
-
-            settings.Participants.Add(new ParticipantConfig
+            foreach (var form in _forms)
             {
-                Name      = form.NameBox.Text.Trim(),
-                Type      = form.CurrentProvider,
-                Model     = model,
-                ServerUrl = serverUrl,
-                Enabled   = form.EnabledCheck.IsChecked == true
-            });
+                var isLocal = IsLocalUrlBased(form.CurrentProvider);
 
-            // API keys are saved from the Providers tab (see above)
-        }
+                var model = isLocal
+                    ? (form.OllamaModelCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? ""
+                    : (form.CloudModelCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "";
 
-        // Keep legacy fields in sync for any code that still reads them
-        var firstOllama = settings.Participants.FirstOrDefault(p => p.Type == "Ollama" && p.Enabled);
-        if (firstOllama is not null)
-        {
-            settings.OllamaBaseUrl = firstOllama.ServerUrl;
-            settings.OllamaModel   = firstOllama.Model;
-        }
-        var firstCloud = settings.Participants.FirstOrDefault(p => p.Type != "Ollama" && p.Type != "Ollama ☁" && p.Enabled);
-        if (firstCloud is not null)
-        {
-            settings.SelectedProvider   = firstCloud.Type;
-            settings.SelectedCloudModel = firstCloud.Model;
-        }
+                var serverUrl = form.ServerUrlBox.Text.Trim();
+                if (string.IsNullOrEmpty(serverUrl) && isLocal)
+                    serverUrl = LocalDefaultUrl(form.CurrentProvider);
 
-        // Persist per-provider throttle settings.
-        // Multiple participant slots can share the same provider type (e.g. two "Google AI" slots).
-        // Merge with "any-enabled-wins": if any slot has the checkbox checked, the setting is
-        // saved as enabled.  The RPM value is taken from the first enabled slot found.
-        var providerThrottle = new Dictionary<string, ProviderThrottleSettings>();
-        foreach (var form in _forms)
-        {
-            var provider = form.CurrentProvider;
-            if (provider == "Ollama") continue;
-            if (!int.TryParse(form.RpmValueBox.Text.Trim(), out var rpm) || rpm < 1) rpm = 15;
-            var enabled = form.RpmEnabledCheck.IsChecked == true;
-            if (!providerThrottle.TryGetValue(provider, out var existing))
-            {
-                providerThrottle[provider] = new ProviderThrottleSettings { Enabled = enabled, Rpm = rpm };
-            }
-            else
-            {
-                providerThrottle[provider] = new ProviderThrottleSettings
+                settings.Participants.Add(new ParticipantConfig
                 {
-                    Enabled = existing.Enabled || enabled,   // any checked = checked
-                    Rpm     = enabled ? rpm : existing.Rpm   // prefer rpm from an enabled slot
-                };
+                    Name      = form.NameBox.Text.Trim(),
+                    Type      = form.CurrentProvider,
+                    Model     = model,
+                    ServerUrl = serverUrl,
+                    Enabled   = form.EnabledCheck.IsChecked == true
+                });
             }
+
+            // Keep legacy fields in sync for any code that still reads them
+            var firstOllama = settings.Participants.FirstOrDefault(p => p.Type == "Ollama" && p.Enabled);
+            if (firstOllama is not null)
+            {
+                settings.OllamaBaseUrl = firstOllama.ServerUrl;
+                settings.OllamaModel   = firstOllama.Model;
+            }
+            var firstCloud = settings.Participants.FirstOrDefault(p => p.Type != "Ollama" && p.Type != "Ollama ☁" && p.Enabled);
+            if (firstCloud is not null)
+            {
+                settings.SelectedProvider   = firstCloud.Type;
+                settings.SelectedCloudModel = firstCloud.Model;
+            }
+
+            // Persist per-provider throttle settings.
+            var providerThrottle = new Dictionary<string, ProviderThrottleSettings>();
+            foreach (var form in _forms)
+            {
+                var provider = form.CurrentProvider;
+                if (provider == "Ollama") continue;
+                if (!int.TryParse(form.RpmValueBox.Text.Trim(), out var rpm) || rpm < 1) rpm = 15;
+                var enabled = form.RpmEnabledCheck.IsChecked == true;
+                if (!providerThrottle.TryGetValue(provider, out var existing))
+                {
+                    providerThrottle[provider] = new ProviderThrottleSettings { Enabled = enabled, Rpm = rpm };
+                }
+                else
+                {
+                    providerThrottle[provider] = new ProviderThrottleSettings
+                    {
+                        Enabled = existing.Enabled || enabled,
+                        Rpm     = enabled ? rpm : existing.Rpm
+                    };
+                }
+            }
+            foreach (var (provider, ts) in providerThrottle)
+                settings.ProviderThrottle[provider] = ts;
         }
-        foreach (var (provider, ts) in providerThrottle)
-            settings.ProviderThrottle[provider] = ts;
 
         SettingsService.Save(settings);
         SaveStatusLabel.Text = Loc.S("Settings_SaveStatus");
@@ -1670,6 +1670,8 @@ public partial class SettingsWindow : Window
             Margin  = new Thickness(8, 0, 0, 0),
         };
         btn.Style = (Style)FindResource("ModernButton");
+        btn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        btn.SetResourceReference(Button.ForegroundProperty, "ControlTextBrush");
         return btn;
     }
 

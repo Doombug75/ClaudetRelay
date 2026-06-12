@@ -776,8 +776,8 @@ It will be removed from those boards automatically.</value></data>
   <data name="ProjSettings_MaxDepthTip"           xml:space="preserve"><value>Positive integer. 1 = only respond to user (no AI-to-AI chaining).</value></data>
   <data name="ProjSettings_MaxDepthHint"          xml:space="preserve"><value>How many AI-to-AI response rounds are allowed before the user must send a new message.</value></data>
   <data name="ProjSettings_MaxFileOpDepth"        xml:space="preserve"><value>MAX. FILE OP DEPTH</value></data>
-  <data name="ProjSettings_MaxFileOpDepthTip"     xml:space="preserve"><value>Positive integer. How many consecutive file operations a model may chain automatically.</value></data>
-  <data name="ProjSettings_MaxFileOpDepthHint"    xml:space="preserve"><value>Max auto-chained file reads / list ops per response. Does not count toward dialog depth.</value></data>
+  <data name="ProjSettings_MaxFileOpDepthTip"     xml:space="preserve"><value>Integer ≥ 0. How many consecutive file operations a model may chain automatically. 0 = unlimited.</value></data>
+  <data name="ProjSettings_MaxFileOpDepthHint"    xml:space="preserve"><value>Max auto-chained file reads / list ops per response. 0 = unlimited (reads entire file regardless of page count). Does not count toward dialog depth.</value></data>
   <data name="ProjSettings_ResponseLength"    xml:space="preserve"><value>DEFAULT RESPONSE LENGTH</value></data>
   <data name="ProjSettings_ApplyAll"          xml:space="preserve"><value>Apply to all</value></data>
   <data name="ProjSettings_ApplyAllTip"       xml:space="preserve"><value>Override the response length for every participant in this project</value></data>

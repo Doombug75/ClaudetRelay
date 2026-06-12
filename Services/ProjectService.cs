@@ -148,7 +148,7 @@ public class ProjectSettings
     public int MaxDialogDepth { get; set; } = 3;
 
     /// <summary>Max automatic re-invocations per participant response for file operations (readfile, listfiles, etc.).</summary>
-    public int MaxFileOpDepth { get; set; } = 10;
+    public int MaxFileOpDepth { get; set; } = 0;
 
     /// <summary>Default response length (0–100) for new participants. 50 = model default.</summary>
     public int DefaultResponseLength { get; set; } = 50;
@@ -277,6 +277,12 @@ public class ChatLogEntry
     public string   BubbleKey   { get; set; } = "";
     public bool     IsUser      { get; set; } = false;
     public string   Message     { get; set; } = "";
+    /// <summary>
+    /// Raw AI response with original tool tags intact (e.g. &lt;readfile/&gt;).
+    /// Used to reconstruct _sharedHistory on reload so models see their own syntax,
+    /// not the display placeholders. Absent for user/system entries and legacy logs.
+    /// </summary>
+    public string?  RawMessage  { get; set; }
 }
 
 // ── Project service ────────────────────────────────────────────────────────
