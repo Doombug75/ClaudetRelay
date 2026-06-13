@@ -395,9 +395,15 @@
   <data name="Asr_MicBtn_Processing"    xml:space="preserve"><value>⏳  Transcribing…</value></data>
   <data name="Asr_TypeWhisper"          xml:space="preserve"><value>Whisper  (multilingual, recommended)</value></data>
   <data name="Asr_TypeSenseVoice"       xml:space="preserve"><value>SenseVoice  (fast, EN/ZH/JA/KO)</value></data>
-  <data name="Asr_TypeWhisperHint"      xml:space="preserve"><value>OpenAI Whisper: supports ~100 languages including English and German. Use the tiny model (~78 MB) for speed, small (~250 MB) for better accuracy. Recommended for most users.</value></data>
-  <data name="Asr_TypeSenseVoiceHint"   xml:space="preserve"><value>SenseVoice: very fast recognition, optimised for English, Chinese, Japanese and Korean. Does not officially support German — use Whisper instead if you need German.</value></data>
-  <data name="Asr_DownloadHint"         xml:space="preserve"><value>Models must be downloaded separately. Click "Manage ASR Models" to download and install them into the model folder above.</value></data>
+  <data name="Asr_TypeWhisperHint"        xml:space="preserve"><value>OpenAI Whisper: supports ~100 languages including English and German. Use the tiny model (~78 MB) for speed, small (~250 MB) for better accuracy. Recommended for most users.</value></data>
+  <data name="Asr_TypeSenseVoiceHint"    xml:space="preserve"><value>SenseVoice: very fast recognition, optimised for English, Chinese, Japanese and Korean. Does not officially support German — use Whisper instead if you need German.</value></data>
+  <data name="Asr_TypeZipformer"         xml:space="preserve"><value>Zipformer  (streaming, low latency)</value></data>
+  <data name="Asr_TypeZipformerHint"     xml:space="preserve"><value>Streaming Zipformer Transducer: text appears phrase-by-phrase while you speak. Requires encoder, decoder and joiner .onnx files + tokens.txt. Recommended for voice commands.</value></data>
+  <data name="Asr_TypeParaformer"        xml:space="preserve"><value>Paraformer  (streaming, Chinese optimised)</value></data>
+  <data name="Asr_TypeParaformerHint"    xml:space="preserve"><value>Streaming Paraformer: text appears phrase-by-phrase. Optimised for Chinese; multilingual variants exist. Requires encoder and decoder .onnx files + tokens.txt.</value></data>
+  <data name="Asr_TypeZipformer2Ctc"     xml:space="preserve"><value>Zipformer2 CTC  (streaming, single file)</value></data>
+  <data name="Asr_TypeZipformer2CtcHint" xml:space="preserve"><value>Streaming Zipformer2 CTC: text appears phrase-by-phrase. Single model.onnx file + tokens.txt — easiest to set up of the streaming options.</value></data>
+  <data name="Asr_DownloadHint"          xml:space="preserve"><value>Models must be downloaded separately. Click "Manage ASR Models" to download and install them into the model folder above.</value></data>
 
   <!-- ── Folders dialog additional ────────────────────────────────────── -->
   <data name="Folders_ChooseFolder"    xml:space="preserve"><value>Choose folder</value></data>

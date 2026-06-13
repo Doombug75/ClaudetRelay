@@ -395,9 +395,15 @@
   <data name="Asr_MicBtn_Processing"    xml:space="preserve"><value>⏳  Erkenne…</value></data>
   <data name="Asr_TypeWhisper"          xml:space="preserve"><value>Whisper  (mehrsprachig, empfohlen)</value></data>
   <data name="Asr_TypeSenseVoice"       xml:space="preserve"><value>SenseVoice  (schnell, EN/ZH/JA/KO)</value></data>
-  <data name="Asr_TypeWhisperHint"      xml:space="preserve"><value>OpenAI Whisper: unterstützt ~100 Sprachen inkl. Englisch und Deutsch. Tiny-Modell (~78 MB) für Geschwindigkeit, Small (~250 MB) für bessere Genauigkeit. Für die meisten Nutzer empfohlen.</value></data>
-  <data name="Asr_TypeSenseVoiceHint"   xml:space="preserve"><value>SenseVoice: sehr schnelle Erkennung, optimiert für Englisch, Chinesisch, Japanisch und Koreanisch. Kein offizieller Deutsch-Support — für Deutsch bitte Whisper verwenden.</value></data>
-  <data name="Asr_DownloadHint"         xml:space="preserve"><value>Modelle müssen separat heruntergeladen werden. "ASR-Modelle verwalten" öffnet den Download-Manager.</value></data>
+  <data name="Asr_TypeWhisperHint"        xml:space="preserve"><value>OpenAI Whisper: unterstützt ~100 Sprachen inkl. Englisch und Deutsch. Tiny-Modell (~78 MB) für Geschwindigkeit, Small (~250 MB) für bessere Genauigkeit. Für die meisten Nutzer empfohlen.</value></data>
+  <data name="Asr_TypeSenseVoiceHint"    xml:space="preserve"><value>SenseVoice: sehr schnelle Erkennung, optimiert für Englisch, Chinesisch, Japanisch und Koreanisch. Kein offizieller Deutsch-Support — für Deutsch bitte Whisper verwenden.</value></data>
+  <data name="Asr_TypeZipformer"         xml:space="preserve"><value>Zipformer  (Streaming, geringe Latenz)</value></data>
+  <data name="Asr_TypeZipformerHint"     xml:space="preserve"><value>Streaming Zipformer Transducer: Text erscheint Satz für Satz während des Sprechens. Benötigt Encoder-, Decoder- und Joiner-.onnx-Dateien sowie tokens.txt. Empfohlen für Sprachbefehle.</value></data>
+  <data name="Asr_TypeParaformer"        xml:space="preserve"><value>Paraformer  (Streaming, Chinesisch optimiert)</value></data>
+  <data name="Asr_TypeParaformerHint"    xml:space="preserve"><value>Streaming Paraformer: Text erscheint Satz für Satz. Optimiert für Chinesisch; mehrsprachige Varianten verfügbar. Benötigt Encoder- und Decoder-.onnx-Dateien sowie tokens.txt.</value></data>
+  <data name="Asr_TypeZipformer2Ctc"     xml:space="preserve"><value>Zipformer2 CTC  (Streaming, einzelne Datei)</value></data>
+  <data name="Asr_TypeZipformer2CtcHint" xml:space="preserve"><value>Streaming Zipformer2 CTC: Text erscheint Satz für Satz. Einzelne model.onnx + tokens.txt — einfachste Einrichtung unter den Streaming-Optionen.</value></data>
+  <data name="Asr_DownloadHint"          xml:space="preserve"><value>Modelle müssen separat heruntergeladen werden. "ASR-Modelle verwalten" öffnet den Download-Manager.</value></data>
 
   <!-- ── Folders dialog additional ────────────────────────────────────── -->
   <data name="Folders_ChooseFolder"    xml:space="preserve"><value>Ordner auswählen</value></data>

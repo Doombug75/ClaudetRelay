@@ -202,9 +202,19 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         // Model type combo
         root.Children.Add(SmallLabel(Properties.Loc.S("Asr_ModelType")));
         _typeCombo = MakeCombo();
-        _typeCombo.Items.Add(Properties.Loc.S("Asr_TypeWhisper"));
-        _typeCombo.Items.Add(Properties.Loc.S("Asr_TypeSenseVoice"));
-        _typeCombo.SelectedIndex = s.AsrModelType.ToLower() == "sense_voice" ? 1 : 0;
+        _typeCombo.Items.Add(Properties.Loc.S("Asr_TypeWhisper"));       // 0
+        _typeCombo.Items.Add(Properties.Loc.S("Asr_TypeSenseVoice"));    // 1
+        _typeCombo.Items.Add(Properties.Loc.S("Asr_TypeZipformer"));     // 2
+        _typeCombo.Items.Add(Properties.Loc.S("Asr_TypeParaformer"));    // 3
+        _typeCombo.Items.Add(Properties.Loc.S("Asr_TypeZipformer2Ctc")); // 4
+        _typeCombo.SelectedIndex = s.AsrModelType.ToLowerInvariant() switch
+        {
+            "sense_voice"   => 1,
+            "zipformer"     => 2,
+            "paraformer"    => 3,
+            "zipformer2ctc" => 4,
+            _               => 0
+        };
         _typeCombo.Margin = new Thickness(0, 0, 0, 4);
         root.Children.Add(_typeCombo);
 
@@ -215,10 +225,14 @@ public sealed class VoiceRecognitionSettingsWindow : Window
             Margin = new Thickness(0, 0, 0, 14)
         };
         typeHint.SetResourceReference(ForegroundProperty, "ContentDimBrush");
-        void UpdateTypeHint() =>
-            typeHint.Text = _typeCombo.SelectedIndex == 1
-                ? Properties.Loc.S("Asr_TypeSenseVoiceHint")
-                : Properties.Loc.S("Asr_TypeWhisperHint");
+        void UpdateTypeHint() => typeHint.Text = _typeCombo.SelectedIndex switch
+        {
+            1 => Properties.Loc.S("Asr_TypeSenseVoiceHint"),
+            2 => Properties.Loc.S("Asr_TypeZipformerHint"),
+            3 => Properties.Loc.S("Asr_TypeParaformerHint"),
+            4 => Properties.Loc.S("Asr_TypeZipformer2CtcHint"),
+            _ => Properties.Loc.S("Asr_TypeWhisperHint")
+        };
         _typeCombo.SelectionChanged += (_, _) => UpdateTypeHint();
         UpdateTypeHint();
         root.Children.Add(typeHint);
@@ -576,7 +590,14 @@ public sealed class VoiceRecognitionSettingsWindow : Window
 
         s.AsrModelsFolder = _folderBox?.Text.Trim() ?? "";
         s.AsrModelName    = _modelCombo?.SelectedIndex > 0 ? _modelCombo.SelectedItem?.ToString() ?? "" : "";
-        s.AsrModelType    = _typeCombo?.SelectedIndex == 1 ? "sense_voice" : "whisper";
+        s.AsrModelType    = _typeCombo?.SelectedIndex switch
+        {
+            1 => "sense_voice",
+            2 => "zipformer",
+            3 => "paraformer",
+            4 => "zipformer2ctc",
+            _ => "whisper"
+        };
 
         if (_rbPtt?.IsChecked   == true) s.AsrActivationMode = "PushToTalk";
         else if (_rbVoice?.IsChecked == true) s.AsrActivationMode = "VoiceActivated";

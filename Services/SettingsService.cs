@@ -238,7 +238,11 @@ public class AppSettings
     /// <summary>Subfolder name of the active ASR model inside AsrModelsFolder.</summary>
     public string AsrModelName { get; set; } = "";
 
-    /// <summary>ASR model type: "whisper" or "sense_voice".</summary>
+    /// <summary>
+    /// ASR model type.
+    /// Batch (offline):    "whisper" | "sense_voice"
+    /// Streaming (online): "zipformer" | "paraformer" | "zipformer2ctc"
+    /// </summary>
     public string AsrModelType { get; set; } = "whisper";
 
     /// <summary>Dictation activation mode: "AlwaysOn", "PushToTalk", or "VoiceActivated".</summary>

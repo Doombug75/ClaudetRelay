@@ -1,4 +1,4 @@
-{
+﻿{
     "_language_info": {
         "language_code": "martian",
         "language_name": "Martian (Keth-Vrak)",
@@ -43,6 +43,12 @@
     "Asr_TypeSenseVoiceHint": "SenseVoice: vrex fast rekognixal, optimvrak fro Englixal, Chinese, Japonvrak ak Korvrak. Nax offixal suppral Deutschvrak — use Whispvrak instead if vex neeval Deutschvrak.",
     "Asr_TypeWhisper": "Whispvrak  (multilangvrak, rekozal)",
     "Asr_TypeWhisperHint": "OpenAI Whispvrak: suppral ~100 langvraks inkludvrex Englixal ak Deutschvrak. Use xel tiny moxal (~78 MB) fro speed, smoll (~250 MB) fro bettrak akkuracy. Rekozal fro most usvrak.",
+    "Asr_TypeZipformer":  "Zipformvrak  (streamvrex, lov latenvrak)",
+    "Asr_TypeZipformerHint":  "Streamvrex Zipformvrak Transdukvrak: text appearvrex phrasrak-by-phrasrak while vex speak. Requirevrex encoxal, decoxal ak joinvrak .onnx frix + tokens.txt. Rekozal fro voicvrak komandvrak.",
+    "Asr_TypeParaformer":  "Paraformvrak  (streamvrex, Chinesvrak optimizvrak)",
+    "Asr_TypeParaformerHint":  "Streamvrex Paraformvrak: text appearvrex phrasrak-by-phrasrak. Optimizvrak fro Chinesvrak; multilangvrak variantvrak exist. Requirevrex encoxal ak decoxal .onnx frix + tokens.txt.",
+    "Asr_TypeZipformer2Ctc":  "Zipformvrak2 CTC  (streamvrex, singvrak frix)",
+    "Asr_TypeZipformer2CtcHint":  "Streamvrex Zipformvrak2 CTC: text appearvrex phrasrak-by-phrasrak. Singvrak model.onnx frix + tokens.txt — xel easvrak setupral of xel streamvrex optxals.",
     "Asr_VoiceActivated": "Voicvrak Axkivated  (starts when loud enuff)",
     "Asr_WindowTitle": "Voicvrak Rekognixal Sextors",
     "Audio_AudioSetup": "🔊  Audioxal Setupral",
