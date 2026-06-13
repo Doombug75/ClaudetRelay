@@ -4250,9 +4250,11 @@ public partial class MainWindow : Window
                          .TwoLetterISOLanguageName
                          .Equals("de", StringComparison.OrdinalIgnoreCase);
 
-        var basePrompt = isDE
-            ? BuildClaudetteSystemPromptDE()
-            : BuildClaudetteSystemPromptEN();
+        // Check for an external help file: Languages/help_<code>.txt
+        // Uses the saved language code (handles custom codes like "martian"), then falls
+        // back to the two-letter culture code, then to the built-in EN/DE prompts.
+        var basePrompt = TryLoadExternalHelpPrompt()
+            ?? (isDE ? BuildClaudetteSystemPromptDE() : BuildClaudetteSystemPromptEN());
 
         // Append current navigation context so Claudette knows where the user is
         var ctx = new System.Text.StringBuilder();
@@ -4291,6 +4293,38 @@ public partial class MainWindow : Window
         Tab.Bridge   => "Bridge-Tab",
         _            => "Chat-Tab"
     };
+
+    /// <summary>
+    /// Looks for Languages/help_&lt;code&gt;.txt next to the exe and returns its contents,
+    /// or null if no matching file exists. Tries the saved language code first, then the
+    /// two-letter culture code, so custom codes like "martian" work correctly.
+    /// </summary>
+    private static string? TryLoadExternalHelpPrompt()
+    {
+        try
+        {
+            var dir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Languages", "help");
+            if (!System.IO.Directory.Exists(dir)) return null;
+
+            // Try saved language code first (handles "martian", "fr", "es", etc.)
+            var savedCode = Services.SettingsService.Load().Language;
+            if (!string.IsNullOrEmpty(savedCode))
+            {
+                var path = System.IO.Path.Combine(dir, $"{savedCode}.txt");
+                if (System.IO.File.Exists(path))
+                    return System.IO.File.ReadAllText(path, System.Text.Encoding.UTF8);
+            }
+
+            // Fall back to two-letter culture code
+            var code = System.Globalization.CultureInfo.CurrentUICulture
+                             .TwoLetterISOLanguageName.ToLowerInvariant();
+            var codePath = System.IO.Path.Combine(dir, $"{code}.txt");
+            if (System.IO.File.Exists(codePath))
+                return System.IO.File.ReadAllText(codePath, System.Text.Encoding.UTF8);
+        }
+        catch { }
+        return null;
+    }
 
     private static string BuildClaudetteSystemPromptEN() =>
         "You are Claudette, the friendly octopus mascot of ClaudetRelay. " +

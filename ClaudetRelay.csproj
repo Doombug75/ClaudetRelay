@@ -59,6 +59,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- External language packs loaded at runtime from Languages/ folder -->
+    <Content Include="Languages\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- Optional translated Claudette help prompts: Languages/help/<code>.txt -->
+    <Content Include="Languages\help\*.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- ProjectTypes loaded at runtime like Themes -->
     <Page Remove="ProjectTypes\*.xaml" />
     <Content Include="ProjectTypes\*.xaml">

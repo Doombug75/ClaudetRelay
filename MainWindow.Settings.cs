@@ -64,6 +64,14 @@ public partial class MainWindow
         AddLang("English", "");
         AddLang("Deutsch", "de");
 
+        // External JSON packs from Languages/ folder
+        foreach (var (code, displayName) in Properties.Loc.GetExternalLanguagePacks())
+        {
+            // Skip de — already listed as the built-in German entry above
+            if (string.Equals(code, "de", StringComparison.OrdinalIgnoreCase)) continue;
+            AddLang(displayName, code);
+        }
+
         menu.Items.Add(generalItem);
         menu.Items.Add(new Separator());
         menu.Items.Add(foldersItem);

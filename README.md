@@ -248,12 +248,16 @@ The UI ships with English and German built in. To add a new language (or overrid
 ```
 ClaudetRelay.exe
 Languages/
-  en.json   ← English example (all 782 keys)
-  de.json   ← German example
-  fr.json   ← your translation (partial packs are fine)
+  en.json          ← English example (all 782 keys)
+  de.json          ← German example
+  fr.json          ← your translation (partial packs are fine)
+  help/
+    fr.txt         ← optional: translated Claudette help prompt
 ```
 
-The file format is a flat JSON object — copy `en.json`, rename it, translate the values, and save. Missing keys fall back to English automatically, so you can ship a partial pack and fill in the rest over time.
+The JSON file format is a flat key-value object — copy `en.json`, rename it, translate the values, and save. Missing keys fall back to English automatically, so you can ship a partial pack and fill in the rest over time.
+
+To also translate the **Claudette 🐙 help assistant**, add a `Languages/help/<code>.txt` file with the same name stem as your JSON pack. The file is the full system prompt fed to the AI that powers the help chat — translate it so Claudette answers in your language with culturally appropriate phrasing. If no help file exists, Claudette falls back to English (or German for `de`).
 
 Want to crowdsource translations? Run ClaudetRelay in Bridge mode, point a few AI agents at `en.json`, and have them translate it to French, Spanish, or Martian — the output drops straight into `Languages/`.
 
