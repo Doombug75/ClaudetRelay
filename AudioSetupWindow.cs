@@ -27,6 +27,9 @@ public sealed class AudioSetupWindow : Window
     private Slider?     _volumeSlider;
     private Slider?     _boostSlider;
 
+    // Speaker test
+    private WaveOutEvent? _testWaveOut;
+
     // Mic test
     private Canvas?     _micCanvas;
     private Rectangle?  _micFill;
@@ -183,6 +186,7 @@ public sealed class AudioSetupWindow : Window
             volTb.Text  = $"{(int)_volumeSlider.Value}";
             volUpdating = false;
             VoiceOutputService.Volume = ToAudioGain(_volumeSlider.Value, 100.0);
+            if (_testWaveOut is { } wo) wo.Volume = (float)ToAudioGain(_volumeSlider.Value, 100.0);
         };
         volTb.TextChanged += (_, _) =>
         {
@@ -202,10 +206,16 @@ public sealed class AudioSetupWindow : Window
 
         speakerTestBtn.Click += (_, _) =>
         {
+            if (_testWaveOut is { } running)
+            {
+                running.Stop();
+                return;
+            }
+
             var outDevIdx = _deviceCombo?.SelectedIndex ?? 0;
             var outDevNum = (outDevIdx > 0 && outDevIdx - 1 < WaveOut.DeviceCount)
                                 ? outDevIdx - 1 : 0;
-            var vol = ToAudioGain(_volumeSlider?.Value ?? 80.0, 100.0);
+            var vol = (float)ToAudioGain(_volumeSlider?.Value ?? 80.0, 100.0);
 
             Task.Run(() =>
             {
@@ -253,7 +263,7 @@ public sealed class AudioSetupWindow : Window
                             : i > body * 0.88f
                                 ? 1f - (i - body * 0.88f) / (body * 0.12f)
                                 : 1f;
-                        float s = MathF.Sin(2f * MathF.PI * freq * i / sr) * vol * env;
+                        float s = MathF.Sin(2f * MathF.PI * freq * i / sr) * env;
                         allSamples.Add((short)(Math.Clamp(s, -1f, 1f) * 32767f));
                     }
                     for (int i = 0; i < gap; i++)
@@ -269,11 +279,15 @@ public sealed class AudioSetupWindow : Window
 
                 using var ms  = new MemoryStream(buf);
                 using var raw = new RawSourceWaveStream(ms, new WaveFormat(sr, 16, 1));
-                using var wo  = new WaveOutEvent { DeviceNumber = outDevNum };
+                using var wo  = new WaveOutEvent { DeviceNumber = outDevNum, Volume = vol };
+                _testWaveOut = wo;
+                speakerTestBtn.Dispatcher.Invoke(() => speakerTestBtn.Content = "⏹");
                 wo.Init(raw);
                 wo.Play();
                 while (wo.PlaybackState == PlaybackState.Playing)
                     Thread.Sleep(20);
+                _testWaveOut = null;
+                speakerTestBtn.Dispatcher.Invoke(() => speakerTestBtn.Content = Properties.Loc.S("Audio_TestSpeaker"));
             });
         };
 

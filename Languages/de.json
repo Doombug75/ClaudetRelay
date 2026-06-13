@@ -26,6 +26,8 @@
     "Asr_ModelType":  "Modelltyp",
     "Asr_NoModel":  "(kein Modell ausgewählt)",
     "Asr_NoModelWarning":  "Kein ASR-Modell geladen. Bitte Modellordner und Modellname auswählen.",
+    "Asr_MismatchTitle":  "ASR-Modelltyp stimmt nicht überein",
+    "Asr_MismatchBody":  "Modelltyp stimmt nicht überein!\n\nAusgewählter Typ:          {0}\nErkannt aus Ordnername:  {1}\n\nBitte öffne die Spracherkennungs-Einstellungen und wähle den richtigen Typ für dieses Modell.",
     "Asr_PttAlt":  "Alt",
     "Asr_PttCtrl":  "Strg",
     "Asr_PttKey":  "Sprechtaste",

@@ -138,21 +138,6 @@ public sealed class VoiceSettingsWindow : Window
         };
         folderRow.Children.Add(browseBtn);
 
-        // Manage models button
-        var manageBtn = MakeBtn("🎙  " + Properties.Loc.S("Audio_ManageModels"));
-        manageBtn.HorizontalAlignment = HorizontalAlignment.Left;
-        manageBtn.Click += (_, _) =>
-        {
-            SaveSettings();
-            var mgr = new VoiceModelManagerWindow(_themePath) { Owner = this };
-            mgr.ShowDialog();
-            // Sync folder box if the manager created / changed the folder
-            var s2 = SettingsService.Load();
-            if (_folderBox is not null && !string.IsNullOrEmpty(s2.SherpaModelFolder))
-                _folderBox.Text = s2.SherpaModelFolder;
-        };
-        _sherpaPanel.Children.Add(manageBtn);
-
         // ── VOICEVOX ───────────────────────────────────────────────────────
         _rbVoicevox = MakeRadio(Properties.Loc.S("Audio_BackendVoicevox"));
         _rbVoicevox.Margin = new Thickness(0, 12, 0, 0);
@@ -192,6 +177,22 @@ public sealed class VoiceSettingsWindow : Window
         _portBox.SetResourceReference(BackgroundProperty, "ControlBgBrush");
         _portBox.SetResourceReference(BorderBrushProperty, "ControlBorderBrush");
         _voicevoxPanel.Children.Add(_portBox);
+
+        // ── Manage Sherpa models — always visible so models can be downloaded before switching backend
+        var manageBtn = MakeBtn("⬇  " + Properties.Loc.S("Audio_ManageModels"), isPrimary: true);
+        manageBtn.HorizontalAlignment = HorizontalAlignment.Left;
+        manageBtn.Margin = new Thickness(0, 12, 0, 0);
+        manageBtn.Click += (_, _) =>
+        {
+            SaveSettings();
+            var owner = Window.GetWindow(manageBtn) ?? this;
+            var mgr = new VoiceModelManagerWindow(_themePath) { Owner = owner };
+            mgr.ShowDialog();
+            var s2 = SettingsService.Load();
+            if (_folderBox is not null && !string.IsNullOrEmpty(s2.SherpaModelFolder))
+                _folderBox.Text = s2.SherpaModelFolder;
+        };
+        root.Children.Add(manageBtn);
 
         // ── Initial state ──────────────────────────────────────────────────
         var backend = s.VoiceBackend ?? "Windows";

@@ -389,6 +389,13 @@
   <data name="Asr_BrowseFolder"         xml:space="preserve"><value>Durchsuchen…</value></data>
   <data name="Asr_ManageModels"         xml:space="preserve"><value>ASR-Modelle verwalten…</value></data>
   <data name="Asr_NoModelWarning"       xml:space="preserve"><value>Kein ASR-Modell geladen. Bitte Modellordner und Modellname auswählen.</value></data>
+  <data name="Asr_MismatchTitle"        xml:space="preserve"><value>ASR-Modelltyp stimmt nicht überein</value></data>
+  <data name="Asr_MismatchBody"         xml:space="preserve"><value>Modelltyp stimmt nicht überein!
+
+Ausgewählter Typ:          {0}
+Erkannt aus Ordnername:  {1}
+
+Bitte öffne die Spracherkennungs-Einstellungen und wähle den richtigen Typ für dieses Modell.</value></data>
   <data name="Asr_MicBtn_Idle"          xml:space="preserve"><value>🎙  Diktat aus</value></data>
   <data name="Asr_MicBtn_Ready"         xml:space="preserve"><value>🎙  Bereit — Drücken zum Aufnehmen</value></data>
   <data name="Asr_MicBtn_On"            xml:space="preserve"><value>🔴  Aufnahme…</value></data>

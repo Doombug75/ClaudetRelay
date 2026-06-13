@@ -264,7 +264,7 @@ public class AppSettings
     public float VoiceActivationThreshold { get; set; } = 0.04f;
 
     /// <summary>Milliseconds of silence after speech ends before transcription is triggered (300–5000).</summary>
-    public int VoiceSilenceMs { get; set; } = 1500;
+    public int VoiceSilenceMs { get; set; } = 700;
 
     /// <summary>Whether dictation (speech-to-text) was active when the app was last closed.</summary>
     public bool DictationEnabled { get; set; } = false;

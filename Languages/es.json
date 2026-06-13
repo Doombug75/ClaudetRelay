@@ -26,6 +26,8 @@
     "Asr_ModelType":  "Tipo de Modelo",
     "Asr_NoModel":  "(no se seleccionó ningún modelo)",
     "Asr_NoModelWarning":  "No se cargó ningún modelo de ASR. Seleccione una carpeta del modelo y el nombre del modelo, luego haga clic en Aceptar.",
+    "Asr_MismatchTitle":  "Tipo de modelo ASR no coincide",
+    "Asr_MismatchBody":  "¡El tipo de modelo no coincide!\n\nTipo seleccionado:            {0}\nDetectado desde la carpeta:  {1}\n\nAbre la configuración de reconocimiento de voz y selecciona el tipo correcto para este modelo.",
     "Asr_PttAlt":  "Alt",
     "Asr_PttCtrl":  "Ctrl",
     "Asr_PttKey":  "Tecla Push-to-Talk",

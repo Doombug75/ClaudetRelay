@@ -234,6 +234,9 @@ public partial class MainWindow : Window
     private readonly DictationService            _dictation = new();
     private bool                                 _dictationActive      = false;
     private bool                                 _dictationModelLoaded = false;
+    private bool                                 _dictationRunning     = false; // true while auto-pilot is on (user pressed start)
+    private string                               _loadedAsrModelType   = "";
+    private string                               _loadedAsrModelName   = "";
     // ── Private-message target (null = broadcast to all) ──────────────────
     private OllamaParticipantUI?                 _privateMsgOllamaTarget;
     private CloudAIParticipantUI?                _privateMsgCloudTarget;
@@ -351,7 +354,19 @@ public partial class MainWindow : Window
         ChatPanel.SizeChanged        += (_, _) => UpdateChatBubbleWidth();
 
         // Cleanup on window close
-        Closing += (_, _) => StopCheckoutMonitor();
+        Closing += (_, e) =>
+        {
+            StopCheckoutMonitor();
+            _streamCts?.Cancel();
+            CancelAllPrivateTasks();
+            VoiceOutputService.StopAll();
+            _dictation.Deactivate();
+            _dictation.Dispose();
+            if (_mcpServer?.IsRunning == true) { _mcpServer.Stop(); _mcpServer.Dispose(); _mcpServer = null; }
+        };
+        // ONNX Runtime keeps native threads alive even after Dispose — force-exit so
+        // the process actually terminates instead of hanging in native thread pools.
+        Closed += (_, _) => Environment.Exit(0);
     }
 
     // ── Initialization ─────────────────────────────────────────────────────
@@ -716,7 +731,6 @@ public partial class MainWindow : Window
         _dictation.TextAvailable += text =>
             Dispatcher.Invoke(() =>
             {
-                // Append transcribed text to input box with space separator
                 var current = InputTextBox.Text;
                 InputTextBox.Text = string.IsNullOrWhiteSpace(current)
                     ? text
@@ -777,6 +791,7 @@ public partial class MainWindow : Window
             _dictation.Deactivate();
             _dictationActive      = false;
             _dictationModelLoaded = false;
+            _dictationRunning     = false;
             UpdateDictationPower(loaded: false);
             UpdateMicButton(DictationState.Idle);
             var s = SettingsService.Load(); s.DictationEnabled = false; SettingsService.Save(s);
@@ -804,8 +819,26 @@ public partial class MainWindow : Window
             if (MicButton is not null) MicButton.IsEnabled = false;
         });
 
-        var modelFolder = System.IO.Path.Combine(s.AsrModelsFolder, s.AsrModelName);
-        var loaded      = await Task.Run(() => _dictation.LoadModel(s.AsrModelType, modelFolder));
+        var modelFolder   = System.IO.Path.Combine(s.AsrModelsFolder, s.AsrModelName);
+        var selectedType  = (s.AsrModelType ?? "whisper").ToLowerInvariant();
+        var detectedType  = DictationService.DetectModelTypeFromFolder(modelFolder);
+
+        if (detectedType is not null && !string.Equals(detectedType, selectedType, StringComparison.OrdinalIgnoreCase))
+        {
+            Dispatcher.Invoke(() =>
+            {
+                UpdateDictationPower(loaded: false);
+                UpdateMicButton(DictationState.Idle);
+                MessageBox.Show(
+                    string.Format(Properties.Loc.S("Asr_MismatchBody"), selectedType, detectedType),
+                    Properties.Loc.S("Asr_MismatchTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            });
+            return;
+        }
+
+        var loaded = await Task.Run(() => _dictation.LoadModel(selectedType, modelFolder));
 
         if (!loaded)
         {
@@ -831,6 +864,8 @@ public partial class MainWindow : Window
         _dictation.Activate(startRecordingChunk: false);
         _dictationActive      = true;
         _dictationModelLoaded = true;
+        _loadedAsrModelType   = selectedType;
+        _loadedAsrModelName   = s.AsrModelName ?? "";
         var sOn = SettingsService.Load(); sOn.DictationEnabled = true; SettingsService.Save(sOn);
 
         Dispatcher.Invoke(() =>
@@ -848,16 +883,29 @@ public partial class MainWindow : Window
 
     private void MicButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!_dictationModelLoaded) return;   // power button handles loading
+        if (!_dictationModelLoaded) return;
 
-        if (_dictation.IsRecording)
+        // Warn if settings changed since the model was loaded
+        var cur = SettingsService.Load();
+        var typeMismatch  = !string.Equals(_loadedAsrModelType, cur.AsrModelType,  StringComparison.OrdinalIgnoreCase);
+        var modelMismatch = !string.Equals(_loadedAsrModelName, cur.AsrModelName, StringComparison.OrdinalIgnoreCase);
+        if (typeMismatch || modelMismatch)
         {
-            // Stop recording; transcription runs on background thread
+            var what = typeMismatch ? $"type changed to \"{cur.AsrModelType}\"" : $"model changed to \"{cur.AsrModelName}\"";
+            MessageBox.Show(
+                $"ASR settings have changed ({what}) but the old model is still loaded.\n\nTurn the power off and on again to reload.",
+                "ASR model mismatch", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (_dictationRunning)
+        {
+            _dictationRunning = false;
             _dictation.FinalizeRecording();
         }
         else
         {
-            // Start a recording chunk immediately — WaveIn already open, zero latency
+            _dictationRunning = true;
             _dictation.StartRecordingChunk();
         }
     }
@@ -879,8 +927,8 @@ public partial class MainWindow : Window
         {
             DictationPowerButton.Content   = "⏻";
             DictationPowerButton.IsEnabled = true;
-            DictationPowerButton.SetResourceReference(ForegroundProperty, "PrimaryAccentBrush");
-            DictationPowerButton.SetResourceReference(BackgroundProperty, "ControlBgBrush");
+            DictationPowerButton.SetResourceReference(ForegroundProperty, "AccentTextBrush");
+            DictationPowerButton.SetResourceReference(BackgroundProperty, "PrimaryAccentBrush");
         }
         else
         {

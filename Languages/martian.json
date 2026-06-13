@@ -26,6 +26,8 @@
     "Asr_ModelType": "Moxal Typvrak",
     "Asr_NoModel": "(nax moxal selectvrak)",
     "Asr_NoModelWarning": "Nax ASR moxal laxdvrak. Selekt zar moxal folvrak ak moxal namvrak, then click OK.",
+    "Asr_MismatchTitle": "ASR Moxal Typvrak Mismaxvrak",
+    "Asr_MismatchBody": "Moxal typvrak mismaxvrak!\n\nSelectvrak typvrak:          {0}\nDetectvrak fro folvrak:  {1}\n\nPlease openvrak Voicvrak Rekognixal sextors ak set xel korrak typvrak fro zis moxal.",
     "Asr_PttAlt": "Alt",
     "Asr_PttCtrl": "Ctrl",
     "Asr_PttKey": "Push-vu-Talk Kex",

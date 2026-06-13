@@ -253,7 +253,16 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         manageBtn.Margin = new Thickness(0, 0, 0, 20);
         manageBtn.Click += (_, _) =>
         {
-            var w = new AsrModelManagerWindow(_themePath) { Owner = this };
+            var currentType = _typeCombo?.SelectedIndex switch
+            {
+                1 => "sense_voice",
+                2 => "zipformer",
+                3 => "paraformer",
+                4 => "zipformer2ctc",
+                _ => "whisper"
+            };
+            var owner = Window.GetWindow(manageBtn) ?? this;
+            var w = new AsrModelManagerWindow(_themePath, currentType) { Owner = owner };
             w.ShowDialog();
             // Sync folder back from settings (manager may have updated it)
             var updated = SettingsService.Load().AsrModelsFolder;
@@ -470,10 +479,12 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         Closed += (_, _) => { if (micTestActive) _dictation.Deactivate(); };
 
         // Show/hide panels based on radio selection
+        // _voicePanel (threshold + silence delay) is always visible — AlwaysOn uses voice
+        // activation internally too, so both sliders are always relevant.
         void UpdatePanels()
         {
-            _pttPanel.Visibility   = _rbPtt?.IsChecked   == true ? Visibility.Visible : Visibility.Collapsed;
-            _voicePanel.Visibility = _rbVoice?.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            _pttPanel.Visibility   = _rbPtt?.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            _voicePanel.Visibility = Visibility.Visible;
         }
         _rbAlways.Checked += (_, _) => UpdatePanels();
         _rbPtt   .Checked += (_, _) => UpdatePanels();

@@ -26,6 +26,8 @@
     "Asr_ModelType":  "Model Type",
     "Asr_NoModel":  "(no model selected)",
     "Asr_NoModelWarning":  "No ASR model loaded. Select a model folder and model name, then click OK.",
+    "Asr_MismatchTitle":  "ASR Model Mismatch",
+    "Asr_MismatchBody":  "Model type mismatch!\n\nSelected type:            {0}\nDetected from folder:  {1}\n\nPlease open Voice Recognition settings and set the correct type for this model.",
     "Asr_PttAlt":  "Alt",
     "Asr_PttCtrl":  "Ctrl",
     "Asr_PttKey":  "Push-to-Talk Key",

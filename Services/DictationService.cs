@@ -69,13 +69,22 @@ public sealed class DictationService : IDisposable
     private List<float>        _samples        = new();
     private bool               _recording      = false;
     private bool               _voiceTriggered = false;
+    private bool               _pausedByUser   = false;
     private int                _silenceSamples = 0;
 
     // ── Batch recogniser ───────────────────────────────────────────────────
     private OfflineRecognizer? _recognizer;
-    // Serialises Decode() on background threads with Dispose() in LoadModel(),
-    // preventing use-after-free crashes (ExecutionEngineException) in native code.
-    private readonly object    _recognizerLock = new();
+    private readonly object    _recognizerLock = new();  // guards Decode() — OfflineRecognizer is not thread-safe for parallel decodes
+
+    // ── Pipeline ordering ──────────────────────────────────────────────────
+    private int _captureSeq = 0;
+    private int _emitSeq    = 0;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, string> _pendingResults = new();
+
+    // ── Pre-warmed worker pool ─────────────────────────────────────────────
+    private System.Collections.Concurrent.BlockingCollection<(int seq, float[] samples)>? _workQueue;
+    private Thread[]? _workers;
+    private const int WorkerCount = 3;
 
     // ── Streaming recogniser ───────────────────────────────────────────────
     private OnlineRecognizer?  _onlineRecognizer;
@@ -133,7 +142,7 @@ public sealed class DictationService : IDisposable
         config.FeatConfig.SampleRate = SampleRate;
         config.FeatConfig.FeatureDim = 80;
         config.ModelConfig.Debug      = 0;
-        config.ModelConfig.NumThreads = 2;
+        config.ModelConfig.NumThreads = Math.Max(2, Environment.ProcessorCount / 2);
 
         switch (modelType.ToLowerInvariant())
         {
@@ -173,7 +182,85 @@ public sealed class DictationService : IDisposable
             _recognizer = fresh;
         }
         old?.Dispose();
+
+        // Pre-warm: run a silent dummy inference so the ONNX graph is JIT-compiled
+        // before the user speaks — eliminates the 1-2s lag on first real utterance
+        Task.Run(() =>
+        {
+            try
+            {
+                var dummy = new float[SampleRate / 2]; // 0.5s of silence
+                lock (_recognizerLock)
+                {
+                    if (_recognizer != fresh) return;
+                    var s = fresh.CreateStream();
+                    s.AcceptWaveform(SampleRate, dummy);
+                    fresh.Decode(s);
+                }
+            }
+            catch { }
+        });
+
+        StartWorkerPool();
         return true;
+    }
+
+    private void StartWorkerPool()
+    {
+        StopWorkerPool();
+        _workQueue = new System.Collections.Concurrent.BlockingCollection<(int, float[])>(boundedCapacity: 32);
+        _workers   = new Thread[WorkerCount];
+        for (int i = 0; i < WorkerCount; i++)
+        {
+            var t = new Thread(WorkerLoop) { IsBackground = true, Name = $"AsrWorker-{i}" };
+            _workers[i] = t;
+            t.Start();
+        }
+    }
+
+    private void StopWorkerPool()
+    {
+        _workQueue?.CompleteAdding();
+        // Workers are IsBackground — they die with the process.
+        // No Join here: blocking the UI thread while a Whisper decode finishes
+        // makes VS think the app is still running for up to 15s.
+        _workQueue?.Dispose();
+        _workQueue = null;
+        _workers   = null;
+    }
+
+    private void WorkerLoop()
+    {
+        try
+        {
+            foreach (var (seq, samples) in _workQueue!.GetConsumingEnumerable())
+            {
+                string text = "";
+                try
+                {
+                    OfflineRecognizer? recognizer;
+                    lock (_recognizerLock) { recognizer = _recognizer; }
+                    if (recognizer is null) { _pendingResults[seq] = ""; DrainPendingResults(); continue; }
+
+                    SherpaOnnx.OfflineStream stream;
+                    lock (_recognizerLock)
+                    {
+                        stream = recognizer.CreateStream();
+                        stream.AcceptWaveform(SampleRate, samples);
+                        recognizer.Decode(stream);
+                        text = stream.Result.Text.Trim();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"AsrWorker transcribe error: {ex.Message}");
+                }
+                _pendingResults[seq] = text;
+                DrainPendingResults();
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (ObjectDisposedException)    { }
     }
 
     private bool LoadStreamingModel(string modelType, string modelFolder)
@@ -181,7 +268,7 @@ public sealed class DictationService : IDisposable
         var config = new OnlineRecognizerConfig();
         config.FeatConfig.SampleRate  = SampleRate;
         config.FeatConfig.FeatureDim  = 80;
-        config.ModelConfig.NumThreads = 2;
+        config.ModelConfig.NumThreads = Math.Max(2, Environment.ProcessorCount / 2);
         config.ModelConfig.Debug      = 0;
         config.DecodingMethod         = "greedy_search";
 
@@ -254,6 +341,22 @@ public sealed class DictationService : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Infers ASR model type from the folder name using sherpa-onnx naming conventions.
+    /// Returns the type key ("whisper", "sense_voice", "zipformer", "paraformer", "zipformer2ctc")
+    /// or null if the type cannot be determined.
+    /// </summary>
+    public static string? DetectModelTypeFromFolder(string folder)
+    {
+        var name = System.IO.Path.GetFileName(folder.TrimEnd('\\', '/')).ToLowerInvariant();
+        if (name.Contains("whisper"))       return "whisper";
+        if (name.Contains("sense_voice") || name.Contains("sense-voice") || name.Contains("sensevoice")) return "sense_voice";
+        if (name.Contains("zipformer2ctc") || name.Contains("zipformer-2-ctc") || name.Contains("zipformer2_ctc")) return "zipformer2ctc";
+        if (name.Contains("zipformer"))     return "zipformer";
+        if (name.Contains("paraformer"))    return "paraformer";
+        return null;
+    }
+
     private static string? FindFile(string folder, string pattern)
     {
         var matches = System.IO.Directory.GetFiles(folder, pattern);
@@ -311,6 +414,7 @@ public sealed class DictationService : IDisposable
     public void StartRecordingChunk()
     {
         if (_waveIn is null || _recording) return;
+        _pausedByUser = false;
         BeginRecording();
         SetState(DictationState.Recording);
     }
@@ -327,7 +431,12 @@ public sealed class DictationService : IDisposable
         }
         _recording      = false;
         _voiceTriggered = false;
+        _pausedByUser   = false;
         _samples.Clear();
+        _pendingResults.Clear();
+        System.Threading.Volatile.Write(ref _captureSeq, 0);
+        System.Threading.Volatile.Write(ref _emitSeq,    0);
+        StopWorkerPool();
 
         // Flush any remaining streaming audio and emit a final result
         if (IsStreamingMode)
@@ -472,10 +581,10 @@ public sealed class DictationService : IDisposable
 
     private void OnDataBatch(WaveInEventArgs e, float[] samples, float rms, int count)
     {
-        // Voice-activated trigger
-        if (_mode == DictationActivationMode.VoiceActivated && _waveIn is not null)
+        // AlwaysOn and VoiceActivated: wait for voice above threshold before accumulating
+        if (_mode == DictationActivationMode.AlwaysOn || _mode == DictationActivationMode.VoiceActivated)
         {
-            if (!_voiceTriggered && rms >= _threshold)
+            if (_waveIn is not null && !_voiceTriggered && !_pausedByUser && rms >= _threshold)
             {
                 _voiceTriggered = true;
                 BeginRecording();
@@ -486,8 +595,8 @@ public sealed class DictationService : IDisposable
 
         _samples.AddRange(samples);
 
-        // Voice-activated: stop after silence
-        if (_mode == DictationActivationMode.VoiceActivated)
+        // AlwaysOn and VoiceActivated: auto-transcribe after silence
+        if (_mode == DictationActivationMode.AlwaysOn || _mode == DictationActivationMode.VoiceActivated)
         {
             if (rms < _threshold * SilenceFactor)
             {
@@ -511,7 +620,7 @@ public sealed class DictationService : IDisposable
     /// accumulated audio gets transcribed before the service is deactivated.
     /// Safe to call from any thread.
     /// </summary>
-    public void FinalizeRecording() => StopAndTranscribe();
+    public void FinalizeRecording() { _pausedByUser = true; StopAndTranscribe(); }
 
     private void StopAndTranscribe()
     {
@@ -524,38 +633,33 @@ public sealed class DictationService : IDisposable
         // Ignore clips shorter than 0.3 s
         if (samples.Length < SampleRate * 3 / 10) return;
 
-        SetState(DictationState.Processing);
+        // Assign sequence number before re-arming so capture order is preserved
+        int seq = System.Threading.Interlocked.Increment(ref _captureSeq);
 
-        var recognizer = _recognizer;
-        Task.Run(() =>
+        // Re-arm immediately — mic keeps listening while this chunk transcribes
+        SetState(DictationState.Listening);
+
+        // Hand off to pre-warmed worker pool (zero scheduling lag)
+        if (_workQueue is not null && !_workQueue.IsAddingCompleted)
+            _workQueue.TryAdd((seq, samples));
+        else
         {
-            string? text = null;
-            try
-            {
-                if (recognizer is null) return;
-                lock (_recognizerLock)
-                {
-                    if (_recognizer != recognizer) return;
-                    var stream = recognizer.CreateStream();
-                    stream.AcceptWaveform(SampleRate, samples);
-                    recognizer.Decode(stream);
-                    text = stream.Result.Text.Trim();
-                }
-                if (!string.IsNullOrWhiteSpace(text))
-                    TextAvailable?.Invoke(text);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"DictationService transcribe error: {ex.Message}");
-            }
-            finally
-            {
-                if (_waveIn is not null && _mode == DictationActivationMode.AlwaysOn)
-                    BeginRecording();
-                else
-                    SetState(_waveIn is not null ? DictationState.Listening : DictationState.Idle);
-            }
-        });
+            // Fallback if pool isn't running (streaming mode or pool not started)
+            _pendingResults[seq] = "";
+            DrainPendingResults();
+        }
+    }
+
+    private void DrainPendingResults()
+    {
+        while (true)
+        {
+            int next = System.Threading.Volatile.Read(ref _emitSeq) + 1;
+            if (!_pendingResults.TryRemove(next, out var text)) break;
+            System.Threading.Interlocked.Increment(ref _emitSeq);
+            if (!string.IsNullOrWhiteSpace(text))
+                TextAvailable?.Invoke(text);
+        }
     }
 
     private void SetState(DictationState s)

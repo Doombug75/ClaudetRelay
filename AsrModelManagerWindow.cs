@@ -16,42 +16,78 @@ namespace ClaudetRelay;
 public sealed class AsrModelManagerWindow : Window
 {
     private readonly string? _themePath;
+    private readonly string  _modelType;
     private TextBox? _folderBox;
 
     private static string DefaultAsrFolder =>
         Path.Combine(AppContext.BaseDirectory, "ASR");
 
-    private static readonly AsrModelInfo[] CuratedModels =
-    [
-        // Whisper — multilingual (includes German), recommended
-        new("sherpa-onnx-whisper-tiny",
-            "Whisper", "EN/DE/+98 langs · tiny  (~1 GB RAM)",    "★★★",     78,
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.tar.bz2"),
-        new("sherpa-onnx-whisper-base",
-            "Whisper", "EN/DE/+98 langs · base  (~1 GB RAM)",    "★★★★",   142,
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-base.tar.bz2"),
-        new("sherpa-onnx-whisper-small",
-            "Whisper", "EN/DE/+98 langs · small  (~2 GB RAM)",   "★★★★",   466,
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-small.tar.bz2"),
-        new("sherpa-onnx-whisper-medium",
-            "Whisper", "EN/DE/+98 langs · medium  (~2 GB RAM)",  "★★★★★", 1800,
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-medium.tar.bz2"),
-        new("sherpa-onnx-whisper-large-v3",
-            "Whisper", "EN/DE/+98 langs · large v3  (~1 GB RAM)", "★★★★★", 1020,
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-large-v3.tar.bz2"),
-        // SenseVoice — fast, EN/ZH/JA/KO only
-        new("sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
-            "SenseVoice", "EN/ZH/JA/KO · fast  (~1 GB RAM)",    "★★★★",   130,
-            "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2"),
-    ];
-
     private record AsrModelInfo(
-        string Name, string Type, string Description,
+        string Name, string Description,
         string Quality, int SizeMb, string DownloadUrl);
 
-    public AsrModelManagerWindow(string? themePath)
+    private static readonly Dictionary<string, AsrModelInfo[]> ModelsByType = new()
+    {
+        ["whisper"] =
+        [
+            new("sherpa-onnx-whisper-tiny",
+                "EN/DE/+98 langs · tiny  (~200 MB RAM)",   "★★★",      78,
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-tiny.tar.bz2"),
+            new("sherpa-onnx-whisper-base",
+                "EN/DE/+98 langs · base  (~500 MB RAM)",   "★★★★",    142,
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-base.tar.bz2"),
+            new("sherpa-onnx-whisper-small",
+                "EN/DE/+98 langs · small  (~1 GB RAM)",    "★★★★",    466,
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-small.tar.bz2"),
+            new("sherpa-onnx-whisper-medium",
+                "EN/DE/+98 langs · medium  (~2 GB RAM)",   "★★★★★", 1800,
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-medium.tar.bz2"),
+            new("sherpa-onnx-whisper-large-v3",
+                "EN/DE/+98 langs · large v3  (~4 GB RAM)", "★★★★★", 1020,
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-large-v3.tar.bz2"),
+        ],
+        ["sense_voice"] =
+        [
+            new("sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
+                "EN/ZH/JA/KO · fast  (~300 MB RAM)",      "★★★★",    130,
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2"),
+        ],
+        ["zipformer"] =
+        [
+            new("sherpa-onnx-streaming-zipformer-de-kroko-2025-08-06",
+                "DE · streaming · tiny  (~55 MB RAM)",              "★★★★",    55,
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-de-kroko-2025-08-06.tar.bz2"),
+            new("sherpa-onnx-streaming-zipformer-en-2023-06-26",
+                "EN · streaming · low latency  (~100 MB RAM)",      "★★★★",    65,
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"),
+            new("sherpa-onnx-streaming-zipformer-fr-2023-04-14",
+                "FR · streaming  (~380 MB RAM)",                    "★★★★",   380,
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-fr-2023-04-14.tar.bz2"),
+            new("sherpa-onnx-streaming-zipformer-multi-zh-hans-2023-12-12",
+                "ZH · streaming · Mandarin  (~200 MB RAM)",         "★★★★",   210,
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-multi-zh-hans-2023-12-12.tar.bz2"),
+            new("sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20",
+                "ZH/EN · streaming · bilingual  (~200 MB RAM)",     "★★★★",   112,
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20.tar.bz2"),
+        ],
+        ["paraformer"] =
+        [
+            new("sherpa-onnx-streaming-paraformer-bilingual-zh-en",
+                "ZH/EN · streaming · very fast  (~250 MB RAM)",     "★★★★",    90,
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-paraformer-bilingual-zh-en.tar.bz2"),
+        ],
+        ["zipformer2ctc"] =
+        [
+            new("sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13",
+                "ZH · streaming CTC · Mandarin  (~200 MB RAM)",     "★★★",    180,
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13.tar.bz2"),
+        ],
+    };
+
+    public AsrModelManagerWindow(string? themePath, string? modelType = null)
     {
         _themePath = themePath;
+        _modelType = (modelType ?? SettingsService.Load().AsrModelType ?? "whisper").ToLowerInvariant();
 
         Title                 = Properties.Loc.S("Asr_ManageModels");
         Width                 = 640;
@@ -112,17 +148,13 @@ public sealed class AsrModelManagerWindow : Window
         var isDE = System.Globalization.CultureInfo.CurrentUICulture
                          .TwoLetterISOLanguageName.Equals("de", StringComparison.OrdinalIgnoreCase);
 
+        var s       = SettingsService.Load();
+        var typeKey = _modelType;
+
         // ── Intro ──────────────────────────────────────────────────────────
         var introTb = new TextBlock
         {
-            Text = isDE
-                ? "ASR-Modelle laufen vollständig offline auf deinem PC — keine Cloud, keine Internetverbindung " +
-                  "während der Erkennung nötig. Wähle einen Ordner, lade ein Modell herunter und wähle " +
-                  "es anschließend in den Spracherkennungs-Einstellungen aus.\n\n" +
-                  "Für Deutsch empfehlen wir Whisper tiny oder base."
-                : "ASR models run fully offline on your PC — no cloud or internet connection needed during " +
-                  "recognition. Pick a folder, download a model, then select it in Voice Recognition Settings.\n\n" +
-                  "For German, use Whisper tiny or base (recommended).",
+            Text = TypeIntro(typeKey, isDE),
             FontSize = 11, TextWrapping = TextWrapping.Wrap,
             Margin   = new Thickness(0, 0, 0, 16)
         };
@@ -132,7 +164,6 @@ public sealed class AsrModelManagerWindow : Window
         // ── Model folder ──────────────────────────────────────────────────
         root.Children.Add(SectionHeading("🗂  " + Properties.Loc.S("Asr_ModelFolder")));
 
-        var s = SettingsService.Load();
         var folderRow = new Grid { Margin = new Thickness(0, 0, 0, 20) };
         folderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         folderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -166,29 +197,12 @@ public sealed class AsrModelManagerWindow : Window
         folderRow.Children.Add(browseBtn);
         root.Children.Add(folderRow);
 
-        // ── Model catalogue ────────────────────────────────────────────────
+        // ── Model catalogue — filtered to the active model type ────────────
         root.Children.Add(SectionHeading("🎙  " + Properties.Loc.S("Audio_CuratedModels")));
 
-        string? lastType = null;
-        foreach (var m in CuratedModels)
-        {
-            if (m.Type != lastType)
-            {
-                var typeHdr = new TextBlock
-                {
-                    Text       = m.Type == "Whisper"
-                        ? (isDE ? "🌍  Whisper  (mehrsprachig, empfohlen für Deutsch)" : "🌍  Whisper  (multilingual, recommended for European languages)")
-                        : (isDE ? "⚡  SenseVoice  (schnell, nur EN/ZH/JA/KO)" : "⚡  SenseVoice  (fast, EN/ZH/JA/KO only)"),
-                    FontFamily = new FontFamily("Segoe UI"), FontSize = 11,
-                    FontWeight = FontWeights.SemiBold,
-                    Margin     = new Thickness(0, 8, 0, 4)
-                };
-                typeHdr.SetResourceReference(ForegroundProperty, "SidebarDimBrush");
-                root.Children.Add(typeHdr);
-                lastType = m.Type;
-            }
+        var models = ModelsByType.TryGetValue(typeKey, out var list) ? list : [];
+        foreach (var m in models)
             root.Children.Add(BuildModelRow(m));
-        }
 
         // ── Close ──────────────────────────────────────────────────────────
         root.Children.Add(new Separator { Margin = new Thickness(0, 16, 0, 8) });
@@ -322,6 +336,27 @@ public sealed class AsrModelManagerWindow : Window
         })!;
         proc.WaitForExit(600_000); // 10 minutes — large models can take a while to extract
     }
+
+    private static string TypeIntro(string typeKey, bool isDE) => typeKey switch
+    {
+        "sense_voice"   => isDE
+            ? "SenseVoice ist ein schnelles Batch-Modell für EN/ZH/JA/KO. Läuft vollständig offline."
+            : "SenseVoice is a fast batch model supporting EN/ZH/JA/KO. Runs fully offline.",
+        "zipformer"     => isDE
+            ? "Zipformer (Transducer) ist ein Echtzeit-Streaming-Modell mit sehr geringer Latenz — ideal für Always-On-Diktat. Verfügbar für DE, EN, FR, ZH und mehr."
+            : "Zipformer (Transducer) is a real-time streaming model with very low latency — ideal for always-on dictation. Available for DE, EN, FR, ZH and more.",
+        "paraformer"    => isDE
+            ? "Paraformer ist ein extrem schnelles Streaming-Modell für ZH/EN. Geringere Latenz als Whisper."
+            : "Paraformer is an extremely fast streaming model for ZH/EN. Lower latency than Whisper.",
+        "zipformer2ctc" => isDE
+            ? "Zipformer2 CTC ist ein kompaktes Streaming-Modell mit CTC-Dekodierung. Niedrige Latenz, geringer RAM-Verbrauch."
+            : "Zipformer2 CTC is a compact streaming model using CTC decoding. Low latency, low RAM footprint.",
+        _               => isDE   // whisper default
+            ? "Whisper läuft vollständig offline — keine Cloud nötig. Wähle einen Ordner, lade ein Modell " +
+              "herunter und wähle es in den Spracherkennungs-Einstellungen aus.\n\nFür Deutsch: Whisper tiny oder base empfohlen."
+            : "Whisper runs fully offline — no cloud needed. Pick a folder, download a model, then select it " +
+              "in Voice Recognition Settings.\n\nFor German: Whisper tiny or base recommended.",
+    };
 
     private void SaveFolder()
     {

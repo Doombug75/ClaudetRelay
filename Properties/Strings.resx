@@ -389,6 +389,13 @@
   <data name="Asr_BrowseFolder"         xml:space="preserve"><value>Browse…</value></data>
   <data name="Asr_ManageModels"         xml:space="preserve"><value>Manage ASR Models…</value></data>
   <data name="Asr_NoModelWarning"       xml:space="preserve"><value>No ASR model loaded. Select a model folder and model name, then click OK.</value></data>
+  <data name="Asr_MismatchTitle"        xml:space="preserve"><value>ASR Model Mismatch</value></data>
+  <data name="Asr_MismatchBody"         xml:space="preserve"><value>Model type mismatch!
+
+Selected type:            {0}
+Detected from folder:  {1}
+
+Please open Voice Recognition settings and set the correct type for this model.</value></data>
   <data name="Asr_MicBtn_Idle"          xml:space="preserve"><value>🎙  Dictation Off</value></data>
   <data name="Asr_MicBtn_Ready"         xml:space="preserve"><value>🎙  Ready — press to record</value></data>
   <data name="Asr_MicBtn_On"            xml:space="preserve"><value>🔴  Recording…</value></data>

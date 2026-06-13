@@ -457,6 +457,8 @@
     "Asr_ModelType":  "Type de modèle",
     "Asr_NoModel":  "(pas de modèle sélectionné)",
     "Asr_NoModelWarning":  "Aucun modèle de reconnaissance vocale chargé. Sélectionnez un dossier de modèle et un nom de modèle, puis cliquez sur OK.",
+    "Asr_MismatchTitle":  "Type de modèle ASR incompatible",
+    "Asr_MismatchBody":  "Incompatibilité de type de modèle !\n\nType sélectionné :          {0}\nDétecté depuis le dossier :  {1}\n\nVeuillez ouvrir les paramètres de reconnaissance vocale et sélectionner le bon type pour ce modèle.",
     "Asr_PttAlt":  "Alt",
     "Asr_PttCtrl":  "Ctrl",
     "Asr_PttKey":  "Touche push-to-talk",
