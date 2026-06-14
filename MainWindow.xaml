@@ -484,6 +484,16 @@
                                 Margin="0,0,6,0"
                                 Click="WorldButton_Click"
                                 ToolTip="Characters, Factions, Locations and World Lore"/>
+                        <Button x:Name="CodeButton"
+                                Content="💻 Code"
+                                Visibility="Collapsed"
+                                Style="{StaticResource ModernButton}"
+                                Background="{DynamicResource ControlBgBrush}"
+                                Foreground="{DynamicResource SidebarTextBrush}"
+                                FontSize="12" Padding="10,5"
+                                Margin="0,0,6,0"
+                                Click="CodeButton_Click"
+                                ToolTip="Code structure boards — Classes, Functions, Interfaces and more"/>
                         <Button x:Name="RoadmapButton"
                                 Content="📊 Roadmap"
                                 Visibility="Collapsed"
@@ -562,6 +572,9 @@
 
             <!-- World editor panel (shown when WorldButton is active) -->
             <Grid x:Name="WorldContent" Grid.Row="2" Visibility="Collapsed"/>
+
+            <!-- Code board panel (shown when CodeButton is active) -->
+            <Grid x:Name="CodeContent" Grid.Row="2" Visibility="Collapsed"/>
 
             <!-- Bridge / MCP panel (shown when BridgeTabButton is active) -->
             <Grid x:Name="BridgeContent" Grid.Row="2" Visibility="Collapsed"/>

@@ -962,6 +962,7 @@ public partial class MainWindow
                                             ? Visibility.Visible : Visibility.Collapsed;
         WorldButton          .Visibility  = _currentProjectType.HasWorldBuilding
                                             ? Visibility.Visible : Visibility.Collapsed;
+        CodeButton           .Visibility  = Visibility.Visible;
 
         // Load chat history
         var log = ProjectService.LoadChatLog(projFolder);
@@ -1077,6 +1078,8 @@ public partial class MainWindow
         RoadmapButton        .Visibility = Visibility.Collapsed;
         WorldButton          .Visibility = Visibility.Collapsed;
         WorldContent         .Visibility = Visibility.Collapsed;
+        CodeButton           .Visibility = Visibility.Collapsed;
+        CodeContent          .Visibility = Visibility.Collapsed;
         ChatOnlyButtonsPanel .Visibility = Visibility.Visible;
 
         // Clear CO/R badges - no project is active
@@ -1561,6 +1564,8 @@ public partial class MainWindow
             // Collapse all other project panels first
             WorldContent     .Visibility = Visibility.Collapsed;
             WorldButton.FontWeight       = FontWeights.Normal;
+            CodeContent      .Visibility = Visibility.Collapsed;
+            CodeButton.FontWeight        = FontWeights.Normal;
             FilesContent     .Visibility = Visibility.Collapsed;
             FilesButton.FontWeight       = FontWeights.Normal;
 
@@ -1600,6 +1605,8 @@ public partial class MainWindow
             // Collapse all other project panels first
             WorldContent     .Visibility = Visibility.Collapsed;
             WorldButton.FontWeight       = FontWeights.Normal;
+            CodeContent      .Visibility = Visibility.Collapsed;
+            CodeButton.FontWeight        = FontWeights.Normal;
             RoadmapContent   .Visibility = Visibility.Collapsed;
             RoadmapButton.FontWeight     = FontWeights.Normal;
 

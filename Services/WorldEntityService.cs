@@ -583,9 +583,12 @@ public static class EntityBoardService
     private static readonly JsonSerializerOptions ReadOpts  = new() { PropertyNameCaseInsensitive = true };
 
     private static string BoardFilePath(string projFolder, string boardId) =>
+        Path.Combine(projFolder, "PROJECTPLAN", "worldbuilding", $"_board_{boardId}.json");
+
+    private static string LegacyBoardFilePath(string projFolder, string boardId) =>
         Path.Combine(projFolder, "PROJECTPLAN", $"_board_{boardId}.json");
 
-    /// <summary>Loads board data by board ID. Migrates legacy _board__world.json for the default board.</summary>
+    /// <summary>Loads board data by board ID. Falls back to pre-worldbuilding/ path and legacy _board__world.json.</summary>
     public static EntityBoardData Load(string projFolder, string boardId)
     {
         var path = BoardFilePath(projFolder, boardId);
@@ -593,6 +596,14 @@ public static class EntityBoardService
         {
             try { return JsonSerializer.Deserialize<EntityBoardData>(File.ReadAllText(path), ReadOpts) ?? new EntityBoardData(); }
             catch { return new EntityBoardData(); }
+        }
+
+        // Fallback: old flat PROJECTPLAN/ path (before worldbuilding/ subfolder)
+        var legacyFlat = LegacyBoardFilePath(projFolder, boardId);
+        if (File.Exists(legacyFlat))
+        {
+            try { return JsonSerializer.Deserialize<EntityBoardData>(File.ReadAllText(legacyFlat), ReadOpts) ?? new EntityBoardData(); }
+            catch { }
         }
 
         // Legacy migration: the original board was written as _board__world.json
@@ -619,7 +630,7 @@ public static class EntityBoardService
     {
         try
         {
-            Directory.CreateDirectory(Path.Combine(projFolder, "PROJECTPLAN"));
+            Directory.CreateDirectory(Path.Combine(projFolder, "PROJECTPLAN", "worldbuilding"));
             File.WriteAllText(BoardFilePath(projFolder, boardId),
                               JsonSerializer.Serialize(data, WriteOpts));
         }
@@ -650,6 +661,9 @@ public static class WorldBoardRegistryService
     private static readonly JsonSerializerOptions ReadOpts  = new() { PropertyNameCaseInsensitive = true };
 
     private static string RegistryPath(string projFolder) =>
+        Path.Combine(projFolder, "PROJECTPLAN", "worldbuilding", "_boards.json");
+
+    private static string LegacyRegistryPath(string projFolder) =>
         Path.Combine(projFolder, "PROJECTPLAN", "_boards.json");
 
     public static List<WorldBoard> Load(string projFolder)
@@ -660,12 +674,23 @@ public static class WorldBoardRegistryService
             try
             {
                 var list = JsonSerializer.Deserialize<List<WorldBoard>>(File.ReadAllText(path), ReadOpts);
-                if (list is not null) return list;   // may be empty — that's fine
+                if (list is not null) return list;
             }
             catch { }
         }
 
-        // No boards file — return empty list; gallery shows the "create first board" prompt
+        // Fallback: old flat PROJECTPLAN/ path
+        var legacy = LegacyRegistryPath(projFolder);
+        if (File.Exists(legacy))
+        {
+            try
+            {
+                var list = JsonSerializer.Deserialize<List<WorldBoard>>(File.ReadAllText(legacy), ReadOpts);
+                if (list is not null) return list;
+            }
+            catch { }
+        }
+
         return [];
     }
 
@@ -673,7 +698,7 @@ public static class WorldBoardRegistryService
     {
         try
         {
-            Directory.CreateDirectory(Path.Combine(projFolder, "PROJECTPLAN"));
+            Directory.CreateDirectory(Path.Combine(projFolder, "PROJECTPLAN", "worldbuilding"));
             File.WriteAllText(RegistryPath(projFolder),
                 JsonSerializer.Serialize(boards, WriteOpts));
         }

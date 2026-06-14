@@ -73,6 +73,8 @@ public partial class MainWindow
             RoadmapButton.FontWeight     = FontWeights.Normal;
             FilesContent     .Visibility = Visibility.Collapsed;
             FilesButton.FontWeight       = FontWeights.Normal;
+            CodeContent      .Visibility = Visibility.Collapsed;
+            CodeButton.FontWeight        = FontWeights.Normal;
 
             // Hide chat-only buttons and deactivate Chat sub-tab
             ChatOnlyButtonsPanel .Visibility = Visibility.Collapsed;
