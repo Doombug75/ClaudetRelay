@@ -4367,6 +4367,7 @@ public partial class MainWindow : Window
         "• Manage roadmap & tasks             → 📁 Projects → Roadmap sub-tab\n" +
         "• Manage INPUT / OUTPUT files        → 📁 Projects → Files sub-tab\n" +
         "• Build characters, worlds, lore     → 🌍 World tab (story/RPG projects)\n" +
+        "• Plan code structure, flow, classes → 💻 Code tab (boards, flowcharts, structograms, export)\n" +
         "• Connect Claude Code / Cursor       → 🔗 Bridge tab → Server mode\n" +
         "• Export chat (HTML / Markdown)      → 📄 button in the chat header\n" +
         "• Toggle voice output on/off         → 🔊/🔇 button above the Send field\n" +
@@ -4474,6 +4475,21 @@ public partial class MainWindow : Window
         "Story/RPG projects. Define Characters, Factions, Locations, Lore. " +
         "Boards = visual canvases; can be nested for hierarchies.\n\n" +
 
+        "## Code section (💻 Code tab)\n" +
+        "For software projects: plan structure, relationships and logic, then export skeleton code.\n" +
+        "• Library: one tab per entity type — Namespace, Class, Struct, Interface, Enum, Function, Object. " +
+        "Searchable, sortable (name / last-modified). Click an entry to edit it; entities are stored under PROJECTPLAN/code/.\n" +
+        "• Entity editor: name, type, namespace, description, base class (single inheritance) + implemented interfaces, " +
+        "collapsible Fields and Methods sections (with visibility +−#~ and static), enum values, and typed data ports.\n" +
+        "• Structure boards: a free canvas of UML-style cards. Drag cards, wire typed input→output data ports " +
+        "(pointer / reference / direct conventions must match — a mismatch is refused). Inheritance is set via the editor dropdown, not lines.\n" +
+        "• Flowchart (Programmablaufplan, DIN 66001): per function/method. Shapes = start/end, process, decision, I/O, subroutine, note; " +
+        "labelled arrows. Three modes: Select/Move, Connect, Remove.\n" +
+        "• Structogram (Nassi-Shneiderman, DIN 66261): per function/method. Nested blocks = statement, if/else, while, do-while, case.\n" +
+        "• The 🔁 button on a function/method opens a chooser: Programmablaufplan or Structogram.\n" +
+        "• ⬇ Export code: generates skeletons in 10 languages — C#, C++, Java, TypeScript, Python, Kotlin, Swift, PHP, Go, Rust " +
+        "(Go/Rust map inheritance to composition). Copy to clipboard or save to OUTPUT/generated/.\n\n" +
+
         "## Bridge tab\n" +
         "Server mode: MCP server for Claude Code/Cursor/etc. " +
         "Controller mode: built-in AI orchestrates local Ollama agents.\n\n" +
@@ -4520,6 +4536,7 @@ public partial class MainWindow : Window
         "• Fahrplan & Aufgaben verwalten            → 📁 Projekte → Fahrplan-Tab\n" +
         "• INPUT / OUTPUT-Dateien verwalten         → 📁 Projekte → Dateien-Tab\n" +
         "• Charaktere, Welten, Lore aufbauen        → 🌍 Welt-Tab (Story-/RPG-Projekte)\n" +
+        "• Code-Struktur, Ablauf, Klassen planen    → 💻 Code-Tab (Boards, Programmablaufpläne, Struktogramme, Export)\n" +
         "• Claude Code / Cursor verbinden           → 🔗 Bridge-Tab → Server-Modus\n" +
         "• Chat exportieren (HTML / Markdown)       → 📄 Taste im Chat-Kopfbereich\n" +
         "• Sprachausgabe ein-/ausschalten           → 🔊/🔇 Taste über dem Senden-Feld\n" +
@@ -4626,6 +4643,21 @@ public partial class MainWindow : Window
         "## World Builder\n" +
         "Story-/RPG-Projekte. Charaktere, Fraktionen, Orte, Lore definieren. " +
         "Boards = visuelle Leinwände; können für Hierarchien verschachtelt werden.\n\n" +
+
+        "## Code-Bereich (💻 Code-Tab)\n" +
+        "Für Software-Projekte: Struktur, Beziehungen und Logik planen, dann Code-Gerüst exportieren.\n" +
+        "• Bibliothek: ein Tab pro Entitätstyp — Namespace, Class, Struct, Interface, Enum, Function, Object. " +
+        "Durchsuchbar, sortierbar (Name / zuletzt geändert). Eintrag anklicken zum Bearbeiten; gespeichert unter PROJECTPLAN/code/.\n" +
+        "• Entitäts-Editor: Name, Typ, Namespace, Beschreibung, Basisklasse (Einfachvererbung) + implementierte Interfaces, " +
+        "einklappbare Felder- und Methoden-Abschnitte (mit Sichtbarkeit +−#~ und static), Enum-Werte, typisierte Daten-Ports.\n" +
+        "• Struktur-Boards: freie Leinwand mit UML-artigen Karten. Karten ziehen, typisierte Input→Output-Ports verdrahten " +
+        "(Pointer / Referenz / direkt müssen übereinstimmen — Mismatch wird abgelehnt). Vererbung per Dropdown im Editor, nicht per Linie.\n" +
+        "• Programmablaufplan (DIN 66001): pro Funktion/Methode. Formen = Start/Ende, Prozess, Verzweigung, E/A, Unterprogramm, Notiz; " +
+        "beschriftete Pfeile. Drei Modi: Auswählen/Bewegen, Verbinden, Entfernen.\n" +
+        "• Struktogramm (Nassi-Shneiderman, DIN 66261): pro Funktion/Methode. Verschachtelte Blöcke = Anweisung, Wenn/Sonst, While, Do-While, Fallauswahl.\n" +
+        "• Der 🔁-Knopf an einer Funktion/Methode öffnet eine Auswahl: Programmablaufplan oder Struktogramm.\n" +
+        "• ⬇ Code exportieren: erzeugt Gerüste in 10 Sprachen — C#, C++, Java, TypeScript, Python, Kotlin, Swift, PHP, Go, Rust " +
+        "(Go/Rust bilden Vererbung als Komposition ab). In die Zwischenablage kopieren oder nach OUTPUT/generated/ speichern.\n\n" +
 
         "## Bridge-Tab\n" +
         "Server-Modus: MCP-Server für Claude Code/Cursor/usw. " +
@@ -5338,8 +5370,9 @@ public partial class MainWindow : Window
                   "     Fertige OUTPUT-Dateien nach INPUT/ verschieben, um sie als abgeschlossenes Referenzmaterial zu sichern.\n" +
                   "▶  ⚙ Projekteinstellungen: Orchestrierung, KI-Rollen, Autonomiemodus, Sprach-Override.\n" +
                   "▶  🌍 Welt-Tab: Charaktere, Fraktionen, Orte und Lore (Story-/RPG-Projekte).\n" +
+                  "▶  💻 Code-Tab: Struktur-Boards, Programmablaufpläne, Struktogramme und Code-Export (Software-Projekte).\n" +
                   "▶  🗑 Chat leeren: löscht nur den Projektverlauf — das Projekt bleibt geöffnet.\n\n" +
-                  "Vollständige Referenz in den Abschnitten 📁 Projekte und 🌍 World Builder unten."
+                  "Vollständige Referenz in den Abschnitten 📁 Projekte, 🌍 World Builder und 💻 Code unten."
                 : $"Project \"{_currentProject.ProjectName}\" is open.\n\n" +
                   "▶  Chat: your AI team has full project context — roles, roadmap, and world data.\n" +
                   "▶  Roadmap sub-tab: milestones, tasks, and progress percentages.\n" +
@@ -5347,8 +5380,9 @@ public partial class MainWindow : Window
                   "     Move finished OUTPUT files into INPUT/ to lock them as settled reference material.\n" +
                   "▶  ⚙ Project Settings: orchestration, AI roles, Autonomy Mode, language override.\n" +
                   "▶  🌍 World tab: characters, factions, locations and lore (story / RPG projects).\n" +
+                  "▶  💻 Code tab: structure boards, flowcharts, structograms and code export (software projects).\n" +
                   "▶  🗑 Clear Chat: wipes only this project's chat history — the project stays open.\n\n" +
-                  "Full reference in the 📁 Projects and 🌍 World Builder sections below.");
+                  "Full reference in the 📁 Projects, 🌍 World Builder and 💻 Code sections below.");
         }
         else
         {
@@ -5437,6 +5471,8 @@ public partial class MainWindow : Window
             ("Fahrplan & Aufgabenfortschritt verwalten",    "📁 Projekte  →  Fahrplan-Tab"),
             ("INPUT- / OUTPUT-Dateien verwalten",           "📁 Projekte  →  Dateien-Tab"),
             ("Charaktere, Welten, Lore aufbauen",           "🌍 Welt-Tab  (Story-/RPG-Projekte)"),
+            ("Code-Struktur, Klassen & Ablauf planen",      "💻 Code-Tab  (Boards, PAP, Struktogramme)"),
+            ("Code-Gerüst exportieren (10 Sprachen)",       "💻 Code-Tab  →  ⬇ Code exportieren"),
             ("Claude Code / Cursor / MCP verbinden",        "🔗 Bridge-Tab  →  Server-Modus"),
             ("Controller-KI über lokale Modelle laufen lassen", "🔗 Bridge-Tab  →  Controller-Modus"),
             ("Unterhaltung exportieren (HTML / Markdown)",  "📄  Taste im Chat-Kopfbereich"),
@@ -5464,6 +5500,8 @@ public partial class MainWindow : Window
             ("Manage roadmap & task progress",         "📁 Projects  →  Roadmap sub-tab"),
             ("Manage INPUT / OUTPUT files",            "📁 Projects  →  Files sub-tab"),
             ("Build characters, worlds, lore",         "🌍 World tab  (story / RPG projects)"),
+            ("Plan code structure, classes & flow",    "💻 Code tab  (boards, flowcharts, structograms)"),
+            ("Export code skeleton (10 languages)",    "💻 Code tab  →  ⬇ Export code"),
             ("Connect Claude Code / Cursor / MCP",     "🔗 Bridge tab  →  Server mode"),
             ("Run a controller AI over local models",  "🔗 Bridge tab  →  Controller mode"),
             ("Export a conversation (HTML / Markdown)", "📄  button in the chat header"),
@@ -5833,6 +5871,63 @@ public partial class MainWindow : Window
               "  Resize grip (bottom-right corner)  →  resize a card, pin, or frame\n" +
               "  Add Relation toolbar button  →  click first object, then second to draw a line\n" +
               "       Works between any combination of cards, frames, and board pins.");
+
+        // ── 💻 Code ───────────────────────────────────────────────────────
+        BeginSection("💻", isDE ? "Code-Bereich  (Software-Projekte)" : "Code section  (software projects)");
+        AddBody(isDE
+            ? "Für Software-Projekte: Struktur, Beziehungen und Logik planen — und am Ende Code-Gerüste exportieren. " +
+              "Alle Code-Daten liegen unter PROJECTPLAN/code/."
+            : "For software projects: plan structure, relationships and logic — then export code skeletons. " +
+              "All code data lives under PROJECTPLAN/code/.");
+
+        AddSubHeader(isDE ? "Bibliothek & Editor" : "Library & editor");
+        AddBody(isDE
+            ? "Oben Tabs: 🗂 Boards plus je ein Tab pro Entitätstyp — Namespace, Class, Struct, Interface, Enum, Function, Object.\n" +
+              "  • Jede Liste ist durchsuchbar und sortierbar (Name auf/ab, zuletzt geändert auf/ab).\n" +
+              "  • Eintrag anklicken öffnet den Editor: Name, Typ, Namespace, Beschreibung, Basisklasse (Einfachvererbung) + " +
+              "implementierte Interfaces, einklappbare Felder- und Methoden-Abschnitte (Sichtbarkeit + − # ~, static), " +
+              "Enum-Werte und typisierte Daten-Ports."
+            : "Tabs at the top: 🗂 Boards plus one tab per entity type — Namespace, Class, Struct, Interface, Enum, Function, Object.\n" +
+              "  • Each list is searchable and sortable (name asc/desc, last-modified asc/desc).\n" +
+              "  • Click an entry to open the editor: name, type, namespace, description, base class (single inheritance) + " +
+              "implemented interfaces, collapsible Fields and Methods sections (visibility + − # ~, static), " +
+              "enum values and typed data ports.");
+
+        AddSubHeader(isDE ? "Struktur-Boards" : "Structure boards");
+        AddBody(isDE
+            ? "Freie Leinwand mit UML-artigen Karten. Karten ziehen; typisierte Input→Output-Daten-Ports verbinden " +
+              "(Pointer / Referenz / direkt müssen übereinstimmen — ein Mismatch wird abgelehnt, damit kein Typfehler entsteht). " +
+              "Vererbung wird per Dropdown im Editor gesetzt, nicht als Linie gezeichnet. Die Leinwand wächst automatisch mit."
+            : "A free canvas of UML-style cards. Drag cards; wire typed input→output data ports " +
+              "(pointer / reference / direct conventions must match — a mismatch is refused so no type error sneaks in). " +
+              "Inheritance is set via a dropdown in the editor, not drawn as a line. The canvas auto-grows as you work.");
+
+        AddSubHeader(isDE ? "Programmablaufplan & Struktogramm" : "Flowchart & structogram");
+        AddBody(isDE
+            ? "Jede Funktion und jede Methode kann einen Ablauf bekommen — der 🔁-Knopf öffnet die Auswahl:\n" +
+              "  • Programmablaufplan (DIN 66001): Start/Ende, Prozess, Verzweigung, E/A, Unterprogramm, Notiz; beschriftete Pfeile. " +
+              "Drei Modi-Knöpfe: Auswählen/Bewegen, Verbinden, Entfernen.\n" +
+              "  • Struktogramm (Nassi-Shneiderman, DIN 66261): verschachtelte Blöcke — Anweisung, Wenn/Sonst, While, Do-While, Fallauswahl. " +
+              "Rechtsklick auf einen Block zum Einfügen/Umschließen/Löschen."
+            : "Every function and method can have a flow — the 🔁 button opens a chooser:\n" +
+              "  • Flowchart / Programmablaufplan (DIN 66001): start/end, process, decision, I/O, subroutine, note; labelled arrows. " +
+              "Three mode buttons: Select/Move, Connect, Remove.\n" +
+              "  • Structogram (Nassi-Shneiderman, DIN 66261): nested blocks — statement, if/else, while, do-while, case. " +
+              "Right-click a block to insert/wrap/delete.");
+
+        AddSubHeader(isDE ? "Code-Export" : "Code export");
+        AddBody(isDE
+            ? "⬇ Code exportieren erzeugt Gerüst-Code aus allen Entitäten in 10 Sprachen: " +
+              "C#, C++, Java, TypeScript, Python, Kotlin, Swift, PHP, Go und Rust. " +
+              "Go und Rust kennen keine Klassenvererbung — dort wird die Basisklasse als Komposition/Embedding abgebildet. " +
+              "Ergebnis in die Zwischenablage kopieren oder nach OUTPUT/generated/ speichern."
+            : "⬇ Export code generates skeleton code from all entities in 10 languages: " +
+              "C#, C++, Java, TypeScript, Python, Kotlin, Swift, PHP, Go and Rust. " +
+              "Go and Rust have no class inheritance — there the base class is mapped to composition/embedding. " +
+              "Copy the result to the clipboard or save it to OUTPUT/generated/.");
+        AddHighlight(isDE
+            ? "💡  Programmier-Typnamen (Class, Struct, Interface …) bleiben in jeder UI-Sprache Englisch — es sind universelle Code-Begriffe."
+            : "💡  Programming type names (Class, Struct, Interface …) stay English in every UI language — they are universal code keywords.");
 
         // ── 🔗 Bridge ─────────────────────────────────────────────────────
         BeginSection("🔗", isDE ? "Bridge-Tab  (MCP-Agenten-Bridge)" : "Bridge tab  (MCP Agent Bridge)", autoBridge);
