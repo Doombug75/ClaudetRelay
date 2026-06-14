@@ -29,7 +29,7 @@ public class StructogramWindow : Window
         _data       = StructogramService.Load(projFolder, key);
         if (string.IsNullOrEmpty(_data.Title)) _data.Title = title;
 
-        Title                 = "▦  Struktogramm — " + (string.IsNullOrEmpty(title) ? "Untitled" : title);
+        Title                 = string.Format(Properties.Loc.S("Struct_Title"), string.IsNullOrEmpty(title) ? Properties.Loc.S("Common_Untitled") : title);
         Width                 = 760;
         Height                = 620;
         MinWidth              = 420;
@@ -63,7 +63,7 @@ public class StructogramWindow : Window
 
         var hint = new TextBlock
         {
-            Text = "Right-click any block to edit / insert / wrap. Use ＋ to add.",
+            Text = Properties.Loc.S("Struct_Hint"),
             VerticalAlignment = VerticalAlignment.Center, FontSize = 12, Opacity = 0.8
         };
         hint.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
@@ -133,7 +133,7 @@ public class StructogramWindow : Window
 
     private FrameworkElement StatementBox(NsBlock b)
     {
-        var t = LabelText(string.IsNullOrWhiteSpace(b.Text) ? "(statement)" : b.Text);
+        var t = LabelText(string.IsNullOrWhiteSpace(b.Text) ? Properties.Loc.S("Struct_PhStatement") : b.Text);
         t.Margin = new Thickness(8, 6, 8, 6);
         t.MouseLeftButtonDown += (_, e) => { if (e.ClickCount >= 2) { EditText(b); e.Handled = true; } };
         return t;
@@ -146,7 +146,7 @@ public class StructogramWindow : Window
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // branch labels
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // branches
 
-        var cond = LabelText(string.IsNullOrWhiteSpace(b.Text) ? "(condition)" : b.Text);
+        var cond = LabelText(string.IsNullOrWhiteSpace(b.Text) ? Properties.Loc.S("Struct_PhCondition") : b.Text);
         cond.TextAlignment = TextAlignment.Center;
         cond.Margin = new Thickness(8, 6, 8, 6);
         cond.MouseLeftButtonDown += (_, e) => { if (e.ClickCount >= 2) { EditText(b); e.Handled = true; } };
@@ -157,8 +157,8 @@ public class StructogramWindow : Window
         var labelRow = new Grid();
         labelRow.ColumnDefinitions.Add(new ColumnDefinition());
         labelRow.ColumnDefinitions.Add(new ColumnDefinition());
-        var tl = LabelText("true");  tl.FontSize = 10; tl.Opacity = 0.7; tl.HorizontalAlignment = HorizontalAlignment.Center;
-        var fl = LabelText("false"); fl.FontSize = 10; fl.Opacity = 0.7; fl.HorizontalAlignment = HorizontalAlignment.Center; Grid.SetColumn(fl, 1);
+        var tl = LabelText(Properties.Loc.S("Struct_True"));  tl.FontSize = 10; tl.Opacity = 0.7; tl.HorizontalAlignment = HorizontalAlignment.Center;
+        var fl = LabelText(Properties.Loc.S("Struct_False")); fl.FontSize = 10; fl.Opacity = 0.7; fl.HorizontalAlignment = HorizontalAlignment.Center; Grid.SetColumn(fl, 1);
         labelRow.Children.Add(tl); labelRow.Children.Add(fl);
         Grid.SetRow(labelRow, 1);
         grid.Children.Add(TopBorder(labelRow));
@@ -182,7 +182,7 @@ public class StructogramWindow : Window
     private FrameworkElement LoopBox(NsBlock b, bool preTest)
     {
         var outer = new StackPanel();
-        var cond = LabelText(string.IsNullOrWhiteSpace(b.Text) ? (preTest ? "while (…)" : "do … while (…)") : b.Text);
+        var cond = LabelText(string.IsNullOrWhiteSpace(b.Text) ? (preTest ? Properties.Loc.S("Struct_PhWhile") : Properties.Loc.S("Struct_PhDoWhile")) : b.Text);
         cond.Margin = new Thickness(8, 5, 8, 5);
         cond.FontStyle = FontStyles.Italic;
         cond.MouseLeftButtonDown += (_, e) => { if (e.ClickCount >= 2) { EditText(b); e.Handled = true; } };
@@ -204,7 +204,7 @@ public class StructogramWindow : Window
     private FrameworkElement CaseBox(NsBlock b)
     {
         var outer = new StackPanel();
-        var head = LabelText(string.IsNullOrWhiteSpace(b.Text) ? "(selector)" : b.Text);
+        var head = LabelText(string.IsNullOrWhiteSpace(b.Text) ? Properties.Loc.S("Struct_PhSelector") : b.Text);
         head.TextAlignment = TextAlignment.Center;
         head.Margin = new Thickness(8, 5, 8, 5);
         head.MouseLeftButtonDown += (_, e) => { if (e.ClickCount >= 2) { EditText(b); e.Handled = true; } };
@@ -219,7 +219,7 @@ public class StructogramWindow : Window
         {
             var arm = b.Arms[i];
             var col = new StackPanel();
-            var lbl = LabelText(string.IsNullOrWhiteSpace(arm.Label) ? "case" : arm.Label);
+            var lbl = LabelText(string.IsNullOrWhiteSpace(arm.Label) ? Properties.Loc.S("Struct_Case") : arm.Label);
             lbl.FontSize = 10; lbl.Opacity = 0.8; lbl.TextAlignment = TextAlignment.Center; lbl.Margin = new Thickness(4, 3, 4, 3);
             var capArm = arm;
             lbl.MouseLeftButtonDown += (_, e) => { if (e.ClickCount >= 2) { EditArmLabel(capArm); e.Handled = true; } };
@@ -240,31 +240,31 @@ public class StructogramWindow : Window
     {
         var cm = new ContextMenu();
 
-        var edit = new MenuItem { Header = "✎ Edit text…" };
+        var edit = new MenuItem { Header = Properties.Loc.S("Flow_EditText") };
         edit.Click += (_, _) => EditText(b);
         cm.Items.Add(edit);
 
         cm.Items.Add(new Separator());
-        cm.Items.Add(InsertMenu("Insert above", parent, parent.IndexOf(b)));
-        cm.Items.Add(InsertMenu("Insert below", parent, parent.IndexOf(b) + 1));
+        cm.Items.Add(InsertMenu(Properties.Loc.S("Struct_InsertAbove"), parent, parent.IndexOf(b)));
+        cm.Items.Add(InsertMenu(Properties.Loc.S("Struct_InsertBelow"), parent, parent.IndexOf(b) + 1));
 
         // For containers, allow adding into their sub-sequences
         if (b.Kind is NsBlockKind.While or NsBlockKind.DoWhile)
-            cm.Items.Add(InsertMenu("Add to loop body", b.Body, b.Body.Count));
+            cm.Items.Add(InsertMenu(Properties.Loc.S("Struct_AddLoopBody"), b.Body, b.Body.Count));
         if (b.Kind == NsBlockKind.If)
         {
-            cm.Items.Add(InsertMenu("Add to TRUE branch", b.Body, b.Body.Count));
-            cm.Items.Add(InsertMenu("Add to FALSE branch", b.Else, b.Else.Count));
+            cm.Items.Add(InsertMenu(Properties.Loc.S("Struct_AddTrue"), b.Body, b.Body.Count));
+            cm.Items.Add(InsertMenu(Properties.Loc.S("Struct_AddFalse"), b.Else, b.Else.Count));
         }
         if (b.Kind == NsBlockKind.Case)
         {
-            var addArm = new MenuItem { Header = "Add case arm" };
+            var addArm = new MenuItem { Header = Properties.Loc.S("Struct_AddArm") };
             addArm.Click += (_, _) => { b.Arms.Add(new NsArm()); Save(); Rebuild(); };
             cm.Items.Add(addArm);
         }
 
         cm.Items.Add(new Separator());
-        var del = new MenuItem { Header = "✕ Delete block" };
+        var del = new MenuItem { Header = Properties.Loc.S("Struct_DeleteBlock") };
         del.Click += (_, _) => { parent.Remove(b); Save(); Rebuild(); };
         cm.Items.Add(del);
 
@@ -285,11 +285,11 @@ public class StructogramWindow : Window
             };
             mi.Items.Add(sub);
         }
-        Add("Statement", NsBlockKind.Statement);
-        Add("If / Else", NsBlockKind.If);
-        Add("While loop (pre-test)", NsBlockKind.While);
-        Add("Do-While loop (post-test)", NsBlockKind.DoWhile);
-        Add("Case (multi-way)", NsBlockKind.Case);
+        Add(Properties.Loc.S("Struct_KStatement"), NsBlockKind.Statement);
+        Add(Properties.Loc.S("Struct_KIf"), NsBlockKind.If);
+        Add(Properties.Loc.S("Struct_KWhile"), NsBlockKind.While);
+        Add(Properties.Loc.S("Struct_KDoWhile"), NsBlockKind.DoWhile);
+        Add(Properties.Loc.S("Struct_KCase"), NsBlockKind.Case);
         return mi;
     }
 
@@ -299,7 +299,7 @@ public class StructogramWindow : Window
         {
             Content = "＋", FontSize = 14, Padding = new Thickness(6, 2, 6, 2),
             HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 0),
-            Cursor = Cursors.Hand, ToolTip = "Add a block"
+            Cursor = Cursors.Hand, ToolTip = Properties.Loc.S("Struct_AddBlockTip")
         };
         b.SetResourceReference(Button.StyleProperty,      "ModernButton");
         b.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
@@ -314,11 +314,11 @@ public class StructogramWindow : Window
                 mi.Click += (_, _) => { seq.Add(new NsBlock { Kind = kind, Text = DefaultText(kind) }); Save(); Rebuild(); };
                 cm.Items.Add(mi);
             }
-            Add("Statement", NsBlockKind.Statement);
-            Add("If / Else", NsBlockKind.If);
-            Add("While loop (pre-test)", NsBlockKind.While);
-            Add("Do-While loop (post-test)", NsBlockKind.DoWhile);
-            Add("Case (multi-way)", NsBlockKind.Case);
+            Add(Properties.Loc.S("Struct_KStatement"), NsBlockKind.Statement);
+            Add(Properties.Loc.S("Struct_KIf"), NsBlockKind.If);
+            Add(Properties.Loc.S("Struct_KWhile"), NsBlockKind.While);
+            Add(Properties.Loc.S("Struct_KDoWhile"), NsBlockKind.DoWhile);
+            Add(Properties.Loc.S("Struct_KCase"), NsBlockKind.Case);
             cm.IsOpen = true;
         };
         return b;
@@ -328,7 +328,7 @@ public class StructogramWindow : Window
     {
         var b = new Button
         {
-            Content = "＋ add", FontSize = 11, Padding = new Thickness(6, 3, 6, 3),
+            Content = Properties.Loc.S("Struct_AddInline"), FontSize = 11, Padding = new Thickness(6, 3, 6, 3),
             Cursor = Cursors.Hand, Opacity = 0.7, HorizontalAlignment = HorizontalAlignment.Stretch
         };
         b.SetResourceReference(Button.StyleProperty,      "ModernButton");
@@ -343,11 +343,11 @@ public class StructogramWindow : Window
                 mi.Click += (_, _) => { seq.Add(new NsBlock { Kind = kind, Text = DefaultText(kind) }); Save(); Rebuild(); };
                 cm.Items.Add(mi);
             }
-            Add("Statement", NsBlockKind.Statement);
-            Add("If / Else", NsBlockKind.If);
-            Add("While loop (pre-test)", NsBlockKind.While);
-            Add("Do-While loop (post-test)", NsBlockKind.DoWhile);
-            Add("Case (multi-way)", NsBlockKind.Case);
+            Add(Properties.Loc.S("Struct_KStatement"), NsBlockKind.Statement);
+            Add(Properties.Loc.S("Struct_KIf"), NsBlockKind.If);
+            Add(Properties.Loc.S("Struct_KWhile"), NsBlockKind.While);
+            Add(Properties.Loc.S("Struct_KDoWhile"), NsBlockKind.DoWhile);
+            Add(Properties.Loc.S("Struct_KCase"), NsBlockKind.Case);
             cm.IsOpen = true;
         };
         return b;
@@ -355,25 +355,25 @@ public class StructogramWindow : Window
 
     private void EditText(NsBlock b)
     {
-        var t = PromptText(b.Kind == NsBlockKind.Statement ? "Statement" : "Condition / expression", b.Text);
+        var t = PromptText(b.Kind == NsBlockKind.Statement ? Properties.Loc.S("Struct_PromptStatement") : Properties.Loc.S("Struct_PromptCondition"), b.Text);
         if (t is null) return;
         b.Text = t; Save(); Rebuild();
     }
 
     private void EditArmLabel(NsArm arm)
     {
-        var t = PromptText("Case label", arm.Label);
+        var t = PromptText(Properties.Loc.S("Struct_PromptCaseLabel"), arm.Label);
         if (t is null) return;
         arm.Label = t; Save(); Rebuild();
     }
 
     private static string DefaultText(NsBlockKind k) => k switch
     {
-        NsBlockKind.If      => "condition",
-        NsBlockKind.While   => "while (condition)",
-        NsBlockKind.DoWhile => "do … while (condition)",
-        NsBlockKind.Case    => "selector",
-        _                   => "statement"
+        NsBlockKind.If      => Properties.Loc.S("Struct_DefCondition"),
+        NsBlockKind.While   => Properties.Loc.S("Struct_DefWhile"),
+        NsBlockKind.DoWhile => Properties.Loc.S("Struct_DefDoWhile"),
+        NsBlockKind.Case    => Properties.Loc.S("Struct_DefSelector"),
+        _                   => Properties.Loc.S("Struct_DefStatement")
     };
 
     // ── Visual helpers ───────────────────────────────────────────────────────
@@ -426,11 +426,11 @@ public class StructogramWindow : Window
         var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetRow(btnRow, 1); g.Children.Add(btnRow);
         string? result = null;
-        var ok = MakeBtn("OK");
+        var ok = MakeBtn(Properties.Loc.S("Common_OK"));
         ok.Click += (_, _) => { result = box.Text; dlg.DialogResult = true; };
         box.KeyDown += (_, e) => { if (e.Key == Key.Return) { result = box.Text; dlg.DialogResult = true; } };
         btnRow.Children.Add(ok);
-        var cancel = MakeBtn("Cancel"); cancel.Margin = new Thickness(8, 0, 0, 0);
+        var cancel = MakeBtn(Properties.Loc.S("Common_Cancel")); cancel.Margin = new Thickness(8, 0, 0, 0);
         cancel.Click += (_, _) => dlg.DialogResult = false;
         btnRow.Children.Add(cancel);
 

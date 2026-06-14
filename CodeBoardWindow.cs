@@ -166,14 +166,14 @@ public class CodeBoardWindow : Window
         toolbar.Child = row;
 
         // Add entity dropdown
-        var addBtn = Btn("+ Add", "Add a code entity to the board");
+        var addBtn = Btn(Properties.Loc.S("Code_AddToBoard"), Properties.Loc.S("Code_AddToBoardTip"));
         addBtn.Click += (_, _) => ShowAddEntityMenu(addBtn);
         row.Children.Add(addBtn);
 
         Spacer(row, 8);
 
         // Connect mode toggle
-        var connectBtn = Btn("⇄ Connect", "Click a port on one card, then a port on another");
+        var connectBtn = Btn(Properties.Loc.S("Code_ConnectPorts"), Properties.Loc.S("Code_ConnectPortsTip"));
         connectBtn.Click += (_, _) =>
         {
             _connectMode = !_connectMode;
@@ -189,14 +189,14 @@ public class CodeBoardWindow : Window
         Spacer(row, 8);
 
         // Delete selected
-        var delBtn = Btn("✕ Remove", "Remove selected cards from this board");
+        var delBtn = Btn(Properties.Loc.S("Code_RemoveCards"), Properties.Loc.S("Code_RemoveCardsTip"));
         delBtn.Click += (_, _) => RemoveSelectedFromBoard();
         row.Children.Add(delBtn);
 
         Spacer(row, 16);
 
         // Zoom reset
-        var zoomBtn = Btn("1:1", "Reset zoom");
+        var zoomBtn = Btn("1:1", Properties.Loc.S("Common_ResetZoomTip"));
         zoomBtn.Click += (_, _) =>
         {
             _zoom = 1.0;
@@ -627,8 +627,8 @@ public class CodeBoardWindow : Window
             // First click — must be Output port
             if (direction != PortDirection.Output)
             {
-                MessageBox.Show("Start a connection from an Output port (green).",
-                    "Connect", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Properties.Loc.S("Code_ConnStartOutput"),
+                    Properties.Loc.S("Code_ConnTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             _connectFromEntityId = entityId;
@@ -640,8 +640,8 @@ public class CodeBoardWindow : Window
             // Second click — must be Input port on a different entity
             if (direction != PortDirection.Input)
             {
-                MessageBox.Show("End a connection on an Input port (blue).",
-                    "Connect", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Properties.Loc.S("Code_ConnEndInput"),
+                    Properties.Loc.S("Code_ConnTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             if (entityId == _connectFromEntityId)
@@ -661,21 +661,18 @@ public class CodeBoardWindow : Window
                 if (srcPort.Convention != dstPort.Convention)
                 {
                     MessageBox.Show(
-                        $"Cannot connect: passing convention mismatch.\n\n" +
-                        $"Output '{srcPort.Name}' is {srcPort.Convention}, " +
-                        $"input '{dstPort.Name}' is {dstPort.Convention}.\n\n" +
-                        $"Pointers, references and direct values must match.",
-                        "Type mismatch", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        string.Format(Properties.Loc.S("Code_MismatchConv"),
+                            srcPort.Name, srcPort.Convention, dstPort.Name, dstPort.Convention),
+                        Properties.Loc.S("Code_MismatchTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     _connectFromEntityId = null; _connectFromPortId = null; RemoveRubberBand();
                     return;
                 }
                 if (!NormType(srcPort.DataType).Equals(NormType(dstPort.DataType), StringComparison.OrdinalIgnoreCase))
                 {
                     MessageBox.Show(
-                        $"Cannot connect: data type mismatch.\n\n" +
-                        $"Output '{srcPort.Name}' is '{srcPort.DataType}', " +
-                        $"input '{dstPort.Name}' is '{dstPort.DataType}'.",
-                        "Type mismatch", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        string.Format(Properties.Loc.S("Code_MismatchType"),
+                            srcPort.Name, srcPort.DataType, dstPort.Name, dstPort.DataType),
+                        Properties.Loc.S("Code_MismatchTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     _connectFromEntityId = null; _connectFromPortId = null; RemoveRubberBand();
                     return;
                 }
@@ -961,7 +958,7 @@ public class CodeBoardWindow : Window
         foreach (var t in CodeEntityService.EntityTypes)
         {
             var capType = t;
-            var mi = new MenuItem { Header = $"Add {capType}" };
+            var mi = new MenuItem { Header = string.Format(Properties.Loc.S("Code_AddType"), capType) };
             mi.Click += (_, _) => ShowAddEntityOfType(capType, e.GetPosition(_canvas));
             cm.Items.Add(mi);
         }
@@ -974,13 +971,13 @@ public class CodeBoardWindow : Window
     {
         var cm = new ContextMenu();
 
-        var editMi = new MenuItem { Header = "✏ Edit…" };
+        var editMi = new MenuItem { Header = Properties.Loc.S("Code_Edit") };
         editMi.Click += (_, _) => ShowEntityEditor(entity);
         cm.Items.Add(editMi);
 
         if (entity.EntityType == CodeEntityType.Function)
         {
-            var flowMi = new MenuItem { Header = "🔁 Sketch flow…" };
+            var flowMi = new MenuItem { Header = Properties.Loc.S("Code_SketchFlow") };
             flowMi.Click += (_, _) =>
                 DiagramLauncher.ChooseAndOpen(this, _projFolder, entity.Id, entity.Name, _themePath);
             cm.Items.Add(flowMi);
@@ -993,8 +990,8 @@ public class CodeBoardWindow : Window
             var orientMi = new MenuItem
             {
                 Header = pos.PortOrientation == PortOrientation.Horizontal
-                    ? "⇅ Switch to Vertical ports (top/bottom)"
-                    : "⇄ Switch to Horizontal ports (left/right)"
+                    ? Properties.Loc.S("Code_SwitchVertical")
+                    : Properties.Loc.S("Code_SwitchHorizontal")
             };
             orientMi.Click += (_, _) =>
             {
@@ -1009,16 +1006,16 @@ public class CodeBoardWindow : Window
             cm.Items.Add(new Separator());
         }
 
-        var removeMi = new MenuItem { Header = "✕ Remove from board" };
+        var removeMi = new MenuItem { Header = Properties.Loc.S("Code_RemoveFromBoard") };
         removeMi.Click += (_, _) => RemoveFromBoard(new[] { entity.Id });
         cm.Items.Add(removeMi);
 
-        var deleteMi = new MenuItem { Header = "🗑 Delete entity permanently" };
+        var deleteMi = new MenuItem { Header = Properties.Loc.S("Code_DeletePerm") };
         deleteMi.Click += (_, _) =>
         {
             var res = MessageBox.Show(
-                $"Permanently delete '{entity.Name}'? This cannot be undone.",
-                "Delete Entity", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                string.Format(Properties.Loc.S("Code_DeletePermConfirm"), entity.Name),
+                Properties.Loc.S("Code_DeleteEntityTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (res != MessageBoxResult.Yes) return;
             CodeEntityService.Delete(_projFolder, entity.EntityType.ToString(), entity.Id);
             _entities.Remove(entity.Id);
@@ -1032,7 +1029,7 @@ public class CodeBoardWindow : Window
     private void ShowRelationContextMenu(CodeRelation rel)
     {
         var cm = new ContextMenu();
-        var delMi = new MenuItem { Header = "✕ Delete connection" };
+        var delMi = new MenuItem { Header = Properties.Loc.S("Code_DeleteConnection") };
         delMi.Click += (_, _) =>
         {
             _boardData.Relations.Remove(rel);
@@ -1060,7 +1057,7 @@ public class CodeBoardWindow : Window
         }
         // Option to add existing entity
         cm.Items.Add(new Separator());
-        var existMi = new MenuItem { Header = "Add existing entity…" };
+        var existMi = new MenuItem { Header = Properties.Loc.S("Code_AddExisting") };
         existMi.Click += (_, _) => ShowAddExistingEntityDialog();
         cm.Items.Add(existMi);
         cm.IsOpen = true;
@@ -1070,7 +1067,7 @@ public class CodeBoardWindow : Window
     {
         var dialog = new Window
         {
-            Title                 = $"New {entityTypeName}",
+            Title                 = string.Format(Properties.Loc.S("Code_NewTypeTitle"), entityTypeName),
             Width                 = 400,
             Height                = 180,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1085,7 +1082,7 @@ public class CodeBoardWindow : Window
         g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         dialog.Content = g;
 
-        var lbl = new TextBlock { Text = "Name:", Margin = new Thickness(0, 0, 0, 4) };
+        var lbl = new TextBlock { Text = Properties.Loc.S("Common_NameColon"), Margin = new Thickness(0, 0, 0, 4) };
         lbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
         Grid.SetRow(lbl, 0);
         g.Children.Add(lbl);
@@ -1101,7 +1098,7 @@ public class CodeBoardWindow : Window
         Grid.SetRow(btnRow, 2);
         g.Children.Add(btnRow);
 
-        var okBtn = Btn("Add", null);
+        var okBtn = Btn(Properties.Loc.S("Common_Add"), null);
         okBtn.Click += (_, _) =>
         {
             var name = box.Text.Trim();
@@ -1119,7 +1116,7 @@ public class CodeBoardWindow : Window
         };
         box.KeyDown += (_, e) => { if (e.Key == Key.Return) okBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); };
         btnRow.Children.Add(okBtn);
-        var cancelBtn = Btn("Cancel", null);
+        var cancelBtn = Btn(Properties.Loc.S("Common_Cancel"), null);
         cancelBtn.Margin = new Thickness(8, 0, 0, 0);
         cancelBtn.Click += (_, _) => dialog.Close();
         btnRow.Children.Add(cancelBtn);
@@ -1148,14 +1145,14 @@ public class CodeBoardWindow : Window
 
         if (available.Count == 0)
         {
-            MessageBox.Show("All existing entities are already on this board.", "Add Entity",
+            MessageBox.Show(Properties.Loc.S("Code_AllOnBoard"), Properties.Loc.S("Code_AddEntityTitle"),
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         var dialog = new Window
         {
-            Title                 = "Add Existing Entity",
+            Title                 = Properties.Loc.S("Code_AddExistingTitle"),
             Width                 = 360,
             Height                = 420,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1188,7 +1185,7 @@ public class CodeBoardWindow : Window
         Grid.SetRow(btnRow, 1);
         g.Children.Add(btnRow);
 
-        var addBtn = Btn("Add", null);
+        var addBtn = Btn(Properties.Loc.S("Common_Add"), null);
         addBtn.Click += (_, _) =>
         {
             if (lb.SelectedItem is not ListBoxItem { Tag: CodeEntity entity }) return;
@@ -1200,7 +1197,7 @@ public class CodeBoardWindow : Window
             dialog.Close();
         };
         btnRow.Children.Add(addBtn);
-        var cancelBtn = Btn("Cancel", null);
+        var cancelBtn = Btn(Properties.Loc.S("Common_Cancel"), null);
         cancelBtn.Margin = new Thickness(8, 0, 0, 0);
         cancelBtn.Click += (_, _) => dialog.Close();
         btnRow.Children.Add(cancelBtn);

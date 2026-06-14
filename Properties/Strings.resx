@@ -981,4 +981,168 @@ It will be removed from those boards automatically.</value></data>
   <data name="VoiceCmd_TypePhrase"                xml:space="preserve"><value>Phrase</value></data>
   <data name="VoiceCmd_TypeNoise"                 xml:space="preserve"><value>Noise</value></data>
 
+  <data name="Code_ExportCode" xml:space="preserve"><value>⬇ Export code</value></data>
+  <data name="Code_ExportTooltip" xml:space="preserve"><value>Generate code skeletons from all code entities</value></data>
+  <data name="Code_Tab_Boards" xml:space="preserve"><value>🗂 Boards</value></data>
+  <data name="Code_NewBoard" xml:space="preserve"><value>+ New Board</value></data>
+  <data name="Code_NoBoards" xml:space="preserve"><value>No code boards yet.
+Click "+ New Board" to create one.</value></data>
+  <data name="Code_Sort_NameAsc" xml:space="preserve"><value>Name A→Z</value></data>
+  <data name="Code_Sort_NameDesc" xml:space="preserve"><value>Name Z→A</value></data>
+  <data name="Code_Sort_ModifiedAsc" xml:space="preserve"><value>Modified ↑ (oldest)</value></data>
+  <data name="Code_Sort_ModifiedDesc" xml:space="preserve"><value>Modified ↓ (newest)</value></data>
+  <data name="Code_NewEntity" xml:space="preserve"><value>+ New {0}</value></data>
+  <data name="Code_NoEntities" xml:space="preserve"><value>No {0} entities yet.</value></data>
+  <data name="Code_FlowBtn" xml:space="preserve"><value>🔁 Flow</value></data>
+  <data name="Code_FlowTooltip" xml:space="preserve"><value>Sketch this function's flow (Programmablaufplan)</value></data>
+  <data name="Code_DeleteEntityTooltip" xml:space="preserve"><value>Delete entity permanently</value></data>
+  <data name="Code_DeleteEntityConfirm" xml:space="preserve"><value>Permanently delete '{0}'?</value></data>
+  <data name="Code_DeleteEntityTitle" xml:space="preserve"><value>Delete Entity</value></data>
+  <data name="Code_OpenBoard" xml:space="preserve"><value>Open board</value></data>
+  <data name="Code_RenameBoard" xml:space="preserve"><value>Rename / change symbol…</value></data>
+  <data name="Code_DeleteBoard" xml:space="preserve"><value>Delete board…</value></data>
+  <data name="Code_DeleteBoardConfirm" xml:space="preserve"><value>Delete board "{0}"?
+Entities are NOT deleted — only the board layout.</value></data>
+  <data name="Code_DeleteBoardTitle" xml:space="preserve"><value>Delete Board</value></data>
+  <data name="Code_NewBoardTitle" xml:space="preserve"><value>New Code Board</value></data>
+  <data name="Code_BoardName" xml:space="preserve"><value>Board name:</value></data>
+  <data name="Code_Symbol" xml:space="preserve"><value>Symbol:</value></data>
+  <data name="Code_Create" xml:space="preserve"><value>Create</value></data>
+  <data name="Common_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Code_BoardSettings" xml:space="preserve"><value>Board Settings</value></data>
+  <data name="Common_Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Code_ExportTitle" xml:space="preserve"><value>Export code skeleton</value></data>
+  <data name="Code_Language" xml:space="preserve"><value>Language:</value></data>
+  <data name="Code_Copy" xml:space="preserve"><value>📋 Copy</value></data>
+  <data name="Code_SaveOutput" xml:space="preserve"><value>💾 Save to OUTPUT/</value></data>
+  <data name="Common_Close" xml:space="preserve"><value>Close</value></data>
+  <data name="Code_NoEntitiesExport" xml:space="preserve"><value>No code entities to export yet.</value></data>
+  <data name="Code_SavedTo" xml:space="preserve"><value>Saved to OUTPUT/generated/{0}</value></data>
+  <data name="Code_SaveFailed" xml:space="preserve"><value>Could not save:
+{0}</value></data>
+  <data name="Code_ExportMsgTitle" xml:space="preserve"><value>Export code</value></data>
+  <data name="Common_OK" xml:space="preserve"><value>OK</value></data>
+  <data name="Common_Add" xml:space="preserve"><value>Add</value></data>
+  <data name="Common_AddPlus" xml:space="preserve"><value>+ Add</value></data>
+  <data name="Common_Name" xml:space="preserve"><value>Name</value></data>
+  <data name="Common_NameColon" xml:space="preserve"><value>Name:</value></data>
+  <data name="Common_None" xml:space="preserve"><value>(none)</value></data>
+  <data name="Common_Untitled" xml:space="preserve"><value>Untitled</value></data>
+  <data name="Common_ResetZoomTip" xml:space="preserve"><value>Reset zoom</value></data>
+  <data name="Code_AddToBoard" xml:space="preserve"><value>+ Add</value></data>
+  <data name="Code_AddToBoardTip" xml:space="preserve"><value>Add a code entity to the board</value></data>
+  <data name="Code_ConnectPorts" xml:space="preserve"><value>⇄ Connect</value></data>
+  <data name="Code_ConnectPortsTip" xml:space="preserve"><value>Click a port on one card, then a port on another</value></data>
+  <data name="Code_RemoveCards" xml:space="preserve"><value>✕ Remove</value></data>
+  <data name="Code_RemoveCardsTip" xml:space="preserve"><value>Remove selected cards from this board</value></data>
+  <data name="Code_ConnStartOutput" xml:space="preserve"><value>Start a connection from an Output port (green).</value></data>
+  <data name="Code_ConnEndInput" xml:space="preserve"><value>End a connection on an Input port (blue).</value></data>
+  <data name="Code_ConnTitle" xml:space="preserve"><value>Connect</value></data>
+  <data name="Code_MismatchConv" xml:space="preserve"><value>Cannot connect: passing convention mismatch.
+
+Output '{0}' is {1}, input '{2}' is {3}.
+
+Pointers, references and direct values must match.</value></data>
+  <data name="Code_MismatchType" xml:space="preserve"><value>Cannot connect: data type mismatch.
+
+Output '{0}' is '{1}', input '{2}' is '{3}'.</value></data>
+  <data name="Code_MismatchTitle" xml:space="preserve"><value>Type mismatch</value></data>
+  <data name="Code_AddType" xml:space="preserve"><value>Add {0}</value></data>
+  <data name="Code_Edit" xml:space="preserve"><value>✏ Edit…</value></data>
+  <data name="Code_SketchFlow" xml:space="preserve"><value>🔁 Sketch flow…</value></data>
+  <data name="Code_SwitchVertical" xml:space="preserve"><value>⇅ Switch to Vertical ports (top/bottom)</value></data>
+  <data name="Code_SwitchHorizontal" xml:space="preserve"><value>⇄ Switch to Horizontal ports (left/right)</value></data>
+  <data name="Code_RemoveFromBoard" xml:space="preserve"><value>✕ Remove from board</value></data>
+  <data name="Code_DeletePerm" xml:space="preserve"><value>🗑 Delete entity permanently</value></data>
+  <data name="Code_DeletePermConfirm" xml:space="preserve"><value>Permanently delete '{0}'? This cannot be undone.</value></data>
+  <data name="Code_DeleteConnection" xml:space="preserve"><value>✕ Delete connection</value></data>
+  <data name="Code_AddExisting" xml:space="preserve"><value>Add existing entity…</value></data>
+  <data name="Code_NewTypeTitle" xml:space="preserve"><value>New {0}</value></data>
+  <data name="Code_AllOnBoard" xml:space="preserve"><value>All existing entities are already on this board.</value></data>
+  <data name="Code_AddEntityTitle" xml:space="preserve"><value>Add Entity</value></data>
+  <data name="Code_AddExistingTitle" xml:space="preserve"><value>Add Existing Entity</value></data>
+  <data name="CodeEdit_Title" xml:space="preserve"><value>Edit — {0}</value></data>
+  <data name="CodeEdit_Type" xml:space="preserve"><value>Type</value></data>
+  <data name="CodeEdit_Namespace" xml:space="preserve"><value>Namespace (optional)</value></data>
+  <data name="CodeEdit_Description" xml:space="preserve"><value>Description</value></data>
+  <data name="CodeEdit_Inherits" xml:space="preserve"><value>Inherits from (base class)</value></data>
+  <data name="CodeEdit_Implements" xml:space="preserve"><value>Implements (interfaces)</value></data>
+  <data name="CodeEdit_NoInterfaces" xml:space="preserve"><value>(no interfaces defined yet)</value></data>
+  <data name="CodeEdit_InstanceOf" xml:space="preserve"><value>Instance of (class)</value></data>
+  <data name="CodeEdit_Fields" xml:space="preserve"><value>Fields</value></data>
+  <data name="CodeEdit_Methods" xml:space="preserve"><value>Methods</value></data>
+  <data name="CodeEdit_EnumValues" xml:space="preserve"><value>Enum values</value></data>
+  <data name="CodeEdit_DataPorts" xml:space="preserve"><value>Data ports (board wiring — output→input)</value></data>
+  <data name="CodeEdit_MethodFlowTip" xml:space="preserve"><value>Sketch this method's flow (Programmablaufplan)</value></data>
+  <data name="CodeEdit_DefaultValue" xml:space="preserve"><value>Value</value></data>
+  <data name="CodeEdit_AddParam" xml:space="preserve"><value>+ Param</value></data>
+  <data name="Flow_Title" xml:space="preserve"><value>🔁  Flow — {0}</value></data>
+  <data name="Flow_Start" xml:space="preserve"><value>⬭ Start</value></data>
+  <data name="Flow_Process" xml:space="preserve"><value>▭ Process</value></data>
+  <data name="Flow_Decision" xml:space="preserve"><value>◇ Decision</value></data>
+  <data name="Flow_IO" xml:space="preserve"><value>▱ I/O</value></data>
+  <data name="Flow_Subroutine" xml:space="preserve"><value>⊟ Subroutine</value></data>
+  <data name="Flow_End" xml:space="preserve"><value>⬭ End</value></data>
+  <data name="Flow_Note" xml:space="preserve"><value>✎ Note</value></data>
+  <data name="Flow_AddNodeTip" xml:space="preserve"><value>Add a {0} node</value></data>
+  <data name="Flow_Select" xml:space="preserve"><value>➤ Select/Move</value></data>
+  <data name="Flow_SelectTip" xml:space="preserve"><value>Normal mode: select and drag nodes</value></data>
+  <data name="Flow_Connect" xml:space="preserve"><value>→ Connect</value></data>
+  <data name="Flow_ConnectTip" xml:space="preserve"><value>Click a node, then another, to draw an arrow</value></data>
+  <data name="Flow_Remove" xml:space="preserve"><value>✕ Remove</value></data>
+  <data name="Flow_RemoveTip" xml:space="preserve"><value>Click a node or arrow to delete it</value></data>
+  <data name="Flow_DefStart" xml:space="preserve"><value>Start</value></data>
+  <data name="Flow_DefEnd" xml:space="preserve"><value>End</value></data>
+  <data name="Flow_DefDecision" xml:space="preserve"><value>condition?</value></data>
+  <data name="Flow_DefIO" xml:space="preserve"><value>input / output</value></data>
+  <data name="Flow_DefCall" xml:space="preserve"><value>call …</value></data>
+  <data name="Flow_DefNote" xml:space="preserve"><value>note</value></data>
+  <data name="Flow_DefStep" xml:space="preserve"><value>step</value></data>
+  <data name="Flow_EditText" xml:space="preserve"><value>✎ Edit text…</value></data>
+  <data name="Flow_DeleteNode" xml:space="preserve"><value>✕ Delete node</value></data>
+  <data name="Flow_NodeTextPrompt" xml:space="preserve"><value>Node text</value></data>
+  <data name="Flow_BranchPrompt" xml:space="preserve"><value>Branch label (e.g. yes / no)</value></data>
+  <data name="Flow_ArrowPrompt" xml:space="preserve"><value>Arrow label</value></data>
+  <data name="Flow_EditLabel" xml:space="preserve"><value>✎ Edit label…</value></data>
+  <data name="Flow_DeleteArrow" xml:space="preserve"><value>✕ Delete arrow</value></data>
+  <data name="Struct_Title" xml:space="preserve"><value>▦  Structogram — {0}</value></data>
+  <data name="Struct_Hint" xml:space="preserve"><value>Right-click any block to edit / insert / wrap. Use ＋ to add.</value></data>
+  <data name="Struct_PhStatement" xml:space="preserve"><value>(statement)</value></data>
+  <data name="Struct_PhCondition" xml:space="preserve"><value>(condition)</value></data>
+  <data name="Struct_True" xml:space="preserve"><value>true</value></data>
+  <data name="Struct_False" xml:space="preserve"><value>false</value></data>
+  <data name="Struct_PhWhile" xml:space="preserve"><value>while (…)</value></data>
+  <data name="Struct_PhDoWhile" xml:space="preserve"><value>do … while (…)</value></data>
+  <data name="Struct_PhSelector" xml:space="preserve"><value>(selector)</value></data>
+  <data name="Struct_Case" xml:space="preserve"><value>case</value></data>
+  <data name="Struct_InsertAbove" xml:space="preserve"><value>Insert above</value></data>
+  <data name="Struct_InsertBelow" xml:space="preserve"><value>Insert below</value></data>
+  <data name="Struct_AddLoopBody" xml:space="preserve"><value>Add to loop body</value></data>
+  <data name="Struct_AddTrue" xml:space="preserve"><value>Add to TRUE branch</value></data>
+  <data name="Struct_AddFalse" xml:space="preserve"><value>Add to FALSE branch</value></data>
+  <data name="Struct_AddArm" xml:space="preserve"><value>Add case arm</value></data>
+  <data name="Struct_DeleteBlock" xml:space="preserve"><value>✕ Delete block</value></data>
+  <data name="Struct_KStatement" xml:space="preserve"><value>Statement</value></data>
+  <data name="Struct_KIf" xml:space="preserve"><value>If / Else</value></data>
+  <data name="Struct_KWhile" xml:space="preserve"><value>While loop (pre-test)</value></data>
+  <data name="Struct_KDoWhile" xml:space="preserve"><value>Do-While loop (post-test)</value></data>
+  <data name="Struct_KCase" xml:space="preserve"><value>Case (multi-way)</value></data>
+  <data name="Struct_AddBlockTip" xml:space="preserve"><value>Add a block</value></data>
+  <data name="Struct_AddInline" xml:space="preserve"><value>＋ add</value></data>
+  <data name="Struct_PromptStatement" xml:space="preserve"><value>Statement</value></data>
+  <data name="Struct_PromptCondition" xml:space="preserve"><value>Condition / expression</value></data>
+  <data name="Struct_PromptCaseLabel" xml:space="preserve"><value>Case label</value></data>
+  <data name="Struct_DefCondition" xml:space="preserve"><value>condition</value></data>
+  <data name="Struct_DefWhile" xml:space="preserve"><value>while (condition)</value></data>
+  <data name="Struct_DefDoWhile" xml:space="preserve"><value>do … while (condition)</value></data>
+  <data name="Struct_DefSelector" xml:space="preserve"><value>selector</value></data>
+  <data name="Struct_DefStatement" xml:space="preserve"><value>statement</value></data>
+  <data name="Diag_Title" xml:space="preserve"><value>Diagram</value></data>
+  <data name="Diag_SketchOf" xml:space="preserve"><value>Sketch the flow of:
+{0}</value></data>
+  <data name="Diag_Pap" xml:space="preserve"><value>🔁 Programmablaufplan</value></data>
+  <data name="Diag_PapExists" xml:space="preserve"><value>🔁 Programmablaufplan (exists)</value></data>
+  <data name="Diag_Ns" xml:space="preserve"><value>▦ Structogram</value></data>
+  <data name="Diag_NsExists" xml:space="preserve"><value>▦ Structogram (exists)</value></data>
+  <data name="Diag_NsTip" xml:space="preserve"><value>Nassi-Shneiderman structogram editor (DIN 66261)</value></data>
 </root>

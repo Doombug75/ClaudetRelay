@@ -32,7 +32,7 @@ public class CodeEntityEditorDialog : Window
         _themePath  = themePath;
         OldType     = entity.EntityType;
 
-        Title                 = $"Edit — {entity.Name}";
+        Title                 = string.Format(Properties.Loc.S("CodeEdit_Title"), entity.Name);
         Width                 = 560;
         Height                = 680;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -68,39 +68,39 @@ public class CodeEntityEditorDialog : Window
         Grid.SetRow(formScroll, 0); root.Children.Add(formScroll);
 
         // Name
-        form.Children.Add(FieldLabel("Name"));
+        form.Children.Add(FieldLabel(Properties.Loc.S("Common_Name")));
         var nameBox = EditorTextBox(entity.Name);
         form.Children.Add(nameBox);
 
         // Type
-        form.Children.Add(FieldLabel("Type"));
+        form.Children.Add(FieldLabel(Properties.Loc.S("CodeEdit_Type")));
         var typeCombo = EditorCombo();
         foreach (var et in Enum.GetValues<CodeEntityType>()) typeCombo.Items.Add(et);
         typeCombo.SelectedItem = entity.EntityType;
         form.Children.Add(typeCombo);
 
         // Namespace
-        form.Children.Add(FieldLabel("Namespace (optional)"));
+        form.Children.Add(FieldLabel(Properties.Loc.S("CodeEdit_Namespace")));
         var nsBox = EditorTextBox(entity.Namespace);
         form.Children.Add(nsBox);
 
         // Description
-        form.Children.Add(FieldLabel("Description"));
+        form.Children.Add(FieldLabel(Properties.Loc.S("CodeEdit_Description")));
         var descBox = EditorTextBox(entity.Description, multiLine: true);
         form.Children.Add(descBox);
 
         // Inheritance (Class/Struct)
         var inheritSection = new StackPanel();
-        inheritSection.Children.Add(FieldLabel("Inherits from (base class)"));
+        inheritSection.Children.Add(FieldLabel(Properties.Loc.S("CodeEdit_Inherits")));
         var baseCombo = EditorCombo();
-        baseCombo.Items.Add(new ComboItem("(none)", ""));
+        baseCombo.Items.Add(new ComboItem(Properties.Loc.S("Common_None"), ""));
         foreach (var e in AllEntitiesOfTypes(CodeEntityType.Class, CodeEntityType.Struct).Where(e => e.Id != entity.Id))
             baseCombo.Items.Add(new ComboItem(e.Name, e.Id));
         baseCombo.SelectedItem = baseCombo.Items.Cast<ComboItem>().FirstOrDefault(c => c.Id == entity.BaseClassId)
                                  ?? baseCombo.Items[0];
         inheritSection.Children.Add(baseCombo);
 
-        inheritSection.Children.Add(FieldLabel("Implements (interfaces)"));
+        inheritSection.Children.Add(FieldLabel(Properties.Loc.S("CodeEdit_Implements")));
         var implPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
         var implChecks = new List<(string Id, CheckBox Cb)>();
         foreach (var iface in AllEntitiesOfTypes(CodeEntityType.Interface))
@@ -116,13 +116,13 @@ public class CodeEntityEditorDialog : Window
             implChecks.Add((iface.Id, cb));
         }
         if (implChecks.Count == 0)
-            implPanel.Children.Add(new TextBlock { Text = "(no interfaces defined yet)", Opacity = 0.5, FontSize = 10, FontStyle = FontStyles.Italic });
+            implPanel.Children.Add(new TextBlock { Text = Properties.Loc.S("CodeEdit_NoInterfaces"), Opacity = 0.5, FontSize = 10, FontStyle = FontStyles.Italic });
         inheritSection.Children.Add(implPanel);
         form.Children.Add(inheritSection);
 
         // Object: instance-of
         var instanceSection = new StackPanel();
-        instanceSection.Children.Add(FieldLabel("Instance of (class)"));
+        instanceSection.Children.Add(FieldLabel(Properties.Loc.S("CodeEdit_InstanceOf")));
         var instCombo = EditorCombo();
         instCombo.Items.Add(new ComboItem("(none)", ""));
         foreach (var e in AllEntitiesOfTypes(CodeEntityType.Class, CodeEntityType.Struct))
@@ -136,7 +136,7 @@ public class CodeEntityEditorDialog : Window
         var workFields = entity.Fields.Select(f => new CodeField
         { Name = f.Name, DataType = f.DataType, Visibility = f.Visibility, IsStatic = f.IsStatic, DefaultValue = f.DefaultValue }).ToList();
 
-        var fieldsSection = CollapsibleSection("Fields", startCollapsed: workFields.Count > 0,
+        var fieldsSection = CollapsibleSection(Properties.Loc.S("CodeEdit_Fields"), startCollapsed: workFields.Count > 0,
             out var addFieldBtn, out var fieldStack, out var fieldCount);
         form.Children.Add(fieldsSection);
 
@@ -187,7 +187,7 @@ public class CodeEntityEditorDialog : Window
             Parameters = m.Parameters.Select(p => new CodeParam { Name = p.Name, DataType = p.DataType, Convention = p.Convention }).ToList()
         }).ToList();
 
-        var methodsSection = CollapsibleSection("Methods", startCollapsed: workMethods.Count > 0,
+        var methodsSection = CollapsibleSection(Properties.Loc.S("CodeEdit_Methods"), startCollapsed: workMethods.Count > 0,
             out var addMethodBtn, out var methodStack, out var methodCount);
         form.Children.Add(methodsSection);
 
@@ -235,7 +235,7 @@ public class CodeEntityEditorDialog : Window
                 topRow.Children.Add(stat);
 
                 var flowM = Btn("🔁");
-                flowM.ToolTip = "Sketch this method's flow (Programmablaufplan)";
+                flowM.ToolTip = Properties.Loc.S("CodeEdit_MethodFlowTip");
                 flowM.Click += (_, _) =>
                 {
                     var key   = $"{entity.Id}#{m.Id}";
@@ -274,7 +274,7 @@ public class CodeEntityEditorDialog : Window
                         prow.Children.Add(delP);
                         paramStack.Children.Add(prow);
                     }
-                    var addP = Btn("+ Param");
+                    var addP = Btn(Properties.Loc.S("CodeEdit_AddParam"));
                     addP.Click += (_, _) => { m.Parameters.Add(new CodeParam()); RebuildParams(); };
                     paramStack.Children.Add(addP);
                 }
@@ -289,7 +289,7 @@ public class CodeEntityEditorDialog : Window
 
         // Enum values editor (collapsible)
         var workEnum = new List<string>(entity.EnumValues);
-        var enumSection = CollapsibleSection("Enum values", startCollapsed: workEnum.Count > 0,
+        var enumSection = CollapsibleSection(Properties.Loc.S("CodeEdit_EnumValues"), startCollapsed: workEnum.Count > 0,
             out var addEnumBtn, out var enumStack, out var enumCount);
         form.Children.Add(enumSection);
 
@@ -311,13 +311,13 @@ public class CodeEntityEditorDialog : Window
             }
         }
         RebuildEnumRows();
-        addEnumBtn.Click += (_, _) => { workEnum.Add("Value"); RebuildEnumRows(); };
+        addEnumBtn.Click += (_, _) => { workEnum.Add(Properties.Loc.S("CodeEdit_DefaultValue")); RebuildEnumRows(); };
 
         // Data ports editor (collapsible)
         var workPorts = entity.Ports.Select(p => new CodePort
         { Id = p.Id, Name = p.Name, DataType = p.DataType, Direction = p.Direction, Convention = p.Convention }).ToList();
 
-        var portsSection = CollapsibleSection("Data ports (board wiring — output→input)", startCollapsed: workPorts.Count > 0,
+        var portsSection = CollapsibleSection(Properties.Loc.S("CodeEdit_DataPorts"), startCollapsed: workPorts.Count > 0,
             out var addPortBtn, out var portStack, out var portCount);
         form.Children.Add(portsSection);
 
@@ -379,7 +379,7 @@ public class CodeEntityEditorDialog : Window
         var bottomRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0) };
         Grid.SetRow(bottomRow, 1); root.Children.Add(bottomRow);
 
-        var saveBtn = Btn("Save");
+        var saveBtn = Btn(Properties.Loc.S("Common_Save"));
         saveBtn.Click += (_, _) =>
         {
             OldType = entity.EntityType;
@@ -405,7 +405,7 @@ public class CodeEntityEditorDialog : Window
         };
         bottomRow.Children.Add(saveBtn);
 
-        var cancelBtn = Btn("Cancel");
+        var cancelBtn = Btn(Properties.Loc.S("Common_Cancel"));
         cancelBtn.Margin = new Thickness(8, 0, 0, 0);
         cancelBtn.Click += (_, _) => DialogResult = false;
         bottomRow.Children.Add(cancelBtn);
@@ -465,7 +465,7 @@ public class CodeEntityEditorDialog : Window
         countLabel.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
         hdr.Children.Add(countLabel);
 
-        addBtn = Btn("+ Add");
+        addBtn = Btn(Properties.Loc.S("Common_AddPlus"));
         addBtn.Margin = new Thickness(8, 0, 0, 0);
         hdr.Children.Add(addBtn);
 

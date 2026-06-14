@@ -45,7 +45,7 @@ public class FlowChartWindow : Window
         _data       = FlowChartService.Load(projFolder, key);
         if (string.IsNullOrEmpty(_data.Title)) _data.Title = title;
 
-        Title                 = "🔁  Flow — " + (string.IsNullOrEmpty(title) ? "Untitled" : title);
+        Title                 = string.Format(Properties.Loc.S("Flow_Title"), string.IsNullOrEmpty(title) ? Properties.Loc.S("Common_Untitled") : title);
         Width                 = 1100;
         Height                = 760;
         MinWidth              = 560;
@@ -135,25 +135,25 @@ public class FlowChartWindow : Window
 
         void AddShapeBtn(string label, FlowNodeKind kind)
         {
-            var b = Btn(label, $"Add a {kind} node");
+            var b = Btn(label, string.Format(Properties.Loc.S("Flow_AddNodeTip"), kind));
             b.Click += (_, _) => AddNode(kind);
             row.Children.Add(b);
         }
 
-        AddShapeBtn("⬭ Start", FlowNodeKind.Start);
-        AddShapeBtn("▭ Process", FlowNodeKind.Process);
-        AddShapeBtn("◇ Decision", FlowNodeKind.Decision);
-        AddShapeBtn("▱ I/O", FlowNodeKind.InputOutput);
-        AddShapeBtn("⊟ Subroutine", FlowNodeKind.Subroutine);
-        AddShapeBtn("⬭ End", FlowNodeKind.End);
-        AddShapeBtn("✎ Note", FlowNodeKind.Comment);
+        AddShapeBtn(Properties.Loc.S("Flow_Start"), FlowNodeKind.Start);
+        AddShapeBtn(Properties.Loc.S("Flow_Process"), FlowNodeKind.Process);
+        AddShapeBtn(Properties.Loc.S("Flow_Decision"), FlowNodeKind.Decision);
+        AddShapeBtn(Properties.Loc.S("Flow_IO"), FlowNodeKind.InputOutput);
+        AddShapeBtn(Properties.Loc.S("Flow_Subroutine"), FlowNodeKind.Subroutine);
+        AddShapeBtn(Properties.Loc.S("Flow_End"), FlowNodeKind.End);
+        AddShapeBtn(Properties.Loc.S("Flow_Note"), FlowNodeKind.Comment);
 
         row.Children.Add(new Border { Width = 12 });
 
         // ── Three mutually-exclusive modes: Select / Connect / Remove ──
-        _selectBtn  = Btn("➤ Select/Move", "Normal mode: select and drag nodes");
-        _connectBtn = Btn("→ Connect", "Click a node, then another, to draw an arrow");
-        _removeBtn  = Btn("✕ Remove", "Click a node or arrow to delete it");
+        _selectBtn  = Btn(Properties.Loc.S("Flow_Select"), Properties.Loc.S("Flow_SelectTip"));
+        _connectBtn = Btn(Properties.Loc.S("Flow_Connect"), Properties.Loc.S("Flow_ConnectTip"));
+        _removeBtn  = Btn(Properties.Loc.S("Flow_Remove"), Properties.Loc.S("Flow_RemoveTip"));
         _selectBtn.Click  += (_, _) => SetMode(EditMode.Select);
         _connectBtn.Click += (_, _) => SetMode(EditMode.Connect);
         _removeBtn.Click  += (_, _) => SetMode(EditMode.Remove);
@@ -163,7 +163,7 @@ public class FlowChartWindow : Window
         UpdateModeButtons();
 
         row.Children.Add(new Border { Width = 12 });
-        var zoomBtn = Btn("1:1", "Reset zoom");
+        var zoomBtn = Btn("1:1", Properties.Loc.S("Common_ResetZoomTip"));
         zoomBtn.Click += (_, _) => { _zoom = 1.0; _canvas!.LayoutTransform = Transform.Identity; };
         row.Children.Add(zoomBtn);
 
@@ -214,13 +214,13 @@ public class FlowChartWindow : Window
 
     private static string DefaultText(FlowNodeKind k) => k switch
     {
-        FlowNodeKind.Start       => "Start",
-        FlowNodeKind.End         => "End",
-        FlowNodeKind.Decision    => "condition?",
-        FlowNodeKind.InputOutput => "input / output",
-        FlowNodeKind.Subroutine  => "call …",
-        FlowNodeKind.Comment     => "note",
-        _                        => "step"
+        FlowNodeKind.Start       => Properties.Loc.S("Flow_DefStart"),
+        FlowNodeKind.End         => Properties.Loc.S("Flow_DefEnd"),
+        FlowNodeKind.Decision    => Properties.Loc.S("Flow_DefDecision"),
+        FlowNodeKind.InputOutput => Properties.Loc.S("Flow_DefIO"),
+        FlowNodeKind.Subroutine  => Properties.Loc.S("Flow_DefCall"),
+        FlowNodeKind.Comment     => Properties.Loc.S("Flow_DefNote"),
+        _                        => Properties.Loc.S("Flow_DefStep")
     };
 
     private void RenderNode(FlowNode node)
@@ -320,10 +320,10 @@ public class FlowChartWindow : Window
     private void ShowNodeMenu(FlowNode node, TextBlock label)
     {
         var cm = new ContextMenu();
-        var edit = new MenuItem { Header = "✎ Edit text…" };
+        var edit = new MenuItem { Header = Properties.Loc.S("Flow_EditText") };
         edit.Click += (_, _) => EditNodeText(node, label);
         cm.Items.Add(edit);
-        var del = new MenuItem { Header = "✕ Delete node" };
+        var del = new MenuItem { Header = Properties.Loc.S("Flow_DeleteNode") };
         del.Click += (_, _) => { _selected.Clear(); _selected.Add(node.Id); RemoveSelected(); };
         cm.Items.Add(del);
         cm.IsOpen = true;
@@ -331,7 +331,7 @@ public class FlowChartWindow : Window
 
     private void EditNodeText(FlowNode node, TextBlock label)
     {
-        var text = PromptText("Node text", node.Text);
+        var text = PromptText(Properties.Loc.S("Flow_NodeTextPrompt"), node.Text);
         if (text is null) return;
         node.Text = text;
         label.Text = text;
@@ -353,7 +353,7 @@ public class FlowChartWindow : Window
             var conn = new FlowConnection { FromId = _connectFromId, ToId = nodeId };
             // Offer a label for decision branches
             if (_data.Nodes.FirstOrDefault(n => n.Id == _connectFromId)?.Kind == FlowNodeKind.Decision)
-                conn.Label = PromptText("Branch label (e.g. yes / no)", "") ?? "";
+                conn.Label = PromptText(Properties.Loc.S("Flow_BranchPrompt"), "") ?? "";
             _data.Connections.Add(conn);
             Save();
             RenderConnection(conn);
@@ -441,15 +441,15 @@ public class FlowChartWindow : Window
     private void ShowConnMenu(FlowConnection conn)
     {
         var cm = new ContextMenu();
-        var relabel = new MenuItem { Header = "✎ Edit label…" };
+        var relabel = new MenuItem { Header = Properties.Loc.S("Flow_EditLabel") };
         relabel.Click += (_, _) =>
         {
-            var t = PromptText("Arrow label", conn.Label);
+            var t = PromptText(Properties.Loc.S("Flow_ArrowPrompt"), conn.Label);
             if (t is null) return;
             conn.Label = t; Save(); RenderConnection(conn);
         };
         cm.Items.Add(relabel);
-        var del = new MenuItem { Header = "✕ Delete arrow" };
+        var del = new MenuItem { Header = Properties.Loc.S("Flow_DeleteArrow") };
         del.Click += (_, _) =>
         {
             _data.Connections.Remove(conn);
@@ -702,11 +702,11 @@ public class FlowChartWindow : Window
         Grid.SetRow(btnRow, 1); g.Children.Add(btnRow);
 
         string? result = null;
-        var ok = Btn("OK", null);
+        var ok = Btn(Properties.Loc.S("Common_OK"), null);
         ok.Click += (_, _) => { result = box.Text; dlg.DialogResult = true; };
         btnRow.Children.Add(ok);
         box.KeyDown += (_, e) => { if (e.Key == Key.Return) { result = box.Text; dlg.DialogResult = true; } };
-        var cancel = Btn("Cancel", null);
+        var cancel = Btn(Properties.Loc.S("Common_Cancel"), null);
         cancel.Margin = new Thickness(8, 0, 0, 0);
         cancel.Click += (_, _) => dlg.DialogResult = false;
         btnRow.Children.Add(cancel);

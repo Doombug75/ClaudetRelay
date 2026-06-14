@@ -16,7 +16,7 @@ public static class DiagramLauncher
     {
         var dlg = new Window
         {
-            Title                 = "Diagram",
+            Title                 = Properties.Loc.S("Diag_Title"),
             Width                 = 360,
             Height                = 190,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -35,7 +35,7 @@ public static class DiagramLauncher
 
         var hdr = new TextBlock
         {
-            Text       = $"Sketch the flow of:\n{title}",
+            Text       = string.Format(Properties.Loc.S("Diag_SketchOf"), title),
             FontSize   = 12,
             TextWrapping = TextWrapping.Wrap,
             Margin     = new Thickness(0, 0, 0, 12)
@@ -45,7 +45,7 @@ public static class DiagramLauncher
 
         bool papExists = FlowChartService.Exists(projFolder, key);
 
-        var papBtn = MakeBtn(papExists ? "🔁 Programmablaufplan (exists)" : "🔁 Programmablaufplan");
+        var papBtn = MakeBtn(papExists ? Properties.Loc.S("Diag_PapExists") : Properties.Loc.S("Diag_Pap"));
         papBtn.Click += (_, _) =>
         {
             dlg.Close();
@@ -54,9 +54,9 @@ public static class DiagramLauncher
         stack.Children.Add(papBtn);
 
         bool nsExists = StructogramService.Exists(projFolder, key);
-        var nsBtn = MakeBtn(nsExists ? "▦ Struktogramm (exists)" : "▦ Struktogramm");
+        var nsBtn = MakeBtn(nsExists ? Properties.Loc.S("Diag_NsExists") : Properties.Loc.S("Diag_Ns"));
         nsBtn.Margin = new Thickness(0, 6, 0, 0);
-        nsBtn.ToolTip = "Nassi-Shneiderman structogram editor (DIN 66261)";
+        nsBtn.ToolTip = Properties.Loc.S("Diag_NsTip");
         nsBtn.Click += (_, _) =>
         {
             dlg.Close();

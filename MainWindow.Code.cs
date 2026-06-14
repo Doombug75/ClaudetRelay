@@ -88,7 +88,7 @@ public partial class MainWindow
 
         var exportBtn = new Button
         {
-            Content    = "⬇ Export code",
+            Content    = Properties.Loc.S("Code_ExportCode"),
             FontSize   = 12,
             Padding    = new Thickness(10, 5, 10, 5),
             Margin     = new Thickness(0, 4, 0, 6),
@@ -97,7 +97,7 @@ public partial class MainWindow
         exportBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
         exportBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
         exportBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
-        exportBtn.ToolTip = "Generate code skeletons from all code entities";
+        exportBtn.ToolTip = Properties.Loc.S("Code_ExportTooltip");
         exportBtn.Click += (_, _) => ShowCodeExportDialog(projFolder);
         Grid.SetColumn(exportBtn, 1);
         topRow.Children.Add(exportBtn);
@@ -119,7 +119,7 @@ public partial class MainWindow
             return t;
         }
 
-        tabs.Children.Add(MakeTab("🗂 Boards", _codeBoardsMode, () => { _codeBoardsMode = true; BuildCodeContent(projFolder); }));
+        tabs.Children.Add(MakeTab(Properties.Loc.S("Code_Tab_Boards"), _codeBoardsMode, () => { _codeBoardsMode = true; BuildCodeContent(projFolder); }));
         foreach (var et in CodeEntityService.EntityTypes)
         {
             var capEt = et;
@@ -157,7 +157,7 @@ public partial class MainWindow
 
         var addBtn = new Button
         {
-            Content = "+ New Board",
+            Content = Properties.Loc.S("Code_NewBoard"),
             Padding = new Thickness(10, 5, 10, 5),
             FontSize = 12,
             HorizontalAlignment = HorizontalAlignment.Right
@@ -189,7 +189,7 @@ public partial class MainWindow
         {
             var hint = new TextBlock
             {
-                Text              = "No code boards yet.\nClick \"+ New Board\" to create one.",
+                Text              = Properties.Loc.S("Code_NoBoards"),
                 TextAlignment     = TextAlignment.Center,
                 FontSize          = 13,
                 Opacity           = 0.55,
@@ -254,8 +254,8 @@ public partial class MainWindow
         sortCombo.SetResourceReference(StyleProperty, "ModernComboBox");
         var sortOpts = new (string Label, string Key)[]
         {
-            ("Name A→Z", "name_asc"), ("Name Z→A", "name_desc"),
-            ("Modified ↑ (oldest)", "modified_asc"), ("Modified ↓ (newest)", "modified_desc"),
+            (Properties.Loc.S("Code_Sort_NameAsc"), "name_asc"), (Properties.Loc.S("Code_Sort_NameDesc"), "name_desc"),
+            (Properties.Loc.S("Code_Sort_ModifiedAsc"), "modified_asc"), (Properties.Loc.S("Code_Sort_ModifiedDesc"), "modified_desc"),
         };
         foreach (var o in sortOpts) sortCombo.Items.Add(o.Label);
         sortCombo.SelectedIndex = Math.Max(0, Array.FindIndex(sortOpts, o => o.Key == _codeLibSort));
@@ -264,7 +264,7 @@ public partial class MainWindow
 
         var newBtn = new Button
         {
-            Content = $"+ New {_codeLibType}",
+            Content = string.Format(Properties.Loc.S("Code_NewEntity"), _codeLibType),
             Padding = new Thickness(10, 5, 10, 5),
             FontSize = 12,
             Margin   = new Thickness(8, 0, 0, 0)
@@ -314,7 +314,7 @@ public partial class MainWindow
             {
                 list.Children.Add(new TextBlock
                 {
-                    Text       = $"No {_codeLibType} entities yet.",
+                    Text       = string.Format(Properties.Loc.S("Code_NoEntities"), _codeLibType),
                     Opacity    = 0.55,
                     FontSize   = 13,
                     Margin     = new Thickness(0, 40, 0, 0),
@@ -390,11 +390,11 @@ public partial class MainWindow
         // Flow sketch button — for functions (the "attach a flowchart" entry point)
         if (entity.EntityType == CodeEntityType.Function)
         {
-            var flowBtn = new Button { Content = "🔁 Flow", Padding = new Thickness(8, 2, 8, 2), FontSize = 12, Margin = new Thickness(0, 0, 6, 0) };
+            var flowBtn = new Button { Content = Properties.Loc.S("Code_FlowBtn"), Padding = new Thickness(8, 2, 8, 2), FontSize = 12, Margin = new Thickness(0, 0, 6, 0) };
             flowBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
             flowBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
             flowBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
-            flowBtn.ToolTip = "Sketch this function's flow (Programmablaufplan)";
+            flowBtn.ToolTip = Properties.Loc.S("Code_FlowTooltip");
             flowBtn.Click += (_, e) =>
             {
                 e.Handled = true;
@@ -407,14 +407,14 @@ public partial class MainWindow
         delBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
         delBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
         delBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
-        delBtn.ToolTip = "Delete entity permanently";
+        delBtn.ToolTip = Properties.Loc.S("Code_DeleteEntityTooltip");
         actions.Children.Add(delBtn);
 
         delBtn.Click += (_, e) =>
         {
             e.Handled = true;
-            var res = MessageBox.Show($"Permanently delete '{entity.Name}'?",
-                "Delete Entity", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            var res = MessageBox.Show(string.Format(Properties.Loc.S("Code_DeleteEntityConfirm"), entity.Name),
+                Properties.Loc.S("Code_DeleteEntityTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (res != MessageBoxResult.Yes) return;
             CodeEntityService.Delete(projFolder, entity.EntityType.ToString(), entity.Id);
             allKnown.Remove(entity.Id);
@@ -491,13 +491,13 @@ public partial class MainWindow
         {
             var cm = new ContextMenu();
 
-            var openMi = new MenuItem { Header = "Open board" };
+            var openMi = new MenuItem { Header = Properties.Loc.S("Code_OpenBoard") };
             openMi.Click += (_, _) => OpenOrActivateCodeWindow(projFolder, board);
             cm.Items.Add(openMi);
 
             cm.Items.Add(new Separator());
 
-            var renameMi = new MenuItem { Header = "Rename / change symbol…" };
+            var renameMi = new MenuItem { Header = Properties.Loc.S("Code_RenameBoard") };
             renameMi.Click += (_, _) =>
             {
                 if (ShowCodeBoardSettingsDialog(board))
@@ -511,12 +511,12 @@ public partial class MainWindow
 
             cm.Items.Add(new Separator());
 
-            var delMi = new MenuItem { Header = "Delete board…" };
+            var delMi = new MenuItem { Header = Properties.Loc.S("Code_DeleteBoard") };
             delMi.Click += (_, _) =>
             {
                 var res = MessageBox.Show(
-                    $"Delete board \"{board.Name}\"?\nEntities are NOT deleted — only the board layout.",
-                    "Delete Board", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                    string.Format(Properties.Loc.S("Code_DeleteBoardConfirm"), board.Name),
+                    Properties.Loc.S("Code_DeleteBoardTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (res != MessageBoxResult.Yes) return;
 
                 // Close window if open
@@ -553,7 +553,7 @@ public partial class MainWindow
     {
         var dialog = new Window
         {
-            Title                 = "New Code Board",
+            Title                 = Properties.Loc.S("Code_NewBoardTitle"),
             Width                 = 400,
             Height                = 320,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -570,10 +570,10 @@ public partial class MainWindow
         g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // buttons
         dialog.Content = g;
 
-        AddLabel(g, 0, "Board name:");
+        AddLabel(g, 0, Properties.Loc.S("Code_BoardName"));
         var nameBox = AddTextBox(g, 1);
 
-        AddLabel(g, 2, "Symbol:");
+        AddLabel(g, 2, Properties.Loc.S("Code_Symbol"));
         string selectedSymbol = CodeBoardRegistryService.SymbolPalette[0];
         Border? selectedBorder = null;
 
@@ -621,7 +621,7 @@ public partial class MainWindow
         Grid.SetRow(btnRow, 4); g.Children.Add(btnRow);
 
         CodeBoard? result = null;
-        var okBtn = MakeDialogBtn("Create");
+        var okBtn = MakeDialogBtn(Properties.Loc.S("Code_Create"));
         okBtn.Click += (_, _) =>
         {
             var name = nameBox.Text.Trim();
@@ -632,7 +632,7 @@ public partial class MainWindow
         nameBox.KeyDown += (_, e) => { if (e.Key == Key.Return) okBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); };
         btnRow.Children.Add(okBtn);
 
-        var cancelBtn = MakeDialogBtn("Cancel");
+        var cancelBtn = MakeDialogBtn(Properties.Loc.S("Common_Cancel"));
         cancelBtn.Margin = new Thickness(8, 0, 0, 0);
         cancelBtn.Click += (_, _) => dialog.DialogResult = false;
         btnRow.Children.Add(cancelBtn);
@@ -646,7 +646,7 @@ public partial class MainWindow
     {
         var dialog = new Window
         {
-            Title                 = "Board Settings",
+            Title                 = Properties.Loc.S("Code_BoardSettings"),
             Width                 = 400,
             Height                = 320,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -663,10 +663,10 @@ public partial class MainWindow
         g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         dialog.Content = g;
 
-        AddLabel(g, 0, "Board name:");
+        AddLabel(g, 0, Properties.Loc.S("Code_BoardName"));
         var nameBox = AddTextBox(g, 1, board.Name);
 
-        AddLabel(g, 2, "Symbol:");
+        AddLabel(g, 2, Properties.Loc.S("Code_Symbol"));
         string selectedSymbol = board.Symbol;
         Border? selectedBorder = null;
 
@@ -712,7 +712,7 @@ public partial class MainWindow
         Grid.SetRow(btnRow, 4); g.Children.Add(btnRow);
 
         bool saved = false;
-        var saveBtn = MakeDialogBtn("Save");
+        var saveBtn = MakeDialogBtn(Properties.Loc.S("Common_Save"));
         saveBtn.Click += (_, _) =>
         {
             var name = nameBox.Text.Trim();
@@ -724,7 +724,7 @@ public partial class MainWindow
         };
         btnRow.Children.Add(saveBtn);
 
-        var cancelBtn = MakeDialogBtn("Cancel");
+        var cancelBtn = MakeDialogBtn(Properties.Loc.S("Common_Cancel"));
         cancelBtn.Margin = new Thickness(8, 0, 0, 0);
         cancelBtn.Click += (_, _) => dialog.DialogResult = false;
         btnRow.Children.Add(cancelBtn);
@@ -792,14 +792,14 @@ public partial class MainWindow
 
         if (all.Count == 0)
         {
-            MessageBox.Show("No code entities to export yet.", "Export code",
+            MessageBox.Show(Properties.Loc.S("Code_NoEntitiesExport"), Properties.Loc.S("Code_ExportMsgTitle"),
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         var dialog = new Window
         {
-            Title                 = "Export code skeleton",
+            Title                 = Properties.Loc.S("Code_ExportTitle"),
             Width                 = 720,
             Height                = 640,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -818,7 +818,7 @@ public partial class MainWindow
         var ctrlRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
         Grid.SetRow(ctrlRow, 0); g.Children.Add(ctrlRow);
 
-        var langLbl = new TextBlock { Text = "Language:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        var langLbl = new TextBlock { Text = Properties.Loc.S("Code_Language"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         langLbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
         ctrlRow.Children.Add(langLbl);
 
@@ -861,14 +861,14 @@ public partial class MainWindow
         var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
         Grid.SetRow(btnRow, 2); g.Children.Add(btnRow);
 
-        var copyBtn = MakeDialogBtn("📋 Copy");
+        var copyBtn = MakeDialogBtn(Properties.Loc.S("Code_Copy"));
         copyBtn.Click += (_, _) =>
         {
             try { Clipboard.SetText(preview.Text); } catch { }
         };
         btnRow.Children.Add(copyBtn);
 
-        var saveBtn = MakeDialogBtn("💾 Save to OUTPUT/");
+        var saveBtn = MakeDialogBtn(Properties.Loc.S("Code_SaveOutput"));
         saveBtn.Margin = new Thickness(8, 0, 0, 0);
         saveBtn.Click += (_, _) =>
         {
@@ -879,18 +879,18 @@ public partial class MainWindow
                 SysIO.Directory.CreateDirectory(dir);
                 var file = SysIO.Path.Combine(dir, $"skeleton_{DateTime.Now:yyyyMMdd_HHmmss}.{ext}");
                 SysIO.File.WriteAllText(file, preview.Text);
-                MessageBox.Show($"Saved to OUTPUT/generated/{SysIO.Path.GetFileName(file)}", "Export code",
+                MessageBox.Show(string.Format(Properties.Loc.S("Code_SavedTo"), SysIO.Path.GetFileName(file)), Properties.Loc.S("Code_ExportMsgTitle"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Could not save:\n{ex.Message}", "Export code",
+                MessageBox.Show(string.Format(Properties.Loc.S("Code_SaveFailed"), ex.Message), Properties.Loc.S("Code_ExportMsgTitle"),
                     MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         };
         btnRow.Children.Add(saveBtn);
 
-        var closeBtn = MakeDialogBtn("Close");
+        var closeBtn = MakeDialogBtn(Properties.Loc.S("Common_Close"));
         closeBtn.Margin = new Thickness(8, 0, 0, 0);
         closeBtn.Click += (_, _) => dialog.Close();
         btnRow.Children.Add(closeBtn);
