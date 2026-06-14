@@ -4,10 +4,11 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using NAudio.Wave;
 using SherpaOnnx;
+using ClaudetRelay.Models;
 
 namespace ClaudetRelay.Services;
 
-public enum DictationActivationMode { AlwaysOn, PushToTalk, VoiceActivated }
+public enum DictationActivationMode { AlwaysOn, PushToTalk }
 public enum DictationState         { Idle, Listening, Recording, Processing }
 
 /// <summary>
@@ -25,11 +26,11 @@ public enum DictationState         { Idle, Listening, Recording, Processing }
 ///   (configured via Rule1/2/3 silence thresholds). TextAvailable fires once
 ///   per phrase — text appears progressively while the mic stays open.
 ///
-/// Three activation modes (both batch and streaming):
-///   AlwaysOn       — recording immediately starts when Activate() is called.
-///   PushToTalk     — call PttDown()/PttUp() to control recording.
-///   VoiceActivated — recording starts automatically when RMS exceeds the
-///                    configured threshold, and stops after a period of silence.
+/// Two activation modes (both batch and streaming):
+///   AlwaysOn   — hands-free: recording starts automatically when RMS exceeds the
+///                configured threshold and stops after a period of silence; the mic
+///                stays open and re-arms for the next utterance.
+///   PushToTalk — call PttDown()/PttUp() to control recording.
 /// </summary>
 public sealed class DictationService : IDisposable
 {
@@ -44,6 +45,16 @@ public sealed class DictationService : IDisposable
     public event Action<string>?         TextAvailable;
     /// <summary>Fired whenever the service state changes.</summary>
     public event Action<DictationState>? StateChanged;
+    /// <summary>Fired with every raw PCM chunk from the microphone (16 kHz mono float). Used by noise command matching.</summary>
+    public event Action<float[]>? RawAudioAvailable;
+    /// <summary>Fired each time any ASR job completes, even when the result is empty. Used to detect when the worker queue fully drains.</summary>
+    [Obsolete("Subscribe to OutputChain.EntryReady instead.")]
+    public event Action? AnyTranscriptionCompleted;
+
+    /// <summary>Fired whenever the number of in-flight ASR jobs changes (submitted or
+    /// completed). The argument is the current <see cref="PendingTranscriptionCount"/>.
+    /// Lets the UI show a busy/working indicator while transcription is calculating.</summary>
+    public event Action<int>? PendingCountChanged;
 
     // ── Config ─────────────────────────────────────────────────────────────
     private DictationActivationMode _mode         = DictationActivationMode.AlwaysOn;
@@ -65,12 +76,18 @@ public sealed class DictationService : IDisposable
     private DictationState     _state          = DictationState.Idle;
     private WaveInEvent?       _waveIn;
 
+    // ── Output chain (batch mode only) ────────────────────────────────────
+    public OutputChain? OutputChain { get; set; }
+
     // ── Batch mode state ───────────────────────────────────────────────────
     private List<float>        _samples        = new();
     private bool               _recording      = false;
     private bool               _voiceTriggered = false;
     private bool               _pausedByUser   = false;
     private int                _silenceSamples = 0;
+    private int                _postNoiseSuppress = 0; // samples remaining where re-arm is blocked
+    private DateTime           _recordingStartTime;
+    private OutputChainEntry?  _currentChainEntry;
 
     // ── Batch recogniser ───────────────────────────────────────────────────
     private OfflineRecognizer? _recognizer;
@@ -82,7 +99,7 @@ public sealed class DictationService : IDisposable
     private readonly System.Collections.Concurrent.ConcurrentDictionary<int, string> _pendingResults = new();
 
     // ── Pre-warmed worker pool ─────────────────────────────────────────────
-    private System.Collections.Concurrent.BlockingCollection<(int seq, float[] samples)>? _workQueue;
+    private System.Collections.Concurrent.BlockingCollection<(int seq, float[] samples, OutputChainEntry? chainEntry)>? _workQueue;
     private Thread[]? _workers;
     private const int WorkerCount = 3;
 
@@ -97,6 +114,46 @@ public sealed class DictationService : IDisposable
     public bool           IsActive    => _state != DictationState.Idle || _recording;
     public bool           IsRecording => _recording;
     public DictationState State       => _state;
+
+    /// <summary>
+    /// Call this immediately on the audio thread when a noise command fires, before
+    /// the handler is dispatched to the UI thread. Sets the post-noise suppress counter
+    /// so the very next audio batch doesn't re-arm recording from the resonance tail.
+    /// </summary>
+    public void SuppressRearm() => _postNoiseSuppress = SampleRate / 6;
+    public bool           IsModelLoaded { get { lock (_recognizerLock) return _recognizer is not null; } }
+
+    /// <summary>Number of ASR jobs queued but not yet emitted via TextAvailable.</summary>
+    public int PendingTranscriptionCount =>
+        Math.Max(0, System.Threading.Volatile.Read(ref _captureSeq)
+                   - System.Threading.Volatile.Read(ref _emitSeq));
+
+    /// <summary>
+    /// Runs <paramref name="samples"/> through the loaded offline model and returns
+    /// the recognised text, or null if no model is loaded.
+    /// Safe to call from any thread.
+    /// </summary>
+    public Task<string?> TranscribeSampleAsync(float[] samples) => Task.Run(() =>
+    {
+        OfflineRecognizer? recognizer;
+        lock (_recognizerLock) { recognizer = _recognizer; }
+        if (recognizer is null) return null;
+
+        // Pad with 300 ms of silence after the clip so Whisper has a clear end-of-speech
+        // signal and properly closes parenthetical tokens like "(farting)".
+        var padded = new float[samples.Length + SampleRate / 3];
+        samples.CopyTo(padded, 0);
+
+        SherpaOnnx.OfflineStream stream;
+        lock (_recognizerLock)
+        {
+            stream = recognizer.CreateStream();
+            stream.AcceptWaveform(SampleRate, padded);
+            recognizer.Decode(stream);
+        }
+        var text = stream.Result.Text?.Trim();
+        return string.IsNullOrEmpty(text) ? null : text;
+    });
 
     // ── Model loading ──────────────────────────────────────────────────────
 
@@ -208,7 +265,7 @@ public sealed class DictationService : IDisposable
     private void StartWorkerPool()
     {
         StopWorkerPool();
-        _workQueue = new System.Collections.Concurrent.BlockingCollection<(int, float[])>(boundedCapacity: 32);
+        _workQueue = new System.Collections.Concurrent.BlockingCollection<(int, float[], OutputChainEntry?)>(boundedCapacity: 32);
         _workers   = new Thread[WorkerCount];
         for (int i = 0; i < WorkerCount; i++)
         {
@@ -233,14 +290,14 @@ public sealed class DictationService : IDisposable
     {
         try
         {
-            foreach (var (seq, samples) in _workQueue!.GetConsumingEnumerable())
+            foreach (var (seq, samples, chainEntry) in _workQueue!.GetConsumingEnumerable())
             {
                 string text = "";
                 try
                 {
                     OfflineRecognizer? recognizer;
                     lock (_recognizerLock) { recognizer = _recognizer; }
-                    if (recognizer is null) { _pendingResults[seq] = ""; DrainPendingResults(); continue; }
+                    if (recognizer is null) { _pendingResults[seq] = ""; DrainPendingResults(); chainEntry?.Complete(""); OutputChain?.Complete(chainEntry!, ""); continue; }
 
                     SherpaOnnx.OfflineStream stream;
                     lock (_recognizerLock)
@@ -257,6 +314,9 @@ public sealed class DictationService : IDisposable
                 }
                 _pendingResults[seq] = text;
                 DrainPendingResults();
+                // Complete chain entry — fires EntryReady when this is the front and unblocked
+                if (chainEntry != null)
+                    OutputChain?.Complete(chainEntry, text);
             }
         }
         catch (OperationCanceledException) { }
@@ -473,9 +533,14 @@ public sealed class DictationService : IDisposable
 
     private void BeginRecording()
     {
+        // Complete any orphaned chain entry from a previous recording that never got committed
+        _currentChainEntry?.Complete("");
+
         _samples.Clear();
-        _silenceSamples = 0;
-        _recording      = true;
+        _silenceSamples     = 0;
+        _recording          = true;
+        _recordingStartTime = DateTime.UtcNow;
+        _currentChainEntry  = OutputChain?.Reserve(_recordingStartTime);
         SetState(DictationState.Recording);
     }
 
@@ -495,6 +560,7 @@ public sealed class DictationService : IDisposable
         }
         float rms = count > 0 ? MathF.Sqrt(sumSq / count) : 0f;
         LevelChanged?.Invoke(rms);
+        RawAudioAvailable?.Invoke(samples);
 
         if (IsStreamingMode)
             OnDataStreaming(samples, rms);
@@ -506,9 +572,14 @@ public sealed class DictationService : IDisposable
 
     private void OnDataStreaming(float[] samples, float rms)
     {
-        // Voice-activated mode: wait for audio above threshold before starting
-        if (_mode == DictationActivationMode.VoiceActivated)
+        // AlwaysOn (hands-free): wait for voice above threshold before starting
+        if (_mode == DictationActivationMode.AlwaysOn)
         {
+            if (_postNoiseSuppress > 0)
+            {
+                _postNoiseSuppress = Math.Max(0, _postNoiseSuppress - samples.Length);
+                return;
+            }
             if (!_voiceTriggered)
             {
                 if (rms < _threshold) return;
@@ -542,8 +613,8 @@ public sealed class DictationService : IDisposable
 
                 _onlineRecognizer.Reset(_onlineStream);
 
-                // In voice-activated mode re-arm after each endpoint
-                if (_mode == DictationActivationMode.VoiceActivated)
+                // In hands-free mode re-arm after each endpoint
+                if (_mode == DictationActivationMode.AlwaysOn)
                     _voiceTriggered = false;
             }
         }
@@ -581,9 +652,14 @@ public sealed class DictationService : IDisposable
 
     private void OnDataBatch(WaveInEventArgs e, float[] samples, float rms, int count)
     {
-        // AlwaysOn and VoiceActivated: wait for voice above threshold before accumulating
-        if (_mode == DictationActivationMode.AlwaysOn || _mode == DictationActivationMode.VoiceActivated)
+        // AlwaysOn (hands-free): wait for voice above threshold before accumulating
+        if (_mode == DictationActivationMode.AlwaysOn)
         {
+            if (_postNoiseSuppress > 0)
+            {
+                _postNoiseSuppress = Math.Max(0, _postNoiseSuppress - count);
+                return;
+            }
             if (_waveIn is not null && !_voiceTriggered && !_pausedByUser && rms >= _threshold)
             {
                 _voiceTriggered = true;
@@ -595,8 +671,8 @@ public sealed class DictationService : IDisposable
 
         _samples.AddRange(samples);
 
-        // AlwaysOn and VoiceActivated: auto-transcribe after silence
-        if (_mode == DictationActivationMode.AlwaysOn || _mode == DictationActivationMode.VoiceActivated)
+        // AlwaysOn (hands-free): auto-transcribe after silence
+        if (_mode == DictationActivationMode.AlwaysOn)
         {
             if (rms < _threshold * SilenceFactor)
             {
@@ -622,16 +698,67 @@ public sealed class DictationService : IDisposable
     /// </summary>
     public void FinalizeRecording() { _pausedByUser = true; StopAndTranscribe(); }
 
+    /// <summary>
+    /// Cuts the current recording at this point and commits whatever speech was
+    /// accumulated so far to the ASR engine. In streaming mode, flushes the online
+    /// stream. After this call the service immediately re-arms so speech that
+    /// follows a noise command is captured without a gap.
+    /// Call this when a noise command fires mid-dictation.
+    /// </summary>
+    /// <summary>
+    /// Cuts the current batch recording and commits accumulated speech to the ASR worker.
+    /// The output chain handles sequencing — the caller no longer needs to defer actions.
+    /// </summary>
+    public void CommitAndRearm(int trailingSamplesToDrop = 0)
+    {
+        if (IsStreamingMode)
+        {
+            _postNoiseSuppress = SampleRate / 6;
+            FlushStreamingResult();
+            SetState(_waveIn is not null ? DictationState.Listening : DictationState.Idle);
+            return;
+        }
+
+        // Always suppress re-arm after a noise so the resonance tail doesn't
+        // immediately re-trigger recording and get transcribed as "(clicking)" etc.
+        _postNoiseSuppress = SampleRate / 6;
+
+        if (!_recording) return;
+
+        _voiceTriggered = false;
+        if (trailingSamplesToDrop > 0 && _samples.Count > 0)
+        {
+            // Cap the trim: a command noise is always brief (snap/click/squeak ≤ ~0.4 s).
+            // The matcher's clip can balloon up to 2.5 s if speech runs straight into the
+            // noise with no gap — trimming that would eat the spoken words and leave an
+            // empty clip. Capping guarantees real speech survives; any residual noise
+            // sound is handled by NoiseFilterWords stripping on the transcript.
+            int maxDrop = (int)(SampleRate * 0.4);
+            int drop = Math.Min(_samples.Count, Math.Min(trailingSamplesToDrop, maxDrop));
+            _samples.RemoveRange(_samples.Count - drop, drop);
+        }
+        StopAndTranscribe();
+    }
+
     private void StopAndTranscribe()
     {
         if (!_recording) return;
         _recording = false;
 
+        var chainEntry = _currentChainEntry;
+        _currentChainEntry = null;
+
         var samples = _samples.ToArray();
         _samples.Clear();
 
-        // Ignore clips shorter than 0.3 s
-        if (samples.Length < SampleRate * 3 / 10) return;
+        // Ignore clips shorter than 0.3 s — complete the chain entry immediately so it
+        // doesn't block subsequent entries that are waiting behind it.
+        if (samples.Length < SampleRate * 3 / 10)
+        {
+            OutputChain?.Complete(chainEntry!, "");
+            SetState(_waveIn is not null ? DictationState.Listening : DictationState.Idle);
+            return;
+        }
 
         // Assign sequence number before re-arming so capture order is preserved
         int seq = System.Threading.Interlocked.Increment(ref _captureSeq);
@@ -641,13 +768,16 @@ public sealed class DictationService : IDisposable
 
         // Hand off to pre-warmed worker pool (zero scheduling lag)
         if (_workQueue is not null && !_workQueue.IsAddingCompleted)
-            _workQueue.TryAdd((seq, samples));
+            _workQueue.TryAdd((seq, samples, chainEntry));
         else
         {
             // Fallback if pool isn't running (streaming mode or pool not started)
             _pendingResults[seq] = "";
             DrainPendingResults();
+            OutputChain?.Complete(chainEntry!, "");
         }
+
+        PendingCountChanged?.Invoke(PendingTranscriptionCount);
     }
 
     private void DrainPendingResults()
@@ -659,6 +789,8 @@ public sealed class DictationService : IDisposable
             System.Threading.Interlocked.Increment(ref _emitSeq);
             if (!string.IsNullOrWhiteSpace(text))
                 TextAvailable?.Invoke(text);
+            AnyTranscriptionCompleted?.Invoke();
+            PendingCountChanged?.Invoke(PendingTranscriptionCount);
         }
     }
 

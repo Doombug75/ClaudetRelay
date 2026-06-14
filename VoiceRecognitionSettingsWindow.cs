@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -13,7 +14,7 @@ namespace ClaudetRelay;
 
 /// <summary>
 /// Voice Recognition settings window.
-/// Covers: ASR model selection, activation mode (AlwaysOn / PushToTalk / VoiceActivated),
+/// Covers: ASR model selection, activation mode (AlwaysOn / PushToTalk),
 /// push-to-talk key picker, and a live level meter with draggable threshold marker.
 /// </summary>
 public sealed class VoiceRecognitionSettingsWindow : Window
@@ -25,7 +26,7 @@ public sealed class VoiceRecognitionSettingsWindow : Window
     private ComboBox?   _modelCombo;
     private ComboBox?   _typeCombo;
     private TextBox?    _folderBox;
-    private RadioButton? _rbAlways, _rbPtt, _rbVoice;
+    private RadioButton? _rbAlways, _rbPtt;
     private StackPanel? _pttPanel;
     private StackPanel? _voicePanel;
     private TextBlock?  _pttKeyLabel;
@@ -272,23 +273,40 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         };
         root.Children.Add(manageBtn);
 
+        var cmdBtn = MakeBtn("🦆  " + Properties.Loc.S("Asr_VoiceCommands"), false);
+        cmdBtn.HorizontalAlignment = HorizontalAlignment.Left;
+        cmdBtn.Margin = new Thickness(0, 0, 0, 20);
+        cmdBtn.Click += (_, _) =>
+        {
+            var owner = Window.GetWindow(cmdBtn) ?? this;
+            Func<float[], Task<string?>>? tf = null;
+            Func<string>? diag = null;
+            if (System.Windows.Application.Current.MainWindow is MainWindow mwRef)
+            {
+                tf   = mwRef.TranscribeSampleAsync;
+                diag = mwRef.GetNoiseDiagnostics;
+            }
+            var w = new VoiceCommandsWindow(_themePath, tf, diag) { Owner = owner };
+            w.ShowDialog();
+            if (System.Windows.Application.Current.MainWindow is MainWindow mw)
+                mw.ReloadVoiceCommands();
+        };
+        root.Children.Add(cmdBtn);
+
         // ── Activation mode ────────────────────────────────────────────────
         root.Children.Add(Heading(Properties.Loc.S("Asr_ActivationSection")));
 
-        _rbAlways = MakeRadio(Properties.Loc.S("Asr_AlwaysOn"),       "ActivationMode");
-        _rbPtt    = MakeRadio(Properties.Loc.S("Asr_PushToTalk"),     "ActivationMode");
-        _rbVoice  = MakeRadio(Properties.Loc.S("Asr_VoiceActivated"), "ActivationMode");
+        _rbAlways = MakeRadio(Properties.Loc.S("Asr_AlwaysOn"),   "ActivationMode");
+        _rbPtt    = MakeRadio(Properties.Loc.S("Asr_PushToTalk"), "ActivationMode");
 
         switch (s.AsrActivationMode)
         {
-            case "PushToTalk":     _rbPtt.IsChecked   = true; break;
-            case "VoiceActivated": _rbVoice.IsChecked = true; break;
-            default:               _rbAlways.IsChecked = true; break;
+            case "PushToTalk": _rbPtt.IsChecked    = true; break;
+            default:           _rbAlways.IsChecked = true; break;
         }
 
         root.Children.Add(_rbAlways);
         root.Children.Add(_rbPtt);
-        root.Children.Add(_rbVoice);
 
         // ── PTT key panel ──────────────────────────────────────────────────
         _pttPanel = new StackPanel { Margin = new Thickness(20, 6, 0, 16) };
@@ -488,7 +506,6 @@ public sealed class VoiceRecognitionSettingsWindow : Window
         }
         _rbAlways.Checked += (_, _) => UpdatePanels();
         _rbPtt   .Checked += (_, _) => UpdatePanels();
-        _rbVoice .Checked += (_, _) => UpdatePanels();
         UpdatePanels();
 
     }
@@ -610,9 +627,7 @@ public sealed class VoiceRecognitionSettingsWindow : Window
             _ => "whisper"
         };
 
-        if (_rbPtt?.IsChecked   == true) s.AsrActivationMode = "PushToTalk";
-        else if (_rbVoice?.IsChecked == true) s.AsrActivationMode = "VoiceActivated";
-        else s.AsrActivationMode = "AlwaysOn";
+        s.AsrActivationMode = _rbPtt?.IsChecked == true ? "PushToTalk" : "AlwaysOn";
 
         s.PushToTalkKey   = _pttKeyLabel?.Text ?? "Space";
         s.PushToTalkCtrl  = _cbCtrl?.IsChecked  == true;

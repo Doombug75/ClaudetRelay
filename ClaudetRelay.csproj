@@ -6,8 +6,15 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <Version>0.9.9.5</Version>
-    <AssemblyVersion>0.9.9.5</AssemblyVersion>
+    <Version>0.9.9.6</Version>
+    <AssemblyVersion>0.9.9.6</AssemblyVersion>
+    <!-- Prevent the SDK from auto-generating AssemblyInfo files.
+         WPF's _wpftmp temp project also generates these from the same project
+         properties, producing CS0579 duplicates on a clean obj build.
+         We provide Properties\AssemblyInfo.cs instead, excluded from the wpftmp
+         compilation via the IsWpfTempProject condition below. -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <ApplicationIcon>Assets\Claudette.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -15,6 +22,13 @@
     <Folder Include="Services\" />
     <Folder Include="Settings\" />
     <Folder Include="Assets\" />
+  </ItemGroup>
+
+  <!-- AssemblyInfo.cs is the hand-written replacement for the SDK-generated file.
+       Exclude it from the WPF _wpftmp compilation (which generates its own copy),
+       so the wpftmp project doesn't see duplicates. -->
+  <ItemGroup Condition="'$(IsWpfTempProject)' == 'true'">
+    <Compile Remove="Properties\AssemblyInfo.cs" />
   </ItemGroup>
 
   <ItemGroup>

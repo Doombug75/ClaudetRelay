@@ -390,6 +390,18 @@ public partial class MainWindow : Window
                              entry.IsUser ? entry.DisplayName : "");
     }
 
+    private void RenderChatLogEntryVisualOnly(ChatLogEntry entry)
+    {
+        if (entry.SenderType == "System") { AddSystemMessage(entry.Message); return; }
+        var bubbleKey = string.IsNullOrEmpty(entry.BubbleKey)
+            ? (entry.IsUser ? "TertiaryBubbleBrush" : "PrimaryBubbleBrush") : entry.BubbleKey;
+        var accentKey = string.IsNullOrEmpty(entry.AccentKey)
+            ? (entry.IsUser ? "TertiaryAccentBrush" : "PrimaryAccentBrush") : entry.AccentKey;
+        var bubble = AddStreamingBubble(entry.DisplayName, entry.AvatarLabel, accentKey, bubbleKey, entry.IsUser);
+        bubble.StopThinking();
+        ApplyEmoteFormatting(bubble, entry.Message, entry.IsUser ? entry.DisplayName : "");
+    }
+
     private void AppendToProjectLog(ChatLogEntry entry)
     {
         if (_currentProjectFolder is null) return;
@@ -4426,7 +4438,7 @@ public partial class MainWindow : Window
         "Tab 1 Audio Setup: output device, input (microphone) device, master volume.\n" +
         "Tab 2 Voice Output: TTS backend (Windows TTS / Sherpa-onnx / VOICEVOX), model folder or port. " +
         "Switching a radio button applies the backend live.\n" +
-        "Tab 3 Voice Recognition: ASR model, activation mode (Always On / Push to Talk / Voice Activated), " +
+        "Tab 3 Voice Recognition: ASR model, activation mode (Always On / Push to Talk), " +
         "PTT key picker, live level meter with draggable threshold, " +
         "silence delay slider (300–5000 ms, default 1500 ms — how long after speech ends before transcription triggers). " +
         "Dictation active state and silence delay are persisted across app restarts.\n\n" +
@@ -4579,7 +4591,7 @@ public partial class MainWindow : Window
         "Tab 1 Audioeinstellungen: Ausgabegerät, Eingabegerät (Mikrofon), Hauptlautstärke.\n" +
         "Tab 2 Sprachausgabe: TTS-Backend (Windows TTS / Sherpa-onnx / VOICEVOX), Modellordner oder Port. " +
         "Optionsfeld auswählen wendet Backend sofort an.\n" +
-        "Tab 3 Spracherkennung: ASR-Modell, Aktivierungsmodus (Immer aktiv / Sprechtaste / Sprachaktivierung), " +
+        "Tab 3 Spracherkennung: ASR-Modell, Aktivierungsmodus (Immer aktiv / Sprechtaste), " +
         "Tastenpicker, Live-Pegelanzeige mit ziehbarer Schwelle, " +
         "Stille-Verzögerungs-Schieberegler (300–5000 ms, Standard 1500 ms — Zeit nach Sprechende bis Transkription startet). " +
         "Diktat-Status und Stille-Verzögerung bleiben nach App-Neustart erhalten.\n\n" +
@@ -5897,18 +5909,18 @@ public partial class MainWindow : Window
         AddBody(isDE
             ? "Die 🎙-Taste links neben dem Chat-Eingabefeld schaltet das Diktat um. " +
               "Gesprochene Wörter werden offline transkribiert und ins Eingabefeld eingefügt. " +
-              "Drei Aktivierungsmodi:\n" +
-              "  Immer aktiv — Mikrofon nimmt kontinuierlich auf, solange Diktat aktiv ist.\n" +
-              "  Sprechtaste — konfigurierbare Taste halten (Standard: Leertaste) zum Aufnehmen.\n" +
-              "  Sprachaktivierung — Aufnahme startet automatisch, wenn die Stimme eine " +
-              "konfigurierbare Lautstärke-Schwelle überschreitet, und stoppt nach einer Stille-Verzögerung (300–5000 ms, Standard 1500 ms)."
+              "Zwei Aktivierungsmodi:\n" +
+              "  Immer aktiv — freihändig: Die Aufnahme startet automatisch, wenn die Stimme eine " +
+              "konfigurierbare Lautstärke-Schwelle überschreitet, und stoppt nach einer Stille-Verzögerung " +
+              "(300–5000 ms, Standard 1500 ms). Das Mikrofon bleibt offen und ist für die nächste Äußerung bereit.\n" +
+              "  Sprechtaste — konfigurierbare Taste halten (Standard: Leertaste) zum Aufnehmen."
             : "The 🎙 button to the left of the chat input toggles dictation. " +
               "Spoken words are transcribed offline and inserted into the input field. " +
-              "Three activation modes:\n" +
-              "  Always On — microphone records continuously while dictation is active.\n" +
-              "  Push to Talk — hold a configurable key (default: Space) to record.\n" +
-              "  Voice Activated — recording starts automatically when your voice exceeds " +
-              "a configurable volume threshold and stops after a silence delay (300–5000 ms, default 1500 ms).");
+              "Two activation modes:\n" +
+              "  Always On — hands-free: recording starts automatically when your voice exceeds " +
+              "a configurable volume threshold and stops after a silence delay (300–5000 ms, default 1500 ms). " +
+              "The mic stays open and re-arms for the next utterance.\n" +
+              "  Push to Talk — hold a configurable key (default: Space) to record.");
         AddBody(isDE
             ? "ASR-Modelle herunterladen über ⬇ ASR-Modelle verwalten im Spracherkennung-Tab. " +
               "Modelle werden standardmäßig im ASR/-Ordner neben der .exe gespeichert. " +
@@ -5925,7 +5937,7 @@ public partial class MainWindow : Window
               "bis die App geschlossen wird. Das Mikrofon bleibt in allen Aktivierungsmodi offen " +
               "(für den Pegelanzeiger), aber die eigentliche Transkription — die CPU-intensive Arbeit — " +
               "erfolgt nur wenn ein Aufnahme-Chunk übermittelt wird: bei Freigabe der Sprechtaste, " +
-              "nach der Stille-Verzögerung im Sprachaktivierungs-Modus, oder am Ende eines Chunks im Immer-aktiv-Modus. " +
+              "oder im Immer-aktiv-Modus nach der Stille-Verzögerung am Ende einer Äußerung. " +
               "Wenn lokale Agenten laufen und die CPU knapp ist, hält die Sprechtaste Transkriptions-Bursts kurz und vorhersehbar."
             : "💡  ASR models run entirely on CPU using system RAM — they do not use your GPU or VRAM " +
               "and do not compete with Ollama models for GPU resources. " +
@@ -5933,7 +5945,7 @@ public partial class MainWindow : Window
               "until you close the app. The microphone stays open in all activation modes " +
               "(needed for the level meter), but the heavy CPU work — the actual transcription — " +
               "only happens when a recording chunk is submitted: on PTT key release, " +
-              "after the silence delay in Voice Activated mode, or at the end of each chunk in Always On mode. " +
+              "or in Always On mode after the silence delay at the end of an utterance. " +
               "If CPU headroom is tight while local agents are running, Push-to-Talk keeps transcription bursts short and predictable.");
 
         // ── ⚙ Manager Settings ────────────────────────────────────────────

@@ -16,6 +16,25 @@ public partial class App : Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Catch any unhandled exception — show a readable message instead of silent exit-0
+        DispatcherUnhandledException += (_, args) =>
+        {
+            ShowCrashDialog(args.Exception);
+            args.Handled = true;
+            Shutdown(-1);
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            if (args.ExceptionObject is Exception ex)
+                ShowCrashDialog(ex);
+        };
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            args.SetObserved();
+            // Background task failures are logged but don't kill the app
+            System.Diagnostics.Debug.WriteLine($"[UnobservedTask] {args.Exception}");
+        };
+
         // ── Apply UI language from settings (must be first — before any UI is created) ──
         //
         // Three-state contract (Language property in settings):
@@ -114,7 +133,26 @@ public partial class App : Application
         return Environment.Version.Major >= 10;
     }
 
-    // ── Error dialog ───────────────────────────────────────────────────────
+    // ── Error dialogs ──────────────────────────────────────────────────────
+
+    private static void ShowCrashDialog(Exception ex)
+    {
+        try
+        {
+            var msg = $"{ex.GetType().Name}: {ex.Message}";
+            if (ex.InnerException is not null)
+                msg += $"\n\nInner: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
+            msg += $"\n\n{ex.StackTrace}";
+
+            MessageBox.Show(msg, "ClaudetRelay — Unhandled Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        catch
+        {
+            // If even the MessageBox fails, at least write to debug output
+            System.Diagnostics.Debug.WriteLine($"CRASH: {ex}");
+        }
+    }
 
     /// <summary>
     /// Shows a dependency-error dialog that uses only system colours and the

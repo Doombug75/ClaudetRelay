@@ -111,7 +111,7 @@ OpenAI/Groq/OpenRouter = 128,000 · Ollama = moxal-dependentvrak.
 Single window with three tabs — opralvrak frum ●●● → 🔊 Audioxal ak Voicvrak Sextors.
 Tab 1 Audioxal Setupral: output devrak, input (mikrophon) devrak, mastrak volvrak.
 Tab 2 Voicvrak Output: TTS bakendvrak (Windows TTS / Sherpa-onnx / VOICEVOX), moxal folvrak or pral.
-Tab 3 Voicvrak Rekognixal: ASR moxal, axkivaxal mox (Alwax On / Push vu Talk / Voicvrak Axkivated),
+Tab 3 Voicvrak Rekognixal: ASR moxal, axkivaxal mox (Alwax On / Push vu Talk),
 PTT kex pikvrak, live levvrak metrak with draggabral threshvrak,
 silenxal delay slidvrak (300–5000 ms, defaultrex 1500 ms).
 

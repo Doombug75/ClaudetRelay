@@ -200,7 +200,7 @@ public partial class MainWindow
 
         // Re-initialise the dictation service so any mode / model / device change
         // takes effect immediately (mode change is the most common case — e.g. switching
-        // from VoiceActivated to PushToTalk must reconfigure the running service).
+        // from AlwaysOn to PushToTalk must reconfigure the running service).
         if (_dictationModelLoaded)
         {
             _dictation.Deactivate();

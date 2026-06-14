@@ -363,7 +363,6 @@
   <data name="Asr_ActivationSection"    xml:space="preserve"><value>Activation Mode</value></data>
   <data name="Asr_AlwaysOn"             xml:space="preserve"><value>Always On  (mic button toggles listening)</value></data>
   <data name="Asr_PushToTalk"           xml:space="preserve"><value>Push to Talk</value></data>
-  <data name="Asr_VoiceActivated"       xml:space="preserve"><value>Voice Activated  (starts when loud enough)</value></data>
   <data name="Asr_PttKey"               xml:space="preserve"><value>Push-to-Talk Key</value></data>
   <data name="Asr_PttRecord"            xml:space="preserve"><value>Click, then press the desired key…</value></data>
   <data name="Asr_PttCtrl"              xml:space="preserve"><value>Ctrl</value></data>
@@ -388,6 +387,7 @@
   <data name="Asr_MicLevel"             xml:space="preserve"><value>Microphone Level</value></data>
   <data name="Asr_BrowseFolder"         xml:space="preserve"><value>Browse…</value></data>
   <data name="Asr_ManageModels"         xml:space="preserve"><value>Manage ASR Models…</value></data>
+  <data name="Asr_VoiceCommands"        xml:space="preserve"><value>Voice Commands…</value></data>
   <data name="Asr_NoModelWarning"       xml:space="preserve"><value>No ASR model loaded. Select a model folder and model name, then click OK.</value></data>
   <data name="Asr_MismatchTitle"        xml:space="preserve"><value>ASR Model Mismatch</value></data>
   <data name="Asr_MismatchBody"         xml:space="preserve"><value>Model type mismatch!
@@ -913,5 +913,72 @@ It will be removed from those boards automatically.</value></data>
   <data name="ClearChat_DoneMemory"          xml:space="preserve"><value>Chat memory cleared.</value></data>
   <data name="ClearChat_DoneFiles"           xml:space="preserve"><value>History files deleted.</value></data>
   <data name="ClearChat_DoneBoth"            xml:space="preserve"><value>Chat cleared.</value></data>
+
+  <!-- ── Voice Commands window ─────────────────────────────────────────── -->
+  <data name="VoiceCmds_WindowTitle"              xml:space="preserve"><value>🦆  Voice Commands</value></data>
+  <data name="VoiceCmds_Header"                   xml:space="preserve"><value>Voice Commands</value></data>
+  <data name="VoiceCmds_AddCommand"               xml:space="preserve"><value>＋  Add Command</value></data>
+  <data name="VoiceCmds_Hint"                     xml:space="preserve"><value>Commands are recognised while you dictate. Matched commands are silently consumed — never typed.</value></data>
+  <data name="VoiceCmds_NoiseTip"                  xml:space="preserve"><value>💡 For reliable detection, make your command noises acoustically very different from each other. Short, similar sounds — like a finger snap and a tongue click — are easily confused. Pairing distinct sounds (e.g. a snap, a 'shh', a hum, a whistle) works far better.</value></data>
+  <data name="VoiceCmds_Diagnostics"              xml:space="preserve"><value>Diagnostics</value></data>
+  <data name="VoiceCmds_Close"                    xml:space="preserve"><value>Close</value></data>
+  <data name="VoiceCmds_Empty"                    xml:space="preserve"><value>No commands yet. Click "Add Command" to get started.</value></data>
+  <data name="VoiceCmds_PhraseCommandCount"       xml:space="preserve"><value>{0} phrase command(s)</value></data>
+  <data name="VoiceCmds_EnabledTooltip"           xml:space="preserve"><value>Enabled</value></data>
+  <data name="VoiceCmds_EditTooltip"              xml:space="preserve"><value>Edit</value></data>
+  <data name="VoiceCmds_DeleteTooltip"            xml:space="preserve"><value>Delete</value></data>
+  <data name="VoiceCmds_NewCommandName"           xml:space="preserve"><value>New Command</value></data>
+  <data name="VoiceCmds_DeleteConfirm"            xml:space="preserve"><value>Delete command "{0}"?</value></data>
+  <data name="VoiceCmds_DeleteTitle"              xml:space="preserve"><value>Delete</value></data>
+  <data name="VoiceCmds_References"               xml:space="preserve"><value>{0}/3 references</value></data>
+  <data name="VoiceCmds_DiagCopy"                 xml:space="preserve"><value>📋  Copy</value></data>
+  <data name="VoiceCmds_DiagCopied"               xml:space="preserve"><value>✓  Copied!</value></data>
+  <!-- ── Voice Command editor dialog ──────────────────────────────────── -->
+  <data name="VoiceCmdEditor_Title"               xml:space="preserve"><value>Edit Command</value></data>
+  <data name="VoiceCmdEditor_NameLabel"           xml:space="preserve"><value>Name</value></data>
+  <data name="VoiceCmdEditor_TypeLabel"           xml:space="preserve"><value>Type</value></data>
+  <data name="VoiceCmdEditor_TypePhrase"          xml:space="preserve"><value>Command Phrase</value></data>
+  <data name="VoiceCmdEditor_TypeNoise"           xml:space="preserve"><value>Command Noise</value></data>
+  <data name="VoiceCmdEditor_PhraseLabel"         xml:space="preserve"><value>Command phrase (not typed) — separate alternatives with ; e.g. period;dot</value></data>
+  <data name="VoiceCmdEditor_ActionLabel"         xml:space="preserve"><value>Action</value></data>
+  <data name="VoiceCmdEditor_NoiseRefs"           xml:space="preserve"><value>Noise references  (record the same noise 3 times)</value></data>
+  <data name="VoiceCmdEditor_FilterHeader"        xml:space="preserve"><value>Noise filter words  (semicolon-separated)</value></data>
+  <data name="VoiceCmdEditor_FilterHint"          xml:space="preserve"><value>Words/phrases the ASR model outputs for this noise. They are stripped from the text box when the command fires.</value></data>
+  <data name="VoiceCmdEditor_AutoDetect"          xml:space="preserve"><value>Auto-detect</value></data>
+  <data name="VoiceCmdEditor_DefaultAction"       xml:space="preserve"><value>Immediate action (when no phrase command follows)</value></data>
+  <data name="VoiceCmdEditor_PhraseActions"       xml:space="preserve"><value>Phrase commands  (optional, spoken after the noise)</value></data>
+  <data name="VoiceCmdEditor_PhraseActionsHint"   xml:space="preserve"><value>If one of these phrases is recognised after the noise, its action fires instead of the immediate action.</value></data>
+  <data name="VoiceCmdEditor_AddPhrase"           xml:space="preserve"><value>+ Add phrase</value></data>
+  <data name="VoiceCmdEditor_Cancel"              xml:space="preserve"><value>Cancel</value></data>
+  <data name="VoiceCmdEditor_Save"                xml:space="preserve"><value>Save</value></data>
+  <data name="VoiceCmdEditor_RecordTooltip"       xml:space="preserve"><value>Record</value></data>
+  <data name="VoiceCmdEditor_PlayBackTooltip"     xml:space="preserve"><value>Play back</value></data>
+  <data name="VoiceCmdEditor_Recording"           xml:space="preserve"><value>Recording…</value></data>
+  <data name="VoiceCmdEditor_Recorded"            xml:space="preserve"><value>Recorded</value></data>
+  <data name="VoiceCmdEditor_NotRecorded"         xml:space="preserve"><value>(not recorded yet)</value></data>
+  <data name="VoiceCmdEditor_Detecting"           xml:space="preserve"><value>Detecting…</value></data>
+  <data name="VoiceCmdEditor_NoModel"             xml:space="preserve"><value>No ASR model loaded. Please activate a model first.</value></data>
+  <data name="VoiceCmdEditor_NoModelTitle"        xml:space="preserve"><value>Model unavailable</value></data>
+  <data name="VoiceCmdEditor_NameRequired"        xml:space="preserve"><value>Please enter a name.</value></data>
+  <data name="VoiceCmdEditor_NameRequiredTitle"   xml:space="preserve"><value>Name required</value></data>
+  <data name="VoiceCmdEditor_PhraseRequired"      xml:space="preserve"><value>Please enter a command phrase.</value></data>
+  <data name="VoiceCmdEditor_PhraseRequiredTitle" xml:space="preserve"><value>Phrase required</value></data>
+  <data name="VoiceCmdEditor_NoRecording"         xml:space="preserve"><value>Please record at least one noise reference.</value></data>
+  <data name="VoiceCmdEditor_NoRecordingTitle"    xml:space="preserve"><value>No recording</value></data>
+  <data name="VoiceCmdEditor_PhraseRowTooltip"    xml:space="preserve"><value>Phrase to match after the noise</value></data>
+  <data name="VoiceCmdEditor_ActionNoneImmediate" xml:space="preserve"><value>(no immediate action)</value></data>
+  <!-- ── Shared voice command labels ───────────────────────────────────── -->
+  <data name="VoiceCmd_ActionNone"                xml:space="preserve"><value>(none)</value></data>
+  <data name="VoiceCmd_ActionNewLine"             xml:space="preserve"><value>New Line</value></data>
+  <data name="VoiceCmd_ActionDeleteLastWord"      xml:space="preserve"><value>Delete Last Word</value></data>
+  <data name="VoiceCmd_ActionDeleteLastSentence"  xml:space="preserve"><value>Delete Last Sentence</value></data>
+  <data name="VoiceCmd_ActionDeleteAll"           xml:space="preserve"><value>Delete All</value></data>
+  <data name="VoiceCmd_ActionSend"                xml:space="preserve"><value>Send</value></data>
+  <data name="VoiceCmd_ActionUndo"                xml:space="preserve"><value>Undo</value></data>
+  <data name="VoiceCmd_ActionInsertCharacter"      xml:space="preserve"><value>Insert Character</value></data>
+  <data name="VoiceCmd_InsertCharLabel"            xml:space="preserve"><value>Character(s) to insert:</value></data>
+  <data name="VoiceCmd_InsertCharTooltip"          xml:space="preserve"><value>The character(s) that will be inserted at the caret when this command fires</value></data>
+  <data name="VoiceCmd_TypePhrase"                xml:space="preserve"><value>Phrase</value></data>
+  <data name="VoiceCmd_TypeNoise"                 xml:space="preserve"><value>Noise</value></data>
 
 </root>

@@ -1,5 +1,9 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
+using ClaudetRelay.Models;
 
 namespace ClaudetRelay.Services;
 
@@ -245,7 +249,8 @@ public class AppSettings
     /// </summary>
     public string AsrModelType { get; set; } = "whisper";
 
-    /// <summary>Dictation activation mode: "AlwaysOn", "PushToTalk", or "VoiceActivated".</summary>
+    /// <summary>Dictation activation mode: "AlwaysOn" or "PushToTalk". (Legacy
+    /// "VoiceActivated" is treated as "AlwaysOn" — the modes were merged.)</summary>
     public string AsrActivationMode { get; set; } = "AlwaysOn";
 
     /// <summary>Key name for push-to-talk (e.g. "Space", "F12"). Matches System.Windows.Input.Key enum names.</summary>
@@ -268,6 +273,9 @@ public class AppSettings
 
     /// <summary>Whether dictation (speech-to-text) was active when the app was last closed.</summary>
     public bool DictationEnabled { get; set; } = false;
+
+    /// <summary>User-defined voice commands (phrase, noise, or combo triggers).</summary>
+    public List<VoiceCommand> VoiceCommands { get; set; } = new();
 
     /// <summary>Display name of the participant used to summarise the chat for context compression. Empty = auto (trigger model).</summary>
     public string CompressionParticipantName { get; set; } = "";
@@ -520,6 +528,9 @@ public static class SettingsService
             Save(settings);   // persist so the user sees it in the UI on first open
         }
 
+        // Load noise samples from WAV files (not stored in JSON)
+        LoadNoiseSamples(settings.VoiceCommands);
+
         return settings;
     }
 
@@ -532,10 +543,129 @@ public static class SettingsService
         {
             var dir = Path.GetDirectoryName(FilePath)!;
             if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+            // Save noise samples as WAV files before writing JSON
+            SaveNoiseSamples(settings.VoiceCommands);
+
             var json = JsonSerializer.Serialize(settings, WriteOpts);
             File.WriteAllText(FilePath, json);
+
+            // Clean up WAV files for commands that no longer exist
+            CleanupOrphanedWavFiles(settings.VoiceCommands);
         }
         catch { /* silent – missing save should not crash the app */ }
+    }
+
+    // ── Noise sample WAV storage ───────────────────────────────────────────
+
+    private static string NoiseDir => Path.Combine(
+        Path.GetDirectoryName(FilePath)!, "NoiseCommands");
+
+    private static string WavPath(string commandId, int slot) =>
+        Path.Combine(NoiseDir, $"{commandId}_{slot}.wav");
+
+    private static void SaveNoiseSamples(IEnumerable<VoiceCommand> commands)
+    {
+        var dir = NoiseDir;
+        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+        foreach (var cmd in commands)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                var path = WavPath(cmd.Id, i);
+                if (cmd.NoiseSamples[i] is { } samples)
+                    WriteWav(path, samples, sampleRate: 16000);
+                else if (File.Exists(path))
+                    File.Delete(path);
+            }
+        }
+    }
+
+    private static void LoadNoiseSamples(IEnumerable<VoiceCommand> commands)
+    {
+        foreach (var cmd in commands)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                var path = WavPath(cmd.Id, i);
+                cmd.NoiseSamples[i] = File.Exists(path) ? ReadWav(path) : null;
+            }
+        }
+    }
+
+    private static void CleanupOrphanedWavFiles(IEnumerable<VoiceCommand> commands)
+    {
+        var dir = NoiseDir;
+        if (!Directory.Exists(dir)) return;
+
+        var knownIds = commands.Select(c => c.Id).ToHashSet();
+        foreach (var file in Directory.GetFiles(dir, "*.wav"))
+        {
+            var name = Path.GetFileNameWithoutExtension(file);
+            // file name format: {commandId}_{slot}
+            var lastUnderscore = name.LastIndexOf('_');
+            if (lastUnderscore < 0) continue;
+            var id = name[..lastUnderscore];
+            if (!knownIds.Contains(id))
+                try { File.Delete(file); } catch { }
+        }
+    }
+
+    /// <summary>Writes a minimal 16-bit mono PCM WAV file.</summary>
+    private static void WriteWav(string path, float[] samples, int sampleRate)
+    {
+        int dataBytes = samples.Length * 2;
+        using var fs  = new FileStream(path, FileMode.Create, FileAccess.Write);
+        using var bw  = new BinaryWriter(fs);
+
+        // RIFF header
+        bw.Write(System.Text.Encoding.ASCII.GetBytes("RIFF"));
+        bw.Write(36 + dataBytes);
+        bw.Write(System.Text.Encoding.ASCII.GetBytes("WAVE"));
+        // fmt chunk
+        bw.Write(System.Text.Encoding.ASCII.GetBytes("fmt "));
+        bw.Write(16);           // chunk size
+        bw.Write((short)1);    // PCM
+        bw.Write((short)1);    // mono
+        bw.Write(sampleRate);
+        bw.Write(sampleRate * 2); // byte rate
+        bw.Write((short)2);    // block align
+        bw.Write((short)16);   // bits per sample
+        // data chunk
+        bw.Write(System.Text.Encoding.ASCII.GetBytes("data"));
+        bw.Write(dataBytes);
+        foreach (var s in samples)
+        {
+            short v = (short)(Math.Clamp(s, -1f, 1f) * 32767f);
+            bw.Write(v);
+        }
+    }
+
+    /// <summary>Reads a 16-bit mono PCM WAV file back to float[].</summary>
+    private static float[]? ReadWav(string path)
+    {
+        try
+        {
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read);
+            using var br = new BinaryReader(fs);
+
+            // Read standard 44-byte PCM WAV header
+            var header = br.ReadBytes(44);
+            if (header.Length < 44) return null;
+            if (header[0] != 'R' || header[1] != 'I' || header[2] != 'F' || header[3] != 'F')
+                return null;
+
+            int dataBytes = BitConverter.ToInt32(header, 40);
+            if (dataBytes <= 0) return null;
+
+            int count   = dataBytes / 2;
+            var samples = new float[count];
+            for (int i = 0; i < count && fs.Position < fs.Length; i++)
+                samples[i] = br.ReadInt16() / 32768f;
+            return samples;
+        }
+        catch { return null; }
     }
 
 }

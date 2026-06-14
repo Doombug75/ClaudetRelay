@@ -363,7 +363,6 @@
   <data name="Asr_ActivationSection"    xml:space="preserve"><value>Aktivierungsmodus</value></data>
   <data name="Asr_AlwaysOn"             xml:space="preserve"><value>Immer aktiv  (Mikrofon-Taste schaltet um)</value></data>
   <data name="Asr_PushToTalk"           xml:space="preserve"><value>Sprechtaste</value></data>
-  <data name="Asr_VoiceActivated"       xml:space="preserve"><value>Sprachaktivierung  (startet bei ausreichender Lautstärke)</value></data>
   <data name="Asr_PttKey"               xml:space="preserve"><value>Sprechtaste</value></data>
   <data name="Asr_PttRecord"            xml:space="preserve"><value>Klicken, dann gewünschte Taste drücken…</value></data>
   <data name="Asr_PttCtrl"              xml:space="preserve"><value>Strg</value></data>
@@ -388,6 +387,7 @@
   <data name="Asr_MicLevel"             xml:space="preserve"><value>Mikrofonpegel</value></data>
   <data name="Asr_BrowseFolder"         xml:space="preserve"><value>Durchsuchen…</value></data>
   <data name="Asr_ManageModels"         xml:space="preserve"><value>ASR-Modelle verwalten…</value></data>
+  <data name="Asr_VoiceCommands"        xml:space="preserve"><value>Sprachbefehle…</value></data>
   <data name="Asr_NoModelWarning"       xml:space="preserve"><value>Kein ASR-Modell geladen. Bitte Modellordner und Modellname auswählen.</value></data>
   <data name="Asr_MismatchTitle"        xml:space="preserve"><value>ASR-Modelltyp stimmt nicht überein</value></data>
   <data name="Asr_MismatchBody"         xml:space="preserve"><value>Modelltyp stimmt nicht überein!
@@ -913,5 +913,72 @@ Er wird von diesen Boards automatisch entfernt.</value></data>
   <data name="ClearChat_DoneMemory"          xml:space="preserve"><value>Chat-Gedächtnis geleert.</value></data>
   <data name="ClearChat_DoneFiles"           xml:space="preserve"><value>Verlaufs-Dateien gelöscht.</value></data>
   <data name="ClearChat_DoneBoth"            xml:space="preserve"><value>Chat vollständig geleert.</value></data>
+
+  <!-- ── Voice Commands window ─────────────────────────────────────────── -->
+  <data name="VoiceCmds_WindowTitle"              xml:space="preserve"><value>🦆  Sprachbefehle</value></data>
+  <data name="VoiceCmds_Header"                   xml:space="preserve"><value>Sprachbefehle</value></data>
+  <data name="VoiceCmds_AddCommand"               xml:space="preserve"><value>＋  Befehl hinzufügen</value></data>
+  <data name="VoiceCmds_Hint"                     xml:space="preserve"><value>Befehle werden erkannt während du diktierst. Erkannte Befehle erscheinen nicht im Text.</value></data>
+  <data name="VoiceCmds_NoiseTip"                  xml:space="preserve"><value>💡 Für zuverlässige Erkennung sollten sich deine Befehlsgeräusche akustisch deutlich voneinander unterscheiden. Kurze, ähnliche Klänge — etwa ein Fingerschnipp und ein Zungenschnalzen — werden leicht verwechselt. Deutlich verschiedene Geräusche (z. B. ein Schnipp, ein 'Schhh', ein Summen, ein Pfiff) funktionieren weitaus besser.</value></data>
+  <data name="VoiceCmds_Diagnostics"              xml:space="preserve"><value>Diagnose</value></data>
+  <data name="VoiceCmds_Close"                    xml:space="preserve"><value>Schließen</value></data>
+  <data name="VoiceCmds_Empty"                    xml:space="preserve"><value>Noch keine Befehle. Klicke auf "Befehl hinzufügen" um zu starten.</value></data>
+  <data name="VoiceCmds_PhraseCommandCount"       xml:space="preserve"><value>{0} Befehlsphrase(n)</value></data>
+  <data name="VoiceCmds_EnabledTooltip"           xml:space="preserve"><value>Aktiviert</value></data>
+  <data name="VoiceCmds_EditTooltip"              xml:space="preserve"><value>Bearbeiten</value></data>
+  <data name="VoiceCmds_DeleteTooltip"            xml:space="preserve"><value>Löschen</value></data>
+  <data name="VoiceCmds_NewCommandName"           xml:space="preserve"><value>Neuer Befehl</value></data>
+  <data name="VoiceCmds_DeleteConfirm"            xml:space="preserve"><value>Befehl "{0}" löschen?</value></data>
+  <data name="VoiceCmds_DeleteTitle"              xml:space="preserve"><value>Löschen</value></data>
+  <data name="VoiceCmds_References"               xml:space="preserve"><value>{0}/3 Referenzen</value></data>
+  <data name="VoiceCmds_DiagCopy"                 xml:space="preserve"><value>📋  Kopieren</value></data>
+  <data name="VoiceCmds_DiagCopied"               xml:space="preserve"><value>✓  Kopiert!</value></data>
+  <!-- ── Voice Command editor dialog ──────────────────────────────────── -->
+  <data name="VoiceCmdEditor_Title"               xml:space="preserve"><value>Befehl bearbeiten</value></data>
+  <data name="VoiceCmdEditor_NameLabel"           xml:space="preserve"><value>Name</value></data>
+  <data name="VoiceCmdEditor_TypeLabel"           xml:space="preserve"><value>Typ</value></data>
+  <data name="VoiceCmdEditor_TypePhrase"          xml:space="preserve"><value>Befehlsphrase</value></data>
+  <data name="VoiceCmdEditor_TypeNoise"           xml:space="preserve"><value>Befehlsgeräusch</value></data>
+  <data name="VoiceCmdEditor_PhraseLabel"         xml:space="preserve"><value>Befehlsphrase (nicht im Text) — Alternativen mit ; trennen, z. B. Punkt;punkt</value></data>
+  <data name="VoiceCmdEditor_ActionLabel"         xml:space="preserve"><value>Aktion</value></data>
+  <data name="VoiceCmdEditor_NoiseRefs"           xml:space="preserve"><value>Geräusch-Referenzen  (3 Aufnahmen desselben Geräuschs)</value></data>
+  <data name="VoiceCmdEditor_FilterHeader"        xml:space="preserve"><value>Befehlsgeräuschfilter  (Semikolon-getrennt)</value></data>
+  <data name="VoiceCmdEditor_FilterHint"          xml:space="preserve"><value>Wörter/Phrasen, die das ASR-Modell für dieses Geräusch ausgibt. Diese werden nach dem Auslösen aus dem Textfeld entfernt.</value></data>
+  <data name="VoiceCmdEditor_AutoDetect"          xml:space="preserve"><value>Auto-Erkennung</value></data>
+  <data name="VoiceCmdEditor_DefaultAction"       xml:space="preserve"><value>Sofortaktion (wenn keine Befehlsphrase folgt)</value></data>
+  <data name="VoiceCmdEditor_PhraseActions"       xml:space="preserve"><value>Befehlsphrasen  (optional, nach dem Geräusch)</value></data>
+  <data name="VoiceCmdEditor_PhraseActionsHint"   xml:space="preserve"><value>Wenn nach dem Geräusch diese Phrase erkannt wird, wird die zugehörige Aktion ausgeführt.</value></data>
+  <data name="VoiceCmdEditor_AddPhrase"           xml:space="preserve"><value>+ Phrase hinzufügen</value></data>
+  <data name="VoiceCmdEditor_Cancel"              xml:space="preserve"><value>Abbrechen</value></data>
+  <data name="VoiceCmdEditor_Save"                xml:space="preserve"><value>Speichern</value></data>
+  <data name="VoiceCmdEditor_RecordTooltip"       xml:space="preserve"><value>Aufnehmen</value></data>
+  <data name="VoiceCmdEditor_PlayBackTooltip"     xml:space="preserve"><value>Abspielen</value></data>
+  <data name="VoiceCmdEditor_Recording"           xml:space="preserve"><value>Aufnahme läuft…</value></data>
+  <data name="VoiceCmdEditor_Recorded"            xml:space="preserve"><value>Aufgenommen</value></data>
+  <data name="VoiceCmdEditor_NotRecorded"         xml:space="preserve"><value>(noch nicht aufgenommen)</value></data>
+  <data name="VoiceCmdEditor_Detecting"           xml:space="preserve"><value>Erkenne…</value></data>
+  <data name="VoiceCmdEditor_NoModel"             xml:space="preserve"><value>Kein ASR-Modell geladen. Bitte zuerst ein Modell aktivieren.</value></data>
+  <data name="VoiceCmdEditor_NoModelTitle"        xml:space="preserve"><value>Modell nicht verfügbar</value></data>
+  <data name="VoiceCmdEditor_NameRequired"        xml:space="preserve"><value>Bitte einen Namen eingeben.</value></data>
+  <data name="VoiceCmdEditor_NameRequiredTitle"   xml:space="preserve"><value>Name fehlt</value></data>
+  <data name="VoiceCmdEditor_PhraseRequired"      xml:space="preserve"><value>Bitte eine Befehlsphrase eingeben.</value></data>
+  <data name="VoiceCmdEditor_PhraseRequiredTitle" xml:space="preserve"><value>Phrase fehlt</value></data>
+  <data name="VoiceCmdEditor_NoRecording"         xml:space="preserve"><value>Bitte mindestens eine Geräusch-Referenz aufnehmen.</value></data>
+  <data name="VoiceCmdEditor_NoRecordingTitle"    xml:space="preserve"><value>Keine Aufnahme</value></data>
+  <data name="VoiceCmdEditor_PhraseRowTooltip"    xml:space="preserve"><value>Phrase, die nach dem Geräusch erkannt werden soll</value></data>
+  <data name="VoiceCmdEditor_ActionNoneImmediate" xml:space="preserve"><value>(keine Sofortaktion)</value></data>
+  <!-- ── Shared voice command labels ───────────────────────────────────── -->
+  <data name="VoiceCmd_ActionNone"                xml:space="preserve"><value>(keine)</value></data>
+  <data name="VoiceCmd_ActionNewLine"             xml:space="preserve"><value>Neue Zeile</value></data>
+  <data name="VoiceCmd_ActionDeleteLastWord"      xml:space="preserve"><value>Letztes Wort löschen</value></data>
+  <data name="VoiceCmd_ActionDeleteLastSentence"  xml:space="preserve"><value>Letzten Satz löschen</value></data>
+  <data name="VoiceCmd_ActionDeleteAll"           xml:space="preserve"><value>Alles löschen</value></data>
+  <data name="VoiceCmd_ActionSend"                xml:space="preserve"><value>Senden</value></data>
+  <data name="VoiceCmd_ActionUndo"                xml:space="preserve"><value>Rückgängig</value></data>
+  <data name="VoiceCmd_ActionInsertCharacter"      xml:space="preserve"><value>Zeichen einfügen</value></data>
+  <data name="VoiceCmd_InsertCharLabel"            xml:space="preserve"><value>Einzufügendes Zeichen:</value></data>
+  <data name="VoiceCmd_InsertCharTooltip"          xml:space="preserve"><value>Das Zeichen/die Zeichen, die beim Auslösen des Befehls an der Cursorposition eingefügt werden</value></data>
+  <data name="VoiceCmd_TypePhrase"                xml:space="preserve"><value>Phrase</value></data>
+  <data name="VoiceCmd_TypeNoise"                 xml:space="preserve"><value>Geräusch</value></data>
 
 </root>

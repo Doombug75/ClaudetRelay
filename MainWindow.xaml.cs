@@ -16,6 +16,8 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using System.Linq;
+using ClaudetRelay.Models;
 using ClaudetRelay.Services;
 
 namespace ClaudetRelay;
@@ -231,12 +233,19 @@ public partial class MainWindow : Window
     private ParticipantsWindow?                  _participantsWindow;
     private Window?                              _helpWindow;
     // ── Dictation / voice recognition ────────────────────────────────────
-    private readonly DictationService            _dictation = new();
+    private readonly DictationService            _dictation    = new();
+    private readonly NoiseCommandMatcher         _noiseMatcher = new();
     private bool                                 _dictationActive      = false;
     private bool                                 _dictationModelLoaded = false;
-    private bool                                 _dictationRunning     = false; // true while auto-pilot is on (user pressed start)
+    private bool                                 _dictationRunning     = false;
     private string                               _loadedAsrModelType   = "";
     private string                               _loadedAsrModelName   = "";
+    // Combo-command state: noise fired, waiting for phrase within timeout (streaming mode)
+    private VoiceCommand?  _pendingComboCommand;
+    private DateTime       _comboDeadline;
+    // Recently-fired noise: lets ASR chunks strip the noise's filter words
+    private VoiceCommand?  _lastFiredNoise;
+    private DateTime       _lastFiredNoiseAt;
     // ── Private-message target (null = broadcast to all) ──────────────────
     private OllamaParticipantUI?                 _privateMsgOllamaTarget;
     private CloudAIParticipantUI?                _privateMsgCloudTarget;
@@ -318,8 +327,39 @@ public partial class MainWindow : Window
             var savedLog = GeneralChatLogService.LoadRecentLog();
             if (savedLog.Count > 0)
             {
-                foreach (var entry in savedLog)
-                    RenderChatLogEntry(entry);
+                // Render all bubbles visually, but only inject recent messages into
+                // _sharedHistory — capped both by message count AND by estimated token
+                // budget so small models (e.g. Gemma 2B with 2k ctx) don't start full.
+                // Token estimate: 1 token ≈ 4 chars; we claim at most 40% of the
+                // smallest active context window for restored history.
+                int smallestCtx = _ollamaParticipants
+                    .Where(u => u.Data.Enabled && u.Data.Service.NumCtx > 0)
+                    .Select(u => u.Data.Service.NumCtx)
+                    .DefaultIfEmpty(8192)
+                    .Min();
+                int charBudget = (int)(smallestCtx * 4 * 0.40);   // 40% of ctx in chars
+                const int MaxHistoryMessages = 40;
+
+                // Walk from newest to oldest, accumulating chars until budget exhausted
+                int charsUsed = 0;
+                int contextStart = savedLog.Count; // assume nothing fits, then expand
+                for (int i = savedLog.Count - 1; i >= 0; i--)
+                {
+                    var msgLen = (savedLog[i].Message?.Length ?? 0) + (savedLog[i].RawMessage?.Length ?? 0);
+                    if (charsUsed + msgLen > charBudget || savedLog.Count - i > MaxHistoryMessages)
+                        break;
+                    charsUsed += msgLen;
+                    contextStart = i;
+                }
+
+                for (int i = 0; i < savedLog.Count; i++)
+                {
+                    var entry = savedLog[i];
+                    if (i < contextStart)
+                        RenderChatLogEntryVisualOnly(entry);  // bubble only, no history
+                    else
+                        RenderChatLogEntry(entry);            // bubble + history
+                }
                 AddSystemMessage($"Chat resumed  ·  {savedLog.Count} messages loaded.");
                 ChatScrollViewer.ScrollToBottom();
             }
@@ -727,20 +767,51 @@ public partial class MainWindow : Window
 
     private void InitDictationService()
     {
-        // Wire up events
+        // ── Output chain: ordered text + noise commands ───────────────────
+        var chain = new OutputChain();
+        _dictation.OutputChain    = chain;
+        _noiseMatcher.OutputChain = chain;
+
+        chain.EntryReady += entry => Dispatcher.Invoke(() => OnChainEntryReady(entry));
+
+        // ── Noise command matcher ─────────────────────────────────────────
+        ReloadVoiceCommands();
+        _dictation.RawAudioAvailable += samples => _noiseMatcher.ProcessSamples(samples);
+        _noiseMatcher.CommandFired   += cmd =>
+        {
+            // Set suppress immediately on the audio thread so the very next batch
+            // doesn't re-arm from the noise resonance tail before Dispatcher runs.
+            _dictation.SuppressRearm();
+            Dispatcher.Invoke(() =>
+            {
+                // Commit speech recorded before this noise (trim clip so ASR doesn't
+                // transcribe it; noise command execution is handled via the output chain).
+                _dictation.CommitAndRearm(_noiseMatcher.LastMatchedClipSamples);
+
+                // Strip any ASR transcription of the noise already in the text box
+                StripNoiseFilterWords(cmd);
+                _lastFiredNoise   = cmd;
+                _lastFiredNoiseAt = DateTime.UtcNow;
+            });
+        };
+
+        // ── ASR text (streaming mode only — batch goes through the chain) ─
         _dictation.TextAvailable += text =>
             Dispatcher.Invoke(() =>
             {
-                var current = InputTextBox.Text;
-                InputTextBox.Text = string.IsNullOrWhiteSpace(current)
-                    ? text
-                    : current.TrimEnd() + " " + text;
-                InputTextBox.CaretIndex = InputTextBox.Text.Length;
-                InputTextBox.Focus();
+                if (!_dictation.IsStreamingMode) return; // batch handled by chain
+                _noiseMatcher.NotifyAsrOutput();
+                text = ProcessPhraseCommands(text);
+                if (!string.IsNullOrWhiteSpace(text)) AppendTextToInput(text);
             });
 
         _dictation.StateChanged += state =>
             Dispatcher.Invoke(() => UpdateMicButton(state));
+
+        // Show a spinning "working" cursor over the input box while ASR jobs are in flight.
+        _dictation.PendingCountChanged += count =>
+            Dispatcher.Invoke(() =>
+                InputTextBox.Cursor = count > 0 ? System.Windows.Input.Cursors.AppStarting : null);
 
         // Wire PTT key: listen on main window PreviewKeyDown/Up.
         // When focus is in a TextBox we allow the key through so you can still type
@@ -846,11 +917,11 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Legacy "VoiceActivated" setting falls through to AlwaysOn (modes were merged).
         var mode   = s.AsrActivationMode switch
         {
-            "PushToTalk"     => DictationActivationMode.PushToTalk,
-            "VoiceActivated" => DictationActivationMode.VoiceActivated,
-            _                => DictationActivationMode.AlwaysOn
+            "PushToTalk" => DictationActivationMode.PushToTalk,
+            _            => DictationActivationMode.AlwaysOn
         };
         _dictation.Configure(
             mode,
@@ -859,8 +930,7 @@ public partial class MainWindow : Window
             s.VoiceSilenceMs);
         _dictation.MicBoost = AudioSetupWindow.QuadraticBoost(Math.Clamp(s.AudioInputBoost, 0, 300));
 
-        // For AlwaysOn: open mic in standby — no chunk recording yet; user presses 🎙 to start.
-        // For VoiceActivated / PushToTalk: Activate() arms voice detection / key listening.
+        // Open the mic in standby; AlwaysOn arms voice detection, PushToTalk arms the key.
         _dictation.Activate(startRecordingChunk: false);
         _dictationActive      = true;
         _dictationModelLoaded = true;
@@ -877,9 +947,9 @@ public partial class MainWindow : Window
 
     // ── Dictation mic button (🎙) ──────────────────────────────────────────
     // Controls recording only — power must be on first.
-    // AlwaysOn:      press = start chunk, press again = stop + transcribe
-    // VoiceActivated: press = trigger a one-shot manual chunk (auto-transcribes on silence)
-    // PushToTalk:    not used here — PTT key handles everything
+    // AlwaysOn:   press = start a manual chunk, press again = stop + transcribe
+    //             (hands-free voice detection also auto-starts chunks)
+    // PushToTalk: not used here — PTT key handles everything
 
     private void MicButton_Click(object sender, RoutedEventArgs e)
     {
@@ -912,6 +982,396 @@ public partial class MainWindow : Window
 
     /// <summary>Called by AudioSetupWindow when the user moves the boost slider.</summary>
     public void ApplyMicBoost(float gain) => _dictation.MicBoost = gain;
+
+    // ── Voice Commands ────────────────────────────────────────────────────
+
+    public void ReloadVoiceCommands()
+    {
+        var cmds = SettingsService.Load().VoiceCommands;
+        _noiseMatcher.UpdateCommands(cmds);
+    }
+
+    /// <summary>Delegate exposed so VoiceCommandsWindow can offer auto-detect.</summary>
+    public Task<string?> TranscribeSampleAsync(float[] samples)
+        => _dictation.TranscribeSampleAsync(samples);
+
+    /// <summary>Returns a multi-line diagnostic string about the current noise matcher state.</summary>
+    public string GetNoiseDiagnostics()
+    {
+        var cmds = SettingsService.Load().VoiceCommands;
+        var noises = cmds.Where(c => c.Type == VoiceCommandType.Noise).ToList();
+        var sb = new StringBuilder();
+        sb.AppendLine($"Noise commands in settings: {noises.Count}");
+        foreach (var c in noises)
+        {
+            int loaded = c.NoiseSamples.Count(s => s is not null);
+            sb.AppendLine($"  [{(c.Enabled ? "ON" : "off")}] {c.Name}  samples={loaded}/3");
+        }
+        sb.AppendLine();
+        sb.AppendLine($"Last clip: {_noiseMatcher.LastClipInfo}");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Called on each ASR text chunk. Handles:
+    ///  1. Pending combo: strip filter words from start, match phrase mappings.
+    ///  2. Plain Phrase commands: case-insensitive contains match.
+    /// Returns the text with matched phrases stripped (may be empty).
+    /// </summary>
+    private string ProcessPhraseCommands(string text)
+    {
+        // ── Filter words from recently-fired noise (noise fired before ASR output) ──
+        // Handles the case where the noise fires, executes its action, and THEN the
+        // ASR segment that contained the noise arrives with the filter word still in it.
+        if (_lastFiredNoise is { } recent
+            && DateTime.UtcNow - _lastFiredNoiseAt < TimeSpan.FromSeconds(4))
+        {
+            _lastFiredNoise = null;
+            text = StripFilterWordsFromStart(text, recent.NoiseFilterWords);
+            // Also strip from tail in case model put it at the end instead of start
+            foreach (var filter in recent.NoiseFilterWords.Where(w => !string.IsNullOrWhiteSpace(w)))
+            {
+                if (text.EndsWith(filter, StringComparison.OrdinalIgnoreCase))
+                {
+                    text = text[..^filter.Length].TrimEnd();
+                    break;
+                }
+            }
+        }
+
+        // ── Pending combo (noise already fired) ───────────────────────────
+        if (_pendingComboCommand is not null)
+        {
+            var combo = _pendingComboCommand;
+            if (DateTime.UtcNow <= _comboDeadline)
+            {
+                _pendingComboCommand = null;
+                // Strip noise filter words that leaked into the start of this chunk
+                text = StripFilterWordsFromStart(text, combo.NoiseFilterWords);
+
+                foreach (var mapping in combo.PhraseActions)
+                {
+                    if (TryMatchAndStripPhrase(ref text, mapping.Phrase, mustStart: true))
+                    {
+                        ExecuteVoiceAction(mapping.Action, mapping.InsertCharacterValue);
+                        return text;
+                    }
+                }
+                // No phrase matched — fall through to plain phrase check,
+                // and also fire default action if set
+                if (combo.DefaultAction != VoiceCommandAction.None)
+                    ExecuteVoiceAction(combo.DefaultAction, combo.InsertCharacterValue);
+            }
+            else
+            {
+                _pendingComboCommand = null; // deadline expired
+            }
+        }
+
+        // ── Plain Phrase commands ──────────────────────────────────────────
+        var phraseCmds = SettingsService.Load().VoiceCommands
+            .Where(c => c.Enabled && c.Type == VoiceCommandType.Phrase
+                     && !string.IsNullOrWhiteSpace(c.Phrase));
+
+        foreach (var cmd in phraseCmds)
+        {
+            if (cmd.Action == VoiceCommandAction.InsertCharacter)
+            {
+                // In-place replacement: swap the spoken word(s) for the stored value
+                // wherever they occur in the sentence (e.g. censoring "Scheiße" → "<Zensiert>").
+                // Does not break — multiple replacement commands can apply to one utterance.
+                TryReplacePhrase(ref text, cmd.Phrase, cmd.InsertCharacterValue);
+            }
+            else if (TryMatchAndStripPhrase(ref text, cmd.Phrase))
+            {
+                ExecuteVoiceAction(cmd.Action, cmd.InsertCharacterValue);
+                break;
+            }
+        }
+
+        return text;
+    }
+
+    // ── Output chain processor ────────────────────────────────────────────
+
+    private VoiceCommand? _pendingPhraseCommand; // noise cmd waiting to see if next text contains its phrase
+
+    private void OnChainEntryReady(Models.OutputChainEntry entry)
+    {
+        if (entry.Kind == Models.ChainEntryKind.Text)
+        {
+            _noiseMatcher.NotifyAsrOutput();
+            var text = ProcessPhraseCommands(entry.Text ?? "");
+
+            if (_pendingPhraseCommand != null)
+            {
+                // A noise command with phrase actions was waiting — check if this text
+                // matches one of its phrase triggers.
+                var matched = _pendingPhraseCommand.PhraseActions
+                    .FirstOrDefault(pa => ContainsPhraseWords(text, pa.Phrase));
+                if (matched != null)
+                {
+                    // Phrase found: execute the phrase action and suppress the text
+                    var pendingCmd = _pendingPhraseCommand;
+                    _pendingPhraseCommand = null;
+                    ExecuteVoiceAction(matched.Action, matched.InsertCharacterValue);
+                    return;
+                }
+                // No phrase match: drop the noise command, output the text as-is
+                _pendingPhraseCommand = null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(text)) AppendTextToInput(text);
+        }
+        else // Command
+        {
+            var cmd = entry.Command!;
+            StripNoiseFilterWords(cmd);
+            _lastFiredNoise   = cmd;
+            _lastFiredNoiseAt = DateTime.UtcNow;
+
+            if (cmd.PhraseActions.Count > 0)
+            {
+                // Wait for the next text entry to decide which phrase action to take
+                _pendingPhraseCommand = cmd;
+            }
+            else if (cmd.DefaultAction != VoiceCommandAction.None)
+            {
+                ExecuteVoiceAction(cmd.DefaultAction, cmd.InsertCharacterValue);
+            }
+        }
+    }
+
+    private void AppendTextToInput(string text)
+    {
+        var current = InputTextBox.Text;
+        if (string.IsNullOrWhiteSpace(current))
+            InputTextBox.Text = text;
+        else if (current.EndsWith('\n'))
+            InputTextBox.Text = current + text;
+        else
+            InputTextBox.Text = current.TrimEnd() + " " + text;
+        InputTextBox.CaretIndex = InputTextBox.Text.Length;
+        InputTextBox.Focus();
+    }
+
+    /// <summary>
+    /// Removes noise filter words/phrases that appear at the TAIL of the text box
+    /// (the ASR transcription of the noise sound itself).
+    /// </summary>
+    private void StripNoiseFilterWords(VoiceCommand cmd)
+    {
+        if (cmd.NoiseFilterWords.Count == 0) return;
+        var text = InputTextBox.Text;
+        if (string.IsNullOrEmpty(text)) return;
+
+        // Try each filter entry against the tail of the text, longest first
+        var filters = cmd.NoiseFilterWords
+            .Where(w => !string.IsNullOrWhiteSpace(w))
+            .OrderByDescending(w => w.Length);
+
+        foreach (var filter in filters)
+        {
+            if (text.EndsWith(filter, StringComparison.OrdinalIgnoreCase))
+            {
+                InputTextBox.Text = text[..^filter.Length].TrimEnd();
+                InputTextBox.CaretIndex = InputTextBox.Text.Length;
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Strips noise filter words/phrases from the START of a text chunk
+    /// (noise transcription that leaked into the next ASR segment).
+    /// </summary>
+    private static string StripFilterWordsFromStart(string text, IEnumerable<string> filters)
+    {
+        var ordered = filters
+            .Where(w => !string.IsNullOrWhiteSpace(w))
+            .OrderByDescending(w => w.Length);
+
+        foreach (var filter in ordered)
+        {
+            if (text.StartsWith(filter, StringComparison.OrdinalIgnoreCase))
+                return text[filter.Length..].TrimStart();
+        }
+        return text;
+    }
+
+    // ── Punctuation-tolerant phrase matching ────────────────────────────────
+    // The ASR model often attaches punctuation to command words ("slash.",
+    // "(slash)", "send!", ", new line"). These helpers compare on whole-word
+    // boundaries after stripping punctuation so the command is still recognised.
+
+    /// <summary>Lowercases and removes everything that isn't a letter or digit.</summary>
+    private static string NormalizeToken(string token)
+    {
+        var sb = new System.Text.StringBuilder(token.Length);
+        foreach (char c in token)
+            if (char.IsLetterOrDigit(c)) sb.Append(char.ToLowerInvariant(c));
+        return sb.ToString();
+    }
+
+    private static readonly char[] _wordSep = { ' ', '\t', '\n', '\r' };
+
+    /// <summary>Splits a phrase into normalised, punctuation-free lowercase words.</summary>
+    private static string[] PhraseWords(string phrase) =>
+        phrase.Split(_wordSep, StringSplitOptions.RemoveEmptyEntries)
+              .Select(NormalizeToken)
+              .Where(w => w.Length > 0)
+              .ToArray();
+
+    /// <summary>
+    /// Splits a phrase field into its alternatives (semicolon-separated), each as a
+    /// word array. So "Scheisse;Scheiße;scheisse" yields three alternatives that all
+    /// trigger the same command. Sorted longest-first so a multi-word alternative isn't
+    /// pre-empted by a shorter one sharing its first word.
+    /// </summary>
+    private static List<string[]> PhraseAlternatives(string phrase) =>
+        phrase.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+              .Select(PhraseWords)
+              .Where(w => w.Length > 0)
+              .OrderByDescending(w => w.Length)
+              .ToList();
+
+    /// <summary>True if <paramref name="phraseWords"/> matches the run of normalised
+    /// tokens starting at index <paramref name="i"/>.</summary>
+    private static bool PhraseMatchesAt(string[] normTokens, string[] phraseWords, int i)
+    {
+        if (i + phraseWords.Length > normTokens.Length) return false;
+        for (int j = 0; j < phraseWords.Length; j++)
+            if (normTokens[i + j] != phraseWords[j]) return false;
+        return true;
+    }
+
+    /// <summary>
+    /// Searches <paramref name="text"/> for <paramref name="phrase"/> as a contiguous
+    /// run of whole words, ignoring case and any punctuation attached to the words.
+    /// If found, removes those words (with their punctuation) from <paramref name="text"/>
+    /// and returns true. When <paramref name="mustStart"/> is set, only matches at the
+    /// very first word.
+    /// </summary>
+    private static bool TryMatchAndStripPhrase(ref string text, string phrase, bool mustStart = false)
+    {
+        var alts = PhraseAlternatives(phrase);
+        if (alts.Count == 0) return false;
+
+        var tokens     = text.Split(_wordSep, StringSplitOptions.RemoveEmptyEntries);
+        var normTokens = tokens.Select(NormalizeToken).ToArray();
+
+        int limit = mustStart ? 1 : tokens.Length;
+        for (int i = 0; i < limit; i++)
+        {
+            foreach (var phraseWords in alts)
+            {
+                if (!PhraseMatchesAt(normTokens, phraseWords, i)) continue;
+                var remaining = tokens.Take(i).Concat(tokens.Skip(i + phraseWords.Length));
+                text = string.Join(" ", remaining).Trim();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Replaces every whole-word occurrence of <paramref name="phrase"/> in
+    /// <paramref name="text"/> with <paramref name="replacement"/> in place (case- and
+    /// punctuation-tolerant). Used by phrase commands with the InsertCharacter action so
+    /// a spoken word is swapped for a value where it occurs — e.g. censoring. Returns
+    /// true if at least one occurrence was replaced.
+    /// </summary>
+    private static bool TryReplacePhrase(ref string text, string phrase, string replacement)
+    {
+        var alts = PhraseAlternatives(phrase);
+        if (alts.Count == 0) return false;
+
+        var tokens     = text.Split(_wordSep, StringSplitOptions.RemoveEmptyEntries);
+        var normTokens = tokens.Select(NormalizeToken).ToArray();
+
+        var output = new List<string>(tokens.Length);
+        bool any = false;
+        for (int i = 0; i < tokens.Length; )
+        {
+            int matchedLen = 0;
+            foreach (var phraseWords in alts)
+                if (PhraseMatchesAt(normTokens, phraseWords, i)) { matchedLen = phraseWords.Length; break; }
+
+            if (matchedLen > 0)
+            {
+                if (!string.IsNullOrEmpty(replacement)) output.Add(replacement);
+                any = true;
+                i += matchedLen;
+            }
+            else
+            {
+                output.Add(tokens[i]);
+                i++;
+            }
+        }
+        if (any) text = string.Join(" ", output).Trim();
+        return any;
+    }
+
+    /// <summary>Punctuation/case-tolerant whole-word containment test (no mutation).</summary>
+    private static bool ContainsPhraseWords(string text, string phrase)
+    {
+        var copy = text;
+        return TryMatchAndStripPhrase(ref copy, phrase);
+    }
+
+    private void ExecuteVoiceAction(VoiceCommandAction action, string insertCharValue = "")
+    {
+        switch (action)
+        {
+            case VoiceCommandAction.NewLine:
+                var pos = InputTextBox.CaretIndex;
+                InputTextBox.Text = InputTextBox.Text.Insert(pos, "\n");
+                InputTextBox.CaretIndex = pos + 1;
+                break;
+
+            case VoiceCommandAction.DeleteLastWord:
+                var t = InputTextBox.Text.TrimEnd();
+                var lastSpace = t.LastIndexOfAny(new[] { ' ', '\n' });
+                InputTextBox.Text = lastSpace >= 0 ? t[..(lastSpace + 1)] : "";
+                InputTextBox.CaretIndex = InputTextBox.Text.Length;
+                break;
+
+            case VoiceCommandAction.DeleteLastSentence:
+                var ts = InputTextBox.Text.TrimEnd();
+                // Find last sentence-ending punctuation or newline
+                int cut = -1;
+                for (int i = ts.Length - 1; i >= 0; i--)
+                {
+                    if (ts[i] is '.' or '!' or '?' or '\n') { cut = i; break; }
+                }
+                InputTextBox.Text = cut > 0 ? ts.Substring(0, cut + 1).TrimEnd() : "";
+                InputTextBox.CaretIndex = InputTextBox.Text.Length;
+                break;
+
+            case VoiceCommandAction.DeleteAll:
+                InputTextBox.Text = "";
+                break;
+
+            case VoiceCommandAction.Send:
+                // Simulate send button click — reuse existing send logic
+                SendButton?.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                break;
+
+            case VoiceCommandAction.Undo:
+                InputTextBox.Undo();
+                break;
+
+            case VoiceCommandAction.InsertCharacter:
+                if (!string.IsNullOrEmpty(insertCharValue))
+                {
+                    var caret = InputTextBox.CaretIndex;
+                    InputTextBox.Text = InputTextBox.Text.Insert(caret, insertCharValue);
+                    InputTextBox.CaretIndex = caret + insertCharValue.Length;
+                }
+                break;
+        }
+    }
 
     private void UpdateDictationPower(bool loaded = false, bool loading = false)
     {
