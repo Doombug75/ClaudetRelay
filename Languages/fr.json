@@ -1019,5 +1019,10 @@
     "CodeEdit_AddConstructor": "Constructeur",
     "CodeEdit_AddDestructor": "Destructeur",
     "CodeEdit_ConstructorLbl": "constructeur",
-    "CodeEdit_DestructorLbl": "destructeur"
+    "CodeEdit_DestructorLbl": "destructeur",
+    "Flow_ToStructogramTip": "Convertir cet organigramme en structogramme",
+    "Flow_ToStructogramTitle": "Convertir en structogramme",
+    "Flow_ToStructogramOverwrite": "Un structogramme existe déjà pour cette fonction. L'écraser avec l'organigramme converti ?",
+    "Flow_ToStructogramPartial": "Converti — mais certaines parties de l'organigramme n'ont pas pu être structurées. Elles sont signalées en ambre dans le structogramme.",
+    "Struct_FlaggedTip": "Cette région n'a pas pu être structurée à partir de l'organigramme — à vérifier et réécrire manuellement."
 }

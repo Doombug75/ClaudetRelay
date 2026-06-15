@@ -1126,5 +1126,10 @@
     "CodeEdit_AddConstructor": "Konstruktvrak",
     "CodeEdit_AddDestructor": "Destruktvrak",
     "CodeEdit_ConstructorLbl": "konstruktvrak",
-    "CodeEdit_DestructorLbl": "destruktvrak"
+    "CodeEdit_DestructorLbl": "destruktvrak",
+    "Flow_ToStructogramTip": "Konvertvrak xel flovrak vu zar struktogramvrak",
+    "Flow_ToStructogramTitle": "Konvertvrak vu Struktogramvrak",
+    "Flow_ToStructogramOverwrite": "Zar struktogramvrak alredi existvrak fro xel funkxal. Overwritvrak with xel konvertvrak flovrak?",
+    "Flow_ToStructogramPartial": "Konvertvrak — bvut sum partvraks of xel flovrak kud nax bex strukturvrak. Zay ar flaggvrak in ambvrak in xel struktogramvrak.",
+    "Struct_FlaggedTip": "Xel rejxal kud nax bex strukturvrak frox xel flovrak — reviewvrak ak rewritvrak it manually."
 }

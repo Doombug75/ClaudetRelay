@@ -1152,4 +1152,9 @@ Output '{0}' is '{1}', input '{2}' is '{3}'.</value></data>
   <data name="CodeEdit_AddDestructor" xml:space="preserve"><value>Destructor</value></data>
   <data name="CodeEdit_ConstructorLbl" xml:space="preserve"><value>constructor</value></data>
   <data name="CodeEdit_DestructorLbl" xml:space="preserve"><value>destructor</value></data>
+  <data name="Flow_ToStructogramTip" xml:space="preserve"><value>Convert this flowchart to a structogram</value></data>
+  <data name="Flow_ToStructogramTitle" xml:space="preserve"><value>Convert to structogram</value></data>
+  <data name="Flow_ToStructogramOverwrite" xml:space="preserve"><value>A structogram already exists for this function. Overwrite it with the converted flowchart?</value></data>
+  <data name="Flow_ToStructogramPartial" xml:space="preserve"><value>Converted — but some parts of the flowchart could not be structured. They are flagged in amber in the structogram.</value></data>
+  <data name="Struct_FlaggedTip" xml:space="preserve"><value>This region could not be structured from the flowchart — review and rewrite it manually.</value></data>
 </root>

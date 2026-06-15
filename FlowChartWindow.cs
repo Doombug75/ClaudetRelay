@@ -163,11 +163,50 @@ public class FlowChartWindow : Window
         UpdateModeButtons();
 
         row.Children.Add(new Border { Width = 12 });
+        var toNsBtn = Btn("▦ → Struktogramm", Properties.Loc.S("Flow_ToStructogramTip"));
+        toNsBtn.Click += (_, _) => ConvertToStructogram();
+        row.Children.Add(toNsBtn);
+
+        row.Children.Add(new Border { Width = 12 });
         var zoomBtn = Btn("1:1", Properties.Loc.S("Common_ResetZoomTip"));
         zoomBtn.Click += (_, _) => { _zoom = 1.0; _canvas!.LayoutTransform = Transform.Identity; };
         row.Children.Add(zoomBtn);
 
         return bar;
+    }
+
+    private void ConvertToStructogram()
+    {
+        if (StructogramService.Exists(_projFolder, _key))
+        {
+            var res = MessageBox.Show(
+                Properties.Loc.S("Flow_ToStructogramOverwrite"),
+                Properties.Loc.S("Flow_ToStructogramTitle"),
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (res != MessageBoxResult.Yes) return;
+        }
+
+        var title = string.IsNullOrEmpty(_data.Title) ? Properties.Loc.S("Common_Untitled") : _data.Title;
+        var sd = StructogramConverter.Convert(_data, title);
+        StructogramService.Save(_projFolder, _key, sd);
+
+        bool anyFlagged = AnyFlagged(sd.Root);
+        if (anyFlagged)
+            MessageBox.Show(Properties.Loc.S("Flow_ToStructogramPartial"),
+                Properties.Loc.S("Flow_ToStructogramTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+
+        new StructogramWindow(_projFolder, _key, title, _themePath) { Owner = Owner ?? this }.Show();
+    }
+
+    private static bool AnyFlagged(List<NsBlock> blocks)
+    {
+        foreach (var b in blocks)
+        {
+            if (b.Flagged) return true;
+            if (AnyFlagged(b.Body) || AnyFlagged(b.Else)) return true;
+            foreach (var arm in b.Arms) if (AnyFlagged(arm.Body)) return true;
+        }
+        return false;
     }
 
     private void SetMode(EditMode mode)

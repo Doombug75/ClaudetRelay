@@ -1019,5 +1019,10 @@
     "CodeEdit_AddConstructor": "Konstruktor",
     "CodeEdit_AddDestructor": "Destruktor",
     "CodeEdit_ConstructorLbl": "Konstruktor",
-    "CodeEdit_DestructorLbl": "Destruktor"
+    "CodeEdit_DestructorLbl": "Destruktor",
+    "Flow_ToStructogramTip": "Diesen Programmablaufplan in ein Struktogramm umwandeln",
+    "Flow_ToStructogramTitle": "In Struktogramm umwandeln",
+    "Flow_ToStructogramOverwrite": "Für diese Funktion existiert bereits ein Struktogramm. Mit dem umgewandelten Ablaufplan überschreiben?",
+    "Flow_ToStructogramPartial": "Umgewandelt — aber einige Teile des Ablaufplans ließen sich nicht strukturieren. Sie sind im Struktogramm bernsteinfarben markiert.",
+    "Struct_FlaggedTip": "Dieser Bereich konnte nicht aus dem Ablaufplan strukturiert werden — bitte manuell prüfen und umschreiben."
 }

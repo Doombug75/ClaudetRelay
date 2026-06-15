@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using ClaudetRelay.Models;
 using ClaudetRelay.Services;
 
@@ -122,19 +124,62 @@ public class StructogramWindow : Window
 
         var cell = new Border
         {
-            BorderThickness = new Thickness(1),
+            BorderThickness = new Thickness(b.Flagged ? 2 : 1),
             Child           = inner
         };
-        cell.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
-        cell.SetResourceReference(Border.BackgroundProperty,  "CardBgBrush");
+        if (b.Flagged)
+        {
+            // Clearly flagged region the converter could not structure — pulsing glow + border
+            // that alternates amber↔white so it stays visible on ANY background (incl. amber themes).
+            cell.Background = new SolidColorBrush(Color.FromArgb(0x22, 0xF5, 0x7F, 0x17));
+            cell.ToolTip    = Properties.Loc.S("Struct_FlaggedTip");
+            ApplyFlaggedPulse(cell);
+        }
+        else
+        {
+            cell.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+            cell.SetResourceReference(Border.BackgroundProperty,  "CardBgBrush");
+        }
         cell.MouseRightButtonDown += (_, e) => { ShowBlockMenu(b, parent); e.Handled = true; };
         return cell;
     }
 
+    /// <summary>Pulsing glow + amber↔white border so a flagged block stays visible on any background.</summary>
+    private static void ApplyFlaggedPulse(Border cell)
+    {
+        var amber = Color.FromRgb(0xF5, 0x7F, 0x17);
+        var white = Color.FromRgb(0xFF, 0xF3, 0xE0);
+        var dur   = new Duration(TimeSpan.FromSeconds(0.9));
+
+        // Glow corona (pulses size, opacity and colour).
+        var glow = new DropShadowEffect { Color = amber, ShadowDepth = 0, BlurRadius = 8, Opacity = 0.75 };
+        cell.Effect = glow;
+        glow.BeginAnimation(DropShadowEffect.BlurRadiusProperty,
+            new DoubleAnimation(8, 24, dur) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
+        glow.BeginAnimation(DropShadowEffect.OpacityProperty,
+            new DoubleAnimation(0.55, 1.0, dur) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
+        glow.BeginAnimation(DropShadowEffect.ColorProperty,
+            new ColorAnimation(amber, white, dur) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
+
+        // Border alternates amber↔white — one phase always contrasts the background.
+        var brush = new SolidColorBrush(amber);
+        cell.BorderBrush = brush;
+        brush.BeginAnimation(SolidColorBrush.ColorProperty,
+            new ColorAnimation(amber, white, dur) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
+    }
+
     private FrameworkElement StatementBox(NsBlock b)
     {
-        var t = LabelText(string.IsNullOrWhiteSpace(b.Text) ? Properties.Loc.S("Struct_PhStatement") : b.Text);
+        var text = b.Flagged
+            ? "⚠ " + b.Text
+            : (string.IsNullOrWhiteSpace(b.Text) ? Properties.Loc.S("Struct_PhStatement") : b.Text);
+        var t = LabelText(text);
         t.Margin = new Thickness(8, 6, 8, 6);
+        if (b.Flagged)
+        {
+            t.FontWeight = FontWeights.SemiBold;
+            t.Foreground = new SolidColorBrush(Color.FromRgb(0xE6, 0x51, 0x00));
+        }
         t.MouseLeftButtonDown += (_, e) => { if (e.ClickCount >= 2) { EditText(b); e.Handled = true; } };
         return t;
     }

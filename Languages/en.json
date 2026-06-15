@@ -1019,5 +1019,10 @@
     "CodeEdit_AddConstructor": "Constructor",
     "CodeEdit_AddDestructor": "Destructor",
     "CodeEdit_ConstructorLbl": "constructor",
-    "CodeEdit_DestructorLbl": "destructor"
+    "CodeEdit_DestructorLbl": "destructor",
+    "Flow_ToStructogramTip": "Convert this flowchart to a structogram",
+    "Flow_ToStructogramTitle": "Convert to structogram",
+    "Flow_ToStructogramOverwrite": "A structogram already exists for this function. Overwrite it with the converted flowchart?",
+    "Flow_ToStructogramPartial": "Converted — but some parts of the flowchart could not be structured. They are flagged in amber in the structogram.",
+    "Struct_FlaggedTip": "This region could not be structured from the flowchart — review and rewrite it manually."
 }

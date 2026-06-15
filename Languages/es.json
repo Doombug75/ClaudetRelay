@@ -1019,5 +1019,10 @@
     "CodeEdit_AddConstructor": "Constructor",
     "CodeEdit_AddDestructor": "Destructor",
     "CodeEdit_ConstructorLbl": "constructor",
-    "CodeEdit_DestructorLbl": "destructor"
+    "CodeEdit_DestructorLbl": "destructor",
+    "Flow_ToStructogramTip": "Convertir este diagrama de flujo en un estructograma",
+    "Flow_ToStructogramTitle": "Convertir en estructograma",
+    "Flow_ToStructogramOverwrite": "Ya existe un estructograma para esta función. ¿Sobrescribirlo con el diagrama de flujo convertido?",
+    "Flow_ToStructogramPartial": "Convertido, pero algunas partes del diagrama no se pudieron estructurar. Están marcadas en ámbar en el estructograma.",
+    "Struct_FlaggedTip": "Esta región no se pudo estructurar a partir del diagrama — revísala y reescríbela manualmente."
 }

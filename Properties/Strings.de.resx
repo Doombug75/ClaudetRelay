@@ -1152,4 +1152,9 @@ Output „{0}" ist „{1}", Input „{2}" ist „{3}".</value></data>
   <data name="CodeEdit_AddDestructor" xml:space="preserve"><value>Destruktor</value></data>
   <data name="CodeEdit_ConstructorLbl" xml:space="preserve"><value>Konstruktor</value></data>
   <data name="CodeEdit_DestructorLbl" xml:space="preserve"><value>Destruktor</value></data>
+  <data name="Flow_ToStructogramTip" xml:space="preserve"><value>Diesen Programmablaufplan in ein Struktogramm umwandeln</value></data>
+  <data name="Flow_ToStructogramTitle" xml:space="preserve"><value>In Struktogramm umwandeln</value></data>
+  <data name="Flow_ToStructogramOverwrite" xml:space="preserve"><value>Für diese Funktion existiert bereits ein Struktogramm. Mit dem umgewandelten Ablaufplan überschreiben?</value></data>
+  <data name="Flow_ToStructogramPartial" xml:space="preserve"><value>Umgewandelt — aber einige Teile des Ablaufplans ließen sich nicht strukturieren. Sie sind im Struktogramm bernsteinfarben markiert.</value></data>
+  <data name="Struct_FlaggedTip" xml:space="preserve"><value>Dieser Bereich konnte nicht aus dem Ablaufplan strukturiert werden — bitte manuell prüfen und umschreiben.</value></data>
 </root>
