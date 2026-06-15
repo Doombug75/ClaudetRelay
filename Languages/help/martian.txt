@@ -152,6 +152,7 @@ Fro softwarvrak prox'als: plan struktral, relaxals ak logikvrak, then exportvrak
 • Programmablaufplan (DIN 66001): per funkxal/methodvrak. Formvraks = startvrak/endvrak, prosesvrak, desixal, I/O, subroutvrak, notvrak; labvrak arovraks. Tri moxs: Selektvrak, Konektvrak, Removvrak.
 • Struktogramvrak (Nassi-Shneiderman, DIN 66261): nestvrak blokvraks — statemvrak, if/elsvrak, while, do-while, kasvrak.
 • Xel 🔁 button on zar funkxal/methodvrak openvrak zar chooxal: Programmablaufplan or Struktogramvrak.
+• Vorgesxal wegvrak: (optional Programmablaufplan) → Struktogramvrak → Kodvrak. Xel '▦ → Struktogramvrak' button konvertvrak xel PAP. Xis dient ax filtervrak fro klean struktral: nax-strukturvrak partvraks ar markvrak ambvrak-pulsvrak, nax stil falsx kompilvrak. Frox struktogramvrak → methodvrak rumpvrak deterministik (nax KI). PAP direktvrak vu kodvrak iz nax deterministik — zar KI kan xis dvu.
 • ⬇ Exportvrak kodvrak: genervrak skeletvraks ix 10 langvraks — C#, C++, Java, TypeScript, Python, Kotlin, Swift, PHP, Go, Rust (Go/Rust mapvrak inheritvrak vu komposixal). Kopivrak or savvrak vu OUTPUT/generated/.
 
 ## Braxor Tab

@@ -4487,6 +4487,10 @@ public partial class MainWindow : Window
         "labelled arrows. Three modes: Select/Move, Connect, Remove.\n" +
         "• Structogram (Nassi-Shneiderman, DIN 66261): per function/method. Nested blocks = statement, if/else, while, do-while, case.\n" +
         "• The 🔁 button on a function/method opens a chooser: Programmablaufplan or Structogram.\n" +
+        "• INTENDED WORKFLOW: (optional flowchart) → structogram → code. A flowchart can be converted to a " +
+        "structogram via the '▦ → Structogram' button; this doubles as a clean-structure filter (unstructurable " +
+        "parts are flagged, not silently miscompiled). The structogram then generates the method body deterministically " +
+        "(no AI). Converting a flowchart DIRECTLY to code is not deterministic — that step can be done by an AI on request.\n" +
         "• ⬇ Export code: generates skeletons in 10 languages — C#, C++, Java, TypeScript, Python, Kotlin, Swift, PHP, Go, Rust " +
         "(Go/Rust map inheritance to composition). Copy to clipboard or save to OUTPUT/generated/.\n\n" +
 
@@ -4656,6 +4660,11 @@ public partial class MainWindow : Window
         "beschriftete Pfeile. Drei Modi: Auswählen/Bewegen, Verbinden, Entfernen.\n" +
         "• Struktogramm (Nassi-Shneiderman, DIN 66261): pro Funktion/Methode. Verschachtelte Blöcke = Anweisung, Wenn/Sonst, While, Do-While, Fallauswahl.\n" +
         "• Der 🔁-Knopf an einer Funktion/Methode öffnet eine Auswahl: Programmablaufplan oder Struktogramm.\n" +
+        "• VORGESEHENER WEG: (optional Programmablaufplan) → Struktogramm → Code. Ein Ablaufplan lässt sich per " +
+        "'▦ → Struktogramm'-Knopf umwandeln; das dient zugleich als Filter für saubere Struktur (nicht strukturierbare " +
+        "Teile werden markiert, nicht still falsch übersetzt). Das Struktogramm erzeugt dann den Methodenrumpf " +
+        "deterministisch (ohne KI). Ein Ablaufplan DIREKT in Code ist nicht deterministisch — diesen Schritt kann " +
+        "auf Wunsch eine KI übernehmen.\n" +
         "• ⬇ Code exportieren: erzeugt Gerüste in 10 Sprachen — C#, C++, Java, TypeScript, Python, Kotlin, Swift, PHP, Go, Rust " +
         "(Go/Rust bilden Vererbung als Komposition ab). In die Zwischenablage kopieren oder nach OUTPUT/generated/ speichern.\n\n" +
 
@@ -5908,12 +5917,24 @@ public partial class MainWindow : Window
               "  • Programmablaufplan (DIN 66001): Start/Ende, Prozess, Verzweigung, E/A, Unterprogramm, Notiz; beschriftete Pfeile. " +
               "Drei Modi-Knöpfe: Auswählen/Bewegen, Verbinden, Entfernen.\n" +
               "  • Struktogramm (Nassi-Shneiderman, DIN 66261): verschachtelte Blöcke — Anweisung, Wenn/Sonst, While, Do-While, Fallauswahl. " +
-              "Rechtsklick auf einen Block zum Einfügen/Umschließen/Löschen."
+              "Rechtsklick auf einen Block zum Einfügen/Umschließen/Löschen.\n\n" +
+              "Vorgesehener Weg: (optional Programmablaufplan) → Struktogramm → Code.\n" +
+              "  • Im Ablaufplan wandelt der '▦ → Struktogramm'-Knopf den PAP in ein Struktogramm um. Das dient zugleich " +
+              "als Filter für saubere Struktur: nicht strukturierbare Stellen (wilde Sprünge) werden bernsteinfarben " +
+              "pulsierend markiert statt still falsch übersetzt — du siehst genau, wo es klemmt.\n" +
+              "  • Aus dem Struktogramm wird der Methodenrumpf deterministisch (ohne KI) erzeugt.\n" +
+              "  • Ein Ablaufplan DIREKT in Code ist nicht deterministisch — diesen Schritt kann auf Wunsch eine KI übernehmen."
             : "Every function and method can have a flow — the 🔁 button opens a chooser:\n" +
               "  • Flowchart / Programmablaufplan (DIN 66001): start/end, process, decision, I/O, subroutine, note; labelled arrows. " +
               "Three mode buttons: Select/Move, Connect, Remove.\n" +
               "  • Structogram (Nassi-Shneiderman, DIN 66261): nested blocks — statement, if/else, while, do-while, case. " +
-              "Right-click a block to insert/wrap/delete.");
+              "Right-click a block to insert/wrap/delete.\n\n" +
+              "Intended workflow: (optional flowchart) → structogram → code.\n" +
+              "  • In the flowchart, the '▦ → Structogram' button converts the PAP into a structogram. This doubles as a " +
+              "clean-structure filter: unstructurable parts (arbitrary jumps) are flagged with a pulsing amber highlight " +
+              "instead of being silently miscompiled — you see exactly where it breaks.\n" +
+              "  • The structogram then generates the method body deterministically (no AI).\n" +
+              "  • Converting a flowchart DIRECTLY to code is not deterministic — that step can be done by an AI on request.");
 
         AddSubHeader(isDE ? "Code-Export" : "Code export");
         AddBody(isDE
