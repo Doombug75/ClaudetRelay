@@ -49,6 +49,7 @@ public partial class MainWindow
     private string          _worldActiveType        = "";
     private bool            _worldBoardsMode        = false;
     private string          _worldBoardsSort        = "date_desc"; // name_asc | name_desc | date_asc | date_desc
+    private string          _worldBoardsView        = "cards";     // cards | list | table
     private readonly HashSet<string> _worldBoardsTypeFilter = new(); // empty = all; otherwise filter by EntityTypes intersection
     private bool   _entityEditOpen  = false;   // true while ShowEntityEditDialog is open
 
@@ -1188,6 +1189,18 @@ public partial class MainWindow
         sortPanel.Children.Add(MakeSortBtn("Date ↑",     "date_asc"));
         sortPanel.Children.Add(MakeSortBtn("Date ↓",     "date_desc"));
 
+        // View switcher: Cards / List / Table
+        Button MakeBoardViewBtn(string key, string glyph, string tip)
+        {
+            var b = MakeFilePanelButton(glyph, _worldBoardsView == key);
+            b.FontSize = 13; b.Padding = new Thickness(8, 4, 8, 4); b.Margin = new Thickness(key == "cards" ? 12 : 0, 0, 2, 0); b.ToolTip = tip;
+            b.Click += (_, _) => { _worldBoardsView = key; BuildWorldContent(); };
+            return b;
+        }
+        sortPanel.Children.Add(MakeBoardViewBtn("cards", "▦", Properties.Loc.S("Code_View_Cards")));
+        sortPanel.Children.Add(MakeBoardViewBtn("list",  "☰", Properties.Loc.S("Code_View_List")));
+        sortPanel.Children.Add(MakeBoardViewBtn("table", "▤", Properties.Loc.S("Code_View_Table")));
+
         var addBoardBtn = MakeFilePanelButton(Properties.Loc.S("World_NewBoard"), isPrimary: true);
         addBoardBtn.FontSize = 12; addBoardBtn.Padding = new Thickness(14, 6, 14, 6);
         Grid.SetColumn(addBoardBtn, 1);
@@ -1267,55 +1280,71 @@ public partial class MainWindow
             return;
         }
 
-        var tileWrap = new WrapPanel { Orientation = Orientation.Horizontal };
-        body.Children.Add(tileWrap);
-
-        foreach (var board in sorted)
+        // Shared interaction wiring (hover + open + context menu) for any view element.
+        void Attach(FrameworkElement el, WorldBoard capturedBoard)
         {
-            var capturedBoard = board;
-            var entityCount   = board.EntityTypes.Sum(et => WorldEntityService.List(projFolder, et).Count);
+            el.MouseEnter += (_, _) => el.Opacity = 0.85;
+            el.MouseLeave += (_, _) => el.Opacity = 1.0;
+            el.MouseLeftButtonUp += (_, _) => OpenOrActivateBoardWindow(projFolder, capturedBoard);
 
+            var ctx = new ContextMenu();
+            var renameItem = new MenuItem { Header = Properties.Loc.S("World_RenameBoard") };
+            renameItem.Click += (_, _) =>
+            {
+                var newName = ShowSimpleInputDialog(Properties.Loc.S("World_RenameBoardTitle"), Properties.Loc.S("World_BoardNameLabel"), capturedBoard.Name);
+                if (newName is null || newName == capturedBoard.Name) return;
+                capturedBoard.Name = newName; capturedBoard.UpdatedAt = DateTime.UtcNow;
+                WorldBoardRegistryService.Save(projFolder, boards);
+                if (_openBoardWindows.TryGetValue(capturedBoard.Id, out var bw)) bw.Title = capturedBoard.Symbol + "  " + capturedBoard.Name;
+                BuildWorldContent();
+            };
+            ctx.Items.Add(renameItem);
+            var settingsItem = new MenuItem { Header = Properties.Loc.S("World_BoardSettings") };
+            settingsItem.Click += (_, _) =>
+            {
+                if (ShowBoardSettingsDialog(capturedBoard))
+                {
+                    capturedBoard.UpdatedAt = DateTime.UtcNow;
+                    WorldBoardRegistryService.Save(projFolder, boards);
+                    if (_openBoardWindows.TryGetValue(capturedBoard.Id, out var bw)) { bw.Title = capturedBoard.Symbol + "  " + capturedBoard.Name; bw.BuildBoardContent(); }
+                    BuildWorldContent();
+                }
+            };
+            ctx.Items.Add(settingsItem);
+            ctx.Items.Add(new Separator());
+            var deleteItem = new MenuItem { Header = Properties.Loc.S("World_DeleteBoard") };
+            deleteItem.Click += (_, _) =>
+            {
+                if (MessageBox.Show($"Delete board \"{capturedBoard.Name}\"?\nAll card positions and relations will be lost.",
+                        Properties.Loc.S("World_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                boards.Remove(capturedBoard);
+                WorldBoardRegistryService.Save(projFolder, boards);
+                if (_openBoardWindows.TryGetValue(capturedBoard.Id, out var bw)) bw.Close();
+                BuildWorldContent();
+            };
+            ctx.Items.Add(deleteItem);
+            el.ContextMenu = ctx;
+            el.Cursor = Cursors.Hand;
+        }
+
+        Border BuildTile(WorldBoard board, int entityCount)
+        {
             var tile = new Border
             {
-                Width = 160, Height = 185,
-                Margin = new Thickness(0, 0, 14, 14),
-                CornerRadius = new CornerRadius(10),
-                BorderThickness = new Thickness(1),
-                Cursor = Cursors.Hand,
-                Effect = new System.Windows.Media.Effects.DropShadowEffect
-                    { BlurRadius = 8, ShadowDepth = 2, Opacity = 0.18, Color = Colors.Black }
+                Width = 160, Height = 185, Margin = new Thickness(0, 0, 14, 14),
+                CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(1), Cursor = Cursors.Hand,
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 8, ShadowDepth = 2, Opacity = 0.18, Color = Colors.Black }
             };
             tile.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
             tile.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
-
             var tileInner = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
             tile.Child = tileInner;
-
-            // Symbol
-            var symBlock = new TextBlock
-            {
-                Text = board.Symbol, FontSize = 40,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 22, 0, 8),
-                TextAlignment = TextAlignment.Center
-            };
+            var symBlock = new TextBlock { Text = board.Symbol, FontSize = 40, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 22, 0, 8), TextAlignment = TextAlignment.Center };
             symBlock.SetResourceReference(TextBlock.ForegroundProperty, "AccentHighlightBrush");
             tileInner.Children.Add(symBlock);
-
-            // Name
-            var nameBlock = new TextBlock
-            {
-                Text = board.Name, FontSize = 13, FontWeight = FontWeights.SemiBold,
-                FontFamily = new FontFamily("Segoe UI"),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                TextAlignment = TextAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 140, Margin = new Thickness(8, 0, 8, 6)
-            };
+            var nameBlock = new TextBlock { Text = board.Name, FontSize = 13, FontWeight = FontWeights.SemiBold, FontFamily = new FontFamily("Segoe UI"), HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 140, Margin = new Thickness(8, 0, 8, 6) };
             nameBlock.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush");
             tileInner.Children.Add(nameBlock);
-
-            // Entity type chips
             var chipPanel = new WrapPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(4, 0, 4, 6) };
             tileInner.Children.Add(chipPanel);
             foreach (var et in board.EntityTypes)
@@ -1328,75 +1357,60 @@ public partial class MainWindow
                 chip.Child = chipTb;
                 chipPanel.Children.Add(chip);
             }
-
-            // Entity count + date
-            var countTb = new TextBlock
-            {
-                Text = $"{entityCount} entit{(entityCount == 1 ? "y" : "ies")}  ·  {board.UpdatedAt:MMM d, yyyy}",
-                FontSize = 9, FontFamily = new FontFamily("Segoe UI"),
-                HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 148, Margin = new Thickness(4, 0, 4, 0)
-            };
+            var countTb = new TextBlock { Text = $"{entityCount} entit{(entityCount == 1 ? "y" : "ies")}  ·  {board.UpdatedAt:MMM d, yyyy}", FontSize = 9, FontFamily = new FontFamily("Segoe UI"), HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 148, Margin = new Thickness(4, 0, 4, 0) };
             countTb.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
             tileInner.Children.Add(countTb);
+            Attach(tile, board);
+            return tile;
+        }
 
-            // Hover
-            tile.MouseEnter += (_, _) => tile.Opacity = 0.85;
-            tile.MouseLeave += (_, _) => tile.Opacity = 1.0;
+        Border BuildBoardListRow(WorldBoard board, int entityCount)
+        {
+            var row = new Border { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 0, 2) };
+            row.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
+            row.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.Child = grid;
+            var sym = new TextBlock { Text = board.Symbol, FontSize = 14, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+            sym.SetResourceReference(TextBlock.ForegroundProperty, "AccentHighlightBrush"); Grid.SetColumn(sym, 0); grid.Children.Add(sym);
+            var nm = new TextBlock { Text = board.Name, FontSize = 13, FontFamily = new FontFamily("Segoe UI"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+            nm.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush"); Grid.SetColumn(nm, 1); grid.Children.Add(nm);
+            var date = new TextBlock { Text = $"{entityCount} · {board.UpdatedAt.ToLocalTime():yyyy-MM-dd HH:mm}", FontSize = 11, Opacity = 0.55, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+            date.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush"); Grid.SetColumn(date, 2); grid.Children.Add(date);
+            Attach(row, board);
+            return row;
+        }
 
-            // Click → open board window (singleton per board ID)
-            tile.MouseLeftButtonUp += (_, _) => OpenOrActivateBoardWindow(projFolder, capturedBoard);
+        Border BuildBoardTableCell(WorldBoard board)
+        {
+            var cell = new Border { Width = 200, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 6, 6) };
+            cell.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
+            cell.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+            var sp = new StackPanel { Orientation = Orientation.Horizontal };
+            cell.Child = sp;
+            var sym = new TextBlock { Text = board.Symbol, FontSize = 14, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+            sym.SetResourceReference(TextBlock.ForegroundProperty, "AccentHighlightBrush"); sp.Children.Add(sym);
+            var nm = new TextBlock { Text = board.Name, FontSize = 13, FontFamily = new FontFamily("Segoe UI"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 150 };
+            nm.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush"); sp.Children.Add(nm);
+            Attach(cell, board);
+            return cell;
+        }
 
-            // Context menu: rename, settings, delete
-            var ctx = new ContextMenu();
-
-            var renameItem = new MenuItem { Header = Properties.Loc.S("World_RenameBoard") };
-            renameItem.Click += (_, _) =>
+        Panel boardContainer = _worldBoardsView == "list" ? new StackPanel() : new WrapPanel { Orientation = Orientation.Horizontal };
+        body.Children.Add(boardContainer);
+        foreach (var board in sorted)
+        {
+            var entityCount = board.EntityTypes.Sum(et => WorldEntityService.List(projFolder, et).Count);
+            FrameworkElement el = _worldBoardsView switch
             {
-                var newName = ShowSimpleInputDialog(Properties.Loc.S("World_RenameBoardTitle"), Properties.Loc.S("World_BoardNameLabel"), capturedBoard.Name);
-                if (newName is null || newName == capturedBoard.Name) return;
-                capturedBoard.Name    = newName;
-                capturedBoard.UpdatedAt = DateTime.UtcNow;
-                WorldBoardRegistryService.Save(projFolder, boards);
-                if (_openBoardWindows.TryGetValue(capturedBoard.Id, out var bw))
-                    bw.Title = capturedBoard.Symbol + "  " + capturedBoard.Name;
-                BuildWorldContent();
+                "list"  => BuildBoardListRow(board, entityCount),
+                "table" => BuildBoardTableCell(board),
+                _       => BuildTile(board, entityCount),
             };
-            ctx.Items.Add(renameItem);
-
-            var settingsItem = new MenuItem { Header = Properties.Loc.S("World_BoardSettings") };
-            settingsItem.Click += (_, _) =>
-            {
-                if (ShowBoardSettingsDialog(capturedBoard))
-                {
-                    capturedBoard.UpdatedAt = DateTime.UtcNow;
-                    WorldBoardRegistryService.Save(projFolder, boards);
-                    if (_openBoardWindows.TryGetValue(capturedBoard.Id, out var bw))
-                    {
-                        bw.Title = capturedBoard.Symbol + "  " + capturedBoard.Name;
-                        bw.BuildBoardContent();
-                    }
-                    BuildWorldContent();
-                }
-            };
-            ctx.Items.Add(settingsItem);
-
-            ctx.Items.Add(new Separator());
-
-            var deleteItem = new MenuItem { Header = Properties.Loc.S("World_DeleteBoard") };
-            deleteItem.Click += (_, _) =>
-            {
-                if (MessageBox.Show($"Delete board \"{capturedBoard.Name}\"?\nAll card positions and relations will be lost.",
-                        Properties.Loc.S("World_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-                boards.Remove(capturedBoard);
-                WorldBoardRegistryService.Save(projFolder, boards);
-                if (_openBoardWindows.TryGetValue(capturedBoard.Id, out var bw)) bw.Close();
-                BuildWorldContent();
-            };
-            ctx.Items.Add(deleteItem);
-
-            tile.ContextMenu = ctx;
-            tileWrap.Children.Add(tile);
+            boardContainer.Children.Add(el);
         }
     }
 

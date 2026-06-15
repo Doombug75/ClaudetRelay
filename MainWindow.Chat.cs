@@ -5838,12 +5838,14 @@ public partial class MainWindow : Window
               "  Charaktere — Profile, Rollen, Bögen, Stimme, Werte.\n" +
               "  Fraktionen — Ziele, Anführer, Territorium, Mitgliederlisten.\n" +
               "  Orte — Typ, Atmosphäre, Bedeutung, Fraktionsverbindungen.\n" +
-              "  Lore — Geschichte, Mythen, Magie-Regeln, Wissens-Tags."
+              "  Lore — Geschichte, Mythen, Magie-Regeln, Wissens-Tags.\n" +
+              "Jede Seite (Boards, Charaktere, Fraktionen, Orte, Lore) ist zwischen Karten-, Listen- und Tabellenansicht umschaltbar — wie der Code-Bereich."
             : "Define persistent world entities that AIs always stay consistent with:\n" +
               "  Characters — profiles, roles, arcs, voice, stats.\n" +
               "  Factions — goals, leaders, territory, member lists.\n" +
               "  Locations — type, atmosphere, significance, faction ties.\n" +
-              "  Lore — history, myths, magic rules, knowledge tags.");
+              "  Lore — history, myths, magic rules, knowledge tags.\n" +
+              "Every page (Boards, Characters, Factions, Locations, Lore) switches between cards, list and table views — like the Code section.");
         AddSubHeader(isDE ? "Boards (Pinnwände)" : "Boards");
         AddBody(isDE
             ? "Jedes Board ist eine visuelle Leinwand, auf der du Entitätskarten platzierst und Beziehungen " +
