@@ -217,6 +217,219 @@ public static class CodeExportService
         return t.Length == 0 ? "true" : t;
     }
 
+    // ── Braceless C-like body (Kotlin / Swift / Go): braces, no statement semicolons ──
+
+    private static bool TryBracelessBody(string key, StringBuilder sb, string ind, ExportLanguage lang)
+    {
+        if (_projForBodies is null || !StructogramService.Exists(_projForBodies, key)) return false;
+        var sd = StructogramService.Load(_projForBodies, key);
+        if (sd.Root.Count == 0) return false;
+        RenderBracelessSeq(sb, sd.Root, ind, lang);
+        return true;
+    }
+
+    private static void RenderBracelessSeq(StringBuilder sb, List<Models.NsBlock> blocks, string ind, ExportLanguage lang)
+    {
+        foreach (var b in blocks) RenderBracelessBlock(sb, b, ind, lang);
+    }
+
+    private static void RenderBracelessBlock(StringBuilder sb, Models.NsBlock b, string ind, ExportLanguage lang)
+    {
+        var inner = ind + "    ";
+        // Go uses `for` for every loop; Swift uses `repeat … while`; switch needs no break in any of the three.
+        switch (b.Kind)
+        {
+            case Models.NsBlockKind.Statement:
+                var s = (b.Text ?? "").Trim();
+                if (s.Length > 0) sb.AppendLine($"{ind}{s}");
+                break;
+
+            case Models.NsBlockKind.If:
+                sb.AppendLine($"{ind}if ({CondText(b.Text)}) {{");
+                RenderBracelessSeq(sb, b.Body, inner, lang);
+                if (b.Else.Count > 0)
+                {
+                    sb.AppendLine($"{ind}}} else {{");
+                    RenderBracelessSeq(sb, b.Else, inner, lang);
+                }
+                sb.AppendLine($"{ind}}}");
+                break;
+
+            case Models.NsBlockKind.While:
+                sb.AppendLine(lang == ExportLanguage.Go
+                    ? $"{ind}for {CondText(b.Text)} {{"
+                    : $"{ind}while {CondText(b.Text)} {{");
+                RenderBracelessSeq(sb, b.Body, inner, lang);
+                sb.AppendLine($"{ind}}}");
+                break;
+
+            case Models.NsBlockKind.DoWhile:
+                if (lang == ExportLanguage.Swift)
+                {
+                    sb.AppendLine($"{ind}repeat {{");
+                    RenderBracelessSeq(sb, b.Body, inner, lang);
+                    sb.AppendLine($"{ind}}} while {CondText(b.Text)}");
+                }
+                else // Kotlin: do { } while(...);  Go: for { ...; if !cond { break } }
+                {
+                    sb.AppendLine($"{ind}do {{");
+                    RenderBracelessSeq(sb, b.Body, inner, lang);
+                    sb.AppendLine($"{ind}}} while ({CondText(b.Text)})");
+                }
+                break;
+
+            case Models.NsBlockKind.Case:
+                // Kotlin uses `when`; Go and Swift use `switch` (no break needed).
+                sb.AppendLine(lang == ExportLanguage.Kotlin
+                    ? $"{ind}when ({CondText(b.Text)}) {{"
+                    : $"{ind}switch {CondText(b.Text)} {{");
+                foreach (var arm in b.Arms)
+                {
+                    if (lang == ExportLanguage.Kotlin)
+                    {
+                        sb.AppendLine($"{inner}{arm.Label} -> {{");
+                        RenderBracelessSeq(sb, arm.Body, inner + "    ", lang);
+                        sb.AppendLine($"{inner}}}");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"{inner}case {arm.Label}:");
+                        RenderBracelessSeq(sb, arm.Body, inner + "    ", lang);
+                    }
+                }
+                sb.AppendLine($"{ind}}}");
+                break;
+        }
+    }
+
+    // ── Python body (indentation, colon blocks) ──
+
+    private static bool TryPythonBody(string key, StringBuilder sb, string ind)
+    {
+        if (_projForBodies is null || !StructogramService.Exists(_projForBodies, key)) return false;
+        var sd = StructogramService.Load(_projForBodies, key);
+        if (sd.Root.Count == 0) return false;
+        RenderPythonSeq(sb, sd.Root, ind);
+        return true;
+    }
+
+    private static void RenderPythonSeq(StringBuilder sb, List<Models.NsBlock> blocks, string ind)
+    {
+        foreach (var b in blocks) RenderPythonBlock(sb, b, ind);
+    }
+
+    private static void RenderPythonBlock(StringBuilder sb, Models.NsBlock b, string ind)
+    {
+        var inner = ind + "    ";
+        switch (b.Kind)
+        {
+            case Models.NsBlockKind.Statement:
+                var s = (b.Text ?? "").Trim();
+                if (s.Length > 0) sb.AppendLine($"{ind}{s}");
+                break;
+
+            case Models.NsBlockKind.If:
+                sb.AppendLine($"{ind}if {CondText(b.Text)}:");
+                RenderPythonSeqOrPass(sb, b.Body, inner);
+                if (b.Else.Count > 0)
+                {
+                    sb.AppendLine($"{ind}else:");
+                    RenderPythonSeqOrPass(sb, b.Else, inner);
+                }
+                break;
+
+            case Models.NsBlockKind.While:
+                sb.AppendLine($"{ind}while {CondText(b.Text)}:");
+                RenderPythonSeqOrPass(sb, b.Body, inner);
+                break;
+
+            case Models.NsBlockKind.DoWhile:   // Python has no do-while → emulate
+                sb.AppendLine($"{ind}while True:");
+                RenderPythonSeqOrPass(sb, b.Body, inner);
+                sb.AppendLine($"{inner}if not ({CondText(b.Text)}):");
+                sb.AppendLine($"{inner}    break");
+                break;
+
+            case Models.NsBlockKind.Case:
+                sb.AppendLine($"{ind}match {CondText(b.Text)}:");
+                foreach (var arm in b.Arms)
+                {
+                    sb.AppendLine($"{inner}case {arm.Label}:");
+                    RenderPythonSeqOrPass(sb, arm.Body, inner + "    ");
+                }
+                break;
+        }
+    }
+
+    private static void RenderPythonSeqOrPass(StringBuilder sb, List<Models.NsBlock> blocks, string ind)
+    {
+        if (blocks.Count == 0) { sb.AppendLine($"{ind}pass"); return; }
+        RenderPythonSeq(sb, blocks, ind);
+    }
+
+    // ── Rust body (match, no forced semicolons) ──
+
+    private static bool TryRustBody(string key, StringBuilder sb, string ind)
+    {
+        if (_projForBodies is null || !StructogramService.Exists(_projForBodies, key)) return false;
+        var sd = StructogramService.Load(_projForBodies, key);
+        if (sd.Root.Count == 0) return false;
+        RenderRustSeq(sb, sd.Root, ind);
+        return true;
+    }
+
+    private static void RenderRustSeq(StringBuilder sb, List<Models.NsBlock> blocks, string ind)
+    {
+        foreach (var b in blocks) RenderRustBlock(sb, b, ind);
+    }
+
+    private static void RenderRustBlock(StringBuilder sb, Models.NsBlock b, string ind)
+    {
+        var inner = ind + "    ";
+        switch (b.Kind)
+        {
+            case Models.NsBlockKind.Statement:
+                var s = StTerm(b.Text);
+                if (s.Length > 0) sb.AppendLine($"{ind}{s}");
+                break;
+
+            case Models.NsBlockKind.If:
+                sb.AppendLine($"{ind}if {CondText(b.Text)} {{");
+                RenderRustSeq(sb, b.Body, inner);
+                if (b.Else.Count > 0)
+                {
+                    sb.AppendLine($"{ind}}} else {{");
+                    RenderRustSeq(sb, b.Else, inner);
+                }
+                sb.AppendLine($"{ind}}}");
+                break;
+
+            case Models.NsBlockKind.While:
+                sb.AppendLine($"{ind}while {CondText(b.Text)} {{");
+                RenderRustSeq(sb, b.Body, inner);
+                sb.AppendLine($"{ind}}}");
+                break;
+
+            case Models.NsBlockKind.DoWhile:   // Rust has no do-while → loop + break
+                sb.AppendLine($"{ind}loop {{");
+                RenderRustSeq(sb, b.Body, inner);
+                sb.AppendLine($"{inner}if !({CondText(b.Text)}) {{ break; }}");
+                sb.AppendLine($"{ind}}}");
+                break;
+
+            case Models.NsBlockKind.Case:
+                sb.AppendLine($"{ind}match {CondText(b.Text)} {{");
+                foreach (var arm in b.Arms)
+                {
+                    sb.AppendLine($"{inner}{arm.Label} => {{");
+                    RenderRustSeq(sb, arm.Body, inner + "    ");
+                    sb.AppendLine($"{inner}}}");
+                }
+                sb.AppendLine($"{ind}}}");
+                break;
+        }
+    }
+
     // ── C# ──────────────────────────────────────────────────────────────────
 
     private static void EmitCSharp(StringBuilder sb, CodeEntity e, string ind, Func<string, string> name)
@@ -465,7 +678,7 @@ public static class CodeExportService
                 var (ins, ret) = FuncSig(e);
                 var ps = string.Join(", ", ins.Select(p => $"{p.Name}: {p.DataType}"));
                 sb.AppendLine($"{ind}def {e.Name}({ps}) -> {(ret == "void" ? "None" : ret)}:");
-                sb.AppendLine($"{inner}raise NotImplementedError");
+                if (!TryPythonBody(e.Id, sb, inner)) sb.AppendLine($"{inner}raise NotImplementedError");
                 break;
             }
             case CodeEntityType.Object:
@@ -502,7 +715,8 @@ public static class CodeExportService
                     }
                     if (iface) sb.AppendLine($"{inner}@abstractmethod");
                     sb.AppendLine($"{inner}def {PyName(m.Name, m.Visibility)}({ps}) -> {(m.ReturnType == "void" ? "None" : m.ReturnType)}:");
-                    sb.AppendLine($"{inner}    {(iface ? "..." : "raise NotImplementedError")}");
+                    if (iface) sb.AppendLine($"{inner}    ...");
+                    else if (!TryPythonBody($"{e.Id}#{m.Id}", sb, inner + "    ")) sb.AppendLine($"{inner}    raise NotImplementedError");
                     any = true;
                 }
                 if (!any) sb.AppendLine($"{inner}pass");
@@ -528,7 +742,7 @@ public static class CodeExportService
                 var (ins, ret) = FuncSig(e);
                 var ps = string.Join(", ", ins.Select(p => $"{p.Name}: {p.DataType}"));
                 sb.AppendLine($"{ind}fun {e.Name}({ps}){Ret(ret)} {{");
-                sb.AppendLine($"{ind}    TODO(\"Not implemented\")");
+                if (!TryBracelessBody(e.Id, sb, ind + "    ", ExportLanguage.Kotlin)) sb.AppendLine($"{ind}    TODO(\"Not implemented\")");
                 sb.AppendLine($"{ind}}}");
                 break;
             }
@@ -556,7 +770,7 @@ public static class CodeExportService
                     else
                     {
                         sb.AppendLine($"{inner}{V(m.Visibility)}fun {m.Name}({ps}){Ret(m.ReturnType)} {{");
-                        sb.AppendLine($"{inner}    TODO(\"Not implemented\")");
+                        if (!TryBracelessBody($"{e.Id}#{m.Id}", sb, inner + "    ", ExportLanguage.Kotlin)) sb.AppendLine($"{inner}    TODO(\"Not implemented\")");
                         sb.AppendLine($"{inner}}}");
                     }
                 }
@@ -585,7 +799,7 @@ public static class CodeExportService
                 var (ins, ret) = FuncSig(e);
                 var ps = string.Join(", ", ins.Select(p => $"{p.Name}: {p.DataType}"));
                 sb.AppendLine($"{ind}func {e.Name}({ps}){Ret(ret)} {{");
-                sb.AppendLine($"{ind}    fatalError(\"Not implemented\")");
+                if (!TryBracelessBody(e.Id, sb, ind + "    ", ExportLanguage.Swift)) sb.AppendLine($"{ind}    fatalError(\"Not implemented\")");
                 sb.AppendLine($"{ind}}}");
                 break;
             }
@@ -613,7 +827,7 @@ public static class CodeExportService
                     else
                     {
                         sb.AppendLine($"{inner}{V(m.Visibility)}{(m.IsStatic ? "static " : "")}func {m.Name}({ps}){Ret(m.ReturnType)} {{");
-                        sb.AppendLine($"{inner}    fatalError(\"Not implemented\")");
+                        if (!TryBracelessBody($"{e.Id}#{m.Id}", sb, inner + "    ", ExportLanguage.Swift)) sb.AppendLine($"{inner}    fatalError(\"Not implemented\")");
                         sb.AppendLine($"{inner}}}");
                     }
                 }
@@ -701,7 +915,7 @@ public static class CodeExportService
                 var ps = string.Join(", ", ins.Select(p => $"{p.Name} {Conv(p.Convention)}{p.DataType}"));
                 var r  = ret.Trim() is "void" or "" ? "" : " " + ret;
                 sb.AppendLine($"{ind}func {e.Name}({ps}){r} {{");
-                sb.AppendLine($"{ind}    panic(\"not implemented\")");
+                if (!TryBracelessBody(e.Id, sb, ind + "    ", ExportLanguage.Go)) sb.AppendLine($"{ind}    panic(\"not implemented\")");
                 sb.AppendLine($"{ind}}}");
                 break;
             }
@@ -743,7 +957,7 @@ public static class CodeExportService
                     }
                     var r  = m.ReturnType.Trim() is "void" or "" ? "" : " " + m.ReturnType;
                     sb.AppendLine($"{ind}func (recv *{e.Name}) {m.Name}({ps}){r} {{");
-                    sb.AppendLine($"{ind}    panic(\"not implemented\")");
+                    if (!TryBracelessBody($"{e.Id}#{m.Id}", sb, ind + "    ", ExportLanguage.Go)) sb.AppendLine($"{ind}    panic(\"not implemented\")");
                     sb.AppendLine($"{ind}}}");
                 }
                 break;
@@ -767,7 +981,7 @@ public static class CodeExportService
                 var (ins, ret) = FuncSig(e);
                 var ps = string.Join(", ", ins.Select(p => $"{p.Name}: {p.DataType}"));
                 sb.AppendLine($"{ind}pub fn {e.Name}({ps}){Ret(ret)} {{");
-                sb.AppendLine($"{ind}    unimplemented!()");
+                if (!TryRustBody(e.Id, sb, ind + "    ")) sb.AppendLine($"{ind}    unimplemented!()");
                 sb.AppendLine($"{ind}}}");
                 break;
             }
@@ -813,7 +1027,7 @@ public static class CodeExportService
                         }
                         var ps = string.Join(", ", new[] { "&self" }.Concat(m.Parameters.Select(p => $"{p.Name}: {p.DataType}")));
                         sb.AppendLine($"{inner}{(m.Visibility == CodeVisibility.Public ? "pub " : "")}fn {m.Name}({ps}){Ret(m.ReturnType)} {{");
-                        sb.AppendLine($"{inner}    unimplemented!()");
+                        if (!TryRustBody($"{e.Id}#{m.Id}", sb, inner + "    ")) sb.AppendLine($"{inner}    unimplemented!()");
                         sb.AppendLine($"{inner}}}");
                     }
                     sb.AppendLine($"{ind}}}");
