@@ -25,6 +25,12 @@ public partial class MainWindow
     private string _codeLibView    = "cards";        // cards | list | table
     private string _codeBoardSearch = "";            // board gallery search filter
     private string _codeBoardSort   = "modified_desc"; // name_asc | name_desc | modified_asc | modified_desc
+    private string _codeBoardView   = "cards";        // cards | list | table (board gallery)
+    private readonly HashSet<string> _codeBoardSelected = new();  // selected board IDs
+    private string? _codeBoardAnchor;                 // anchor for Shift range-selection (boards)
+
+    /// <summary>Shared width for the name-filter text box across all library views.</summary>
+    internal const double LibFilterWidth = 240;
 
     private void CodeButton_Click(object sender, RoutedEventArgs e)
     {
@@ -91,21 +97,26 @@ public partial class MainWindow
         Grid.SetColumn(tabs, 0);
         topRow.Children.Add(tabs);
 
-        var exportBtn = new Button
+        var exportPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 4, 0, 6) };
+        Grid.SetColumn(exportPanel, 1);
+        topRow.Children.Add(exportPanel);
+
+        Button MakeExportBtn(string label, string tip)
         {
-            Content    = Properties.Loc.S("Code_ExportCode"),
-            FontSize   = 12,
-            Padding    = new Thickness(10, 5, 10, 5),
-            Margin     = new Thickness(0, 4, 0, 6),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        exportBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
-        exportBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
-        exportBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
-        exportBtn.ToolTip = Properties.Loc.S("Code_ExportTooltip");
-        exportBtn.Click += (_, _) => ShowCodeExportDialog(projFolder);
-        Grid.SetColumn(exportBtn, 1);
-        topRow.Children.Add(exportBtn);
+            var b = new Button { Content = label, FontSize = 11, Padding = new Thickness(7, 3, 7, 3), Margin = new Thickness(4, 0, 0, 0), ToolTip = tip };
+            b.SetResourceReference(Button.StyleProperty,      "ModernButton");
+            b.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+            b.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
+            return b;
+        }
+
+        var exportAllBtn = MakeExportBtn(Properties.Loc.S("Code_ExportCode"), Properties.Loc.S("Code_ExportTooltip"));
+        exportAllBtn.Click += (_, _) => ShowCodeExportDialog(projFolder);
+        exportPanel.Children.Add(exportAllBtn);
+
+        var exportSelTopBtn = MakeExportBtn(Properties.Loc.S("Code_ExportSelected"), Properties.Loc.S("Code_ExportSelectedTip"));
+        exportSelTopBtn.Click += (_, _) => ExportCurrentSelection(projFolder);
+        exportPanel.Children.Add(exportSelTopBtn);
 
         Button MakeTab(string label, bool active, Action onClick)
         {
@@ -144,6 +155,37 @@ public partial class MainWindow
         else                 BuildCodeLibrary(projFolder);
     }
 
+    /// <summary>Exports the currently selected entities — board mode: entities on the
+    /// selected boards; library mode: the selected entries.</summary>
+    private void ExportCurrentSelection(string projFolder)
+    {
+        var all = new Dictionary<string, CodeEntity>();
+        foreach (var t in CodeEntityService.EntityTypes)
+            foreach (var e in CodeEntityService.LoadAll(projFolder, t))
+                all[e.Id] = e;
+
+        var ids = new HashSet<string>();
+        if (_codeBoardsMode)
+        {
+            foreach (var bid in _codeBoardSelected)
+                foreach (var eid in CodeBoardDataService.Load(projFolder, bid).Positions.Keys)
+                    ids.Add(eid);
+        }
+        else
+        {
+            foreach (var id in _codeLibSelected) ids.Add(id);
+        }
+
+        var sel = ids.Where(all.ContainsKey).Select(id => all[id]).ToList();
+        if (sel.Count == 0)
+        {
+            MessageBox.Show(Properties.Loc.S("Code_NoSelection"), Properties.Loc.S("Code_ExportSelected"),
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        ShowCodeExportDialog(projFolder, sel);
+    }
+
     // ── Board gallery ───────────────────────────────────────────────────────
 
     private void BuildCodeBoardGallery(string projFolder)
@@ -163,17 +205,38 @@ public partial class MainWindow
         host.Children.Add(subBar);
 
         var barRow = new Grid();
-        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                       // search
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });  // spacer
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                       // view
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                       // sort
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                       // new
         subBar.Child = barRow;
 
-        var search = new TextBox { Text = _codeBoardSearch, Height = 28, VerticalContentAlignment = VerticalAlignment.Center, Padding = new Thickness(8, 0, 8, 0) };
+        var search = new TextBox { Text = _codeBoardSearch, Width = LibFilterWidth, Height = 28, HorizontalAlignment = HorizontalAlignment.Left, VerticalContentAlignment = VerticalAlignment.Center, Padding = new Thickness(8, 0, 8, 0) };
         search.SetResourceReference(TextBox.BackgroundProperty,  "InputBgBrush");
         search.SetResourceReference(TextBox.ForegroundProperty,  "SidebarTextBrush");
         search.SetResourceReference(TextBox.BorderBrushProperty, "ControlBorderBrush");
         Grid.SetColumn(search, 0);
         barRow.Children.Add(search);
+
+        // View switcher
+        var viewPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(viewPanel, 2);
+        barRow.Children.Add(viewPanel);
+        var viewBtns = new Dictionary<string, Button>();
+        void StyleViewButtons()
+        {
+            foreach (var (key, b) in viewBtns)
+                b.SetResourceReference(Button.BackgroundProperty, key == _codeBoardView ? "AccentBgBrush" : "ControlBgBrush");
+        }
+        Button MakeViewBtn(string key, string glyph, string tip)
+        {
+            var b = new Button { Content = glyph, Padding = new Thickness(8, 4, 8, 4), FontSize = 13, Margin = new Thickness(0, 0, 2, 0), ToolTip = tip };
+            b.SetResourceReference(Button.StyleProperty, "ModernButton");
+            b.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
+            viewBtns[key] = b;
+            return b;
+        }
 
         var sortCombo = new ComboBox { Width = 170, Margin = new Thickness(8, 0, 0, 0) };
         sortCombo.SetResourceReference(StyleProperty, "ModernComboBox");
@@ -184,7 +247,7 @@ public partial class MainWindow
         };
         foreach (var o in sortOpts) sortCombo.Items.Add(o.Label);
         sortCombo.SelectedIndex = Math.Max(0, Array.FindIndex(sortOpts, o => o.Key == _codeBoardSort));
-        Grid.SetColumn(sortCombo, 1);
+        Grid.SetColumn(sortCombo, 3);
         barRow.Children.Add(sortCombo);
 
         var addBtn = new Button { Content = Properties.Loc.S("Code_NewBoard"), Padding = new Thickness(10, 5, 10, 5), FontSize = 12, Margin = new Thickness(8, 0, 0, 0) };
@@ -199,7 +262,7 @@ public partial class MainWindow
             CodeBoardRegistryService.Save(projFolder, boards);
             BuildCodeContent(projFolder);
         };
-        Grid.SetColumn(addBtn, 2);
+        Grid.SetColumn(addBtn, 4);
         barRow.Children.Add(addBtn);
 
         var scroll = new ScrollViewer
@@ -210,13 +273,113 @@ public partial class MainWindow
         };
         Grid.SetRow(scroll, 1);
         host.Children.Add(scroll);
+        var listHost = new Border();
+        scroll.Content = listHost;
 
-        var wrap = new WrapPanel();
-        scroll.Content = wrap;
+        var boardOrder   = new List<string>();
+        var boardBorders = new Dictionary<string, Border>();
 
-        void RefreshBoards()
+        void UpdateBoardHighlights()
         {
-            wrap.Children.Clear();
+            var accent = (Brush)(TryFindResource("AccentHighlightBrush") ?? new SolidColorBrush(Colors.DodgerBlue));
+            foreach (var (id, b) in boardBorders)
+            {
+                if (_codeBoardSelected.Contains(id)) { b.BorderBrush = accent; b.BorderThickness = new Thickness(2); }
+                else { b.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush"); b.BorderThickness = new Thickness(1); }
+            }
+        }
+
+        void HandleBoardClick(string id, MouseButtonEventArgs e)
+        {
+            var mods = Keyboard.Modifiers;
+            if ((mods & ModifierKeys.Shift) != 0 && _codeBoardAnchor is not null)
+            {
+                int a = boardOrder.IndexOf(_codeBoardAnchor), b = boardOrder.IndexOf(id);
+                if (a >= 0 && b >= 0) { if (a > b) (a, b) = (b, a); _codeBoardSelected.Clear(); for (int i = a; i <= b; i++) _codeBoardSelected.Add(boardOrder[i]); }
+            }
+            else if ((mods & ModifierKeys.Control) != 0) { if (!_codeBoardSelected.Add(id)) _codeBoardSelected.Remove(id); _codeBoardAnchor = id; }
+            else { _codeBoardSelected.Clear(); _codeBoardSelected.Add(id); _codeBoardAnchor = id; }
+            UpdateBoardHighlights();
+        }
+
+        void WireBoard(Border el, CodeBoard board)
+        {
+            el.Cursor = Cursors.Hand;
+            el.MouseLeftButtonDown += (_, e) =>
+            {
+                if (e.ClickCount >= 2) { OpenOrActivateCodeWindow(projFolder, board); return; }
+                HandleBoardClick(board.Id, e);
+            };
+            el.MouseRightButtonDown += (_, e) =>
+            {
+                e.Handled = true;
+                var cm = new ContextMenu();
+                var openMi = new MenuItem { Header = Properties.Loc.S("Code_OpenBoard") };
+                openMi.Click += (_, _) => OpenOrActivateCodeWindow(projFolder, board);
+                cm.Items.Add(openMi);
+                var expMi = new MenuItem { Header = Properties.Loc.S("Code_ExportThis") };
+                expMi.Click += (_, _) =>
+                {
+                    var all = new Dictionary<string, CodeEntity>();
+                    foreach (var t in CodeEntityService.EntityTypes) foreach (var en in CodeEntityService.LoadAll(projFolder, t)) all[en.Id] = en;
+                    var sel = CodeBoardDataService.Load(projFolder, board.Id).Positions.Keys.Where(all.ContainsKey).Select(id => all[id]).ToList();
+                    if (sel.Count == 0) { MessageBox.Show(Properties.Loc.S("Code_NoSelection"), Properties.Loc.S("Code_ExportSelected"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
+                    ShowCodeExportDialog(projFolder, sel);
+                };
+                cm.Items.Add(expMi);
+                cm.Items.Add(new Separator());
+                var renameMi = new MenuItem { Header = Properties.Loc.S("Code_RenameBoard") };
+                renameMi.Click += (_, _) => { if (ShowCodeBoardSettingsDialog(board)) { board.UpdatedAt = DateTime.UtcNow; CodeBoardRegistryService.Save(projFolder, boards); BuildCodeContent(projFolder); } };
+                cm.Items.Add(renameMi);
+                var delMi = new MenuItem { Header = Properties.Loc.S("Code_DeleteBoard") };
+                delMi.Click += (_, _) =>
+                {
+                    var res = MessageBox.Show(string.Format(Properties.Loc.S("Code_DeleteBoardConfirm"), board.Name), Properties.Loc.S("Code_DeleteBoardTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                    if (res != MessageBoxResult.Yes) return;
+                    if (_openCodeWindows.TryGetValue(board.Id, out var w)) { w.Close(); _openCodeWindows.Remove(board.Id); }
+                    boards.Remove(board); CodeBoardRegistryService.Save(projFolder, boards); BuildCodeContent(projFolder);
+                };
+                cm.Items.Add(delMi);
+                cm.IsOpen = true;
+            };
+        }
+
+        Border BuildBoardListRow(CodeBoard board)
+        {
+            var row = new Border { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 0, 2) };
+            row.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.Child = grid;
+            var sym = new TextBlock { Text = board.Symbol, FontSize = 13, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+            sym.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush"); Grid.SetColumn(sym, 0); grid.Children.Add(sym);
+            var nm = new TextBlock { Text = board.Name, FontSize = 13, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+            nm.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush"); Grid.SetColumn(nm, 1); grid.Children.Add(nm);
+            var date = new TextBlock { Text = board.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), FontSize = 11, Opacity = 0.55, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+            date.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush"); Grid.SetColumn(date, 2); grid.Children.Add(date);
+            WireBoard(row, board);
+            return row;
+        }
+
+        Border BuildBoardTableCell(CodeBoard board)
+        {
+            var cell = new Border { Width = 168, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 6, 6) };
+            cell.SetResourceReference(Border.BackgroundProperty, "CardBgBrush");
+            var sp = new StackPanel { Orientation = Orientation.Horizontal };
+            cell.Child = sp;
+            var sym = new TextBlock { Text = board.Symbol, FontSize = 13, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+            sym.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush"); sp.Children.Add(sym);
+            var nm = new TextBlock { Text = board.Name, FontSize = 13, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 128 };
+            nm.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush"); sp.Children.Add(nm);
+            WireBoard(cell, board);
+            return cell;
+        }
+
+        void DoRefreshBoards()
+        {
+            boardOrder.Clear(); boardBorders.Clear();
             var filtered = boards.Where(b => string.IsNullOrWhiteSpace(_codeBoardSearch)
                 || b.Name.Contains(_codeBoardSearch, StringComparison.OrdinalIgnoreCase));
             var ordered = _codeBoardSort switch
@@ -227,24 +390,42 @@ public partial class MainWindow
                 _              => filtered.OrderByDescending(b => b.UpdatedAt),
             };
             var shown = ordered.ToList();
+
+            Panel container = _codeBoardView == "list" ? new StackPanel() : new WrapPanel();
+            listHost.Child = container;
+
             if (shown.Count == 0)
             {
-                var hint = new TextBlock
-                {
-                    Text = boards.Count == 0 ? Properties.Loc.S("Code_NoBoards") : Properties.Loc.S("Code_NoMatch"),
-                    FontSize = 13, Opacity = 0.55, Margin = new Thickness(4, 40, 0, 0)
-                };
+                var hint = new TextBlock { Text = boards.Count == 0 ? Properties.Loc.S("Code_NoBoards") : Properties.Loc.S("Code_NoMatch"), FontSize = 13, Opacity = 0.55, Margin = new Thickness(4, 40, 0, 0) };
                 hint.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
-                wrap.Children.Add(hint);
+                container.Children.Add(hint);
                 return;
             }
             foreach (var board in shown)
-                wrap.Children.Add(BuildCodeBoardCard(board, projFolder, boards));
+            {
+                boardOrder.Add(board.Id);
+                Border el = _codeBoardView switch
+                {
+                    "list"  => BuildBoardListRow(board),
+                    "table" => BuildBoardTableCell(board),
+                    _       => BuildCodeBoardCard(board, projFolder, boards, WireBoard),
+                };
+                boardBorders[board.Id] = el;
+                container.Children.Add(el);
+            }
+            UpdateBoardHighlights();
         }
-        RefreshBoards();
 
-        search.TextChanged += (_, _) => { _codeBoardSearch = search.Text; RefreshBoards(); };
-        sortCombo.SelectionChanged += (_, _) => { _codeBoardSort = sortOpts[Math.Max(0, sortCombo.SelectedIndex)].Key; RefreshBoards(); };
+        void SetBoardView(string v) { _codeBoardView = v; StyleViewButtons(); DoRefreshBoards(); }
+        var cardsBtn = MakeViewBtn("cards", "▦", Properties.Loc.S("Code_View_Cards")); cardsBtn.Click += (_, _) => SetBoardView("cards"); viewPanel.Children.Add(cardsBtn);
+        var listBtn  = MakeViewBtn("list",  "☰", Properties.Loc.S("Code_View_List"));  listBtn.Click  += (_, _) => SetBoardView("list");  viewPanel.Children.Add(listBtn);
+        var tableBtn = MakeViewBtn("table", "▤", Properties.Loc.S("Code_View_Table")); tableBtn.Click += (_, _) => SetBoardView("table"); viewPanel.Children.Add(tableBtn);
+        StyleViewButtons();
+
+        DoRefreshBoards();
+
+        search.TextChanged += (_, _) => { _codeBoardSearch = search.Text; DoRefreshBoards(); };
+        sortCombo.SelectionChanged += (_, _) => { _codeBoardSort = sortOpts[Math.Max(0, sortCombo.SelectedIndex)].Key; DoRefreshBoards(); };
     }
 
     // ── Library list (entities of the active type, searchable) ──────────────
@@ -264,17 +445,19 @@ public partial class MainWindow
         host.Children.Add(bar);
 
         var barRow = new Grid();
-        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });  // view switcher
-        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });  // sort
-        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });  // export selected
-        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });  // new
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                       // search (fixed width)
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });  // spacer
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                       // view switcher
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                       // sort
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                       // new
         bar.Child = barRow;
 
         var search = new TextBox
         {
             Text   = _codeLibSearch,
+            Width  = LibFilterWidth,
             Height = 28,
+            HorizontalAlignment = HorizontalAlignment.Left,
             VerticalContentAlignment = VerticalAlignment.Center,
             Padding = new Thickness(8, 0, 8, 0)
         };
@@ -287,7 +470,7 @@ public partial class MainWindow
 
         // View switcher: Cards / List / Table
         var viewPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(viewPanel, 1);
+        Grid.SetColumn(viewPanel, 2);
         barRow.Children.Add(viewPanel);
         var viewBtns = new Dictionary<string, Button>();
         void StyleViewButtons()
@@ -314,22 +497,8 @@ public partial class MainWindow
         };
         foreach (var o in sortOpts) sortCombo.Items.Add(o.Label);
         sortCombo.SelectedIndex = Math.Max(0, Array.FindIndex(sortOpts, o => o.Key == _codeLibSort));
-        Grid.SetColumn(sortCombo, 2);
+        Grid.SetColumn(sortCombo, 3);
         barRow.Children.Add(sortCombo);
-
-        var exportSelBtn = new Button
-        {
-            Content = Properties.Loc.S("Code_ExportSelected"),
-            Padding = new Thickness(10, 5, 10, 5),
-            FontSize = 12,
-            Margin   = new Thickness(8, 0, 0, 0),
-            ToolTip  = Properties.Loc.S("Code_ExportSelectedTip")
-        };
-        exportSelBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
-        exportSelBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
-        exportSelBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
-        Grid.SetColumn(exportSelBtn, 3);
-        barRow.Children.Add(exportSelBtn);
 
         var newBtn = new Button
         {
@@ -599,17 +768,6 @@ public partial class MainWindow
             Refresh();
         };
 
-        exportSelBtn.Click += (_, _) =>
-        {
-            var sel = _codeLibSelected.Where(allKnown.ContainsKey).Select(id => allKnown[id]).ToList();
-            if (sel.Count == 0)
-            {
-                MessageBox.Show(Properties.Loc.S("Code_NoSelection"), Properties.Loc.S("Code_ExportSelected"),
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-            ShowCodeExportDialog(projFolder, sel);
-        };
 
         newBtn.Click += (_, _) =>
         {
@@ -621,7 +779,8 @@ public partial class MainWindow
         };
     }
 
-    private Border BuildCodeBoardCard(CodeBoard board, string projFolder, List<CodeBoard> allBoards)
+    private Border BuildCodeBoardCard(CodeBoard board, string projFolder, List<CodeBoard> allBoards,
+        Action<Border, CodeBoard> wire)
     {
         var card = new Border
         {
@@ -661,63 +820,12 @@ public partial class MainWindow
         name.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
         stack.Children.Add(name);
 
-        // Open on double-click or Enter
-        card.MouseLeftButtonDown += (_, e) =>
-        {
-            if (e.ClickCount >= 2) OpenOrActivateCodeWindow(projFolder, board);
-        };
-
         card.MouseEnter += (_, _) =>
             card.Effect = new System.Windows.Media.Effects.DropShadowEffect
                 { Color = Colors.Black, BlurRadius = 12, ShadowDepth = 2, Opacity = 0.25 };
         card.MouseLeave += (_, _) => card.Effect = null;
 
-        // Right-click context menu
-        card.MouseRightButtonDown += (_, e) =>
-        {
-            var cm = new ContextMenu();
-
-            var openMi = new MenuItem { Header = Properties.Loc.S("Code_OpenBoard") };
-            openMi.Click += (_, _) => OpenOrActivateCodeWindow(projFolder, board);
-            cm.Items.Add(openMi);
-
-            cm.Items.Add(new Separator());
-
-            var renameMi = new MenuItem { Header = Properties.Loc.S("Code_RenameBoard") };
-            renameMi.Click += (_, _) =>
-            {
-                if (ShowCodeBoardSettingsDialog(board))
-                {
-                    board.UpdatedAt = DateTime.UtcNow;
-                    CodeBoardRegistryService.Save(projFolder, allBoards);
-                    BuildCodeContent(projFolder);
-                }
-            };
-            cm.Items.Add(renameMi);
-
-            cm.Items.Add(new Separator());
-
-            var delMi = new MenuItem { Header = Properties.Loc.S("Code_DeleteBoard") };
-            delMi.Click += (_, _) =>
-            {
-                var res = MessageBox.Show(
-                    string.Format(Properties.Loc.S("Code_DeleteBoardConfirm"), board.Name),
-                    Properties.Loc.S("Code_DeleteBoardTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                if (res != MessageBoxResult.Yes) return;
-
-                // Close window if open
-                if (_openCodeWindows.TryGetValue(board.Id, out var w)) { w.Close(); _openCodeWindows.Remove(board.Id); }
-
-                allBoards.Remove(board);
-                CodeBoardRegistryService.Save(projFolder, allBoards);
-                BuildCodeContent(projFolder);
-            };
-            cm.Items.Add(delMi);
-
-            cm.IsOpen = true;
-            e.Handled = true;
-        };
-
+        wire(card, board);
         return card;
     }
 
