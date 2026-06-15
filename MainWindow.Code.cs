@@ -542,7 +542,8 @@ public partial class MainWindow
             existing.Activate();
             return;
         }
-        var win = new CodeBoardWindow(projFolder, board, _currentThemePath);
+        var win = new CodeBoardWindow(projFolder, board, _currentThemePath,
+            subset => ShowCodeExportDialog(projFolder, subset));
         win.Owner = this;
         win.Closed += (_, _) => _openCodeWindows.Remove(board.Id);
         _openCodeWindows[board.Id] = win;
@@ -783,12 +784,16 @@ public partial class MainWindow
 
     // ── Code export (skeleton generation) ───────────────────────────────────
 
-    private void ShowCodeExportDialog(string projFolder)
+    private void ShowCodeExportDialog(string projFolder, IEnumerable<CodeEntity>? entities = null)
     {
-        // Gather all entities
-        var all = new List<CodeEntity>();
-        foreach (var t in CodeEntityService.EntityTypes)
-            all.AddRange(CodeEntityService.LoadAll(projFolder, t));
+        // Use the given subset (e.g. selected cards) or gather all entities.
+        var all = entities?.ToList();
+        if (all is null)
+        {
+            all = new List<CodeEntity>();
+            foreach (var t in CodeEntityService.EntityTypes)
+                all.AddRange(CodeEntityService.LoadAll(projFolder, t));
+        }
 
         if (all.Count == 0)
         {

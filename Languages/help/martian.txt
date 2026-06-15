@@ -148,7 +148,7 @@ Bordvraks = visual kanvaxals; kan bex nested fro hierarkies.
 Fro softwarvrak prox'als: plan struktral, relaxals ak logikvrak, then exportvrak skeletvrak kodvrak. Stored unvrak PROJECTPLAN/code/.
 • Librarvrak: vun tab fro ekx entityvrak typvrak — Namespace, Class, Struct, Interface, Enum, Function, Object. Searxvrak, sortvrak (namvrak / last-modifvrak). Klick vun vu editvrak.
 • Entityvrak editvrak: namvrak, typvrak, namspaxvrak, deskripxal, basvrak klasvrak (vun-inheritvrak) + interfaxvraks, kolapsvrak Fieldvraks ak Methodvraks (visibilvrak + − # ~, static), enumvrak valvraks, typvrak datavrak portvraks.
-• Struktral bordvraks: frix kanvaxal with UML-styl kards. Wirvrak typvrak input→output portvraks (pointvrak / refvrak / direktvrak must maxvrak). Inheritvrak via dropdownvrak, nax linvrak.
+• Struktral bordvraks: frix kanvaxal with UML-styl kards. Wirvrak typvrak input→output portvraks (pointvrak / refvrak / direktvrak must maxvrak). Inheritvrak via dropdownvrak, nax linvrak. Selektvrak kards: Linksklick / Shift+klick (rejvrak) / Strg+klick (togglvrak); exportvrak al kards, zar selektvrak, or vun kard (raitklick-menu).
 • Programmablaufplan (DIN 66001): per funkxal/methodvrak. Formvraks = startvrak/endvrak, prosesvrak, desixal, I/O, subroutvrak, notvrak; labvrak arovraks. Tri moxs: Selektvrak, Konektvrak, Removvrak.
 • Struktogramvrak (Nassi-Shneiderman, DIN 66261): nestvrak blokvraks — statemvrak, if/elsvrak, while, do-while, kasvrak.
 • Xel 🔁 button on zar funkxal/methodvrak openvrak zar chooxal: Programmablaufplan or Struktogramvrak.

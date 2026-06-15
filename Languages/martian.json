@@ -1137,5 +1137,11 @@
     "Code_GenAIBusy": "✨ Genervrex…",
     "Code_NoAI": "Nax KI online. Axkivvrak vun in xel chax frix.",
     "Code_PickGenerator": "Chooxvrak kodvrak-genervrak",
-    "Code_PickGeneratorHint": "Which KI-partikrak shud genervrak xel kodvrak? (Setvrak zar defvult in Managvrak Sextors → Kodvrak-Genervrak.)"
+    "Code_PickGeneratorHint": "Which KI-partikrak shud genervrak xel kodvrak? (Setvrak zar defvult in Managvrak Sextors → Kodvrak-Genervrak.)",
+    "Code_ExportAll": "⬇ Exportvrak al",
+    "Code_ExportAllTip": "Exportvrak kodvrak fro al kards on xel bordvrak",
+    "Code_ExportSelected": "⬇ Exportvrak selektvrak",
+    "Code_ExportSelectedTip": "Exportvrak onli zar selektvrak kards",
+    "Code_ExportThis": "⬇ Exportvrak kodvrak",
+    "Code_NoSelection": "Nax kards selektvrak. Klick zar kard frix (Shift/Strg fro multi-selektvrak)."
 }

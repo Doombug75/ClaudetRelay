@@ -53,11 +53,19 @@ public class CodeBoardWindow : Window
 
     // ── Constructor ────────────────────────────────────────────────────────
 
-    public CodeBoardWindow(string projFolder, CodeBoard board, string? themePath)
+    /// <summary>Invoked to open the code-export dialog for the given entities (set by MainWindow).</summary>
+    private readonly Action<IEnumerable<CodeEntity>>? _onExport;
+
+    /// <summary>Anchor for Shift range-selection (last card clicked without Shift).</summary>
+    private string? _selectionAnchor;
+
+    public CodeBoardWindow(string projFolder, CodeBoard board, string? themePath,
+        Action<IEnumerable<CodeEntity>>? onExport = null)
     {
         _projFolder = projFolder;
         _board      = board;
         _themePath  = themePath;
+        _onExport   = onExport;
         _boardData  = CodeBoardDataService.Load(projFolder, board.Id);
 
         Title                 = board.Symbol + "  " + board.Name;
@@ -195,6 +203,27 @@ public class CodeBoardWindow : Window
 
         Spacer(row, 16);
 
+        // Export
+        var exportAllBtn = Btn(Properties.Loc.S("Code_ExportAll"), Properties.Loc.S("Code_ExportAllTip"));
+        exportAllBtn.Click += (_, _) => _onExport?.Invoke(AllBoardEntities());
+        row.Children.Add(exportAllBtn);
+
+        var exportSelBtn = Btn(Properties.Loc.S("Code_ExportSelected"), Properties.Loc.S("Code_ExportSelectedTip"));
+        exportSelBtn.Click += (_, _) =>
+        {
+            var sel = SelectedEntities();
+            if (sel.Count == 0)
+            {
+                MessageBox.Show(Properties.Loc.S("Code_NoSelection"), Properties.Loc.S("Code_ExportSelected"),
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            _onExport?.Invoke(sel);
+        };
+        row.Children.Add(exportSelBtn);
+
+        Spacer(row, 16);
+
         // Zoom reset
         var zoomBtn = Btn("1:1", Properties.Loc.S("Common_ResetZoomTip"));
         zoomBtn.Click += (_, _) =>
@@ -229,8 +258,31 @@ public class CodeBoardWindow : Window
             if (_connectMode) { e.Handled = true; return; } // port dots handle connect
             if (e.ClickCount >= 2) { ShowEntityEditor(entity); e.Handled = true; return; }
 
+            var mods = Keyboard.Modifiers;
+
+            // Shift+click → select the reading-order range from the anchor to this card.
+            if ((mods & ModifierKeys.Shift) != 0)
+            {
+                SelectRangeTo(entity.Id);
+                RefreshSelectionVisuals();
+                e.Handled = true;
+                return;   // no drag while range-selecting
+            }
+
+            // Ctrl+click → toggle this card in/out of the current selection.
+            if ((mods & ModifierKeys.Control) != 0)
+            {
+                if (!_selectedIds.Add(entity.Id)) _selectedIds.Remove(entity.Id);
+                _selectionAnchor = entity.Id;
+                RefreshSelectionVisuals();
+                e.Handled = true;
+                return;   // no drag while toggling
+            }
+
+            // Plain click → exclusive select, set anchor, allow drag.
             _selectedIds.Clear();
             _selectedIds.Add(entity.Id);
+            _selectionAnchor = entity.Id;
             RefreshSelectionVisuals();
 
             dragging   = true;
@@ -877,6 +929,7 @@ public class CodeBoardWindow : Window
         if (_connectMode) return;
         // Deselect
         _selectedIds.Clear();
+        _selectionAnchor = null;
         RefreshSelectionVisuals();
         _rubberStart     = e.GetPosition(_canvas);
         _rubberSelecting = true;
@@ -987,6 +1040,10 @@ public class CodeBoardWindow : Window
                 DiagramLauncher.ChooseAndOpen(this, _projFolder, entity.Id, entity.Name, _themePath);
             cm.Items.Add(flowMi);
         }
+
+        var exportMi = new MenuItem { Header = Properties.Loc.S("Code_ExportThis") };
+        exportMi.Click += (_, _) => _onExport?.Invoke(new[] { entity });
+        cm.Items.Add(exportMi);
 
         cm.Items.Add(new Separator());
 
@@ -1248,6 +1305,40 @@ public class CodeBoardWindow : Window
     }
 
     // ── Remove from board ──────────────────────────────────────────────────
+
+    // ── Selection & export helpers ──────────────────────────────────────────
+
+    private List<CodeEntity> AllBoardEntities() =>
+        _boardData.Positions.Keys.Where(_entities.ContainsKey).Select(id => _entities[id]).ToList();
+
+    private List<CodeEntity> SelectedEntities() =>
+        _selectedIds.Where(_entities.ContainsKey).Select(id => _entities[id]).ToList();
+
+    /// <summary>Selects the reading-order (top→bottom, left→right) range from the anchor to <paramref name="id"/>.</summary>
+    private void SelectRangeTo(string id)
+    {
+        if (_selectionAnchor is null || !_cards.ContainsKey(_selectionAnchor))
+        {
+            _selectedIds.Clear();
+            _selectedIds.Add(id);
+            _selectionAnchor = id;
+            return;
+        }
+
+        var ordered = _cards.Keys
+            .OrderBy(k => Canvas.GetTop(_cards[k]))
+            .ThenBy(k => Canvas.GetLeft(_cards[k]))
+            .ToList();
+
+        int a = ordered.IndexOf(_selectionAnchor);
+        int b = ordered.IndexOf(id);
+        if (a < 0 || b < 0) { _selectedIds.Add(id); return; }
+        if (a > b) (a, b) = (b, a);
+
+        _selectedIds.Clear();
+        for (int i = a; i <= b; i++) _selectedIds.Add(ordered[i]);
+        // anchor stays put so further Shift-clicks extend from the same origin
+    }
 
     private void RemoveSelectedFromBoard() => RemoveFromBoard(_selectedIds.ToList());
 

@@ -1030,5 +1030,11 @@
     "Code_GenAIBusy": "✨ Generiere…",
     "Code_NoAI": "Keine KI online. Aktiviere zuerst eine im Chat.",
     "Code_PickGenerator": "Code-Generator wählen",
-    "Code_PickGeneratorHint": "Welcher KI-Teilnehmer soll den Code erzeugen? (Standard festlegen unter Verwalter-Einstellungen → Code-Generator.)"
+    "Code_PickGeneratorHint": "Welcher KI-Teilnehmer soll den Code erzeugen? (Standard festlegen unter Verwalter-Einstellungen → Code-Generator.)",
+    "Code_ExportAll": "⬇ Alles exportieren",
+    "Code_ExportAllTip": "Code für alle Karten auf diesem Board exportieren",
+    "Code_ExportSelected": "⬇ Auswahl exportieren",
+    "Code_ExportSelectedTip": "Nur die ausgewählten Karten als Code exportieren",
+    "Code_ExportThis": "⬇ Code exportieren",
+    "Code_NoSelection": "Keine Karten ausgewählt. Klicke zuerst eine Karte an (Shift/Strg für Mehrfachauswahl)."
 }

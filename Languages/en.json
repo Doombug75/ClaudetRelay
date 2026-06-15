@@ -1030,5 +1030,11 @@
     "Code_GenAIBusy": "✨ Generating…",
     "Code_NoAI": "No AI participant is online. Enable one in the chat first.",
     "Code_PickGenerator": "Choose code generator",
-    "Code_PickGeneratorHint": "Which AI participant should generate the code? (Set a default in Manager Settings → Code Generator.)"
+    "Code_PickGeneratorHint": "Which AI participant should generate the code? (Set a default in Manager Settings → Code Generator.)",
+    "Code_ExportAll": "⬇ Export all",
+    "Code_ExportAllTip": "Export code for every card on this board",
+    "Code_ExportSelected": "⬇ Export selected",
+    "Code_ExportSelectedTip": "Export code only for the selected cards",
+    "Code_ExportThis": "⬇ Export code",
+    "Code_NoSelection": "No cards are selected. Click a card (Shift / Ctrl to multi-select) first."
 }

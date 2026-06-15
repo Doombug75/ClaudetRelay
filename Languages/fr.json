@@ -1030,5 +1030,11 @@
     "Code_GenAIBusy": "✨ Génération…",
     "Code_NoAI": "Aucune IA en ligne. Activez-en une dans le chat d'abord.",
     "Code_PickGenerator": "Choisir le générateur de code",
-    "Code_PickGeneratorHint": "Quel participant IA doit générer le code ? (Définissez une valeur par défaut dans Paramètres du gestionnaire → Générateur de code.)"
+    "Code_PickGeneratorHint": "Quel participant IA doit générer le code ? (Définissez une valeur par défaut dans Paramètres du gestionnaire → Générateur de code.)",
+    "Code_ExportAll": "⬇ Tout exporter",
+    "Code_ExportAllTip": "Exporter le code de toutes les cartes de ce tableau",
+    "Code_ExportSelected": "⬇ Exporter la sélection",
+    "Code_ExportSelectedTip": "Exporter uniquement les cartes sélectionnées",
+    "Code_ExportThis": "⬇ Exporter le code",
+    "Code_NoSelection": "Aucune carte sélectionnée. Cliquez d'abord sur une carte (Maj/Ctrl pour la sélection multiple)."
 }

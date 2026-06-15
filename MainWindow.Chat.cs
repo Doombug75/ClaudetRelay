@@ -4482,7 +4482,8 @@ public partial class MainWindow : Window
         "• Entity editor: name, type, namespace, description, base class (single inheritance) + implemented interfaces, " +
         "collapsible Fields and Methods sections (with visibility +−#~ and static), enum values, and typed data ports.\n" +
         "• Structure boards: a free canvas of UML-style cards. Drag cards, wire typed input→output data ports " +
-        "(pointer / reference / direct conventions must match — a mismatch is refused). Inheritance is set via the editor dropdown, not lines.\n" +
+        "(pointer / reference / direct conventions must match — a mismatch is refused). Inheritance is set via the editor dropdown, not lines. " +
+        "Select cards with left-click / Shift+click (range) / Ctrl+click (toggle); export all cards, the selection, or one card via its right-click menu.\n" +
         "• Flowchart (Programmablaufplan, DIN 66001): per function/method. Shapes = start/end, process, decision, I/O, subroutine, note; " +
         "labelled arrows. Three modes: Select/Move, Connect, Remove.\n" +
         "• Structogram (Nassi-Shneiderman, DIN 66261): per function/method. Nested blocks = statement, if/else, while, do-while, case.\n" +
@@ -4655,7 +4656,8 @@ public partial class MainWindow : Window
         "• Entitäts-Editor: Name, Typ, Namespace, Beschreibung, Basisklasse (Einfachvererbung) + implementierte Interfaces, " +
         "einklappbare Felder- und Methoden-Abschnitte (mit Sichtbarkeit +−#~ und static), Enum-Werte, typisierte Daten-Ports.\n" +
         "• Struktur-Boards: freie Leinwand mit UML-artigen Karten. Karten ziehen, typisierte Input→Output-Ports verdrahten " +
-        "(Pointer / Referenz / direkt müssen übereinstimmen — Mismatch wird abgelehnt). Vererbung per Dropdown im Editor, nicht per Linie.\n" +
+        "(Pointer / Referenz / direkt müssen übereinstimmen — Mismatch wird abgelehnt). Vererbung per Dropdown im Editor, nicht per Linie. " +
+        "Karten auswählen mit Linksklick / Shift+Klick (Bereich) / Strg+Klick (umschalten); alle Karten, die Auswahl oder eine einzelne Karte (Rechtsklick-Menü) exportieren.\n" +
         "• Programmablaufplan (DIN 66001): pro Funktion/Methode. Formen = Start/Ende, Prozess, Verzweigung, E/A, Unterprogramm, Notiz; " +
         "beschriftete Pfeile. Drei Modi: Auswählen/Bewegen, Verbinden, Entfernen.\n" +
         "• Struktogramm (Nassi-Shneiderman, DIN 66261): pro Funktion/Methode. Verschachtelte Blöcke = Anweisung, Wenn/Sonst, While, Do-While, Fallauswahl.\n" +
@@ -5910,6 +5912,16 @@ public partial class MainWindow : Window
             : "A free canvas of UML-style cards. Drag cards; wire typed input→output data ports " +
               "(pointer / reference / direct conventions must match — a mismatch is refused so no type error sneaks in). " +
               "Inheritance is set via a dropdown in the editor, not drawn as a line. The canvas auto-grows as you work.");
+
+        AddBody(isDE
+            ? "Auswahl & selektiver Export:\n" +
+              "  • Linksklick wählt eine Karte. Shift+Klick wählt den Bereich (Lesereihenfolge) zwischen zuletzt geklickter und jetziger Karte. Strg+Klick fügt eine Karte zur Auswahl hinzu / entfernt sie.\n" +
+              "  • '⬇ Alles exportieren' exportiert alle Karten des Boards, '⬇ Auswahl exportieren' nur die markierten.\n" +
+              "  • Rechtsklick auf eine Karte → '⬇ Code exportieren' für genau dieses Element (neben Bearbeiten/Löschen)."
+            : "Selection & selective export:\n" +
+              "  • Left-click selects a card. Shift+click selects the reading-order range between the last-clicked and the clicked card. Ctrl+click adds/removes a card from the selection.\n" +
+              "  • '⬇ Export all' exports every card on the board; '⬇ Export selected' only the selected ones.\n" +
+              "  • Right-click a card → '⬇ Export code' for just that element (next to edit/delete).");
 
         AddSubHeader(isDE ? "Programmablaufplan & Struktogramm" : "Flowchart & structogram");
         AddBody(isDE
