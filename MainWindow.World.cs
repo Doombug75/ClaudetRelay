@@ -60,6 +60,7 @@ public partial class MainWindow
     private bool    _worldFilterCommonKnowledge    = false;
     private bool    _worldFilterHistoricalKnowledge = false;
     private string  _worldSortMode                 = "name_asc";
+    private string  _worldView                     = "cards";  // cards | list | table
 
     // Open board windows keyed by board ID (singleton per board)
     private readonly Dictionary<string, WorldBoardWindow> _openBoardWindows = new();
@@ -215,6 +216,22 @@ public partial class MainWindow
             BuildWorldBoardGallery(projFolder);
             return;
         }
+
+        // View switcher: Cards / List / Table
+        var worldViewPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        rightPanel.Children.Add(worldViewPanel);
+        Button MakeWorldViewBtn(string key, string glyph, string tip)
+        {
+            var b = new Button { Content = glyph, Padding = new Thickness(8, 4, 8, 4), FontSize = 13, Margin = new Thickness(0, 0, 2, 0), Cursor = Cursors.Hand, ToolTip = tip };
+            b.SetResourceReference(Button.StyleProperty,      "ModernButton");
+            b.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
+            b.SetResourceReference(Button.BackgroundProperty, key == _worldView ? "AccentBgBrush" : "ControlBgBrush");
+            b.Click += (_, _) => { _worldView = key; BuildWorldContent(); };
+            return b;
+        }
+        worldViewPanel.Children.Add(MakeWorldViewBtn("cards", "▦", Properties.Loc.S("Code_View_Cards")));
+        worldViewPanel.Children.Add(MakeWorldViewBtn("list",  "☰", Properties.Loc.S("Code_View_List")));
+        worldViewPanel.Children.Add(MakeWorldViewBtn("table", "▤", Properties.Loc.S("Code_View_Table")));
 
         // "+ New" button (card-grid mode only)
         var newBtn = MakeFilePanelButton($"+ New {_worldActiveType}", isPrimary: true);
@@ -432,6 +449,20 @@ public partial class MainWindow
             noMatch.SetResourceReference(TextBlock.ForegroundProperty, "SidebarDimBrush");
             scroll.Content = noMatch;
         }
+        else if (_worldView == "list")
+        {
+            var listPanel = new StackPanel();
+            foreach (var entity in entities)
+                listPanel.Children.Add(BuildWorldListRow(entity, projFolder, Refresh));
+            scroll.Content = listPanel;
+        }
+        else if (_worldView == "table")
+        {
+            var tableWrap = new WrapPanel { Orientation = Orientation.Horizontal };
+            foreach (var entity in entities)
+                tableWrap.Children.Add(BuildWorldTableCell(entity, projFolder, Refresh));
+            scroll.Content = tableWrap;
+        }
         else
         {
             var cardsWrap = new WrapPanel { Orientation = Orientation.Horizontal, ItemWidth = 240 };
@@ -490,6 +521,190 @@ public partial class MainWindow
         grid.Children.Add(outer);
         grid.Children.Add(inner);
         return grid;
+    }
+
+    private static string WorldTypeSymbol(string type) => type switch
+    {
+        "Character" => "👤",
+        "Location"  => "📍",
+        "Faction"   => "🚩",
+        "Lore"      => "📜",
+        _           => "•"
+    };
+
+    /// <summary>List view row: small symbol + name + last-modified date.</summary>
+    private Border BuildWorldListRow(WorldEntity entity, string projFolder, Action refresh)
+    {
+        var row = new Border { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 0, 2), Cursor = Cursors.Hand };
+        row.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
+        row.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.Child = grid;
+        var sym = new TextBlock { Text = WorldTypeSymbol(entity.EntityType), FontSize = 13, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+        sym.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush"); Grid.SetColumn(sym, 0); grid.Children.Add(sym);
+        var nm = new TextBlock { Text = entity.Name, FontSize = 13, FontFamily = new FontFamily("Segoe UI"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        nm.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush"); Grid.SetColumn(nm, 1); grid.Children.Add(nm);
+        var date = new TextBlock { Text = entity.UpdatedAt == default ? "" : entity.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), FontSize = 11, Opacity = 0.55, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+        date.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush"); Grid.SetColumn(date, 2); grid.Children.Add(date);
+        AttachEntityInteractions(row, entity, projFolder, refresh);
+        return row;
+    }
+
+    /// <summary>Table view cell: compact symbol + name (no date).</summary>
+    private Border BuildWorldTableCell(WorldEntity entity, string projFolder, Action refresh)
+    {
+        var cell = new Border { Width = 200, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 6, 6), Cursor = Cursors.Hand };
+        cell.SetResourceReference(Border.BackgroundProperty,  "ControlBgBrush");
+        cell.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+        var sp = new StackPanel { Orientation = Orientation.Horizontal };
+        cell.Child = sp;
+        var sym = new TextBlock { Text = WorldTypeSymbol(entity.EntityType), FontSize = 13, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+        sym.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush"); sp.Children.Add(sym);
+        var nm = new TextBlock { Text = entity.Name, FontSize = 13, FontFamily = new FontFamily("Segoe UI"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 150 };
+        nm.SetResourceReference(TextBlock.ForegroundProperty, "ContentTextBrush"); sp.Children.Add(nm);
+        AttachEntityInteractions(cell, entity, projFolder, refresh);
+        return cell;
+    }
+
+    private void AttachEntityInteractions(FrameworkElement el, WorldEntity entity, string projFolder, Action refresh)
+    {
+        // ── Context menu: edit + delete + send to board ───────────────────
+        void DoDelete()
+        {
+            // Build confirmation message — include board names if this entity is placed on any board
+            var msg = string.Format(Properties.Loc.S("World_DeleteConfirmBody"),
+                                    WorldEntitySchemas.LocalizeEntityType(entity.EntityType),
+                                    entity.Name);
+
+            var allBoards     = WorldBoardRegistryService.Load(projFolder);
+            var boardsWithIt  = allBoards
+                .Where(b => EntityBoardService.Load(projFolder, b.Id).Positions.ContainsKey(entity.Id))
+                .Select(b => b.Name)
+                .ToList();
+
+            if (boardsWithIt.Count > 0)
+            {
+                var bulletList = string.Join("\n", boardsWithIt.Select(n => $"  •  {n}"));
+                msg += string.Format(Properties.Loc.S("World_DeleteStillOnBoards"),
+                                     boardsWithIt.Count, bulletList);
+            }
+
+            if (MessageBox.Show(msg, Properties.Loc.S("World_ConfirmDelete"),
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                    MessageBoxResult.No) != MessageBoxResult.Yes) return;
+
+            // Remove from every board it lives on
+            foreach (var b in boardsWithIt)
+            {
+                var bd = allBoards.First(x => x.Name == b);
+                var data = EntityBoardService.Load(projFolder, bd.Id);
+                data.Positions.Remove(entity.Id);
+                data.Relations.RemoveAll(r => r.FromId == entity.Id || r.ToId == entity.Id);
+                EntityBoardService.Save(projFolder, bd.Id, data);
+            }
+
+            // Delete thumbnails for portraits/images
+            if (!string.IsNullOrWhiteSpace(entity.PortraitFileName))
+                ThumbnailService.DeleteThumb(WorldEntityService.GetPortraitPath(projFolder, entity.PortraitFileName));
+            if (!string.IsNullOrWhiteSpace(entity.ImageFileName))
+                ThumbnailService.DeleteThumb(WorldEntityService.GetImagePath(projFolder, entity.ImageFileName));
+
+            WorldEntityService.Delete(projFolder, entity);
+            refresh();
+        }
+
+        var ctx = new ContextMenu();
+
+        var editItem = new MenuItem { Header = Properties.Loc.S("World_EditItem") };
+        editItem.Click += (_, _) =>
+        {
+            if (_entityEditOpen) { ShowEntityReadOnlyDialog(entity); return; }
+            var copy    = CloneEntity(entity);
+            var oldName = entity.Name;
+            if (ShowEntityEditDialog(copy, projFolder, isNew: false))
+            {
+                if (!string.Equals(copy.Name, oldName, StringComparison.Ordinal))
+                    WorldEntityService.Rename(projFolder, copy, oldName);
+                else
+                    WorldEntityService.Save(projFolder, copy);
+                refresh();
+            }
+        };
+        ctx.Items.Add(editItem);
+        ctx.Items.Add(new Separator());
+
+        var delItem = new MenuItem { Header = Properties.Loc.S("World_DeleteItem") };
+        delItem.Click += (_, _) => DoDelete();
+        ctx.Items.Add(delItem);
+
+        // "Send to World Board" submenu – boards loaded lazily on open.
+        // WPF only fires SubmenuOpened when Items.Count > 0, so we seed one placeholder item
+        // to make the arrow appear; the handler replaces it with real entries.
+        var sendItem = new MenuItem { Header = Properties.Loc.S("World_SendToBoard") };
+        sendItem.Items.Add(new MenuItem { Header = "…", IsEnabled = false }); // placeholder forces arrow
+        sendItem.SubmenuOpened += (_, _) =>
+        {
+            sendItem.Items.Clear();
+            var allBoards = WorldBoardRegistryService.Load(projFolder);
+            if (allBoards.Count == 0)
+            {
+                sendItem.Items.Add(new MenuItem { Header = "(no boards created yet)", IsEnabled = false });
+                return;
+            }
+            // Show only boards that accept this entity type
+            var matching = allBoards
+                .Where(b => b.EntityTypes.Any(t =>
+                    string.Equals(t, entity.EntityType, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            if (matching.Count == 0)
+            {
+                sendItem.Items.Add(new MenuItem
+                {
+                    Header = $"(no board configured for {entity.EntityType}s)",
+                    IsEnabled = false
+                });
+                return;
+            }
+            foreach (var b in matching)
+            {
+                var capturedBoard = b;
+                var mi = new MenuItem { Header = capturedBoard.Symbol + "  " + capturedBoard.Name };
+                mi.Click += (_, _) =>
+                {
+                    var bData = EntityBoardService.Load(projFolder, capturedBoard.Id);
+                    if (bData.Positions.ContainsKey(entity.Id))
+                    {
+                        MessageBox.Show($"'{entity.Name}' is already on board \"{capturedBoard.Name}\".",
+                            Properties.Loc.S("World_AlreadyOnBoard"), MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+                    // Place at a position snapped to the board's grid
+                    double gs   = bData.GridSize > 0 ? bData.GridSize : 10;
+                    double maxY = bData.Positions.Count > 0
+                        ? bData.Positions.Values.Max(p => p.Y) : 60;
+                    double placeY = Math.Round((maxY + 120) / gs) * gs;
+                    bData.Positions[entity.Id] = new BoardPosition { X = 60, Y = placeY };
+                    EntityBoardService.Save(projFolder, capturedBoard.Id, bData);
+                    MessageBox.Show($"'{entity.Name}' added to board \"{capturedBoard.Name}\".",
+                        Properties.Loc.S("Btn_Done"), MessageBoxButton.OK, MessageBoxImage.Information);
+                };
+                sendItem.Items.Add(mi);
+            }
+        };
+        ctx.Items.Add(sendItem);
+        el.ContextMenu = ctx;
+
+        // Double-click opens the edit dialog directly
+        el.MouseLeftButtonDown += (_, e) =>
+        {
+            if (e.ClickCount < 2) return;
+            e.Handled = true;
+            editItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        };
+
     }
 
     private Border BuildEntityCard(WorldEntity entity, string projFolder, Action refresh,
@@ -655,139 +870,7 @@ public partial class MainWindow
             }
         }
 
-        // ── Context menu: edit + delete + send to board ───────────────────
-        void DoDelete()
-        {
-            // Build confirmation message — include board names if this entity is placed on any board
-            var msg = string.Format(Properties.Loc.S("World_DeleteConfirmBody"),
-                                    WorldEntitySchemas.LocalizeEntityType(entity.EntityType),
-                                    entity.Name);
-
-            var allBoards     = WorldBoardRegistryService.Load(projFolder);
-            var boardsWithIt  = allBoards
-                .Where(b => EntityBoardService.Load(projFolder, b.Id).Positions.ContainsKey(entity.Id))
-                .Select(b => b.Name)
-                .ToList();
-
-            if (boardsWithIt.Count > 0)
-            {
-                var bulletList = string.Join("\n", boardsWithIt.Select(n => $"  •  {n}"));
-                msg += string.Format(Properties.Loc.S("World_DeleteStillOnBoards"),
-                                     boardsWithIt.Count, bulletList);
-            }
-
-            if (MessageBox.Show(msg, Properties.Loc.S("World_ConfirmDelete"),
-                    MessageBoxButton.YesNo, MessageBoxImage.Warning,
-                    MessageBoxResult.No) != MessageBoxResult.Yes) return;
-
-            // Remove from every board it lives on
-            foreach (var b in boardsWithIt)
-            {
-                var bd = allBoards.First(x => x.Name == b);
-                var data = EntityBoardService.Load(projFolder, bd.Id);
-                data.Positions.Remove(entity.Id);
-                data.Relations.RemoveAll(r => r.FromId == entity.Id || r.ToId == entity.Id);
-                EntityBoardService.Save(projFolder, bd.Id, data);
-            }
-
-            // Delete thumbnails for portraits/images
-            if (!string.IsNullOrWhiteSpace(entity.PortraitFileName))
-                ThumbnailService.DeleteThumb(WorldEntityService.GetPortraitPath(projFolder, entity.PortraitFileName));
-            if (!string.IsNullOrWhiteSpace(entity.ImageFileName))
-                ThumbnailService.DeleteThumb(WorldEntityService.GetImagePath(projFolder, entity.ImageFileName));
-
-            WorldEntityService.Delete(projFolder, entity);
-            refresh();
-        }
-
-        var ctx = new ContextMenu();
-
-        var editItem = new MenuItem { Header = Properties.Loc.S("World_EditItem") };
-        editItem.Click += (_, _) =>
-        {
-            if (_entityEditOpen) { ShowEntityReadOnlyDialog(entity); return; }
-            var copy    = CloneEntity(entity);
-            var oldName = entity.Name;
-            if (ShowEntityEditDialog(copy, projFolder, isNew: false))
-            {
-                if (!string.Equals(copy.Name, oldName, StringComparison.Ordinal))
-                    WorldEntityService.Rename(projFolder, copy, oldName);
-                else
-                    WorldEntityService.Save(projFolder, copy);
-                refresh();
-            }
-        };
-        ctx.Items.Add(editItem);
-        ctx.Items.Add(new Separator());
-
-        var delItem = new MenuItem { Header = Properties.Loc.S("World_DeleteItem") };
-        delItem.Click += (_, _) => DoDelete();
-        ctx.Items.Add(delItem);
-
-        // "Send to World Board" submenu – boards loaded lazily on open.
-        // WPF only fires SubmenuOpened when Items.Count > 0, so we seed one placeholder item
-        // to make the arrow appear; the handler replaces it with real entries.
-        var sendItem = new MenuItem { Header = Properties.Loc.S("World_SendToBoard") };
-        sendItem.Items.Add(new MenuItem { Header = "…", IsEnabled = false }); // placeholder forces arrow
-        sendItem.SubmenuOpened += (_, _) =>
-        {
-            sendItem.Items.Clear();
-            var allBoards = WorldBoardRegistryService.Load(projFolder);
-            if (allBoards.Count == 0)
-            {
-                sendItem.Items.Add(new MenuItem { Header = "(no boards created yet)", IsEnabled = false });
-                return;
-            }
-            // Show only boards that accept this entity type
-            var matching = allBoards
-                .Where(b => b.EntityTypes.Any(t =>
-                    string.Equals(t, entity.EntityType, StringComparison.OrdinalIgnoreCase)))
-                .ToList();
-            if (matching.Count == 0)
-            {
-                sendItem.Items.Add(new MenuItem
-                {
-                    Header = $"(no board configured for {entity.EntityType}s)",
-                    IsEnabled = false
-                });
-                return;
-            }
-            foreach (var b in matching)
-            {
-                var capturedBoard = b;
-                var mi = new MenuItem { Header = capturedBoard.Symbol + "  " + capturedBoard.Name };
-                mi.Click += (_, _) =>
-                {
-                    var bData = EntityBoardService.Load(projFolder, capturedBoard.Id);
-                    if (bData.Positions.ContainsKey(entity.Id))
-                    {
-                        MessageBox.Show($"'{entity.Name}' is already on board \"{capturedBoard.Name}\".",
-                            Properties.Loc.S("World_AlreadyOnBoard"), MessageBoxButton.OK, MessageBoxImage.Information);
-                        return;
-                    }
-                    // Place at a position snapped to the board's grid
-                    double gs   = bData.GridSize > 0 ? bData.GridSize : 10;
-                    double maxY = bData.Positions.Count > 0
-                        ? bData.Positions.Values.Max(p => p.Y) : 60;
-                    double placeY = Math.Round((maxY + 120) / gs) * gs;
-                    bData.Positions[entity.Id] = new BoardPosition { X = 60, Y = placeY };
-                    EntityBoardService.Save(projFolder, capturedBoard.Id, bData);
-                    MessageBox.Show($"'{entity.Name}' added to board \"{capturedBoard.Name}\".",
-                        Properties.Loc.S("Btn_Done"), MessageBoxButton.OK, MessageBoxImage.Information);
-                };
-                sendItem.Items.Add(mi);
-            }
-        };
-        ctx.Items.Add(sendItem);
-        card.ContextMenu = ctx;
-
-        // Double-click opens the edit dialog directly
-        card.MouseLeftButtonDown += (_, e) =>
-        {
-            if (e.ClickCount < 2) return;
-            e.Handled = true;
-            editItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-        };
+        AttachEntityInteractions(card, entity, projFolder, refresh);
 
         return card;
     }
