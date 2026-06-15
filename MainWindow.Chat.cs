@@ -4478,7 +4478,9 @@ public partial class MainWindow : Window
         "## Code section (💻 Code tab)\n" +
         "For software projects: plan structure, relationships and logic, then export skeleton code.\n" +
         "• Library: one tab per entity type — Namespace, Class, Struct, Interface, Enum, Function, Object. " +
-        "Searchable, sortable (name / last-modified). Click an entry to edit it; entities are stored under PROJECTPLAN/code/.\n" +
+        "Searchable, sortable (name / last-modified). Left-click selects (Shift=range, Ctrl=toggle), double-click edits; " +
+        "'⬇ Export selected' exports the selection and right-click → '⬇ Export code' exports one entry. " +
+        "Entities are stored under PROJECTPLAN/code/.\n" +
         "• Entity editor: name, type, namespace, description, base class (single inheritance) + implemented interfaces, " +
         "collapsible Fields and Methods sections (with visibility +−#~ and static), enum values, and typed data ports.\n" +
         "• Structure boards: a free canvas of UML-style cards. Drag cards, wire typed input→output data ports " +
@@ -4652,7 +4654,9 @@ public partial class MainWindow : Window
         "## Code-Bereich (💻 Code-Tab)\n" +
         "Für Software-Projekte: Struktur, Beziehungen und Logik planen, dann Code-Gerüst exportieren.\n" +
         "• Bibliothek: ein Tab pro Entitätstyp — Namespace, Class, Struct, Interface, Enum, Function, Object. " +
-        "Durchsuchbar, sortierbar (Name / zuletzt geändert). Eintrag anklicken zum Bearbeiten; gespeichert unter PROJECTPLAN/code/.\n" +
+        "Durchsuchbar, sortierbar (Name / zuletzt geändert). Linksklick wählt (Shift=Bereich, Strg=einzeln), Doppelklick bearbeitet; " +
+        "„⬇ Auswahl exportieren\" exportiert die Markierung, Rechtsklick → „⬇ Code exportieren\" eine Entität. " +
+        "Gespeichert unter PROJECTPLAN/code/.\n" +
         "• Entitäts-Editor: Name, Typ, Namespace, Beschreibung, Basisklasse (Einfachvererbung) + implementierte Interfaces, " +
         "einklappbare Felder- und Methoden-Abschnitte (mit Sichtbarkeit +−#~ und static), Enum-Werte, typisierte Daten-Ports.\n" +
         "• Struktur-Boards: freie Leinwand mit UML-artigen Karten. Karten ziehen, typisierte Input→Output-Ports verdrahten " +
@@ -5895,12 +5899,16 @@ public partial class MainWindow : Window
         AddBody(isDE
             ? "Oben Tabs: 🗂 Boards plus je ein Tab pro Entitätstyp — Namespace, Class, Struct, Interface, Enum, Function, Object.\n" +
               "  • Jede Liste ist durchsuchbar und sortierbar (Name auf/ab, zuletzt geändert auf/ab).\n" +
-              "  • Eintrag anklicken öffnet den Editor: Name, Typ, Namespace, Beschreibung, Basisklasse (Einfachvererbung) + " +
+              "  • Linksklick wählt einen Eintrag, Shift+Klick einen Bereich, Strg+Klick einzeln dazu; Doppelklick öffnet den Editor.\n" +
+              "  • „⬇ Auswahl exportieren\" exportiert die markierten Einträge; Rechtsklick auf einen Eintrag → Bearbeiten / „⬇ Code exportieren\" / Löschen.\n" +
+              "  • Der Editor: Name, Typ, Namespace, Beschreibung, Basisklasse (Einfachvererbung) + " +
               "implementierte Interfaces, einklappbare Felder- und Methoden-Abschnitte (Sichtbarkeit + − # ~, static), " +
               "Enum-Werte und typisierte Daten-Ports."
             : "Tabs at the top: 🗂 Boards plus one tab per entity type — Namespace, Class, Struct, Interface, Enum, Function, Object.\n" +
               "  • Each list is searchable and sortable (name asc/desc, last-modified asc/desc).\n" +
-              "  • Click an entry to open the editor: name, type, namespace, description, base class (single inheritance) + " +
+              "  • Left-click selects an entry, Shift+click a range, Ctrl+click adds individually; double-click opens the editor.\n" +
+              "  • \"⬇ Export selected\" exports the selected entries; right-click an entry → Edit / \"⬇ Export code\" / Delete.\n" +
+              "  • The editor: name, type, namespace, description, base class (single inheritance) + " +
               "implemented interfaces, collapsible Fields and Methods sections (visibility + − # ~, static), " +
               "enum values and typed data ports.");
 

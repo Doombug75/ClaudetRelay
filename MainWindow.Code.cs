@@ -20,6 +20,8 @@ public partial class MainWindow
     private string _codeLibType    = "Class";        // active entity type in library mode
     private string _codeLibSearch  = "";             // library search filter
     private string _codeLibSort    = "name_asc";     // name_asc | name_desc | modified_asc | modified_desc
+    private readonly HashSet<string> _codeLibSelected = new();  // selected entity IDs in the library
+    private string? _codeLibAnchor;                  // anchor for Shift range-selection in the library
 
     private void CodeButton_Click(object sender, RoutedEventArgs e)
     {
@@ -129,6 +131,8 @@ public partial class MainWindow
                 _codeBoardsMode = false;
                 _codeLibType    = capEt;
                 _codeLibSearch  = "";
+                _codeLibSelected.Clear();
+                _codeLibAnchor  = null;
                 BuildCodeContent(projFolder);
             }));
         }
@@ -232,6 +236,7 @@ public partial class MainWindow
         var barRow = new Grid();
         barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });  // sort
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });  // export selected
         barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });  // new
         bar.Child = barRow;
 
@@ -262,6 +267,20 @@ public partial class MainWindow
         Grid.SetColumn(sortCombo, 1);
         barRow.Children.Add(sortCombo);
 
+        var exportSelBtn = new Button
+        {
+            Content = Properties.Loc.S("Code_ExportSelected"),
+            Padding = new Thickness(10, 5, 10, 5),
+            FontSize = 12,
+            Margin   = new Thickness(8, 0, 0, 0),
+            ToolTip  = Properties.Loc.S("Code_ExportSelectedTip")
+        };
+        exportSelBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
+        exportSelBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+        exportSelBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
+        Grid.SetColumn(exportSelBtn, 2);
+        barRow.Children.Add(exportSelBtn);
+
         var newBtn = new Button
         {
             Content = string.Format(Properties.Loc.S("Code_NewEntity"), _codeLibType),
@@ -272,7 +291,7 @@ public partial class MainWindow
         newBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
         newBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
         newBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
-        Grid.SetColumn(newBtn, 2);
+        Grid.SetColumn(newBtn, 3);
         barRow.Children.Add(newBtn);
 
         // Entity list
@@ -294,9 +313,169 @@ public partial class MainWindow
             foreach (var e in CodeEntityService.LoadAll(projFolder, t))
                 allKnown[e.Id] = e;
 
+        var shownOrder = new List<string>();                 // entity IDs in displayed order (for Shift range)
+        var rowBorders = new Dictionary<string, Border>();   // id → row visual (for highlight updates)
+
+        void UpdateHighlights()
+        {
+            var accent = (Brush)(TryFindResource("AccentHighlightBrush") ?? new SolidColorBrush(Colors.DodgerBlue));
+            foreach (var (id, b) in rowBorders)
+            {
+                if (_codeLibSelected.Contains(id))
+                {
+                    b.BorderBrush     = accent;
+                    b.BorderThickness = new Thickness(2);
+                }
+                else
+                {
+                    b.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+                    b.BorderThickness = new Thickness(1);
+                }
+            }
+        }
+
+        void HandleRowClick(string id, MouseButtonEventArgs e)
+        {
+            var mods = Keyboard.Modifiers;
+            if ((mods & ModifierKeys.Shift) != 0 && _codeLibAnchor is not null)
+            {
+                int a = shownOrder.IndexOf(_codeLibAnchor), b = shownOrder.IndexOf(id);
+                if (a >= 0 && b >= 0)
+                {
+                    if (a > b) (a, b) = (b, a);
+                    _codeLibSelected.Clear();
+                    for (int i = a; i <= b; i++) _codeLibSelected.Add(shownOrder[i]);
+                }
+            }
+            else if ((mods & ModifierKeys.Control) != 0)
+            {
+                if (!_codeLibSelected.Add(id)) _codeLibSelected.Remove(id);
+                _codeLibAnchor = id;
+            }
+            else
+            {
+                _codeLibSelected.Clear();
+                _codeLibSelected.Add(id);
+                _codeLibAnchor = id;
+            }
+            UpdateHighlights();
+        }
+
+        void OpenEditor(CodeEntity entity, Action refresh)
+        {
+            var dlg = new CodeEntityEditorDialog(projFolder, entity, allKnown, _currentThemePath) { Owner = this };
+            dlg.ShowDialog();
+            if (dlg.Saved) { allKnown[entity.Id] = entity; refresh(); }
+        }
+
+        void DeleteEntity(CodeEntity entity, Action refresh)
+        {
+            var res = MessageBox.Show(string.Format(Properties.Loc.S("Code_DeleteEntityConfirm"), entity.Name),
+                Properties.Loc.S("Code_DeleteEntityTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (res != MessageBoxResult.Yes) return;
+            CodeEntityService.Delete(projFolder, entity.EntityType.ToString(), entity.Id);
+            allKnown.Remove(entity.Id);
+            _codeLibSelected.Remove(entity.Id);
+            refresh();
+        }
+
+        Border BuildRow(CodeEntity entity, Action refresh)
+        {
+            var row = new Border
+            {
+                CornerRadius    = new CornerRadius(6),
+                BorderThickness = new Thickness(1),
+                Padding         = new Thickness(12, 8, 12, 8),
+                Margin          = new Thickness(0, 0, 0, 6),
+                Cursor          = Cursors.Hand
+            };
+            row.SetResourceReference(Border.BackgroundProperty,  "CardBgBrush");
+            row.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.Child = grid;
+
+            var info = new StackPanel();
+            Grid.SetColumn(info, 0);
+            grid.Children.Add(info);
+
+            var nameLine = new TextBlock { Text = entity.Name, FontSize = 13, FontWeight = FontWeights.SemiBold };
+            nameLine.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+            info.Children.Add(nameLine);
+
+            string summary = entity.EntityType switch
+            {
+                CodeEntityType.Function  => $"({string.Join(", ", entity.Ports.Where(p => p.Direction == PortDirection.Input).Select(p => p.DataType))})",
+                CodeEntityType.Enum      => $"{entity.EnumValues.Count} values",
+                _                        => $"{entity.Fields.Count} fields · {entity.Methods.Count} methods"
+            };
+            var sub = new TextBlock { Text = summary, FontSize = 11, Opacity = 0.6 };
+            sub.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+            info.Children.Add(sub);
+
+            var actions = new StackPanel { Orientation = Orientation.Horizontal };
+            Grid.SetColumn(actions, 1);
+            grid.Children.Add(actions);
+
+            if (entity.EntityType == CodeEntityType.Function)
+            {
+                var flowBtn = new Button { Content = Properties.Loc.S("Code_FlowBtn"), Padding = new Thickness(8, 2, 8, 2), FontSize = 12, Margin = new Thickness(0, 0, 6, 0) };
+                flowBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
+                flowBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+                flowBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
+                flowBtn.ToolTip = Properties.Loc.S("Code_FlowTooltip");
+                flowBtn.Click += (_, e) => { e.Handled = true; DiagramLauncher.ChooseAndOpen(this, projFolder, entity.Id, entity.Name, _currentThemePath); };
+                actions.Children.Add(flowBtn);
+            }
+
+            var delBtn = new Button { Content = "🗑", Padding = new Thickness(8, 2, 8, 2), FontSize = 12 };
+            delBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
+            delBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
+            delBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
+            delBtn.ToolTip = Properties.Loc.S("Code_DeleteEntityTooltip");
+            delBtn.Click += (_, e) => { e.Handled = true; DeleteEntity(entity, refresh); };
+            actions.Children.Add(delBtn);
+
+            // Left-click selects (Shift = range, Ctrl = toggle); double-click opens the editor.
+            row.MouseLeftButtonDown += (_, e) =>
+            {
+                if (e.ClickCount >= 2) { OpenEditor(entity, refresh); return; }
+                HandleRowClick(entity.Id, e);
+            };
+
+            // Right-click → Edit / Export code / Delete
+            row.MouseRightButtonDown += (_, e) =>
+            {
+                e.Handled = true;
+                if (!_codeLibSelected.Contains(entity.Id)) { _codeLibSelected.Clear(); _codeLibSelected.Add(entity.Id); _codeLibAnchor = entity.Id; UpdateHighlights(); }
+                var cm = new ContextMenu();
+                var editMi = new MenuItem { Header = Properties.Loc.S("Code_Edit") };
+                editMi.Click += (_, _) => OpenEditor(entity, refresh);
+                cm.Items.Add(editMi);
+                var expMi = new MenuItem { Header = Properties.Loc.S("Code_ExportThis") };
+                expMi.Click += (_, _) => ShowCodeExportDialog(projFolder, new[] { entity });
+                cm.Items.Add(expMi);
+                cm.Items.Add(new Separator());
+                var delMi = new MenuItem { Header = Properties.Loc.S("Code_DeletePerm") };
+                delMi.Click += (_, _) => DeleteEntity(entity, refresh);
+                cm.Items.Add(delMi);
+                cm.IsOpen = true;
+            };
+
+            row.MouseEnter += (_, _) => { if (!_codeLibSelected.Contains(entity.Id)) row.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 1, Opacity = 0.2 }; };
+            row.MouseLeave += (_, _) => row.Effect = null;
+
+            return row;
+        }
+
         void Refresh()
         {
             list.Children.Clear();
+            shownOrder.Clear();
+            rowBorders.Clear();
+
             var filtered = CodeEntityService.LoadAll(projFolder, _codeLibType)
                 .Where(e => string.IsNullOrWhiteSpace(_codeLibSearch)
                          || e.Name.Contains(_codeLibSearch, StringComparison.OrdinalIgnoreCase));
@@ -324,7 +503,13 @@ public partial class MainWindow
             }
 
             foreach (var e in sorted)
-                list.Children.Add(BuildCodeLibraryRow(projFolder, e, allKnown, Refresh));
+            {
+                shownOrder.Add(e.Id);
+                var b = BuildRow(e, Refresh);
+                rowBorders[e.Id] = b;
+                list.Children.Add(b);
+            }
+            UpdateHighlights();
         }
         Refresh();
 
@@ -335,6 +520,18 @@ public partial class MainWindow
             Refresh();
         };
 
+        exportSelBtn.Click += (_, _) =>
+        {
+            var sel = _codeLibSelected.Where(allKnown.ContainsKey).Select(id => allKnown[id]).ToList();
+            if (sel.Count == 0)
+            {
+                MessageBox.Show(Properties.Loc.S("Code_NoSelection"), Properties.Loc.S("Code_ExportSelected"),
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            ShowCodeExportDialog(projFolder, sel);
+        };
+
         newBtn.Click += (_, _) =>
         {
             if (!Enum.TryParse<CodeEntityType>(_codeLibType, out var et)) return;
@@ -343,97 +540,6 @@ public partial class MainWindow
             dlg.ShowDialog();
             if (dlg.Saved) { allKnown[entity.Id] = entity; Refresh(); }
         };
-    }
-
-    private Border BuildCodeLibraryRow(string projFolder, CodeEntity entity,
-        Dictionary<string, CodeEntity> allKnown, Action refresh)
-    {
-        var row = new Border
-        {
-            CornerRadius    = new CornerRadius(6),
-            BorderThickness = new Thickness(1),
-            Padding         = new Thickness(12, 8, 12, 8),
-            Margin          = new Thickness(0, 0, 0, 6),
-            Cursor          = Cursors.Hand
-        };
-        row.SetResourceReference(Border.BackgroundProperty,  "CardBgBrush");
-        row.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
-
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.Child = grid;
-
-        var info = new StackPanel();
-        Grid.SetColumn(info, 0);
-        grid.Children.Add(info);
-
-        var nameLine = new TextBlock { Text = entity.Name, FontSize = 13, FontWeight = FontWeights.SemiBold };
-        nameLine.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
-        info.Children.Add(nameLine);
-
-        // Summary: member counts / signature
-        string summary = entity.EntityType switch
-        {
-            CodeEntityType.Function  => $"({string.Join(", ", entity.Ports.Where(p => p.Direction == PortDirection.Input).Select(p => p.DataType))})",
-            CodeEntityType.Enum      => $"{entity.EnumValues.Count} values",
-            _                        => $"{entity.Fields.Count} fields · {entity.Methods.Count} methods"
-        };
-        var sub = new TextBlock { Text = summary, FontSize = 11, Opacity = 0.6 };
-        sub.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
-        info.Children.Add(sub);
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal };
-        Grid.SetColumn(actions, 1);
-        grid.Children.Add(actions);
-
-        // Flow sketch button — for functions (the "attach a flowchart" entry point)
-        if (entity.EntityType == CodeEntityType.Function)
-        {
-            var flowBtn = new Button { Content = Properties.Loc.S("Code_FlowBtn"), Padding = new Thickness(8, 2, 8, 2), FontSize = 12, Margin = new Thickness(0, 0, 6, 0) };
-            flowBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
-            flowBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
-            flowBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
-            flowBtn.ToolTip = Properties.Loc.S("Code_FlowTooltip");
-            flowBtn.Click += (_, e) =>
-            {
-                e.Handled = true;
-                DiagramLauncher.ChooseAndOpen(this, projFolder, entity.Id, entity.Name, _currentThemePath);
-            };
-            actions.Children.Add(flowBtn);
-        }
-
-        var delBtn = new Button { Content = "🗑", Padding = new Thickness(8, 2, 8, 2), FontSize = 12 };
-        delBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
-        delBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
-        delBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
-        delBtn.ToolTip = Properties.Loc.S("Code_DeleteEntityTooltip");
-        actions.Children.Add(delBtn);
-
-        delBtn.Click += (_, e) =>
-        {
-            e.Handled = true;
-            var res = MessageBox.Show(string.Format(Properties.Loc.S("Code_DeleteEntityConfirm"), entity.Name),
-                Properties.Loc.S("Code_DeleteEntityTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
-            if (res != MessageBoxResult.Yes) return;
-            CodeEntityService.Delete(projFolder, entity.EntityType.ToString(), entity.Id);
-            allKnown.Remove(entity.Id);
-            refresh();
-        };
-
-        row.MouseLeftButtonDown += (_, _) =>
-        {
-            var dlg = new CodeEntityEditorDialog(projFolder, entity, allKnown, _currentThemePath) { Owner = this };
-            dlg.ShowDialog();
-            if (dlg.Saved) { allKnown[entity.Id] = entity; refresh(); }
-        };
-
-        row.MouseEnter += (_, _) =>
-            row.Effect = new System.Windows.Media.Effects.DropShadowEffect
-                { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 1, Opacity = 0.2 };
-        row.MouseLeave += (_, _) => row.Effect = null;
-
-        return row;
     }
 
     private Border BuildCodeBoardCard(CodeBoard board, string projFolder, List<CodeBoard> allBoards)
