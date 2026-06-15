@@ -15,6 +15,7 @@ public sealed class ManagerSettingsWindow : Window
 {
     private ComboBox? _compressionCombo;
     private ComboBox? _brainCombo;
+    private ComboBox? _codeGenCombo;
     private TextBlock? _compressionWarning;
 
     private static bool IsDE =>
@@ -115,6 +116,25 @@ public sealed class ManagerSettingsWindow : Window
 
         root.Children.Add(new Separator { Margin = new Thickness(0, 16, 0, 16) });
 
+        // ── Section: Code Generator ────────────────────────────────────────
+        root.Children.Add(Heading("💻  " + (IsDE ? "Code-Generator" : "Code Generator")));
+
+        root.Children.Add(BodyText(IsDE
+            ? "Welcher Teilnehmer im Code-Bereich aus Gerüst, Struktogrammen und Ablaufplänen Code erzeugt " +
+              "(z.B. ein spezialisiertes Coder-Modell). Bei „(Jedes Mal fragen)\" wird bei jeder Generierung " +
+              "nachgefragt, wer die Aufgabe übernimmt."
+            : "Which participant generates code from the skeleton, structograms and flowcharts in the Code section " +
+              "(e.g. a specialised coder model). With \"(Ask each time)\" you are prompted on every generation."));
+
+        root.Children.Add(SmallLabel(IsDE ? "Code-Generator:" : "Code generator:"));
+        _codeGenCombo = MakeCombo();
+        _codeGenCombo.Margin = new Thickness(0, 0, 0, 4);
+        PopulateCombo(_codeGenCombo, participants, s.CodeGeneratorName, includeNone: true,
+            noneLabel: IsDE ? "(Jedes Mal fragen)" : "(Ask each time)");
+        root.Children.Add(_codeGenCombo);
+
+        root.Children.Add(new Separator { Margin = new Thickness(0, 16, 0, 16) });
+
         // ── OK / Cancel ────────────────────────────────────────────────────
         var btnRow = new StackPanel
         {
@@ -132,10 +152,10 @@ public sealed class ManagerSettingsWindow : Window
     }
 
     private void PopulateCombo(ComboBox combo, List<ParticipantConfig> participants,
-                                string currentValue, bool includeNone)
+                                string currentValue, bool includeNone, string? noneLabel = null)
     {
         if (includeNone)
-            combo.Items.Add(IsDE ? "(Automatisch)" : "(Auto-detect)");
+            combo.Items.Add(noneLabel ?? (IsDE ? "(Automatisch)" : "(Auto-detect)"));
 
         foreach (var p in participants)
         {
@@ -230,6 +250,10 @@ public sealed class ManagerSettingsWindow : Window
 
         s.ClaudetteBrainName = _brainCombo is not null
             ? SelectedParticipantName(_brainCombo, participants)
+            : "";
+
+        s.CodeGeneratorName = _codeGenCombo is not null
+            ? SelectedParticipantName(_codeGenCombo, participants)
             : "";
 
         SettingsService.Save(s);

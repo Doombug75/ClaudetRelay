@@ -1024,5 +1024,11 @@
     "Flow_ToStructogramTitle": "Convertir en structogramme",
     "Flow_ToStructogramOverwrite": "Un structogramme existe déjà pour cette fonction. L'écraser avec l'organigramme converti ?",
     "Flow_ToStructogramPartial": "Converti — mais certaines parties de l'organigramme n'ont pas pu être structurées. Elles sont signalées en ambre dans le structogramme.",
-    "Struct_FlaggedTip": "Cette région n'a pas pu être structurée à partir de l'organigramme — à vérifier et réécrire manuellement."
+    "Struct_FlaggedTip": "Cette région n'a pas pu être structurée à partir de l'organigramme — à vérifier et réécrire manuellement.",
+    "Code_GenAI": "✨ Générer avec l'IA",
+    "Code_GenAITip": "Envoyer le squelette + indices d'organigramme à une IA et recevoir le code complet",
+    "Code_GenAIBusy": "✨ Génération…",
+    "Code_NoAI": "Aucune IA en ligne. Activez-en une dans le chat d'abord.",
+    "Code_PickGenerator": "Choisir le générateur de code",
+    "Code_PickGeneratorHint": "Quel participant IA doit générer le code ? (Définissez une valeur par défaut dans Paramètres du gestionnaire → Générateur de code.)"
 }

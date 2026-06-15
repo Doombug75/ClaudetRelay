@@ -1157,4 +1157,10 @@ Output '{0}' is '{1}', input '{2}' is '{3}'.</value></data>
   <data name="Flow_ToStructogramOverwrite" xml:space="preserve"><value>A structogram already exists for this function. Overwrite it with the converted flowchart?</value></data>
   <data name="Flow_ToStructogramPartial" xml:space="preserve"><value>Converted — but some parts of the flowchart could not be structured. They are flagged in amber in the structogram.</value></data>
   <data name="Struct_FlaggedTip" xml:space="preserve"><value>This region could not be structured from the flowchart — review and rewrite it manually.</value></data>
+  <data name="Code_GenAI" xml:space="preserve"><value>✨ Generate with AI</value></data>
+  <data name="Code_GenAITip" xml:space="preserve"><value>Send the skeleton + flowchart hints to an AI participant and stream back full code</value></data>
+  <data name="Code_GenAIBusy" xml:space="preserve"><value>✨ Generating…</value></data>
+  <data name="Code_NoAI" xml:space="preserve"><value>No AI participant is online. Enable one in the chat first.</value></data>
+  <data name="Code_PickGenerator" xml:space="preserve"><value>Choose code generator</value></data>
+  <data name="Code_PickGeneratorHint" xml:space="preserve"><value>Which AI participant should generate the code? (Set a default in Manager Settings → Code Generator.)</value></data>
 </root>

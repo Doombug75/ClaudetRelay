@@ -1024,5 +1024,11 @@
     "Flow_ToStructogramTitle": "In Struktogramm umwandeln",
     "Flow_ToStructogramOverwrite": "Für diese Funktion existiert bereits ein Struktogramm. Mit dem umgewandelten Ablaufplan überschreiben?",
     "Flow_ToStructogramPartial": "Umgewandelt — aber einige Teile des Ablaufplans ließen sich nicht strukturieren. Sie sind im Struktogramm bernsteinfarben markiert.",
-    "Struct_FlaggedTip": "Dieser Bereich konnte nicht aus dem Ablaufplan strukturiert werden — bitte manuell prüfen und umschreiben."
+    "Struct_FlaggedTip": "Dieser Bereich konnte nicht aus dem Ablaufplan strukturiert werden — bitte manuell prüfen und umschreiben.",
+    "Code_GenAI": "✨ Mit KI generieren",
+    "Code_GenAITip": "Gerüst + Ablaufplan-Hinweise an eine KI senden und vollständigen Code zurückstreamen",
+    "Code_GenAIBusy": "✨ Generiere…",
+    "Code_NoAI": "Keine KI online. Aktiviere zuerst eine im Chat.",
+    "Code_PickGenerator": "Code-Generator wählen",
+    "Code_PickGeneratorHint": "Welcher KI-Teilnehmer soll den Code erzeugen? (Standard festlegen unter Verwalter-Einstellungen → Code-Generator.)"
 }

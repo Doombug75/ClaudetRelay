@@ -283,6 +283,9 @@ public class AppSettings
     /// <summary>Display name of the participant that powers the Claudette live chat. Empty = auto-detect.</summary>
     public string ClaudetteBrainName { get; set; } = "";
 
+    /// <summary>Display name of the participant used for AI code generation in the Code section. Empty = ask each time.</summary>
+    public string CodeGeneratorName { get; set; } = "";
+
     /// <summary>
     /// UI language code, e.g. "" (English) or "de" (German).
     /// <c>null</c> = never configured → OS locale is used on first launch.

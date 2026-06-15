@@ -1157,4 +1157,10 @@ Output „{0}" ist „{1}", Input „{2}" ist „{3}".</value></data>
   <data name="Flow_ToStructogramOverwrite" xml:space="preserve"><value>Für diese Funktion existiert bereits ein Struktogramm. Mit dem umgewandelten Ablaufplan überschreiben?</value></data>
   <data name="Flow_ToStructogramPartial" xml:space="preserve"><value>Umgewandelt — aber einige Teile des Ablaufplans ließen sich nicht strukturieren. Sie sind im Struktogramm bernsteinfarben markiert.</value></data>
   <data name="Struct_FlaggedTip" xml:space="preserve"><value>Dieser Bereich konnte nicht aus dem Ablaufplan strukturiert werden — bitte manuell prüfen und umschreiben.</value></data>
+  <data name="Code_GenAI" xml:space="preserve"><value>✨ Mit KI generieren</value></data>
+  <data name="Code_GenAITip" xml:space="preserve"><value>Gerüst + Ablaufplan-Hinweise an eine KI senden und vollständigen Code zurückstreamen</value></data>
+  <data name="Code_GenAIBusy" xml:space="preserve"><value>✨ Generiere…</value></data>
+  <data name="Code_NoAI" xml:space="preserve"><value>Keine KI online. Aktiviere zuerst eine im Chat.</value></data>
+  <data name="Code_PickGenerator" xml:space="preserve"><value>Code-Generator wählen</value></data>
+  <data name="Code_PickGeneratorHint" xml:space="preserve"><value>Welcher KI-Teilnehmer soll den Code erzeugen? (Standard festlegen unter Verwalter-Einstellungen → Code-Generator.)</value></data>
 </root>

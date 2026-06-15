@@ -1024,5 +1024,11 @@
     "Flow_ToStructogramTitle": "Convertir en estructograma",
     "Flow_ToStructogramOverwrite": "Ya existe un estructograma para esta función. ¿Sobrescribirlo con el diagrama de flujo convertido?",
     "Flow_ToStructogramPartial": "Convertido, pero algunas partes del diagrama no se pudieron estructurar. Están marcadas en ámbar en el estructograma.",
-    "Struct_FlaggedTip": "Esta región no se pudo estructurar a partir del diagrama — revísala y reescríbela manualmente."
+    "Struct_FlaggedTip": "Esta región no se pudo estructurar a partir del diagrama — revísala y reescríbela manualmente.",
+    "Code_GenAI": "✨ Generar con IA",
+    "Code_GenAITip": "Enviar el esqueleto + pistas del diagrama a una IA y recibir el código completo",
+    "Code_GenAIBusy": "✨ Generando…",
+    "Code_NoAI": "No hay ninguna IA en línea. Activa una en el chat primero.",
+    "Code_PickGenerator": "Elegir generador de código",
+    "Code_PickGeneratorHint": "¿Qué participante de IA debe generar el código? (Define un valor por defecto en Ajustes del gestor → Generador de código.)"
 }

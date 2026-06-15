@@ -1024,5 +1024,11 @@
     "Flow_ToStructogramTitle": "Convert to structogram",
     "Flow_ToStructogramOverwrite": "A structogram already exists for this function. Overwrite it with the converted flowchart?",
     "Flow_ToStructogramPartial": "Converted — but some parts of the flowchart could not be structured. They are flagged in amber in the structogram.",
-    "Struct_FlaggedTip": "This region could not be structured from the flowchart — review and rewrite it manually."
+    "Struct_FlaggedTip": "This region could not be structured from the flowchart — review and rewrite it manually.",
+    "Code_GenAI": "✨ Generate with AI",
+    "Code_GenAITip": "Send the skeleton + flowchart hints to an AI participant and stream back full code",
+    "Code_GenAIBusy": "✨ Generating…",
+    "Code_NoAI": "No AI participant is online. Enable one in the chat first.",
+    "Code_PickGenerator": "Choose code generator",
+    "Code_PickGeneratorHint": "Which AI participant should generate the code? (Set a default in Manager Settings → Code Generator.)"
 }

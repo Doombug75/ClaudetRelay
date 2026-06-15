@@ -836,6 +836,11 @@ public partial class MainWindow
         langCombo.SelectedIndex = 0;
         ctrlRow.Children.Add(langCombo);
 
+        var aiBtn = MakeDialogBtn(Properties.Loc.S("Code_GenAI"));
+        aiBtn.Margin  = new Thickness(12, 0, 0, 0);
+        aiBtn.ToolTip = Properties.Loc.S("Code_GenAITip");
+        ctrlRow.Children.Add(aiBtn);
+
         // Preview box
         var preview = new TextBox
         {
@@ -856,6 +861,60 @@ public partial class MainWindow
         void Regen() => preview.Text = CodeExportService.Generate(all, CurrentLang(), projFolder);
         Regen();
         langCombo.SelectionChanged += (_, _) => Regen();
+
+        // ── Generate full implementation with an AI participant ──
+        aiBtn.Click += async (_, _) =>
+        {
+            var (ollama, cloud, cancelled) = ResolveCodeGenerator();
+            if (cancelled) return;
+            if (ollama is null && cloud is null)
+            {
+                MessageBox.Show(Properties.Loc.S("Code_NoAI"), Properties.Loc.S("Code_ExportMsgTitle"),
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var lang     = CurrentLang();
+            var skeleton = CodeExportService.Generate(all, lang, projFolder);
+            var prompt   = BuildAiCodegenPrompt(all, lang, projFolder, skeleton);
+            var system   = "You are a senior software engineer. Implement the stubbed bodies in the given code skeleton. " +
+                           "Use the names, descriptions and flowchart hints to write idiomatic, correct code. " +
+                           "Keep the existing signatures, types and structure; replace every stub " +
+                           "(NotImplementedException / TODO / pass / unimplemented!() / panic) with a real implementation. " +
+                           "Return ONLY the complete code — no explanations, no markdown fences.";
+
+            aiBtn.IsEnabled = false; langCombo.IsEnabled = false;
+            var origLabel = aiBtn.Content;
+            aiBtn.Content = Properties.Loc.S("Code_GenAIBusy");
+            preview.Text = "";
+            try
+            {
+                var sb = new System.Text.StringBuilder();
+                if (ollama is not null)
+                {
+                    var hist = new List<OllamaChatMessage> { new("system", system), new("user", prompt) };
+                    await foreach (var tok in ollama.StreamAsync(hist, System.Threading.CancellationToken.None))
+                    { sb.Append(tok); preview.Text = sb.ToString(); preview.ScrollToEnd(); }
+                }
+                else
+                {
+                    var hist = new List<CloudAIMessage> { new("user", prompt, "System") };
+                    await foreach (var tok in cloud!.StreamAsync(hist, system, System.Threading.CancellationToken.None))
+                    { sb.Append(tok); preview.Text = sb.ToString(); preview.ScrollToEnd(); }
+                }
+                if (sb.Length == 0) preview.Text = skeleton;   // fall back if the model returned nothing
+            }
+            catch (Exception ex)
+            {
+                preview.Text = skeleton;
+                MessageBox.Show(string.Format(Properties.Loc.S("Code_SaveFailed"), ex.Message),
+                    Properties.Loc.S("Code_ExportMsgTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally
+            {
+                aiBtn.Content = origLabel; aiBtn.IsEnabled = true; langCombo.IsEnabled = true;
+            }
+        };
 
         // Buttons
         var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
@@ -896,5 +955,145 @@ public partial class MainWindow
         btnRow.Children.Add(closeBtn);
 
         dialog.ShowDialog();
+    }
+
+    /// <summary>
+    /// Builds the AI code-generation prompt: the deterministic skeleton (which already
+    /// embeds structogram-derived bodies) plus textual flowchart hints for any function
+    /// or method that has a flowchart but no structogram (the PAP→code-via-AI case).
+    /// </summary>
+    private string BuildAiCodegenPrompt(List<CodeEntity> all, ExportLanguage lang, string projFolder, string skeleton)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Target language: {lang}.");
+        sb.AppendLine("=== CODE SKELETON ===");
+        sb.AppendLine(skeleton);
+
+        var hints = new System.Text.StringBuilder();
+        void AddFlowHint(string key, string label)
+        {
+            if (!FlowChartService.Exists(projFolder, key)) return;
+            if (StructogramService.Exists(projFolder, key)) return; // structogram already drives the body
+            var fc = FlowChartService.Load(projFolder, key);
+            var desc = DescribeFlow(fc);
+            if (!string.IsNullOrWhiteSpace(desc))
+                hints.AppendLine($"- {label}:\n{desc}");
+        }
+
+        foreach (var e in all)
+        {
+            if (e.EntityType == CodeEntityType.Function) AddFlowHint(e.Id, e.Name);
+            foreach (var m in e.Methods)
+                AddFlowHint($"{e.Id}#{m.Id}", $"{e.Name}.{m.Name}");
+        }
+
+        if (hints.Length > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("=== FLOWCHART HINTS (implement these control flows) ===");
+            sb.Append(hints);
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Resolves which participant generates code: the one configured in Manager Settings
+    /// (Code Generator), or — when that is empty or offline — asks the user to pick one.
+    /// Returns cancelled=true if the user dismissed the picker. Never falls back to the
+    /// Claudette brain.
+    /// </summary>
+    private (OllamaService? ollama, ICloudAIService? cloud, bool cancelled) ResolveCodeGenerator()
+    {
+        var online = new List<(string Name, OllamaService? O, ICloudAIService? C)>();
+        foreach (var u in _ollamaParticipants.Where(u => u.Data.Enabled && u.Data.IsOnline == true))
+            online.Add((u.Data.DisplayName, u.Data.Service, null));
+        foreach (var u in _cloudAIParticipants.Where(u => u.Data.Enabled && u.Data.IsOnline == true))
+            online.Add((u.Data.DisplayName, null, u.Data.Service));
+
+        if (online.Count == 0) return (null, null, false);   // caller shows the "no AI" message
+
+        var configured = SettingsService.Load().CodeGeneratorName;
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            var match = online.FirstOrDefault(x => x.Name.Equals(configured, StringComparison.OrdinalIgnoreCase));
+            if (match.Name is not null) return (match.O, match.C, false);
+            // configured participant is offline → fall through to the picker
+        }
+
+        var picked = ShowCodeGeneratorPicker(online);
+        if (picked is null) return (null, null, true);       // user cancelled
+        return (picked.Value.O, picked.Value.C, false);
+    }
+
+    private (string Name, OllamaService? O, ICloudAIService? C)? ShowCodeGeneratorPicker(
+        List<(string Name, OllamaService? O, ICloudAIService? C)> online)
+    {
+        var dialog = new Window
+        {
+            Title                 = Properties.Loc.S("Code_PickGenerator"),
+            Width                 = 360,
+            Height                = 360,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            ResizeMode            = ResizeMode.NoResize
+        };
+        ApplyDialogTheme(dialog);
+
+        var g = new Grid { Margin = new Thickness(14) };
+        g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        g.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        dialog.Content = g;
+
+        var lbl = new TextBlock { Text = Properties.Loc.S("Code_PickGeneratorHint"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) };
+        lbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+        Grid.SetRow(lbl, 0); g.Children.Add(lbl);
+
+        var list = new ListBox();
+        list.SetResourceReference(ListBox.BackgroundProperty,  "InputBgBrush");
+        list.SetResourceReference(ListBox.ForegroundProperty,  "SidebarTextBrush");
+        list.SetResourceReference(ListBox.BorderBrushProperty, "ControlBorderBrush");
+        foreach (var p in online) list.Items.Add(new ListBoxItem { Content = p.Name, Tag = p.Name });
+        if (list.Items.Count > 0) list.SelectedIndex = 0;
+        Grid.SetRow(list, 1); g.Children.Add(list);
+
+        var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+        Grid.SetRow(btnRow, 2); g.Children.Add(btnRow);
+
+        (string Name, OllamaService? O, ICloudAIService? C)? result = null;
+        var okBtn = MakeDialogBtn(Properties.Loc.S("Common_OK"));
+        okBtn.Click += (_, _) =>
+        {
+            if (list.SelectedItem is ListBoxItem { Tag: string n })
+            {
+                var m = online.FirstOrDefault(x => x.Name == n);
+                if (m.Name is not null) result = m;
+            }
+            dialog.DialogResult = true;
+        };
+        list.MouseDoubleClick += (_, _) => okBtn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        btnRow.Children.Add(okBtn);
+
+        var cancelBtn = MakeDialogBtn(Properties.Loc.S("Common_Cancel"));
+        cancelBtn.Margin = new Thickness(8, 0, 0, 0);
+        cancelBtn.Click += (_, _) => dialog.DialogResult = false;
+        btnRow.Children.Add(cancelBtn);
+
+        return dialog.ShowDialog() == true ? result : null;
+    }
+
+    /// <summary>Renders a flowchart as plain text edges: "from -label-> to" using node texts.</summary>
+    private static string DescribeFlow(Models.FlowChartData fc)
+    {
+        var byId = fc.Nodes.ToDictionary(n => n.Id, n => string.IsNullOrWhiteSpace(n.Text) ? n.Kind.ToString() : n.Text);
+        var lines = new List<string>();
+        foreach (var c in fc.Connections)
+        {
+            var from = byId.TryGetValue(c.FromId, out var f) ? f : "?";
+            var to   = byId.TryGetValue(c.ToId,   out var t) ? t : "?";
+            var lbl  = string.IsNullOrWhiteSpace(c.Label) ? "" : $" [{c.Label}]";
+            lines.Add($"    {from} ->{lbl} {to}");
+        }
+        return string.Join("\n", lines);
     }
 }
