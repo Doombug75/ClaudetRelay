@@ -1169,4 +1169,8 @@ Output „{0}" ist „{1}", Input „{2}" ist „{3}".</value></data>
   <data name="Code_ExportSelectedTip" xml:space="preserve"><value>Nur die ausgewählten Karten als Code exportieren</value></data>
   <data name="Code_ExportThis" xml:space="preserve"><value>⬇ Code exportieren</value></data>
   <data name="Code_NoSelection" xml:space="preserve"><value>Keine Karten ausgewählt. Klicke zuerst eine Karte an (Shift/Strg für Mehrfachauswahl).</value></data>
+  <data name="Code_NoMatch" xml:space="preserve"><value>Keine Treffer.</value></data>
+  <data name="Code_View_Cards" xml:space="preserve"><value>Kartenansicht</value></data>
+  <data name="Code_View_List" xml:space="preserve"><value>Listenansicht (mit Datum)</value></data>
+  <data name="Code_View_Table" xml:space="preserve"><value>Tabellenansicht (kompakte Spalten)</value></data>
 </root>

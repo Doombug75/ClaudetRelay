@@ -1143,5 +1143,9 @@
     "Code_ExportSelected": "⬇ Exportvrak selektvrak",
     "Code_ExportSelectedTip": "Exportvrak onli zar selektvrak kards",
     "Code_ExportThis": "⬇ Exportvrak kodvrak",
-    "Code_NoSelection": "Nax kards selektvrak. Klick zar kard frix (Shift/Strg fro multi-selektvrak)."
+    "Code_NoSelection": "Nax kards selektvrak. Klick zar kard frix (Shift/Strg fro multi-selektvrak).",
+    "Code_NoMatch": "Nax maxvraks.",
+    "Code_View_Cards": "Kardvrak vyu",
+    "Code_View_List": "Listvrak vyu (with datvrak)",
+    "Code_View_Table": "Tabvrak vyu (kompakt kolumvraks)"
 }

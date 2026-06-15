@@ -1169,4 +1169,8 @@ Output '{0}' is '{1}', input '{2}' is '{3}'.</value></data>
   <data name="Code_ExportSelectedTip" xml:space="preserve"><value>Export code only for the selected cards</value></data>
   <data name="Code_ExportThis" xml:space="preserve"><value>⬇ Export code</value></data>
   <data name="Code_NoSelection" xml:space="preserve"><value>No cards are selected. Click a card (Shift / Ctrl to multi-select) first.</value></data>
+  <data name="Code_NoMatch" xml:space="preserve"><value>No matches.</value></data>
+  <data name="Code_View_Cards" xml:space="preserve"><value>Cards view</value></data>
+  <data name="Code_View_List" xml:space="preserve"><value>List view (with date)</value></data>
+  <data name="Code_View_Table" xml:space="preserve"><value>Table view (compact columns)</value></data>
 </root>

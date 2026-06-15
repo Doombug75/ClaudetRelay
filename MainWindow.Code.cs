@@ -22,6 +22,9 @@ public partial class MainWindow
     private string _codeLibSort    = "name_asc";     // name_asc | name_desc | modified_asc | modified_desc
     private readonly HashSet<string> _codeLibSelected = new();  // selected entity IDs in the library
     private string? _codeLibAnchor;                  // anchor for Shift range-selection in the library
+    private string _codeLibView    = "cards";        // cards | list | table
+    private string _codeBoardSearch = "";            // board gallery search filter
+    private string _codeBoardSort   = "modified_desc"; // name_asc | name_desc | modified_asc | modified_desc
 
     private void CodeButton_Click(object sender, RoutedEventArgs e)
     {
@@ -153,19 +156,38 @@ public partial class MainWindow
         Grid.SetRow(host, 1);
         CodeContent.Children.Add(host);
 
-        // Sub-toolbar with "+ New Board"
+        // Sub-toolbar: search · sort · + New Board
         var subBar = new Border { Padding = new Thickness(16, 8, 16, 8) };
         subBar.SetResourceReference(Border.BackgroundProperty, "SidebarBgBrush");
         Grid.SetRow(subBar, 0);
         host.Children.Add(subBar);
 
-        var addBtn = new Button
+        var barRow = new Grid();
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        subBar.Child = barRow;
+
+        var search = new TextBox { Text = _codeBoardSearch, Height = 28, VerticalContentAlignment = VerticalAlignment.Center, Padding = new Thickness(8, 0, 8, 0) };
+        search.SetResourceReference(TextBox.BackgroundProperty,  "InputBgBrush");
+        search.SetResourceReference(TextBox.ForegroundProperty,  "SidebarTextBrush");
+        search.SetResourceReference(TextBox.BorderBrushProperty, "ControlBorderBrush");
+        Grid.SetColumn(search, 0);
+        barRow.Children.Add(search);
+
+        var sortCombo = new ComboBox { Width = 170, Margin = new Thickness(8, 0, 0, 0) };
+        sortCombo.SetResourceReference(StyleProperty, "ModernComboBox");
+        var sortOpts = new (string Label, string Key)[]
         {
-            Content = Properties.Loc.S("Code_NewBoard"),
-            Padding = new Thickness(10, 5, 10, 5),
-            FontSize = 12,
-            HorizontalAlignment = HorizontalAlignment.Right
+            (Properties.Loc.S("Code_Sort_NameAsc"), "name_asc"), (Properties.Loc.S("Code_Sort_NameDesc"), "name_desc"),
+            (Properties.Loc.S("Code_Sort_ModifiedAsc"), "modified_asc"), (Properties.Loc.S("Code_Sort_ModifiedDesc"), "modified_desc"),
         };
+        foreach (var o in sortOpts) sortCombo.Items.Add(o.Label);
+        sortCombo.SelectedIndex = Math.Max(0, Array.FindIndex(sortOpts, o => o.Key == _codeBoardSort));
+        Grid.SetColumn(sortCombo, 1);
+        barRow.Children.Add(sortCombo);
+
+        var addBtn = new Button { Content = Properties.Loc.S("Code_NewBoard"), Padding = new Thickness(10, 5, 10, 5), FontSize = 12, Margin = new Thickness(8, 0, 0, 0) };
         addBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
         addBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
         addBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
@@ -177,9 +199,9 @@ public partial class MainWindow
             CodeBoardRegistryService.Save(projFolder, boards);
             BuildCodeContent(projFolder);
         };
-        subBar.Child = addBtn;
+        Grid.SetColumn(addBtn, 2);
+        barRow.Children.Add(addBtn);
 
-        // Board cards grid
         var scroll = new ScrollViewer
         {
             VerticalScrollBarVisibility   = ScrollBarVisibility.Auto,
@@ -189,32 +211,40 @@ public partial class MainWindow
         Grid.SetRow(scroll, 1);
         host.Children.Add(scroll);
 
-        if (boards.Count == 0)
-        {
-            var hint = new TextBlock
-            {
-                Text              = Properties.Loc.S("Code_NoBoards"),
-                TextAlignment     = TextAlignment.Center,
-                FontSize          = 13,
-                Opacity           = 0.55,
-                VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin            = new Thickness(0, 60, 0, 0)
-            };
-            hint.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
-            scroll.Content = hint;
-            return;
-        }
-
-        var wrap = new WrapPanel { ItemWidth = 220 };
+        var wrap = new WrapPanel();
         scroll.Content = wrap;
 
-        foreach (var board in boards.OrderByDescending(b => b.UpdatedAt))
+        void RefreshBoards()
         {
-            var capBoard = board;
-            var card     = BuildCodeBoardCard(capBoard, projFolder, boards);
-            wrap.Children.Add(card);
+            wrap.Children.Clear();
+            var filtered = boards.Where(b => string.IsNullOrWhiteSpace(_codeBoardSearch)
+                || b.Name.Contains(_codeBoardSearch, StringComparison.OrdinalIgnoreCase));
+            var ordered = _codeBoardSort switch
+            {
+                "name_asc"     => filtered.OrderBy(b => b.Name),
+                "name_desc"    => filtered.OrderByDescending(b => b.Name),
+                "modified_asc" => filtered.OrderBy(b => b.UpdatedAt),
+                _              => filtered.OrderByDescending(b => b.UpdatedAt),
+            };
+            var shown = ordered.ToList();
+            if (shown.Count == 0)
+            {
+                var hint = new TextBlock
+                {
+                    Text = boards.Count == 0 ? Properties.Loc.S("Code_NoBoards") : Properties.Loc.S("Code_NoMatch"),
+                    FontSize = 13, Opacity = 0.55, Margin = new Thickness(4, 40, 0, 0)
+                };
+                hint.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+                wrap.Children.Add(hint);
+                return;
+            }
+            foreach (var board in shown)
+                wrap.Children.Add(BuildCodeBoardCard(board, projFolder, boards));
         }
+        RefreshBoards();
+
+        search.TextChanged += (_, _) => { _codeBoardSearch = search.Text; RefreshBoards(); };
+        sortCombo.SelectionChanged += (_, _) => { _codeBoardSort = sortOpts[Math.Max(0, sortCombo.SelectedIndex)].Key; RefreshBoards(); };
     }
 
     // ── Library list (entities of the active type, searchable) ──────────────
@@ -235,6 +265,7 @@ public partial class MainWindow
 
         var barRow = new Grid();
         barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });  // view switcher
         barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });  // sort
         barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });  // export selected
         barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });  // new
@@ -254,6 +285,25 @@ public partial class MainWindow
         Grid.SetColumn(search, 0);
         barRow.Children.Add(search);
 
+        // View switcher: Cards / List / Table
+        var viewPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(viewPanel, 1);
+        barRow.Children.Add(viewPanel);
+        var viewBtns = new Dictionary<string, Button>();
+        void StyleViewButtons()
+        {
+            foreach (var (key, b) in viewBtns)
+                b.SetResourceReference(Button.BackgroundProperty, key == _codeLibView ? "AccentBgBrush" : "ControlBgBrush");
+        }
+        Button MakeViewBtn(string key, string glyph, string tip)
+        {
+            var b = new Button { Content = glyph, Padding = new Thickness(8, 4, 8, 4), FontSize = 13, Margin = new Thickness(0, 0, 2, 0), ToolTip = tip };
+            b.SetResourceReference(Button.StyleProperty,      "ModernButton");
+            b.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
+            viewBtns[key] = b;
+            return b;
+        }
+
         // Sort selector
         var sortCombo = new ComboBox { Width = 170, Margin = new Thickness(8, 0, 0, 0) };
         sortCombo.SetResourceReference(StyleProperty, "ModernComboBox");
@@ -264,7 +314,7 @@ public partial class MainWindow
         };
         foreach (var o in sortOpts) sortCombo.Items.Add(o.Label);
         sortCombo.SelectedIndex = Math.Max(0, Array.FindIndex(sortOpts, o => o.Key == _codeLibSort));
-        Grid.SetColumn(sortCombo, 1);
+        Grid.SetColumn(sortCombo, 2);
         barRow.Children.Add(sortCombo);
 
         var exportSelBtn = new Button
@@ -278,7 +328,7 @@ public partial class MainWindow
         exportSelBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
         exportSelBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
         exportSelBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
-        Grid.SetColumn(exportSelBtn, 2);
+        Grid.SetColumn(exportSelBtn, 3);
         barRow.Children.Add(exportSelBtn);
 
         var newBtn = new Button
@@ -291,7 +341,7 @@ public partial class MainWindow
         newBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
         newBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
         newBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
-        Grid.SetColumn(newBtn, 3);
+        Grid.SetColumn(newBtn, 4);
         barRow.Children.Add(newBtn);
 
         // Entity list
@@ -304,8 +354,9 @@ public partial class MainWindow
         Grid.SetRow(scroll, 1);
         host.Children.Add(scroll);
 
-        var list = new StackPanel();
-        scroll.Content = list;
+        // Container is swapped per view (WrapPanel for cards/table, StackPanel for list).
+        var listHost = new Border();
+        scroll.Content = listHost;
 
         // Snapshot of all entities (for editor dropdowns)
         var allKnown = new Dictionary<string, CodeEntity>();
@@ -379,100 +430,113 @@ public partial class MainWindow
             refresh();
         }
 
-        Border BuildRow(CodeEntity entity, Action refresh)
+        // Shared event wiring for any view element (card / list row / table cell).
+        void WireSelection(Border el, CodeEntity entity)
         {
-            var row = new Border
+            el.Cursor = Cursors.Hand;
+            el.MouseLeftButtonDown += (_, e) =>
             {
-                CornerRadius    = new CornerRadius(6),
-                BorderThickness = new Thickness(1),
-                Padding         = new Thickness(12, 8, 12, 8),
-                Margin          = new Thickness(0, 0, 0, 6),
-                Cursor          = Cursors.Hand
-            };
-            row.SetResourceReference(Border.BackgroundProperty,  "CardBgBrush");
-            row.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
-
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            row.Child = grid;
-
-            var info = new StackPanel();
-            Grid.SetColumn(info, 0);
-            grid.Children.Add(info);
-
-            var nameLine = new TextBlock { Text = entity.Name, FontSize = 13, FontWeight = FontWeights.SemiBold };
-            nameLine.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
-            info.Children.Add(nameLine);
-
-            string summary = entity.EntityType switch
-            {
-                CodeEntityType.Function  => $"({string.Join(", ", entity.Ports.Where(p => p.Direction == PortDirection.Input).Select(p => p.DataType))})",
-                CodeEntityType.Enum      => $"{entity.EnumValues.Count} values",
-                _                        => $"{entity.Fields.Count} fields · {entity.Methods.Count} methods"
-            };
-            var sub = new TextBlock { Text = summary, FontSize = 11, Opacity = 0.6 };
-            sub.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
-            info.Children.Add(sub);
-
-            var actions = new StackPanel { Orientation = Orientation.Horizontal };
-            Grid.SetColumn(actions, 1);
-            grid.Children.Add(actions);
-
-            if (entity.EntityType == CodeEntityType.Function)
-            {
-                var flowBtn = new Button { Content = Properties.Loc.S("Code_FlowBtn"), Padding = new Thickness(8, 2, 8, 2), FontSize = 12, Margin = new Thickness(0, 0, 6, 0) };
-                flowBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
-                flowBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
-                flowBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
-                flowBtn.ToolTip = Properties.Loc.S("Code_FlowTooltip");
-                flowBtn.Click += (_, e) => { e.Handled = true; DiagramLauncher.ChooseAndOpen(this, projFolder, entity.Id, entity.Name, _currentThemePath); };
-                actions.Children.Add(flowBtn);
-            }
-
-            var delBtn = new Button { Content = "🗑", Padding = new Thickness(8, 2, 8, 2), FontSize = 12 };
-            delBtn.SetResourceReference(Button.StyleProperty,      "ModernButton");
-            delBtn.SetResourceReference(Button.BackgroundProperty, "ControlBgBrush");
-            delBtn.SetResourceReference(Button.ForegroundProperty, "SidebarTextBrush");
-            delBtn.ToolTip = Properties.Loc.S("Code_DeleteEntityTooltip");
-            delBtn.Click += (_, e) => { e.Handled = true; DeleteEntity(entity, refresh); };
-            actions.Children.Add(delBtn);
-
-            // Left-click selects (Shift = range, Ctrl = toggle); double-click opens the editor.
-            row.MouseLeftButtonDown += (_, e) =>
-            {
-                if (e.ClickCount >= 2) { OpenEditor(entity, refresh); return; }
+                if (e.ClickCount >= 2) { OpenEditor(entity, Refresh); return; }
                 HandleRowClick(entity.Id, e);
             };
-
-            // Right-click → Edit / Export code / Delete
-            row.MouseRightButtonDown += (_, e) =>
+            el.MouseRightButtonDown += (_, e) =>
             {
                 e.Handled = true;
                 if (!_codeLibSelected.Contains(entity.Id)) { _codeLibSelected.Clear(); _codeLibSelected.Add(entity.Id); _codeLibAnchor = entity.Id; UpdateHighlights(); }
                 var cm = new ContextMenu();
                 var editMi = new MenuItem { Header = Properties.Loc.S("Code_Edit") };
-                editMi.Click += (_, _) => OpenEditor(entity, refresh);
+                editMi.Click += (_, _) => OpenEditor(entity, Refresh);
                 cm.Items.Add(editMi);
+                if (entity.EntityType == CodeEntityType.Function)
+                {
+                    var flowMi = new MenuItem { Header = Properties.Loc.S("Code_SketchFlow") };
+                    flowMi.Click += (_, _) => DiagramLauncher.ChooseAndOpen(this, projFolder, entity.Id, entity.Name, _currentThemePath);
+                    cm.Items.Add(flowMi);
+                }
                 var expMi = new MenuItem { Header = Properties.Loc.S("Code_ExportThis") };
                 expMi.Click += (_, _) => ShowCodeExportDialog(projFolder, new[] { entity });
                 cm.Items.Add(expMi);
                 cm.Items.Add(new Separator());
                 var delMi = new MenuItem { Header = Properties.Loc.S("Code_DeletePerm") };
-                delMi.Click += (_, _) => DeleteEntity(entity, refresh);
+                delMi.Click += (_, _) => DeleteEntity(entity, Refresh);
                 cm.Items.Add(delMi);
                 cm.IsOpen = true;
             };
+        }
 
-            row.MouseEnter += (_, _) => { if (!_codeLibSelected.Contains(entity.Id)) row.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 1, Opacity = 0.2 }; };
-            row.MouseLeave += (_, _) => row.Effect = null;
+        string Summary(CodeEntity e) => e.EntityType switch
+        {
+            CodeEntityType.Function => $"({string.Join(", ", e.Ports.Where(p => p.Direction == PortDirection.Input).Select(p => p.DataType))})",
+            CodeEntityType.Enum     => $"{e.EnumValues.Count} values",
+            _                       => $"{e.Fields.Count} fields · {e.Methods.Count} methods"
+        };
 
+        // ── Cards view: narrow cards in a wrap panel ──
+        Border BuildCardSmall(CodeEntity entity)
+        {
+            var card = new Border { Width = 124, CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), Padding = new Thickness(8, 7, 8, 7), Margin = new Thickness(0, 0, 8, 8) };
+            card.SetResourceReference(Border.BackgroundProperty,  "CardBgBrush");
+            card.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+            var st = new StackPanel();
+            card.Child = st;
+            var sym = new TextBlock { Text = CodeTypeSymbol(entity.EntityType), FontSize = 18, HorizontalAlignment = HorizontalAlignment.Center };
+            sym.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+            st.Children.Add(sym);
+            var nm = new TextBlock { Text = entity.Name, FontSize = 12, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxHeight = 32 };
+            nm.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+            st.Children.Add(nm);
+            var sub = new TextBlock { Text = Summary(entity), FontSize = 10, Opacity = 0.55, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
+            sub.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+            st.Children.Add(sub);
+            WireSelection(card, entity);
+            return card;
+        }
+
+        // ── List view: one row per entity, small icon + name + modified date ──
+        Border BuildListRow(CodeEntity entity)
+        {
+            var row = new Border { BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 0, 2) };
+            row.SetResourceReference(Border.BackgroundProperty,  "CardBgBrush");
+            row.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.Child = grid;
+            var sym = new TextBlock { Text = CodeTypeSymbol(entity.EntityType), FontSize = 13, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+            sym.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+            Grid.SetColumn(sym, 0); grid.Children.Add(sym);
+            var nm = new TextBlock { Text = entity.Name, FontSize = 13, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+            nm.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+            Grid.SetColumn(nm, 1); grid.Children.Add(nm);
+            var ft = CodeEntityService.FileTime(projFolder, _codeLibType, entity.Id);
+            var date = new TextBlock { Text = ft == DateTime.MinValue ? "" : ft.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), FontSize = 11, Opacity = 0.55, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+            date.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+            Grid.SetColumn(date, 2); grid.Children.Add(date);
+            WireSelection(row, entity);
             return row;
+        }
+
+        // ── Table view: compact icon + name cells in a wrap panel (no date) ──
+        Border BuildTableCell(CodeEntity entity)
+        {
+            var cell = new Border { Width = 168, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 6, 6) };
+            cell.SetResourceReference(Border.BackgroundProperty,  "CardBgBrush");
+            cell.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
+            var sp = new StackPanel { Orientation = Orientation.Horizontal };
+            cell.Child = sp;
+            var sym = new TextBlock { Text = CodeTypeSymbol(entity.EntityType), FontSize = 13, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+            sym.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+            sp.Children.Add(sym);
+            var nm = new TextBlock { Text = entity.Name, FontSize = 13, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 128 };
+            nm.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+            sp.Children.Add(nm);
+            WireSelection(cell, entity);
+            return cell;
         }
 
         void Refresh()
         {
-            list.Children.Clear();
             shownOrder.Clear();
             rowBorders.Clear();
 
@@ -489,28 +553,43 @@ public partial class MainWindow
             };
             var sorted = entities.ToList();
 
+            Panel container = _codeLibView == "list" ? new StackPanel() : new WrapPanel();
+            listHost.Child = container;
+
             if (sorted.Count == 0)
             {
-                list.Children.Add(new TextBlock
+                var hint = new TextBlock
                 {
-                    Text       = string.Format(Properties.Loc.S("Code_NoEntities"), _codeLibType),
-                    Opacity    = 0.55,
-                    FontSize   = 13,
-                    Margin     = new Thickness(0, 40, 0, 0),
-                    HorizontalAlignment = HorizontalAlignment.Center
-                });
+                    Text = string.Format(Properties.Loc.S("Code_NoEntities"), _codeLibType),
+                    Opacity = 0.55, FontSize = 13, Margin = new Thickness(4, 40, 0, 0)
+                };
+                hint.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+                container.Children.Add(hint);
                 return;
             }
 
             foreach (var e in sorted)
             {
                 shownOrder.Add(e.Id);
-                var b = BuildRow(e, Refresh);
-                rowBorders[e.Id] = b;
-                list.Children.Add(b);
+                Border el = _codeLibView switch
+                {
+                    "list"  => BuildListRow(e),
+                    "table" => BuildTableCell(e),
+                    _       => BuildCardSmall(e),
+                };
+                rowBorders[e.Id] = el;
+                container.Children.Add(el);
             }
             UpdateHighlights();
         }
+
+        // Wire up the view switcher now that Refresh exists.
+        void SetView(string v) { _codeLibView = v; StyleViewButtons(); Refresh(); }
+        var cardsBtn = MakeViewBtn("cards", "▦", Properties.Loc.S("Code_View_Cards")); cardsBtn.Click += (_, _) => SetView("cards"); viewPanel.Children.Add(cardsBtn);
+        var listBtn  = MakeViewBtn("list",  "☰", Properties.Loc.S("Code_View_List"));  listBtn.Click  += (_, _) => SetView("list");  viewPanel.Children.Add(listBtn);
+        var tableBtn = MakeViewBtn("table", "▤", Properties.Loc.S("Code_View_Table")); tableBtn.Click += (_, _) => SetView("table"); viewPanel.Children.Add(tableBtn);
+        StyleViewButtons();
+
         Refresh();
 
         search.TextChanged += (_, _) => { _codeLibSearch = search.Text; Refresh(); };
@@ -546,25 +625,25 @@ public partial class MainWindow
     {
         var card = new Border
         {
-            Width           = 200,
-            Height          = 120,
-            CornerRadius    = new CornerRadius(8),
+            Width           = 132,
+            Height          = 84,
+            CornerRadius    = new CornerRadius(6),
             BorderThickness = new Thickness(1),
-            Margin          = new Thickness(0, 0, 16, 16),
+            Margin          = new Thickness(0, 0, 10, 10),
             Cursor          = Cursors.Hand
         };
         card.SetResourceReference(Border.BackgroundProperty,  "CardBgBrush");
         card.SetResourceReference(Border.BorderBrushProperty, "ControlBorderBrush");
 
-        var stack = new StackPanel { Margin = new Thickness(12, 10, 12, 10) };
+        var stack = new StackPanel { Margin = new Thickness(8, 7, 8, 7), VerticalAlignment = VerticalAlignment.Center };
         card.Child = stack;
 
         var symbol = new TextBlock
         {
             Text      = board.Symbol,
-            FontSize  = 28,
+            FontSize  = 22,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin    = new Thickness(0, 0, 0, 6)
+            Margin    = new Thickness(0, 0, 0, 4)
         };
         symbol.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
         stack.Children.Add(symbol);
@@ -572,10 +651,11 @@ public partial class MainWindow
         var name = new TextBlock
         {
             Text                = board.Name,
-            FontSize            = 13,
+            FontSize            = 12,
             FontWeight          = FontWeights.SemiBold,
             TextAlignment       = TextAlignment.Center,
             TextWrapping        = TextWrapping.Wrap,
+            MaxHeight           = 32,
             HorizontalAlignment = HorizontalAlignment.Center
         };
         name.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
@@ -1192,6 +1272,19 @@ public partial class MainWindow
 
         return dialog.ShowDialog() == true ? result : null;
     }
+
+    /// <summary>Small glyph for a code entity type (used in library list/table/card views).</summary>
+    private static string CodeTypeSymbol(CodeEntityType t) => t switch
+    {
+        CodeEntityType.Namespace => "📁",
+        CodeEntityType.Class     => "🧱",
+        CodeEntityType.Struct    => "📦",
+        CodeEntityType.Interface => "🔷",
+        CodeEntityType.Enum      => "📋",
+        CodeEntityType.Function  => "⚡",
+        CodeEntityType.Object    => "🔹",
+        _                        => "•"
+    };
 
     /// <summary>Renders a flowchart as plain text edges: "from -label-> to" using node texts.</summary>
     private static string DescribeFlow(Models.FlowChartData fc)

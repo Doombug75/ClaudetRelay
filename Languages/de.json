@@ -1036,5 +1036,9 @@
     "Code_ExportSelected": "⬇ Auswahl exportieren",
     "Code_ExportSelectedTip": "Nur die ausgewählten Karten als Code exportieren",
     "Code_ExportThis": "⬇ Code exportieren",
-    "Code_NoSelection": "Keine Karten ausgewählt. Klicke zuerst eine Karte an (Shift/Strg für Mehrfachauswahl)."
+    "Code_NoSelection": "Keine Karten ausgewählt. Klicke zuerst eine Karte an (Shift/Strg für Mehrfachauswahl).",
+    "Code_NoMatch": "Keine Treffer.",
+    "Code_View_Cards": "Kartenansicht",
+    "Code_View_List": "Listenansicht (mit Datum)",
+    "Code_View_Table": "Tabellenansicht (kompakte Spalten)"
 }

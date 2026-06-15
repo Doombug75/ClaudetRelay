@@ -4478,7 +4478,8 @@ public partial class MainWindow : Window
         "## Code section (💻 Code tab)\n" +
         "For software projects: plan structure, relationships and logic, then export skeleton code.\n" +
         "• Library: one tab per entity type — Namespace, Class, Struct, Interface, Enum, Function, Object. " +
-        "Searchable, sortable (name / last-modified). Left-click selects (Shift=range, Ctrl=toggle), double-click edits; " +
+        "Searchable, sortable (name / last-modified), switchable view (cards / list / table). " +
+        "Left-click selects (Shift=range, Ctrl=toggle), double-click edits; " +
         "'⬇ Export selected' exports the selection and right-click → '⬇ Export code' exports one entry. " +
         "Entities are stored under PROJECTPLAN/code/.\n" +
         "• Entity editor: name, type, namespace, description, base class (single inheritance) + implemented interfaces, " +
@@ -4654,7 +4655,8 @@ public partial class MainWindow : Window
         "## Code-Bereich (💻 Code-Tab)\n" +
         "Für Software-Projekte: Struktur, Beziehungen und Logik planen, dann Code-Gerüst exportieren.\n" +
         "• Bibliothek: ein Tab pro Entitätstyp — Namespace, Class, Struct, Interface, Enum, Function, Object. " +
-        "Durchsuchbar, sortierbar (Name / zuletzt geändert). Linksklick wählt (Shift=Bereich, Strg=einzeln), Doppelklick bearbeitet; " +
+        "Durchsuchbar, sortierbar (Name / zuletzt geändert), umschaltbare Ansicht (Karten / Liste / Tabelle). " +
+        "Linksklick wählt (Shift=Bereich, Strg=einzeln), Doppelklick bearbeitet; " +
         "„⬇ Auswahl exportieren\" exportiert die Markierung, Rechtsklick → „⬇ Code exportieren\" eine Entität. " +
         "Gespeichert unter PROJECTPLAN/code/.\n" +
         "• Entitäts-Editor: Name, Typ, Namespace, Beschreibung, Basisklasse (Einfachvererbung) + implementierte Interfaces, " +
@@ -5899,6 +5901,7 @@ public partial class MainWindow : Window
         AddBody(isDE
             ? "Oben Tabs: 🗂 Boards plus je ein Tab pro Entitätstyp — Namespace, Class, Struct, Interface, Enum, Function, Object.\n" +
               "  • Jede Liste ist durchsuchbar und sortierbar (Name auf/ab, zuletzt geändert auf/ab).\n" +
+              "  • Ansicht umschaltbar (▦ Karten / ☰ Liste mit Datum / ▤ Tabelle) — wie im Explorer.\n" +
               "  • Linksklick wählt einen Eintrag, Shift+Klick einen Bereich, Strg+Klick einzeln dazu; Doppelklick öffnet den Editor.\n" +
               "  • „⬇ Auswahl exportieren\" exportiert die markierten Einträge; Rechtsklick auf einen Eintrag → Bearbeiten / „⬇ Code exportieren\" / Löschen.\n" +
               "  • Der Editor: Name, Typ, Namespace, Beschreibung, Basisklasse (Einfachvererbung) + " +
@@ -5906,6 +5909,7 @@ public partial class MainWindow : Window
               "Enum-Werte und typisierte Daten-Ports."
             : "Tabs at the top: 🗂 Boards plus one tab per entity type — Namespace, Class, Struct, Interface, Enum, Function, Object.\n" +
               "  • Each list is searchable and sortable (name asc/desc, last-modified asc/desc).\n" +
+              "  • Switchable view (▦ cards / ☰ list with date / ▤ table) — like the file explorer.\n" +
               "  • Left-click selects an entry, Shift+click a range, Ctrl+click adds individually; double-click opens the editor.\n" +
               "  • \"⬇ Export selected\" exports the selected entries; right-click an entry → Edit / \"⬇ Export code\" / Delete.\n" +
               "  • The editor: name, type, namespace, description, base class (single inheritance) + " +

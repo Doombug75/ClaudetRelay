@@ -1036,5 +1036,9 @@
     "Code_ExportSelected": "⬇ Exportar selección",
     "Code_ExportSelectedTip": "Exportar solo las tarjetas seleccionadas",
     "Code_ExportThis": "⬇ Exportar código",
-    "Code_NoSelection": "No hay tarjetas seleccionadas. Haz clic en una tarjeta primero (Shift/Ctrl para selección múltiple)."
+    "Code_NoSelection": "No hay tarjetas seleccionadas. Haz clic en una tarjeta primero (Shift/Ctrl para selección múltiple).",
+    "Code_NoMatch": "Sin coincidencias.",
+    "Code_View_Cards": "Vista de tarjetas",
+    "Code_View_List": "Vista de lista (con fecha)",
+    "Code_View_Table": "Vista de tabla (columnas compactas)"
 }
