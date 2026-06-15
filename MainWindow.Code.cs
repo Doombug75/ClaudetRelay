@@ -853,7 +853,7 @@ public partial class MainWindow
         Grid.SetRow(preview, 1); g.Children.Add(preview);
 
         ExportLanguage CurrentLang() => langs[Math.Max(0, langCombo.SelectedIndex)].Lang;
-        void Regen() => preview.Text = CodeExportService.Generate(all, CurrentLang());
+        void Regen() => preview.Text = CodeExportService.Generate(all, CurrentLang(), projFolder);
         Regen();
         langCombo.SelectionChanged += (_, _) => Regen();
 

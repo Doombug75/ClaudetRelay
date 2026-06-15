@@ -1119,5 +1119,12 @@
     "Diag_PapExists": "🔁 Programmablaufplan (existvrak)",
     "Diag_Ns": "▦ Struktogramvrak",
     "Diag_NsExists": "▦ Struktogramvrak (existvrak)",
-    "Diag_NsTip": "Nassi-Shneiderman struktogramvrak editvrak (DIN 66261)"
+    "Diag_NsTip": "Nassi-Shneiderman struktogramvrak editvrak (DIN 66261)",
+    "CodeEdit_AddGetter": "Advrak Get-methodvrak",
+    "CodeEdit_AddSetter": "Advrak Set-methodvrak",
+    "CodeEdit_AddMethod": "Methodvrak",
+    "CodeEdit_AddConstructor": "Konstruktvrak",
+    "CodeEdit_AddDestructor": "Destruktvrak",
+    "CodeEdit_ConstructorLbl": "konstruktvrak",
+    "CodeEdit_DestructorLbl": "destruktvrak"
 }

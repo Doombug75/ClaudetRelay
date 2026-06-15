@@ -39,10 +39,13 @@ public class CodeParam
     public PassingConvention Convention { get; set; } = PassingConvention.Direct;
 }
 
+public enum MethodKind { Normal, Constructor, Destructor }
+
 /// <summary>A class/struct/interface method (member function).</summary>
 public class CodeMethod
 {
     public string          Id         { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public MethodKind      Kind       { get; set; } = MethodKind.Normal;
     public string          Name       { get; set; } = "Method";
     public string          ReturnType { get; set; } = "void";
     public CodeVisibility  Visibility { get; set; } = CodeVisibility.Public;

@@ -1012,5 +1012,12 @@
     "Diag_PapExists": "🔁 Programmablaufplan (exists)",
     "Diag_Ns": "▦ Structogram",
     "Diag_NsExists": "▦ Structogram (exists)",
-    "Diag_NsTip": "Nassi-Shneiderman structogram editor (DIN 66261)"
+    "Diag_NsTip": "Nassi-Shneiderman structogram editor (DIN 66261)",
+    "CodeEdit_AddGetter": "Add Get method",
+    "CodeEdit_AddSetter": "Add Set method",
+    "CodeEdit_AddMethod": "Method",
+    "CodeEdit_AddConstructor": "Constructor",
+    "CodeEdit_AddDestructor": "Destructor",
+    "CodeEdit_ConstructorLbl": "constructor",
+    "CodeEdit_DestructorLbl": "destructor"
 }

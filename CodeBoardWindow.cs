@@ -399,8 +399,13 @@ public class CodeBoardWindow : Window
             foreach (var m in entity.Methods)
             {
                 var ps   = string.Join(", ", m.Parameters.Select(p => $"{ConvSymbol(p.Convention)}{p.DataType} {p.Name}"));
-                var stat = m.IsStatic ? "static " : "";
-                methodStack.Children.Add(MemberLine($"{VisSymbol(m.Visibility)} {stat}{m.Name}({ps}): {m.ReturnType}", bold: true));
+                var line = m.Kind switch
+                {
+                    MethodKind.Constructor => $"{VisSymbol(m.Visibility)} {entity.Name}({ps})",
+                    MethodKind.Destructor  => $"~{entity.Name}()",
+                    _                      => $"{VisSymbol(m.Visibility)} {(m.IsStatic ? "static " : "")}{m.Name}({ps}): {m.ReturnType}"
+                };
+                methodStack.Children.Add(MemberLine(line, bold: true));
             }
             stack.Children.Add(WrapInBorder(methodStack));
         }

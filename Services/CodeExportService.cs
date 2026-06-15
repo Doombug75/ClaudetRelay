@@ -27,8 +27,12 @@ public static class CodeExportService
         _                         => "txt"
     };
 
-    public static string Generate(IEnumerable<CodeEntity> entities, ExportLanguage lang)
+    /// <summary>Project folder used to load per-method structograms for body generation. Null = skeleton bodies only.</summary>
+    private static string? _projForBodies;
+
+    public static string Generate(IEnumerable<CodeEntity> entities, ExportLanguage lang, string? projFolder = null)
     {
+        _projForBodies = projFolder;
         var all  = entities.ToList();
         var byId = all.ToDictionary(e => e.Id);
         string Name(string id) => byId.TryGetValue(id, out var e) ? e.Name : "";
@@ -123,6 +127,96 @@ public static class CodeExportService
         return (ins, ret);
     }
 
+    // ── Deterministic structogram → method body (braced C-family: C#, Java, TS, PHP) ──
+
+    /// <summary>
+    /// If a non-empty structogram exists for <paramref name="key"/>, renders it as a braced
+    /// method body directly into <paramref name="sb"/> and returns true. Otherwise returns false
+    /// (caller emits its default placeholder body).
+    /// </summary>
+    private static bool TryBracedBody(string key, StringBuilder sb, string ind)
+    {
+        if (_projForBodies is null) return false;
+        if (!StructogramService.Exists(_projForBodies, key)) return false;
+        var sd = StructogramService.Load(_projForBodies, key);
+        if (sd.Root.Count == 0) return false;
+        RenderBracedSeq(sb, sd.Root, ind);
+        return true;
+    }
+
+    private static void RenderBracedSeq(StringBuilder sb, List<Models.NsBlock> blocks, string ind)
+    {
+        foreach (var b in blocks) RenderBracedBlock(sb, b, ind);
+    }
+
+    private static void RenderBracedBlock(StringBuilder sb, Models.NsBlock b, string ind)
+    {
+        var inner = ind + "    ";
+        switch (b.Kind)
+        {
+            case Models.NsBlockKind.Statement:
+                var s = StTerm(b.Text);
+                if (s.Length > 0) sb.AppendLine($"{ind}{s}");
+                break;
+
+            case Models.NsBlockKind.If:
+                sb.AppendLine($"{ind}if ({CondText(b.Text)})");
+                sb.AppendLine($"{ind}{{");
+                RenderBracedSeq(sb, b.Body, inner);
+                sb.AppendLine($"{ind}}}");
+                if (b.Else.Count > 0)
+                {
+                    sb.AppendLine($"{ind}else");
+                    sb.AppendLine($"{ind}{{");
+                    RenderBracedSeq(sb, b.Else, inner);
+                    sb.AppendLine($"{ind}}}");
+                }
+                break;
+
+            case Models.NsBlockKind.While:
+                sb.AppendLine($"{ind}while ({CondText(b.Text)})");
+                sb.AppendLine($"{ind}{{");
+                RenderBracedSeq(sb, b.Body, inner);
+                sb.AppendLine($"{ind}}}");
+                break;
+
+            case Models.NsBlockKind.DoWhile:
+                sb.AppendLine($"{ind}do");
+                sb.AppendLine($"{ind}{{");
+                RenderBracedSeq(sb, b.Body, inner);
+                sb.AppendLine($"{ind}}} while ({CondText(b.Text)});");
+                break;
+
+            case Models.NsBlockKind.Case:
+                sb.AppendLine($"{ind}switch ({CondText(b.Text)})");
+                sb.AppendLine($"{ind}{{");
+                foreach (var arm in b.Arms)
+                {
+                    sb.AppendLine($"{inner}case {arm.Label}:");
+                    RenderBracedSeq(sb, arm.Body, inner + "    ");
+                    sb.AppendLine($"{inner}    break;");
+                }
+                sb.AppendLine($"{ind}}}");
+                break;
+        }
+    }
+
+    /// <summary>Appends a statement terminator unless the text already ends in ; { or }.</summary>
+    private static string StTerm(string text)
+    {
+        var t = (text ?? "").Trim();
+        if (t.Length == 0) return "";
+        return (t.EndsWith(";") || t.EndsWith("{") || t.EndsWith("}")) ? t : t + ";";
+    }
+
+    /// <summary>Cleans a condition/selector text (drops a trailing '?', defaults to true).</summary>
+    private static string CondText(string t)
+    {
+        t = (t ?? "").Trim();
+        if (t.EndsWith("?")) t = t[..^1].Trim();
+        return t.Length == 0 ? "true" : t;
+    }
+
     // ── C# ──────────────────────────────────────────────────────────────────
 
     private static void EmitCSharp(StringBuilder sb, CodeEntity e, string ind, Func<string, string> name)
@@ -142,7 +236,8 @@ public static class CodeExportService
                 var ps = string.Join(", ", ins.Select(p => $"{Conv(p.Convention)}{p.DataType} {p.Name}"));
                 sb.AppendLine($"{ind}public static {ret} {e.Name}({ps})");
                 sb.AppendLine($"{ind}{{");
-                if (ret.Trim() is not ("void" or "")) sb.AppendLine($"{ind}    throw new System.NotImplementedException();");
+                if (!TryBracedBody(e.Id, sb, ind + "    ") && ret.Trim() is not ("void" or ""))
+                    sb.AppendLine($"{ind}    throw new System.NotImplementedException();");
                 sb.AppendLine($"{ind}}}");
                 break;
             }
@@ -163,12 +258,15 @@ public static class CodeExportService
                 foreach (var m in e.Methods)
                 {
                     var ps = string.Join(", ", m.Parameters.Select(p => $"{Conv(p.Convention)}{p.DataType} {p.Name}"));
+                    if (!iface && m.Kind == MethodKind.Constructor) { sb.AppendLine($"{inner}{V(m.Visibility)} {e.Name}({ps}) {{ }}"); continue; }
+                    if (!iface && m.Kind == MethodKind.Destructor)  { sb.AppendLine($"{inner}~{e.Name}() {{ }}"); continue; }
                     if (iface) sb.AppendLine($"{inner}{m.ReturnType} {m.Name}({ps});");
                     else
                     {
                         sb.AppendLine($"{inner}{V(m.Visibility)} {(m.IsStatic ? "static " : "")}{m.ReturnType} {m.Name}({ps})");
                         sb.AppendLine($"{inner}{{");
-                        if (m.ReturnType.Trim() is not ("void" or "")) sb.AppendLine($"{inner}    throw new System.NotImplementedException();");
+                        if (!TryBracedBody($"{e.Id}#{m.Id}", sb, inner + "    ") && m.ReturnType.Trim() is not ("void" or ""))
+                            sb.AppendLine($"{inner}    throw new System.NotImplementedException();");
                         sb.AppendLine($"{inner}}}");
                     }
                 }
@@ -218,6 +316,8 @@ public static class CodeExportService
                     foreach (var m in methods)
                     {
                         var ps = string.Join(", ", m.Parameters.Select(p => $"{p.DataType}{Conv(p.Convention)} {p.Name}"));
+                        if (m.Kind == MethodKind.Constructor) { sb.AppendLine($"{inner}{e.Name}({ps});"); continue; }
+                        if (m.Kind == MethodKind.Destructor)  { sb.AppendLine($"{inner}{(bases.Count > 0 ? "virtual " : "")}~{e.Name}();"); continue; }
                         sb.AppendLine($"{inner}{(iface ? "virtual " : "")}{(m.IsStatic ? "static " : "")}{m.ReturnType} {m.Name}({ps}){(iface ? " = 0;" : ";")}");
                     }
                 }
@@ -243,7 +343,8 @@ public static class CodeExportService
                 var (ins, ret) = FuncSig(e);
                 var ps = string.Join(", ", ins.Select(p => $"{p.DataType} {p.Name}"));
                 sb.AppendLine($"{ind}public static {ret} {e.Name}({ps}) {{");
-                if (ret.Trim() is not ("void" or "")) sb.AppendLine($"{ind}    throw new UnsupportedOperationException();");
+                if (!TryBracedBody(e.Id, sb, ind + "    ") && ret.Trim() is not ("void" or ""))
+                    sb.AppendLine($"{ind}    throw new UnsupportedOperationException();");
                 sb.AppendLine($"{ind}}}");
                 break;
             }
@@ -264,11 +365,14 @@ public static class CodeExportService
                 foreach (var m in e.Methods)
                 {
                     var ps = string.Join(", ", m.Parameters.Select(p => $"{p.DataType} {p.Name}"));
+                    if (!iface && m.Kind == MethodKind.Constructor) { sb.AppendLine($"{inner}{V(m.Visibility)}{e.Name}({ps}) {{ }}"); continue; }
+                    if (!iface && m.Kind == MethodKind.Destructor)  { sb.AppendLine($"{inner}// destructor — Java has none; consider AutoCloseable.close()"); continue; }
                     if (iface) sb.AppendLine($"{inner}{m.ReturnType} {m.Name}({ps});");
                     else
                     {
                         sb.AppendLine($"{inner}{V(m.Visibility)}{(m.IsStatic ? "static " : "")}{m.ReturnType} {m.Name}({ps}) {{");
-                        if (m.ReturnType.Trim() is not ("void" or "")) sb.AppendLine($"{inner}    throw new UnsupportedOperationException();");
+                        if (!TryBracedBody($"{e.Id}#{m.Id}", sb, inner + "    ") && m.ReturnType.Trim() is not ("void" or ""))
+                            sb.AppendLine($"{inner}    throw new UnsupportedOperationException();");
                         sb.AppendLine($"{inner}}}");
                     }
                 }
@@ -294,7 +398,8 @@ public static class CodeExportService
                 var (ins, ret) = FuncSig(e);
                 var ps = string.Join(", ", ins.Select(p => $"{p.Name}: {p.DataType}"));
                 sb.AppendLine($"{ind}export function {e.Name}({ps}): {ret} {{");
-                if (ret.Trim() is not ("void" or "")) sb.AppendLine($"{ind}    throw new Error(\"Not implemented\");");
+                if (!TryBracedBody(e.Id, sb, ind + "    ") && ret.Trim() is not ("void" or ""))
+                    sb.AppendLine($"{ind}    throw new Error(\"Not implemented\");");
                 sb.AppendLine($"{ind}}}");
                 break;
             }
@@ -315,11 +420,14 @@ public static class CodeExportService
                 foreach (var m in e.Methods)
                 {
                     var ps = string.Join(", ", m.Parameters.Select(p => $"{p.Name}: {p.DataType}"));
+                    if (!iface && m.Kind == MethodKind.Constructor) { sb.AppendLine($"{inner}constructor({ps}) {{ }}"); continue; }
+                    if (!iface && m.Kind == MethodKind.Destructor)  { sb.AppendLine($"{inner}// destructor — no TypeScript equivalent (consider dispose())"); continue; }
                     if (iface) sb.AppendLine($"{inner}{m.Name}({ps}): {m.ReturnType};");
                     else
                     {
                         sb.AppendLine($"{inner}{V(m.Visibility)}{(m.IsStatic ? "static " : "")}{m.Name}({ps}): {m.ReturnType} {{");
-                        if (m.ReturnType.Trim() is not ("void" or "")) sb.AppendLine($"{inner}    throw new Error(\"Not implemented\");");
+                        if (!TryBracedBody($"{e.Id}#{m.Id}", sb, inner + "    ") && m.ReturnType.Trim() is not ("void" or ""))
+                            sb.AppendLine($"{inner}    throw new Error(\"Not implemented\");");
                         sb.AppendLine($"{inner}}}");
                     }
                 }
@@ -384,6 +492,14 @@ public static class CodeExportService
                 foreach (var m in e.Methods)
                 {
                     var ps = string.Join(", ", new[] { "self" }.Concat(m.Parameters.Select(p => $"{p.Name}: {p.DataType}")));
+                    if (!iface && m.Kind is MethodKind.Constructor or MethodKind.Destructor)
+                    {
+                        var dunder = m.Kind == MethodKind.Constructor ? "__init__" : "__del__";
+                        sb.AppendLine($"{inner}def {dunder}({ps}) -> None:");
+                        sb.AppendLine($"{inner}    pass");
+                        any = true;
+                        continue;
+                    }
                     if (iface) sb.AppendLine($"{inner}@abstractmethod");
                     sb.AppendLine($"{inner}def {PyName(m.Name, m.Visibility)}({ps}) -> {(m.ReturnType == "void" ? "None" : m.ReturnType)}:");
                     sb.AppendLine($"{inner}    {(iface ? "..." : "raise NotImplementedError")}");
@@ -434,6 +550,8 @@ public static class CodeExportService
                 foreach (var m in e.Methods)
                 {
                     var ps = string.Join(", ", m.Parameters.Select(p => $"{p.Name}: {p.DataType}"));
+                    if (!iface && m.Kind == MethodKind.Constructor) { sb.AppendLine($"{inner}constructor({ps})"); continue; }
+                    if (!iface && m.Kind == MethodKind.Destructor)  { sb.AppendLine($"{inner}// destructor — no Kotlin equivalent (consider AutoCloseable.close())"); continue; }
                     if (iface) sb.AppendLine($"{inner}fun {m.Name}({ps}){Ret(m.ReturnType)}");
                     else
                     {
@@ -489,6 +607,8 @@ public static class CodeExportService
                 foreach (var m in e.Methods)
                 {
                     var ps = string.Join(", ", m.Parameters.Select(p => $"{p.Name}: {p.DataType}"));
+                    if (!iface && m.Kind == MethodKind.Constructor) { sb.AppendLine($"{inner}init({ps}) {{ }}"); continue; }
+                    if (!iface && m.Kind == MethodKind.Destructor)  { sb.AppendLine($"{inner}deinit {{ }}"); continue; }
                     if (iface) sb.AppendLine($"{inner}func {m.Name}({ps}){Ret(m.ReturnType)}");
                     else
                     {
@@ -521,7 +641,8 @@ public static class CodeExportService
                 var (ins, ret) = FuncSig(e);
                 var ps = string.Join(", ", ins.Select(p => $"{p.DataType} ${p.Name}"));
                 sb.AppendLine($"{ind}function {e.Name}({ps}): {ret} {{");
-                if (ret.Trim() is not ("void" or "")) sb.AppendLine($"{ind}    throw new \\Exception(\"Not implemented\");");
+                if (!TryBracedBody(e.Id, sb, ind + "    ") && ret.Trim() is not ("void" or ""))
+                    sb.AppendLine($"{ind}    throw new \\Exception(\"Not implemented\");");
                 sb.AppendLine($"{ind}}}");
                 break;
             }
@@ -542,11 +663,14 @@ public static class CodeExportService
                 foreach (var m in e.Methods)
                 {
                     var ps = string.Join(", ", m.Parameters.Select(p => $"{p.DataType} ${p.Name}"));
+                    if (!iface && m.Kind == MethodKind.Constructor) { sb.AppendLine($"{inner}{V(m.Visibility)} function __construct({ps}) {{ }}"); continue; }
+                    if (!iface && m.Kind == MethodKind.Destructor)  { sb.AppendLine($"{inner}{V(m.Visibility)} function __destruct() {{ }}"); continue; }
                     if (iface) sb.AppendLine($"{inner}public function {m.Name}({ps}): {m.ReturnType};");
                     else
                     {
                         sb.AppendLine($"{inner}{V(m.Visibility)} {(m.IsStatic ? "static " : "")}function {m.Name}({ps}): {m.ReturnType} {{");
-                        if (m.ReturnType.Trim() is not ("void" or "")) sb.AppendLine($"{inner}    throw new \\Exception(\"Not implemented\");");
+                        if (!TryBracedBody($"{e.Id}#{m.Id}", sb, inner + "    ") && m.ReturnType.Trim() is not ("void" or ""))
+                            sb.AppendLine($"{inner}    throw new \\Exception(\"Not implemented\");");
                         sb.AppendLine($"{inner}}}");
                     }
                 }
@@ -605,6 +729,18 @@ public static class CodeExportService
                 foreach (var m in e.Methods)
                 {
                     var ps = string.Join(", ", m.Parameters.Select(p => $"{p.Name} {p.DataType}"));
+                    if (m.Kind == MethodKind.Constructor)
+                    {
+                        sb.AppendLine($"{ind}func New{e.Name}({ps}) *{e.Name} {{");
+                        sb.AppendLine($"{ind}    return &{e.Name}{{}}");
+                        sb.AppendLine($"{ind}}}");
+                        continue;
+                    }
+                    if (m.Kind == MethodKind.Destructor)
+                    {
+                        sb.AppendLine($"{ind}// destructor — Go has none; use a Close() method or runtime.SetFinalizer");
+                        continue;
+                    }
                     var r  = m.ReturnType.Trim() is "void" or "" ? "" : " " + m.ReturnType;
                     sb.AppendLine($"{ind}func (recv *{e.Name}) {m.Name}({ps}){r} {{");
                     sb.AppendLine($"{ind}    panic(\"not implemented\")");
@@ -662,6 +798,19 @@ public static class CodeExportService
                     sb.AppendLine($"{ind}impl {e.Name} {{");
                     foreach (var m in e.Methods)
                     {
+                        if (m.Kind == MethodKind.Constructor)
+                        {
+                            var cps = string.Join(", ", m.Parameters.Select(p => $"{p.Name}: {p.DataType}"));
+                            sb.AppendLine($"{inner}pub fn new({cps}) -> Self {{");
+                            sb.AppendLine($"{inner}    unimplemented!()");
+                            sb.AppendLine($"{inner}}}");
+                            continue;
+                        }
+                        if (m.Kind == MethodKind.Destructor)
+                        {
+                            sb.AppendLine($"{inner}// destructor — implement the Drop trait: impl Drop for {e.Name} {{ fn drop(&mut self) {{ }} }}");
+                            continue;
+                        }
                         var ps = string.Join(", ", new[] { "&self" }.Concat(m.Parameters.Select(p => $"{p.Name}: {p.DataType}")));
                         sb.AppendLine($"{inner}{(m.Visibility == CodeVisibility.Public ? "pub " : "")}fn {m.Name}({ps}){Ret(m.ReturnType)} {{");
                         sb.AppendLine($"{inner}    unimplemented!()");

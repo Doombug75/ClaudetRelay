@@ -1145,4 +1145,11 @@ Output „{0}" ist „{1}", Input „{2}" ist „{3}".</value></data>
   <data name="Diag_Ns" xml:space="preserve"><value>▦ Struktogramm</value></data>
   <data name="Diag_NsExists" xml:space="preserve"><value>▦ Struktogramm (vorhanden)</value></data>
   <data name="Diag_NsTip" xml:space="preserve"><value>Nassi-Shneiderman-Struktogramm-Editor (DIN 66261)</value></data>
+  <data name="CodeEdit_AddGetter" xml:space="preserve"><value>Get-Methode hinzufügen</value></data>
+  <data name="CodeEdit_AddSetter" xml:space="preserve"><value>Set-Methode hinzufügen</value></data>
+  <data name="CodeEdit_AddMethod" xml:space="preserve"><value>Methode</value></data>
+  <data name="CodeEdit_AddConstructor" xml:space="preserve"><value>Konstruktor</value></data>
+  <data name="CodeEdit_AddDestructor" xml:space="preserve"><value>Destruktor</value></data>
+  <data name="CodeEdit_ConstructorLbl" xml:space="preserve"><value>Konstruktor</value></data>
+  <data name="CodeEdit_DestructorLbl" xml:space="preserve"><value>Destruktor</value></data>
 </root>
