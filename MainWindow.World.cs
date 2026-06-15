@@ -150,6 +150,23 @@ public partial class MainWindow
         // Singular label map: "Characters" → "Character", "Locations" → "Location" etc.
         string Singular(string t) => t.TrimEnd('s');
 
+        // "🗺 Boards" gallery tab — far left for consistency with the Code section.
+        var boardTabLeft = new Button
+        {
+            Content         = Properties.Loc.S("World_Boards"),
+            FontSize        = 13,
+            FontFamily      = new FontFamily("Segoe UI"),
+            FontWeight      = _worldBoardsMode ? FontWeights.SemiBold : FontWeights.Normal,
+            Padding         = new Thickness(14, 8, 14, 10),
+            BorderThickness = new Thickness(0),
+            Cursor          = Cursors.Hand,
+            Background      = Brushes.Transparent
+        };
+        boardTabLeft.SetResourceReference(Button.ForegroundProperty,
+            _worldBoardsMode ? "AccentHighlightBrush" : "SidebarDimBrush");
+        boardTabLeft.Click += (_, _) => { _worldBoardsMode = true; BuildWorldContent(); };
+        tabs.Children.Add(boardTabLeft);
+
         foreach (var et in entityTypes)
         {
             var capturedEt  = et;
@@ -186,22 +203,6 @@ public partial class MainWindow
             tabs.Children.Add(tab);
         }
 
-        // "🗺 Boards" gallery tab
-        var boardTab = new Button
-        {
-            Content         = Properties.Loc.S("World_Boards"),
-            FontSize        = 13,
-            FontFamily      = new FontFamily("Segoe UI"),
-            FontWeight      = _worldBoardsMode ? FontWeights.SemiBold : FontWeights.Normal,
-            Padding         = new Thickness(14, 8, 14, 10),
-            BorderThickness = new Thickness(0),
-            Cursor          = Cursors.Hand,
-            Background      = Brushes.Transparent
-        };
-        boardTab.SetResourceReference(Button.ForegroundProperty,
-            _worldBoardsMode ? "AccentHighlightBrush" : "SidebarDimBrush");
-        boardTab.Click += (_, _) => { _worldBoardsMode = true; BuildWorldContent(); };
-        tabs.Children.Add(boardTab);
 
         // Right-side button area
         var rightPanel = new StackPanel { Orientation = Orientation.Horizontal };
@@ -255,7 +256,7 @@ public partial class MainWindow
         // Name search
         var nameBox = new TextBox
         {
-            Text = _worldFilterName ?? "", Width = 150, FontSize = 11,
+            Text = _worldFilterName ?? "", Width = LibFilterWidth, FontSize = 11,
             Padding = new Thickness(6, 4, 6, 4), Margin = new Thickness(0, 2, 8, 2),
             BorderThickness = new Thickness(1), ToolTip = "Search by name"
         };
