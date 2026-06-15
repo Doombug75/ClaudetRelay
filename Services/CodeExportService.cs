@@ -471,8 +471,22 @@ public static class CodeExportService
                 foreach (var m in e.Methods)
                 {
                     var ps = string.Join(", ", m.Parameters.Select(p => $"{Conv(p.Convention)}{p.DataType} {p.Name}"));
-                    if (!iface && m.Kind == MethodKind.Constructor) { sb.AppendLine($"{inner}{V(m.Visibility)} {e.Name}({ps}) {{ }}"); continue; }
-                    if (!iface && m.Kind == MethodKind.Destructor)  { sb.AppendLine($"{inner}~{e.Name}() {{ }}"); continue; }
+                    if (!iface && m.Kind == MethodKind.Constructor)
+                    {
+                        sb.AppendLine($"{inner}{V(m.Visibility)} {e.Name}({ps})");
+                        sb.AppendLine($"{inner}{{");
+                        TryBracedBody($"{e.Id}#{m.Id}", sb, inner + "    ");
+                        sb.AppendLine($"{inner}}}");
+                        continue;
+                    }
+                    if (!iface && m.Kind == MethodKind.Destructor)
+                    {
+                        sb.AppendLine($"{inner}~{e.Name}()");
+                        sb.AppendLine($"{inner}{{");
+                        TryBracedBody($"{e.Id}#{m.Id}", sb, inner + "    ");
+                        sb.AppendLine($"{inner}}}");
+                        continue;
+                    }
                     if (iface) sb.AppendLine($"{inner}{m.ReturnType} {m.Name}({ps});");
                     else
                     {
@@ -535,6 +549,27 @@ public static class CodeExportService
                     }
                 }
                 sb.AppendLine($"{ind}}};");
+
+                // Out-of-line inline definitions for members that have a structogram body.
+                if (!iface && _projForBodies is not null)
+                {
+                    foreach (var m in e.Methods)
+                    {
+                        var key = $"{e.Id}#{m.Id}";
+                        if (!StructogramService.Exists(_projForBodies, key)) continue;
+                        var ps = string.Join(", ", m.Parameters.Select(p => $"{p.DataType}{Conv(p.Convention)} {p.Name}"));
+                        string sig = m.Kind switch
+                        {
+                            MethodKind.Constructor => $"{ind}inline {e.Name}::{e.Name}({ps}) {{",
+                            MethodKind.Destructor  => $"{ind}inline {e.Name}::~{e.Name}() {{",
+                            _                      => $"{ind}inline {m.ReturnType} {e.Name}::{m.Name}({ps}) {{"
+                        };
+                        sb.AppendLine();
+                        sb.AppendLine(sig);
+                        TryBracedBody(key, sb, ind + "    ");
+                        sb.AppendLine($"{ind}}}");
+                    }
+                }
                 break;
             }
         }
@@ -578,7 +613,13 @@ public static class CodeExportService
                 foreach (var m in e.Methods)
                 {
                     var ps = string.Join(", ", m.Parameters.Select(p => $"{p.DataType} {p.Name}"));
-                    if (!iface && m.Kind == MethodKind.Constructor) { sb.AppendLine($"{inner}{V(m.Visibility)}{e.Name}({ps}) {{ }}"); continue; }
+                    if (!iface && m.Kind == MethodKind.Constructor)
+                    {
+                        sb.AppendLine($"{inner}{V(m.Visibility)}{e.Name}({ps}) {{");
+                        TryBracedBody($"{e.Id}#{m.Id}", sb, inner + "    ");
+                        sb.AppendLine($"{inner}}}");
+                        continue;
+                    }
                     if (!iface && m.Kind == MethodKind.Destructor)  { sb.AppendLine($"{inner}// destructor — Java has none; consider AutoCloseable.close()"); continue; }
                     if (iface) sb.AppendLine($"{inner}{m.ReturnType} {m.Name}({ps});");
                     else
@@ -633,7 +674,13 @@ public static class CodeExportService
                 foreach (var m in e.Methods)
                 {
                     var ps = string.Join(", ", m.Parameters.Select(p => $"{p.Name}: {p.DataType}"));
-                    if (!iface && m.Kind == MethodKind.Constructor) { sb.AppendLine($"{inner}constructor({ps}) {{ }}"); continue; }
+                    if (!iface && m.Kind == MethodKind.Constructor)
+                    {
+                        sb.AppendLine($"{inner}constructor({ps}) {{");
+                        TryBracedBody($"{e.Id}#{m.Id}", sb, inner + "    ");
+                        sb.AppendLine($"{inner}}}");
+                        continue;
+                    }
                     if (!iface && m.Kind == MethodKind.Destructor)  { sb.AppendLine($"{inner}// destructor — no TypeScript equivalent (consider dispose())"); continue; }
                     if (iface) sb.AppendLine($"{inner}{m.Name}({ps}): {m.ReturnType};");
                     else
@@ -709,7 +756,7 @@ public static class CodeExportService
                     {
                         var dunder = m.Kind == MethodKind.Constructor ? "__init__" : "__del__";
                         sb.AppendLine($"{inner}def {dunder}({ps}) -> None:");
-                        sb.AppendLine($"{inner}    pass");
+                        if (!TryPythonBody($"{e.Id}#{m.Id}", sb, inner + "    ")) sb.AppendLine($"{inner}    pass");
                         any = true;
                         continue;
                     }
@@ -764,7 +811,13 @@ public static class CodeExportService
                 foreach (var m in e.Methods)
                 {
                     var ps = string.Join(", ", m.Parameters.Select(p => $"{p.Name}: {p.DataType}"));
-                    if (!iface && m.Kind == MethodKind.Constructor) { sb.AppendLine($"{inner}constructor({ps})"); continue; }
+                    if (!iface && m.Kind == MethodKind.Constructor)
+                    {
+                        sb.AppendLine($"{inner}constructor({ps}) {{");
+                        TryBracelessBody($"{e.Id}#{m.Id}", sb, inner + "    ", ExportLanguage.Kotlin);
+                        sb.AppendLine($"{inner}}}");
+                        continue;
+                    }
                     if (!iface && m.Kind == MethodKind.Destructor)  { sb.AppendLine($"{inner}// destructor — no Kotlin equivalent (consider AutoCloseable.close())"); continue; }
                     if (iface) sb.AppendLine($"{inner}fun {m.Name}({ps}){Ret(m.ReturnType)}");
                     else
@@ -821,8 +874,20 @@ public static class CodeExportService
                 foreach (var m in e.Methods)
                 {
                     var ps = string.Join(", ", m.Parameters.Select(p => $"{p.Name}: {p.DataType}"));
-                    if (!iface && m.Kind == MethodKind.Constructor) { sb.AppendLine($"{inner}init({ps}) {{ }}"); continue; }
-                    if (!iface && m.Kind == MethodKind.Destructor)  { sb.AppendLine($"{inner}deinit {{ }}"); continue; }
+                    if (!iface && m.Kind == MethodKind.Constructor)
+                    {
+                        sb.AppendLine($"{inner}init({ps}) {{");
+                        TryBracelessBody($"{e.Id}#{m.Id}", sb, inner + "    ", ExportLanguage.Swift);
+                        sb.AppendLine($"{inner}}}");
+                        continue;
+                    }
+                    if (!iface && m.Kind == MethodKind.Destructor)
+                    {
+                        sb.AppendLine($"{inner}deinit {{");
+                        TryBracelessBody($"{e.Id}#{m.Id}", sb, inner + "    ", ExportLanguage.Swift);
+                        sb.AppendLine($"{inner}}}");
+                        continue;
+                    }
                     if (iface) sb.AppendLine($"{inner}func {m.Name}({ps}){Ret(m.ReturnType)}");
                     else
                     {
@@ -877,8 +942,20 @@ public static class CodeExportService
                 foreach (var m in e.Methods)
                 {
                     var ps = string.Join(", ", m.Parameters.Select(p => $"{p.DataType} ${p.Name}"));
-                    if (!iface && m.Kind == MethodKind.Constructor) { sb.AppendLine($"{inner}{V(m.Visibility)} function __construct({ps}) {{ }}"); continue; }
-                    if (!iface && m.Kind == MethodKind.Destructor)  { sb.AppendLine($"{inner}{V(m.Visibility)} function __destruct() {{ }}"); continue; }
+                    if (!iface && m.Kind == MethodKind.Constructor)
+                    {
+                        sb.AppendLine($"{inner}{V(m.Visibility)} function __construct({ps}) {{");
+                        TryBracedBody($"{e.Id}#{m.Id}", sb, inner + "    ");
+                        sb.AppendLine($"{inner}}}");
+                        continue;
+                    }
+                    if (!iface && m.Kind == MethodKind.Destructor)
+                    {
+                        sb.AppendLine($"{inner}{V(m.Visibility)} function __destruct() {{");
+                        TryBracedBody($"{e.Id}#{m.Id}", sb, inner + "    ");
+                        sb.AppendLine($"{inner}}}");
+                        continue;
+                    }
                     if (iface) sb.AppendLine($"{inner}public function {m.Name}({ps}): {m.ReturnType};");
                     else
                     {
@@ -946,6 +1023,7 @@ public static class CodeExportService
                     if (m.Kind == MethodKind.Constructor)
                     {
                         sb.AppendLine($"{ind}func New{e.Name}({ps}) *{e.Name} {{");
+                        TryBracelessBody($"{e.Id}#{m.Id}", sb, ind + "    ", ExportLanguage.Go);
                         sb.AppendLine($"{ind}    return &{e.Name}{{}}");
                         sb.AppendLine($"{ind}}}");
                         continue;
@@ -1016,7 +1094,7 @@ public static class CodeExportService
                         {
                             var cps = string.Join(", ", m.Parameters.Select(p => $"{p.Name}: {p.DataType}"));
                             sb.AppendLine($"{inner}pub fn new({cps}) -> Self {{");
-                            sb.AppendLine($"{inner}    unimplemented!()");
+                            if (!TryRustBody($"{e.Id}#{m.Id}", sb, inner + "    ")) sb.AppendLine($"{inner}    unimplemented!()");
                             sb.AppendLine($"{inner}}}");
                             continue;
                         }
