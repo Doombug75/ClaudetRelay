@@ -16,6 +16,8 @@ ClaudetRelay is a **creative project workspace** powered by a team of AI partici
 Whether you are writing a novel, designing an RPG campaign, building a game, or mapping out a software project — you direct a group of AI agents who brainstorm, plan, research, and generate documents alongside you.
 
 Unlike a simple chatbot, ClaudetRelay organises your work into **structured projects** with their own file systems, roadmaps, world-builder databases, and agent rosters. Everything the AI produces is saved as real, plain files you can open, edit, and diff in any tool — no locked-in database, no hidden state.
+AI chat history is archived and compacted automatically.
+In Projects, the models get regular guideline reminders not to loose their actual tasks when the context gets bigger and old instructions are compacted.
 
 ---
 
@@ -270,10 +272,3 @@ Project types define the initial system prompt, suggested roles, and structural 
 Copy an existing file, adjust the name, description, and system prompt, and restart the app. Your new type appears in the project type picker immediately.
 
 
----
-
-## Upcoming / Things at work
-
--**Text filters** - Right now, you can easily buzz out any local model with PDF bigger that a few pages or even a noisy markdown. Filtered file streams will improve that behaviour and should also help reduce context useage.
-
--**Memory improvements** - Right now, every bigger conversation between different models, some being very talkative (so you have to push that ruler down to "Brief" to Keep longer conversations working), goes into the context. Means you have to delete the conversation and Restart the app after a while. Gotta think About a few ways to store history locally and give the model a compacted Version back to Keep context at some Level.
