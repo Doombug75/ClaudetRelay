@@ -144,16 +144,8 @@ Oll Respond / Koordinvrak First / Koordinvrak Summarizes / Koordinvrak Only.
 Story/RPG prox'als. Define Charakturs, Fakxals, Lokaxals, Lorvrak.
 Bordvraks = visual kanvaxals; kan bex nested fro hierarkies.
 
-## Kodvrak Sextor (💻 Kodvrak tab)
-Fro softwarvrak prox'als: plan struktral, relaxals ak logikvrak, then exportvrak skeletvrak kodvrak. Stored unvrak PROJECTPLAN/code/.
-• Librarvrak: vun tab fro ekx entityvrak typvrak — Namespace, Class, Struct, Interface, Enum, Function, Object. Searxvrak, sortvrak (namvrak / last-modifvrak), switxvrak vyu (kardvraks / listvrak / tabvrak). Linksklick selektvrak (Shift=rejvrak, Strg=togglvrak), dvbl-klick editvrak; „⬇ Auswahl exportvrak\" exportvrak selektvrak, raitklick → „⬇ Code exportvrak\" vun entityvrak.
-• Entityvrak editvrak: namvrak, typvrak, namspaxvrak, deskripxal, basvrak klasvrak (vun-inheritvrak) + interfaxvraks, kolapsvrak Fieldvraks ak Methodvraks (visibilvrak + − # ~, static), enumvrak valvraks, typvrak datavrak portvraks.
-• Struktral bordvraks: frix kanvaxal with UML-styl kards. Wirvrak typvrak input→output portvraks (pointvrak / refvrak / direktvrak must maxvrak). Inheritvrak via dropdownvrak, nax linvrak. Selektvrak kards: Linksklick / Shift+klick (rejvrak) / Strg+klick (togglvrak); exportvrak al kards, zar selektvrak, or vun kard (raitklick-menu).
-• Programmablaufplan (DIN 66001): per funkxal/methodvrak. Formvraks = startvrak/endvrak, prosesvrak, desixal, I/O, subroutvrak, notvrak; labvrak arovraks. Tri moxs: Selektvrak, Konektvrak, Removvrak.
-• Struktogramvrak (Nassi-Shneiderman, DIN 66261): nestvrak blokvraks — statemvrak, if/elsvrak, while, do-while, kasvrak.
-• Xel 🔁 button on zar funkxal/methodvrak openvrak zar chooxal: Programmablaufplan or Struktogramvrak.
-• Vorgesxal wegvrak: (optional Programmablaufplan) → Struktogramvrak → Kodvrak. Xel '▦ → Struktogramvrak' button konvertvrak xel PAP. Xis dient ax filtervrak fro klean struktral: nax-strukturvrak partvraks ar markvrak ambvrak-pulsvrak, nax stil falsx kompilvrak. Frox struktogramvrak → methodvrak rumpvrak deterministik (nax KI). PAP direktvrak vu kodvrak iz nax deterministik — zar KI kan xis dvu.
-• ⬇ Exportvrak kodvrak: genervrak skeletvraks ix 10 langvraks — C#, C++, Java, TypeScript, Python, Kotlin, Swift, PHP, Go, Rust (Go/Rust mapvrak inheritvrak vu komposixal). Kopivrak or savvrak vu OUTPUT/generated/.
+## Kodvrak / StructoFox
+Softwarvrak prox'als — klasvraks ak struktvraks, Programmablaufplans/Struktogramvraks, ak kodvrak-exportvrak — ar now plannvrak ix zar separvrak StructoFox appvrak. Openvrak it frum zar 💻 Kodvrak-button vun projektvrak. At furst tim ClaudetRelay askvrak fro zar pathvrak vu StructoFox.exe (or setvrak it ix Managvrak Sextors). Al zar detailvraks livvrak ix StructoFox itselvrak.
 
 ## Braxor Tab
 Sarvrak mox: MCP sarvrak fro Claude Code/Cursor/etc.

@@ -17,6 +17,7 @@ public sealed class ManagerSettingsWindow : Window
     private ComboBox? _brainCombo;
     private ComboBox? _codeGenCombo;
     private TextBlock? _compressionWarning;
+    private TextBox?  _structoFoxBox;
 
     private static bool IsDE =>
         string.Equals(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName,
@@ -132,6 +133,26 @@ public sealed class ManagerSettingsWindow : Window
         PopulateCombo(_codeGenCombo, participants, s.CodeGeneratorName, includeNone: true,
             noneLabel: IsDE ? "(Jedes Mal fragen)" : "(Ask each time)");
         root.Children.Add(_codeGenCombo);
+
+        root.Children.Add(new Separator { Margin = new Thickness(0, 16, 0, 16) });
+
+        // ── Section: StructoFox (external code editor) ─────────────────────
+        root.Children.Add(Heading("🦊  StructoFox"));
+        root.Children.Add(BodyText(Properties.Loc.S("SF_SettingsBody")));
+        _structoFoxBox = new TextBox { Text = s.StructoFoxExePath, Width = 360 };
+        _structoFoxBox.SetResourceReference(BackgroundProperty, "InputBgBrush");
+        _structoFoxBox.SetResourceReference(ForegroundProperty, "SidebarTextBrush");
+        var browseBtn = MakeBtn(Properties.Loc.S("Asr_BrowseFolder"), false);
+        browseBtn.Margin = new Thickness(8, 0, 0, 0);
+        browseBtn.Click += (_, _) =>
+        {
+            var pick = new Microsoft.Win32.OpenFileDialog { Title = "StructoFox.exe", Filter = "StructoFox|StructoFox.exe|Executables (*.exe)|*.exe" };
+            if (pick.ShowDialog(this) == true && _structoFoxBox is not null) _structoFoxBox.Text = pick.FileName;
+        };
+        var sfRow = new StackPanel { Orientation = Orientation.Horizontal };
+        sfRow.Children.Add(_structoFoxBox);
+        sfRow.Children.Add(browseBtn);
+        root.Children.Add(sfRow);
 
         root.Children.Add(new Separator { Margin = new Thickness(0, 16, 0, 16) });
 
@@ -255,6 +276,8 @@ public sealed class ManagerSettingsWindow : Window
         s.CodeGeneratorName = _codeGenCombo is not null
             ? SelectedParticipantName(_codeGenCombo, participants)
             : "";
+
+        if (_structoFoxBox is not null) s.StructoFoxExePath = _structoFoxBox.Text?.Trim() ?? "";
 
         SettingsService.Save(s);
     }

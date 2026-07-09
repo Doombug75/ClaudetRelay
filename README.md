@@ -28,7 +28,7 @@ In Projects, the models get regular guideline reminders not to loose their actua
 | **RPG world building** | Build a campaign setting with Characters, Locations, Factions, and Lore. Visualise relationships on a free-canvas board. Let AI agents invent NPCs, histories, and plot hooks on demand. |
 | **Fiction & story writing** | Assign one agent as your plot architect, another as a character voice, a third as continuity checker. Run them in parallel and compare their takes. |
 | **Game design** | Use the roadmap to track milestones, let AI agents produce design docs, dialogue trees, and balance spreadsheets — all saved as real files in your project folder. |
-| **Software planning** | Break a codebase into tasks on the roadmap, have agents draft specs, architecture descriptions, and READMEs, output them as PDF or Word docs. |
+| **Software planning** | Break a codebase into tasks on the roadmap and have agents draft specs, architecture descriptions, and READMEs. Plan the actual code — classes, flowcharts/structograms, and multi-language code export — in **StructoFox**, the companion app opened from a project's Code button. |
 | **Brainstorming & research** | Throw a question to six models at once and compare answers side by side. Use a Coordinator agent to synthesise the best ideas from the group. |
 
 Supports many API- and local Server (Ollama, vLLM) based Providers. You can connect them all. 
@@ -177,6 +177,10 @@ Mix cloud and local agents in the same project. Run a fast local model for first
 - **AI file writing** — agents can write Markdown, PDF, Word, LibreOffice Writer, Excel, and LibreOffice Calc files to OUTPUT with a single tag
 - **Backup** — one-click ZIP backup of any project
 - **Export** — save conversations as HTML or Markdown
+
+### Code / StructoFox
+- **StructoFox integration** — a project's 💻 **Code** button opens [StructoFox](https://github.com/structofox), the companion app for software/code planning. Design classes, structs, interfaces and enums; draw DIN 66001 flowcharts (Programmablaufplan) and DIN 66261 structograms (Nassi-Shneiderman) per function; get an AI-free, Visual-Studio-style autocomplete while writing node text; and export deterministic, buildable projects across 12 languages (C#, C, C++, Java, Go, PHP, TypeScript, JavaScript, Python, Rust, Kotlin, Swift).
+- **Separate app, one path** — StructoFox is a standalone download; its project lives in a subfolder of the ClaudetRelay project. Set the path to `StructoFox.exe` once (a first-use prompt, or **Manager Settings**) and the Code button launches straight into the project.
 
 ### World Builder
 - **Entity editor** — create and manage Characters, Locations, Factions, and Lore entries with rich, schema-driven field sets

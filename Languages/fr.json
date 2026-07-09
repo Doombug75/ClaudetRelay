@@ -1040,5 +1040,12 @@
     "Code_NoMatch": "Aucun résultat.",
     "Code_View_Cards": "Vue cartes",
     "Code_View_List": "Vue liste (avec date)",
-    "Code_View_Table": "Vue tableau (colonnes compactes)"
+    "Code_View_Table": "Vue tableau (colonnes compactes)",
+    "SF_NotFoundTitle": "StructoFox introuvable",
+    "SF_NotFoundMsg": "StructoFox est introuvable. StructoFox est l’éditeur externe d’organigrammes/de code ouvert via le bouton « Code ». Téléchargez-le, puis indiquez le chemin vers StructoFox.exe :",
+    "SF_Download": "🌐  Télécharger StructoFox",
+    "SF_PathLabel": "Chemin vers StructoFox.exe :",
+    "SF_FileNotFound": "Fichier introuvable.",
+    "SF_LaunchError": "Impossible de lancer StructoFox : {0}",
+    "SF_SettingsBody": "Chemin vers StructoFox.exe — l’éditeur externe d’organigrammes/de code lancé via le bouton « Code » d’un projet. Vide = le choisir via une boîte de dialogue au premier lancement."
 }

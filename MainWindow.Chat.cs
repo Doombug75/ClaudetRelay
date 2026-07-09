@@ -4475,28 +4475,11 @@ public partial class MainWindow : Window
         "Story/RPG projects. Define Characters, Factions, Locations, Lore. " +
         "Boards = visual canvases; can be nested for hierarchies.\n\n" +
 
-        "## Code section (💻 Code tab)\n" +
-        "For software projects: plan structure, relationships and logic, then export skeleton code.\n" +
-        "• Library: one tab per entity type — Namespace, Class, Struct, Interface, Enum, Function, Object. " +
-        "Searchable, sortable (name / last-modified), switchable view (cards / list / table). " +
-        "Left-click selects (Shift=range, Ctrl=toggle), double-click edits; " +
-        "'⬇ Export selected' exports the selection and right-click → '⬇ Export code' exports one entry. " +
-        "Entities are stored under PROJECTPLAN/code/.\n" +
-        "• Entity editor: name, type, namespace, description, base class (single inheritance) + implemented interfaces, " +
-        "collapsible Fields and Methods sections (with visibility +−#~ and static), enum values, and typed data ports.\n" +
-        "• Structure boards: a free canvas of UML-style cards. Drag cards, wire typed input→output data ports " +
-        "(pointer / reference / direct conventions must match — a mismatch is refused). Inheritance is set via the editor dropdown, not lines. " +
-        "Select cards with left-click / Shift+click (range) / Ctrl+click (toggle); export all cards, the selection, or one card via its right-click menu.\n" +
-        "• Flowchart (Programmablaufplan, DIN 66001): per function/method. Shapes = start/end, process, decision, I/O, subroutine, note; " +
-        "labelled arrows. Three modes: Select/Move, Connect, Remove.\n" +
-        "• Structogram (Nassi-Shneiderman, DIN 66261): per function/method. Nested blocks = statement, if/else, while, do-while, case.\n" +
-        "• The 🔁 button on a function/method opens a chooser: Programmablaufplan or Structogram.\n" +
-        "• INTENDED WORKFLOW: (optional flowchart) → structogram → code. A flowchart can be converted to a " +
-        "structogram via the '▦ → Structogram' button; this doubles as a clean-structure filter (unstructurable " +
-        "parts are flagged, not silently miscompiled). The structogram then generates the method body deterministically " +
-        "(no AI). Converting a flowchart DIRECTLY to code is not deterministic — that step can be done by an AI on request.\n" +
-        "• ⬇ Export code: generates skeletons in 10 languages — C#, C++, Java, TypeScript, Python, Kotlin, Swift, PHP, Go, Rust " +
-        "(Go/Rust map inheritance to composition). Copy to clipboard or save to OUTPUT/generated/.\n\n" +
+        "## Code / software projects (StructoFox)\n" +
+        "Software/code planning — classes and structures, flowcharts (Programmablaufplan) and structograms, and " +
+        "code export — now lives in the SEPARATE StructoFox app, opened from a project's 💻 Code button. If the " +
+        "user asks about code planning or the old in-app Code section, point them to StructoFox (its own help " +
+        "covers the details). The first launch asks for the path to StructoFox.exe (or it's set in Manager Settings).\n\n" +
 
         "## Bridge tab\n" +
         "Server mode: MCP server for Claude Code/Cursor/etc. " +
@@ -4652,29 +4635,12 @@ public partial class MainWindow : Window
         "Story-/RPG-Projekte. Charaktere, Fraktionen, Orte, Lore definieren. " +
         "Boards = visuelle Leinwände; können für Hierarchien verschachtelt werden.\n\n" +
 
-        "## Code-Bereich (💻 Code-Tab)\n" +
-        "Für Software-Projekte: Struktur, Beziehungen und Logik planen, dann Code-Gerüst exportieren.\n" +
-        "• Bibliothek: ein Tab pro Entitätstyp — Namespace, Class, Struct, Interface, Enum, Function, Object. " +
-        "Durchsuchbar, sortierbar (Name / zuletzt geändert), umschaltbare Ansicht (Karten / Liste / Tabelle). " +
-        "Linksklick wählt (Shift=Bereich, Strg=einzeln), Doppelklick bearbeitet; " +
-        "„⬇ Auswahl exportieren\" exportiert die Markierung, Rechtsklick → „⬇ Code exportieren\" eine Entität. " +
-        "Gespeichert unter PROJECTPLAN/code/.\n" +
-        "• Entitäts-Editor: Name, Typ, Namespace, Beschreibung, Basisklasse (Einfachvererbung) + implementierte Interfaces, " +
-        "einklappbare Felder- und Methoden-Abschnitte (mit Sichtbarkeit +−#~ und static), Enum-Werte, typisierte Daten-Ports.\n" +
-        "• Struktur-Boards: freie Leinwand mit UML-artigen Karten. Karten ziehen, typisierte Input→Output-Ports verdrahten " +
-        "(Pointer / Referenz / direkt müssen übereinstimmen — Mismatch wird abgelehnt). Vererbung per Dropdown im Editor, nicht per Linie. " +
-        "Karten auswählen mit Linksklick / Shift+Klick (Bereich) / Strg+Klick (umschalten); alle Karten, die Auswahl oder eine einzelne Karte (Rechtsklick-Menü) exportieren.\n" +
-        "• Programmablaufplan (DIN 66001): pro Funktion/Methode. Formen = Start/Ende, Prozess, Verzweigung, E/A, Unterprogramm, Notiz; " +
-        "beschriftete Pfeile. Drei Modi: Auswählen/Bewegen, Verbinden, Entfernen.\n" +
-        "• Struktogramm (Nassi-Shneiderman, DIN 66261): pro Funktion/Methode. Verschachtelte Blöcke = Anweisung, Wenn/Sonst, While, Do-While, Fallauswahl.\n" +
-        "• Der 🔁-Knopf an einer Funktion/Methode öffnet eine Auswahl: Programmablaufplan oder Struktogramm.\n" +
-        "• VORGESEHENER WEG: (optional Programmablaufplan) → Struktogramm → Code. Ein Ablaufplan lässt sich per " +
-        "'▦ → Struktogramm'-Knopf umwandeln; das dient zugleich als Filter für saubere Struktur (nicht strukturierbare " +
-        "Teile werden markiert, nicht still falsch übersetzt). Das Struktogramm erzeugt dann den Methodenrumpf " +
-        "deterministisch (ohne KI). Ein Ablaufplan DIREKT in Code ist nicht deterministisch — diesen Schritt kann " +
-        "auf Wunsch eine KI übernehmen.\n" +
-        "• ⬇ Code exportieren: erzeugt Gerüste in 10 Sprachen — C#, C++, Java, TypeScript, Python, Kotlin, Swift, PHP, Go, Rust " +
-        "(Go/Rust bilden Vererbung als Komposition ab). In die Zwischenablage kopieren oder nach OUTPUT/generated/ speichern.\n\n" +
+        "## Code / Software-Projekte (StructoFox)\n" +
+        "Die Code-Planung — Klassen und Strukturen, Programmablaufpläne und Struktogramme, Code-Export — liegt " +
+        "jetzt in der SEPARATEN App StructoFox, geöffnet über den 💻 Code-Button eines Projekts. Fragt der Nutzer " +
+        "nach Code-Planung oder dem alten Code-Bereich, verweise auf StructoFox (die Details stehen in dessen " +
+        "eigener Hilfe). Beim ersten Start fragt ClaudetRelay nach dem Pfad zur StructoFox.exe (oder er wird in den " +
+        "Verwalter-Einstellungen hinterlegt).\n\n" +
 
         "## Bridge-Tab\n" +
         "Server-Modus: MCP-Server für Claude Code/Cursor/usw. " +
@@ -5891,90 +5857,18 @@ public partial class MainWindow : Window
               "  Add Relation toolbar button  →  click first object, then second to draw a line\n" +
               "       Works between any combination of cards, frames, and board pins.");
 
-        // ── 💻 Code ───────────────────────────────────────────────────────
-        BeginSection("💻", isDE ? "Code-Bereich  (Software-Projekte)" : "Code section  (software projects)");
+        // ── 💻 Code / StructoFox ──────────────────────────────────────────
+        BeginSection("💻", isDE ? "Code  (StructoFox)" : "Code  (StructoFox)");
         AddBody(isDE
-            ? "Für Software-Projekte: Struktur, Beziehungen und Logik planen — und am Ende Code-Gerüste exportieren. " +
-              "Alle Code-Daten liegen unter PROJECTPLAN/code/."
-            : "For software projects: plan structure, relationships and logic — then export code skeletons. " +
-              "All code data lives under PROJECTPLAN/code/.");
+            ? "Software-Projekte — Klassen und Strukturen, Programmablaufpläne/Struktogramme und Code-Export — " +
+              "werden jetzt in der separaten App StructoFox geplant. Öffne sie über den 💻 Code-Button eines Projekts. " +
+              "Beim ersten Mal fragt ClaudetRelay nach dem Pfad zur StructoFox.exe (oder du hinterlegst ihn in den " +
+              "Verwalter-Einstellungen). Alle Details stehen in StructoFox selbst."
+            : "Software projects — classes and structures, flowcharts/structograms and code export — " +
+              "are now planned in the separate StructoFox app. Open it from a project's 💻 Code button. " +
+              "The first time, ClaudetRelay asks for the path to StructoFox.exe (or set it in Manager Settings). " +
+              "All the details live in StructoFox itself.");
 
-        AddSubHeader(isDE ? "Bibliothek & Editor" : "Library & editor");
-        AddBody(isDE
-            ? "Oben Tabs: 🗂 Boards plus je ein Tab pro Entitätstyp — Namespace, Class, Struct, Interface, Enum, Function, Object.\n" +
-              "  • Jede Liste ist durchsuchbar und sortierbar (Name auf/ab, zuletzt geändert auf/ab).\n" +
-              "  • Ansicht umschaltbar (▦ Karten / ☰ Liste mit Datum / ▤ Tabelle) — wie im Explorer.\n" +
-              "  • Linksklick wählt einen Eintrag, Shift+Klick einen Bereich, Strg+Klick einzeln dazu; Doppelklick öffnet den Editor.\n" +
-              "  • „⬇ Auswahl exportieren\" exportiert die markierten Einträge; Rechtsklick auf einen Eintrag → Bearbeiten / „⬇ Code exportieren\" / Löschen.\n" +
-              "  • Der Editor: Name, Typ, Namespace, Beschreibung, Basisklasse (Einfachvererbung) + " +
-              "implementierte Interfaces, einklappbare Felder- und Methoden-Abschnitte (Sichtbarkeit + − # ~, static), " +
-              "Enum-Werte und typisierte Daten-Ports."
-            : "Tabs at the top: 🗂 Boards plus one tab per entity type — Namespace, Class, Struct, Interface, Enum, Function, Object.\n" +
-              "  • Each list is searchable and sortable (name asc/desc, last-modified asc/desc).\n" +
-              "  • Switchable view (▦ cards / ☰ list with date / ▤ table) — like the file explorer.\n" +
-              "  • Left-click selects an entry, Shift+click a range, Ctrl+click adds individually; double-click opens the editor.\n" +
-              "  • \"⬇ Export selected\" exports the selected entries; right-click an entry → Edit / \"⬇ Export code\" / Delete.\n" +
-              "  • The editor: name, type, namespace, description, base class (single inheritance) + " +
-              "implemented interfaces, collapsible Fields and Methods sections (visibility + − # ~, static), " +
-              "enum values and typed data ports.");
-
-        AddSubHeader(isDE ? "Struktur-Boards" : "Structure boards");
-        AddBody(isDE
-            ? "Freie Leinwand mit UML-artigen Karten. Karten ziehen; typisierte Input→Output-Daten-Ports verbinden " +
-              "(Pointer / Referenz / direkt müssen übereinstimmen — ein Mismatch wird abgelehnt, damit kein Typfehler entsteht). " +
-              "Vererbung wird per Dropdown im Editor gesetzt, nicht als Linie gezeichnet. Die Leinwand wächst automatisch mit."
-            : "A free canvas of UML-style cards. Drag cards; wire typed input→output data ports " +
-              "(pointer / reference / direct conventions must match — a mismatch is refused so no type error sneaks in). " +
-              "Inheritance is set via a dropdown in the editor, not drawn as a line. The canvas auto-grows as you work.");
-
-        AddBody(isDE
-            ? "Auswahl & selektiver Export:\n" +
-              "  • Linksklick wählt eine Karte. Shift+Klick wählt den Bereich (Lesereihenfolge) zwischen zuletzt geklickter und jetziger Karte. Strg+Klick fügt eine Karte zur Auswahl hinzu / entfernt sie.\n" +
-              "  • '⬇ Alles exportieren' exportiert alle Karten des Boards, '⬇ Auswahl exportieren' nur die markierten.\n" +
-              "  • Rechtsklick auf eine Karte → '⬇ Code exportieren' für genau dieses Element (neben Bearbeiten/Löschen)."
-            : "Selection & selective export:\n" +
-              "  • Left-click selects a card. Shift+click selects the reading-order range between the last-clicked and the clicked card. Ctrl+click adds/removes a card from the selection.\n" +
-              "  • '⬇ Export all' exports every card on the board; '⬇ Export selected' only the selected ones.\n" +
-              "  • Right-click a card → '⬇ Export code' for just that element (next to edit/delete).");
-
-        AddSubHeader(isDE ? "Programmablaufplan & Struktogramm" : "Flowchart & structogram");
-        AddBody(isDE
-            ? "Jede Funktion und jede Methode kann einen Ablauf bekommen — der 🔁-Knopf öffnet die Auswahl:\n" +
-              "  • Programmablaufplan (DIN 66001): Start/Ende, Prozess, Verzweigung, E/A, Unterprogramm, Notiz; beschriftete Pfeile. " +
-              "Drei Modi-Knöpfe: Auswählen/Bewegen, Verbinden, Entfernen.\n" +
-              "  • Struktogramm (Nassi-Shneiderman, DIN 66261): verschachtelte Blöcke — Anweisung, Wenn/Sonst, While, Do-While, Fallauswahl. " +
-              "Rechtsklick auf einen Block zum Einfügen/Umschließen/Löschen.\n\n" +
-              "Vorgesehener Weg: (optional Programmablaufplan) → Struktogramm → Code.\n" +
-              "  • Im Ablaufplan wandelt der '▦ → Struktogramm'-Knopf den PAP in ein Struktogramm um. Das dient zugleich " +
-              "als Filter für saubere Struktur: nicht strukturierbare Stellen (wilde Sprünge) werden bernsteinfarben " +
-              "pulsierend markiert statt still falsch übersetzt — du siehst genau, wo es klemmt.\n" +
-              "  • Aus dem Struktogramm wird der Methodenrumpf deterministisch (ohne KI) erzeugt.\n" +
-              "  • Ein Ablaufplan DIREKT in Code ist nicht deterministisch — diesen Schritt kann auf Wunsch eine KI übernehmen."
-            : "Every function and method can have a flow — the 🔁 button opens a chooser:\n" +
-              "  • Flowchart / Programmablaufplan (DIN 66001): start/end, process, decision, I/O, subroutine, note; labelled arrows. " +
-              "Three mode buttons: Select/Move, Connect, Remove.\n" +
-              "  • Structogram (Nassi-Shneiderman, DIN 66261): nested blocks — statement, if/else, while, do-while, case. " +
-              "Right-click a block to insert/wrap/delete.\n\n" +
-              "Intended workflow: (optional flowchart) → structogram → code.\n" +
-              "  • In the flowchart, the '▦ → Structogram' button converts the PAP into a structogram. This doubles as a " +
-              "clean-structure filter: unstructurable parts (arbitrary jumps) are flagged with a pulsing amber highlight " +
-              "instead of being silently miscompiled — you see exactly where it breaks.\n" +
-              "  • The structogram then generates the method body deterministically (no AI).\n" +
-              "  • Converting a flowchart DIRECTLY to code is not deterministic — that step can be done by an AI on request.");
-
-        AddSubHeader(isDE ? "Code-Export" : "Code export");
-        AddBody(isDE
-            ? "⬇ Code exportieren erzeugt Gerüst-Code aus allen Entitäten in 10 Sprachen: " +
-              "C#, C++, Java, TypeScript, Python, Kotlin, Swift, PHP, Go und Rust. " +
-              "Go und Rust kennen keine Klassenvererbung — dort wird die Basisklasse als Komposition/Embedding abgebildet. " +
-              "Ergebnis in die Zwischenablage kopieren oder nach OUTPUT/generated/ speichern."
-            : "⬇ Export code generates skeleton code from all entities in 10 languages: " +
-              "C#, C++, Java, TypeScript, Python, Kotlin, Swift, PHP, Go and Rust. " +
-              "Go and Rust have no class inheritance — there the base class is mapped to composition/embedding. " +
-              "Copy the result to the clipboard or save it to OUTPUT/generated/.");
-        AddHighlight(isDE
-            ? "💡  Programmier-Typnamen (Class, Struct, Interface …) bleiben in jeder UI-Sprache Englisch — es sind universelle Code-Begriffe."
-            : "💡  Programming type names (Class, Struct, Interface …) stay English in every UI language — they are universal code keywords.");
 
         // ── 🔗 Bridge ─────────────────────────────────────────────────────
         BeginSection("🔗", isDE ? "Bridge-Tab  (MCP-Agenten-Bridge)" : "Bridge tab  (MCP Agent Bridge)", autoBridge);

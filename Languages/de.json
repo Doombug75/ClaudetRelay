@@ -1040,5 +1040,12 @@
     "Code_NoMatch": "Keine Treffer.",
     "Code_View_Cards": "Kartenansicht",
     "Code_View_List": "Listenansicht (mit Datum)",
-    "Code_View_Table": "Tabellenansicht (kompakte Spalten)"
+    "Code_View_Table": "Tabellenansicht (kompakte Spalten)",
+    "SF_NotFoundTitle": "StructoFox nicht gefunden",
+    "SF_NotFoundMsg": "StructoFox wurde nicht gefunden. StructoFox ist der externe Ablaufplan-/Code-Editor, der über den „Code“-Button geöffnet wird. Lade es herunter und gib anschließend den Pfad zur StructoFox.exe an:",
+    "SF_Download": "🌐  StructoFox herunterladen",
+    "SF_PathLabel": "Pfad zur StructoFox.exe:",
+    "SF_FileNotFound": "Datei nicht gefunden.",
+    "SF_LaunchError": "StructoFox konnte nicht gestartet werden: {0}",
+    "SF_SettingsBody": "Pfad zur StructoFox.exe — dem externen Ablaufplan-/Code-Editor, der über den „Code“-Button eines Projekts gestartet wird. Leer = beim ersten Start per Datei-Dialog wählen."
 }

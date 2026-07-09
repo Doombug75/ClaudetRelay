@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <Version>0.9.9.8</Version>
-    <AssemblyVersion>0.9.9.8</AssemblyVersion>
+    <Version>0.9.9.9</Version>
+    <AssemblyVersion>0.9.9.9</AssemblyVersion>
     <!-- Prevent the SDK from auto-generating AssemblyInfo files.
          WPF's _wpftmp temp project also generates these from the same project
          properties, producing CS0579 duplicates on a clean obj build.

@@ -162,6 +162,10 @@ public class AppSettings
     /// <summary>Root folder for saved projects. Empty = use default Documents path.</summary>
     public string ProjectsFolder { get; set; } = "";
 
+    /// <summary>Path to StructoFox.exe — the external PAP/code editor launched from a project's Code button.
+    /// Empty = ask the user (file picker) on first use, then remember the choice here.</summary>
+    public string StructoFoxExePath { get; set; } = "";
+
     /// <summary>
     /// Folder where project ZIP backups are stored.
     /// Empty = backup feature disabled (no backup prompt on project close).

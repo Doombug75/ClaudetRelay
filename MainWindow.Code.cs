@@ -35,7 +35,135 @@ public partial class MainWindow
     private void CodeButton_Click(object sender, RoutedEventArgs e)
     {
         if (_currentProjectFolder is null) return;
-        ShowCodePanel(CodeContent.Visibility != Visibility.Visible);
+        // The Code experience now lives in StructoFox (the external PAP/code editor): launch it on a StructoFox
+        // subproject of this project instead of showing the old in-app Code panel.
+        LaunchStructoFox(_currentProjectFolder);
+    }
+
+    // Starts StructoFox pointed at the "StructoFox" subfolder of the given project (StructoFox creates it and
+    // asks for the code syntax on first use). The exe path is remembered in settings; a file picker asks for it
+    // the first time (or if the stored path is gone).
+    private void LaunchStructoFox(string projFolder)
+    {
+        var settings = SettingsService.Load();
+        var exe = settings.StructoFoxExePath;
+        if (string.IsNullOrWhiteSpace(exe) || !System.IO.File.Exists(exe))
+        {
+            // Not configured/found → the localized dialog explains where to download it and takes the path.
+            exe = PromptForStructoFox();
+            if (string.IsNullOrWhiteSpace(exe)) return;
+            settings.StructoFoxExePath = exe;
+            SettingsService.Save(settings);
+        }
+
+        var sub = System.IO.Path.Combine(projFolder, "StructoFox");
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, $"\"{sub}\"") { UseShellExecute = false });
+        }
+        catch (System.Exception ex)
+        {
+            MessageBox.Show(this, string.Format(Properties.Loc.S("SF_LaunchError"), ex.Message), "StructoFox", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>Where to download StructoFox — shown in the "not found" dialog. Update if the download URL changes.</summary>
+    private const string StructoFoxDownloadUrl = "https://github.com/structofox";
+
+    // Localized dialog shown when StructoFox.exe isn't configured/found: says where to download it (with a button
+    // that opens the page) and lets the user enter/browse the path. Returns the chosen exe path, or null on cancel.
+    private string? PromptForStructoFox()
+    {
+        var dlg = new Window
+        {
+            Title                 = Properties.Loc.S("SF_NotFoundTitle"),
+            Width                 = 480,
+            SizeToContent         = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner                 = this,
+            ResizeMode            = ResizeMode.NoResize,
+            ShowInTaskbar         = false,
+        };
+        if (!string.IsNullOrWhiteSpace(_currentThemePath))
+            try { var d = OxsuitLoader.Load(_currentThemePath); if (d is not null) dlg.Resources.MergedDictionaries.Add(d); } catch { }
+        dlg.SetResourceReference(Control.BackgroundProperty, "ContentBgBrush");
+        dlg.SourceInitialized += (_, _) => ParticipantsWindow.TryApplyTitleBarTo(dlg);
+
+        var stack = new StackPanel { Margin = new Thickness(18) };
+        dlg.Content = stack;
+
+        var msg = new TextBlock
+        {
+            Text         = Properties.Loc.S("SF_NotFoundMsg"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin       = new Thickness(0, 0, 0, 12),
+        };
+        msg.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+        stack.Children.Add(msg);
+
+        var dl = StructoBtn(Properties.Loc.S("SF_Download"), "ControlBgBrush");
+        dl.HorizontalAlignment = HorizontalAlignment.Left;
+        dl.Click += (_, _) => { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(StructoFoxDownloadUrl) { UseShellExecute = true }); } catch { } };
+        stack.Children.Add(dl);
+
+        var url = new TextBlock { Text = StructoFoxDownloadUrl, FontSize = 11, Opacity = 0.7, Margin = new Thickness(2, 2, 0, 14) };
+        url.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+        stack.Children.Add(url);
+
+        var lbl = new TextBlock { Text = Properties.Loc.S("SF_PathLabel"), Margin = new Thickness(0, 0, 0, 4) };
+        lbl.SetResourceReference(TextBlock.ForegroundProperty, "SidebarTextBrush");
+        stack.Children.Add(lbl);
+
+        var pathBox = new TextBox();
+        pathBox.SetResourceReference(Control.BackgroundProperty, "InputBgBrush");
+        pathBox.SetResourceReference(Control.ForegroundProperty, "SidebarTextBrush");
+        var browse = StructoBtn(Properties.Loc.S("Asr_BrowseFolder"), "ControlBgBrush");
+        browse.Margin = new Thickness(8, 0, 0, 0);
+        browse.Click += (_, _) =>
+        {
+            var pick = new Microsoft.Win32.OpenFileDialog { Title = "StructoFox.exe", Filter = "StructoFox|StructoFox.exe|Executables (*.exe)|*.exe" };
+            if (pick.ShowDialog(dlg) == true) pathBox.Text = pick.FileName;
+        };
+        var pathRow = new Grid();
+        pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        pathRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(pathBox, 0); pathRow.Children.Add(pathBox);
+        Grid.SetColumn(browse, 1); pathRow.Children.Add(browse);
+        stack.Children.Add(pathRow);
+
+        string? result = null;
+        var okBtn = StructoBtn(Properties.Loc.S("Btn_OK"), "PrimaryAccentBrush", "ContentBgBrush");
+        okBtn.IsDefault = true;
+        okBtn.Click += (_, _) =>
+        {
+            var p = pathBox.Text?.Trim() ?? "";
+            if (p.Length == 0) return;
+            if (!SysIO.File.Exists(p)) { MessageBox.Show(dlg, Properties.Loc.S("SF_FileNotFound"), "StructoFox", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+            result = p; dlg.DialogResult = true; dlg.Close();
+        };
+        var cancelBtn = StructoBtn(Properties.Loc.S("Btn_Cancel"), "ControlBgBrush");
+        cancelBtn.IsCancel = true; cancelBtn.Margin = new Thickness(0, 0, 8, 0);
+        cancelBtn.Click += (_, _) => { dlg.DialogResult = false; dlg.Close(); };
+        stack.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0),
+            Children = { cancelBtn, okBtn },
+        });
+
+        dlg.ShowDialog();
+        return result;
+    }
+
+    // A themed button matching the app's ModernButton style, used by the StructoFox dialog. A highlight-coloured
+    // button (accent background) must use the BACKGROUND brush as its text — per the OXSUIT definition the accent
+    // colour is guaranteed readable against Background — so pass fgKey "ContentBgBrush" for those.
+    private static Button StructoBtn(string label, string bgKey, string fgKey = "SidebarTextBrush")
+    {
+        var b = new Button { Content = label, Padding = new Thickness(12, 8, 12, 8), FontSize = 13, HorizontalContentAlignment = HorizontalAlignment.Left };
+        b.SetResourceReference(Control.StyleProperty, "ModernButton");
+        b.SetResourceReference(Control.BackgroundProperty, bgKey);
+        b.SetResourceReference(Control.ForegroundProperty, fgKey);
+        return b;
     }
 
     private void ShowCodePanel(bool show)

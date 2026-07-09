@@ -1040,5 +1040,12 @@
     "Code_NoMatch": "Sin coincidencias.",
     "Code_View_Cards": "Vista de tarjetas",
     "Code_View_List": "Vista de lista (con fecha)",
-    "Code_View_Table": "Vista de tabla (columnas compactas)"
+    "Code_View_Table": "Vista de tabla (columnas compactas)",
+    "SF_NotFoundTitle": "StructoFox no encontrado",
+    "SF_NotFoundMsg": "No se encontró StructoFox. StructoFox es el editor externo de diagramas de flujo/código que se abre con el botón «Code». Descárgalo y luego indica la ruta a StructoFox.exe:",
+    "SF_Download": "🌐  Descargar StructoFox",
+    "SF_PathLabel": "Ruta a StructoFox.exe:",
+    "SF_FileNotFound": "Archivo no encontrado.",
+    "SF_LaunchError": "No se pudo iniciar StructoFox: {0}",
+    "SF_SettingsBody": "Ruta a StructoFox.exe: el editor externo de diagramas de flujo/código que se inicia con el botón «Code» de un proyecto. Vacío = elegirlo mediante un diálogo de archivo la primera vez."
 }

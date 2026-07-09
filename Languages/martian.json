@@ -1147,5 +1147,12 @@
     "Code_NoMatch": "Nax maxvraks.",
     "Code_View_Cards": "Kardvrak vyu",
     "Code_View_List": "Listvrak vyu (with datvrak)",
-    "Code_View_Table": "Tabvrak vyu (kompakt kolumvraks)"
+    "Code_View_Table": "Tabvrak vyu (kompakt kolumvraks)",
+    "SF_NotFoundTitle": "StructoFox nax foundvrak",
+    "SF_NotFoundMsg": "StructoFox wex nax foundvrak. StructoFox ix zar externvrak flowchart-/code-editvrak openvrak frum zar „Code“-button. Downloadvrak it, then pointvrak vu StructoFox.exe:",
+    "SF_Download": "🌐  Downloadvrak StructoFox",
+    "SF_PathLabel": "Pathvrak vu StructoFox.exe:",
+    "SF_FileNotFound": "Frix nax foundvrak.",
+    "SF_LaunchError": "StructoFox nax launchvrak: {0}",
+    "SF_SettingsBody": "Pathvrak vu StructoFox.exe — zar externvrak flowchart-/code-editvrak launchvrak frum zar „Code“-button vun projektvrak. Emptyvrak = pikx it via zar frix-dialogvrak at furst usal."
 }
