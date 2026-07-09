@@ -275,4 +275,10 @@ Project types define the initial system prompt, suggested roles, and structural 
 
 Copy an existing file, adjust the name, description, and system prompt, and restart the app. Your new type appears in the project type picker immediately.
 
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE). © 2026 Hans-Robert Matthes.
+
 
